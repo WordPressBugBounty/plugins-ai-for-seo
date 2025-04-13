@@ -1,0 +1,1 @@
+# plugins-ai-for-seo
