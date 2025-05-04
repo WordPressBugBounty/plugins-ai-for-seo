@@ -1,5 +1,9 @@
 == Changelog ==
 
+= 2.0.3 =
+* SEO Autopilot now more accurately reflects its current status and includes an option to immediately schedule the next run.
+* Bug Fixes & Maintenance: Fixed 15 minor bugs, corrected typos, and implemented security updates.
+
 = 2.0.2 =
 * Improved Prefix & Suffix Support: Prefixes and suffixes are now correctly applied when using the "Generate with AI" button in both the Metadata Editor and the Attachment Attributes Editor.
 * Enhanced Mobile UX: Better responsiveness and usability on the Pages / Posts and Media Files views for mobile devices.

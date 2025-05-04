@@ -300,7 +300,7 @@ echo "<table class='widefat striped table-view-list attachments ai4seo-posts-tab
 
             // Generation Coverage
             echo "<td class='ai4seo-generation-coverage'>";
-                # todo: make adjustements from main branch
+                # todo: make adjustments from main branch
                 if ($ai4seo_active_attachment_attributes) {
                     // output progress bar
                     echo "<div id='ai4seo-seo-coverage-progress-bar-" . esc_attr($ai4seo_this_post_attachment_id) . "' class='ai4seo-seo-coverage-progress-bar" . ($ai4seo_is_attachment_post_pending ? " ai4seo-green-animated-progress-bar" : ($ai4seo_is_attachment_post_waiting_to_get_scheduled ? " ai4seo-gray-animated-progress-bar" : "")) . ($ai4seo_this_attachment_attributes_is_not_finished ? " ai4seo-progress-bar-not-finished" : " ai4seo-progress-bar-finished") . "'>";

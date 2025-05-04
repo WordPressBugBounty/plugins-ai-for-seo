@@ -2,9 +2,9 @@
 Contributors: spacecodes
 Donate link: https://spa.ce.codes
 Tags: AI, SEO, Metadata, Alt text, Bulk
-Requires at least: 4.0
-Tested up to: 6.7.2
-Stable tag: 2.0.2
+Requires at least: 4.7
+Tested up to: 6.8.1
+Stable tag: 2.0.3
 Requires PHP: 7.4
 License: GPLv2 or later (or compatible)
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -306,6 +306,10 @@ If you generated metadata or media attributes with incorrect settings, follow th
 These settings will allow the plugin to regenerate and overwrite metadata and media attributes, even for entries that were previously marked as complete.
 
 == Changelog ==
+
+= 2.0.3 =
+* SEO Autopilot now more accurately reflects its current status and includes an option to immediately schedule the next run.
+* Bug Fixes & Maintenance: Fixed 15 minor bugs, corrected typos, and implemented security updates.
 
 = 2.0.2 =
 * Improved Prefix & Suffix Support: Prefixes and suffixes are now correctly applied when using the "Generate with AI" button in both the Metadata Editor and the Attachment Attributes Editor.

@@ -123,7 +123,6 @@ if (isset($ai4seo_recent_setting_changes[AI4SEO_SETTING_ENABLED_BULK_GENERATION_
     $ai4seo_just_disabled_post_types = array_diff($ai4seo_old_enabled_bulk_generation_post_types, $ai4seo_new_enabled_bulk_generation_post_types);
 
     if ($ai4seo_new_enabled_bulk_generation_post_types) {
-
         // excavate new post types
         if (in_array("attachment", $ai4seo_new_enabled_bulk_generation_post_types)) {
             ai4seo_excavate_attachments_with_missing_attributes();
@@ -138,6 +137,9 @@ if (isset($ai4seo_recent_setting_changes[AI4SEO_SETTING_ENABLED_BULK_GENERATION_
 
         // try to start the generation of data asap
         ai4seo_inject_additional_cronjob_call(AI4SEO_BULK_GENERATION_CRON_JOB_NAME);
+
+        // set the SEO Autopilot starting time
+        ai4seo_update_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_SEO_AUTOPILOT_SET_UP_TIME, time());
     }
 
     // for all just disabled post types, remove all pending post ids and refresh the generation status summary

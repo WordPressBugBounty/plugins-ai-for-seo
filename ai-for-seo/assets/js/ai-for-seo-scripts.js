@@ -1011,14 +1011,6 @@ function ai4seo_get_post_id() {
         return parseInt(post_id);
     }
 
-    // then look for the post-id in the localized object
-    post_id = ai4seo_get_localization_parameter("ai4seo_current_post_id");
-
-    // Make sure that post_id could be found and is a number
-    if (post_id && !isNaN(post_id) && parseInt(post_id) > 0) {
-        return parseInt(post_id);
-    }
-
     // Check if "media-modal"-element exists
     if (ai4seo_exists(".media-modal")) {
         // Read current url-parameters
@@ -1046,6 +1038,14 @@ function ai4seo_get_post_id() {
                 }
             }
         }
+    }
+
+    // then look for the post-id in the localized object -> check last as it can sometimes have invalid information
+    post_id = ai4seo_get_localization_parameter("ai4seo_current_post_id");
+
+    // Make sure that post_id could be found and is a number
+    if (post_id && !isNaN(post_id) && parseInt(post_id) > 0) {
+        return parseInt(post_id);
     }
 
     return false;
@@ -2941,6 +2941,17 @@ jQuery(document).on("click", ".ai4seo-one-time-notice > .notice-dismiss", functi
 
     // call desired ajax action
     ai4seo_perform_ajax_call('ai4seo_dismiss_one_time_notice', {ai4seo_notice_identifier: ai4seo_notice_identifier}).catch(error => { /* auto error handler enabled */ });
+});
+
+// move all .ai4seo-notice to .ai4seo-notices-area
+jQuery(document).ready(function() {
+    // check if .ai4seo-notices-area exists
+    if (ai4seo_exists(".ai4seo-notices-area")) {
+        // move all .ai4seo-notice to .ai4seo-notices-area
+        jQuery(".ai4seo-notice").each(function() {
+            jQuery(this).appendTo(".ai4seo-notices-area");
+        });
+    }
 });
 
 

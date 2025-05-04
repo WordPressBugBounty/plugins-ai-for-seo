@@ -117,7 +117,7 @@ if (!$ai4seo_this_mime_type || !in_array($ai4seo_this_mime_type, $ai4seo_allowed
 
 // check if it's one of the allowed mime types
 if (!$ai4seo_this_mime_type || !in_array($ai4seo_this_mime_type, $ai4seo_allowed_attachment_mime_types)) {
-    ai4seo_return_error_as_json("Media mime type is not allowed: " . $ai4seo_this_mime_type, 231823824);
+    ai4seo_return_error_as_json("Media mime type is not allowed: " . $ai4seo_this_mime_type, 251823824);
 }
 
 // check if the url is valid -> if not we will try to use the image as base64

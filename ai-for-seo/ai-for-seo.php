@@ -3,7 +3,7 @@
 Plugin Name: AI for SEO
 Plugin URI: https://aiforseo.ai
 Description: One-Click SEO solution. "AI for SEO" helps your website to rank higher in Web Search results.
-Version: 2.0.2
+Version: 2.0.3
 Author: spacecodes
 Author URI: https://spa.ce.codes
 Text Domain: ai-for-seo
@@ -15,7 +15,7 @@ if (!defined("ABSPATH")) {
     exit;
 }
 
-const AI4SEO_PLUGIN_VERSION_NUMBER = "2.0.2";
+const AI4SEO_PLUGIN_VERSION_NUMBER = "2.0.3";
 const AI4SEO_PLUGIN_NAME = "AI for SEO";
 const AI4SEO_PLUGIN_DESCRIPTION = 'One-Click SEO solution. "AI for SEO" helps your website to rank higher in Web Search results.';
 const AI4SEO_PLUGIN_IDENTIFIER = "ai-for-seo";
@@ -259,6 +259,9 @@ const AI4SEO_THIRD_PARTY_PLUGIN_BLOG2SOCIAL = "blog2social";
 
 // multi-language plugins
 const AI4SEO_THIRD_PARTY_PLUGIN_WPML = "wpml";
+
+// attachments / images plugins
+const AI4SEO_THIRD_PARTY_PLUGIN_NEXTGEN_GALLERY = "nextgen-gallery";
 
 // details for the third party seo plugins
 const AI4SEO_THIRD_PARTY_SEO_PLUGIN_DETAILS = array(
@@ -555,6 +558,7 @@ const AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFER
 const AI4SEO_ENVIRONMENTAL_VARIABLE_HAS_PURCHASED_SOMETHING = "has_purchased_something";
 const AI4SEO_ENVIRONMENTAL_VARIABLE_IS_FIRST_PURCHASE_DISCOUNT_AVAILABLE = "is_first_purchase_discount_available";
 const AI4SEO_ENVIRONMENTAL_VARIABLE_EARLY_BIRD_DISCOUNT_TIME_LEFT = "early_bird_discount_time_left";
+const AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_SEO_AUTOPILOT_SET_UP_TIME = "last_seo_autopilot_set_up_time";
 
 const AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES = array(
     AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_KNOWN_PLUGIN_VERSION => "0.0.0",
@@ -576,6 +580,7 @@ const AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES = array(
     AI4SEO_ENVIRONMENTAL_VARIABLE_HAS_PURCHASED_SOMETHING => false,
     AI4SEO_ENVIRONMENTAL_VARIABLE_IS_FIRST_PURCHASE_DISCOUNT_AVAILABLE => false,
     AI4SEO_ENVIRONMENTAL_VARIABLE_EARLY_BIRD_DISCOUNT_TIME_LEFT => 0,
+    AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_SEO_AUTOPILOT_SET_UP_TIME => 0,
 );
 
 $ai4seo_environmental_variables = AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES;
@@ -3814,6 +3819,11 @@ function ai4seo_get_mime_type_from_url(string $url ): ?string {
     // Get the 'content-type' header
     $content_type = wp_remote_retrieve_header( $headers, 'content-type' );
 
+    // check for a ";" and only consider everything before it (fixing "text/html; charset=UTF-8")
+    if ( strpos( $content_type, ';' ) !== false ) {
+        $content_type = explode( ';', $content_type )[0];
+    }
+
     // Ensure it's an image MIME type
     if ( ! empty( $content_type ) ) {
         return $content_type;
@@ -4961,6 +4971,23 @@ function ai4seo_get_environmental_variable_accepted_time_output($environmental_v
 // =========================================================================================== \\
 
 /**
+ * Function to check if the SEO Autopilot is running at least X amount of seconds
+ * @param int $duration The duration in seconds
+ * @return bool True if the SEO Autopilot is running at least X amount of seconds
+ */
+function ai4seo_was_seo_autopilot_set_up_at_least_x_seconds_ago(int $duration = 60): bool {
+    $ai4seo_seo_autopilot_start_time = (int) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_SEO_AUTOPILOT_SET_UP_TIME);
+
+    if (!$ai4seo_seo_autopilot_start_time) {
+        return false;
+    }
+
+    return (time() - $ai4seo_seo_autopilot_start_time) >= $duration;
+}
+
+// =========================================================================================== \\
+
+/**
  * Function to eventually output a notice about inefficient cron jobs
  * @return void
  */
@@ -4968,6 +4995,11 @@ function ai4seo_echo_inefficient_cron_jobs_notice() {
     $ai4seo_is_any_bulk_generation_activated = ai4seo_is_any_bulk_generation_enabled();
 
     if (!$ai4seo_is_any_bulk_generation_activated) {
+        return;
+    }
+
+    // check if the SEO Autopilot was set up at least 60 seconds ago
+    if (!ai4seo_was_seo_autopilot_set_up_at_least_x_seconds_ago()) {
         return;
     }
 
@@ -5338,6 +5370,11 @@ function ai4seo_is_plugin_or_theme_active($identifier): bool {
         case AI4SEO_THIRD_PARTY_PLUGIN_BLOG2SOCIAL:
             $check_this_file_path = "blog2social/blog2social.php";
             $check_this_class_name = "B2S_System";
+            break;
+
+        case AI4SEO_THIRD_PARTY_PLUGIN_NEXTGEN_GALLERY:
+            $check_this_file_path = "nextgen-gallery/nggallery.php";
+            $check_this_class_name = "C_NextGEN_Bootstrap";
             break;
     }
 
@@ -5746,7 +5783,6 @@ function ai4seo_automated_generation_cron_job($debug = false): bool {
     update_option(AI4SEO_PROCESSING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME, array());
 
     // reschedule this cronjob asap, so that the next posts can be filled shortly
-
     if ($made_some_progress) {
         ai4seo_set_cron_job_status(AI4SEO_BULK_GENERATION_CRON_JOB_NAME, "finished");
         ai4seo_inject_additional_cronjob_call(AI4SEO_BULK_GENERATION_CRON_JOB_NAME);
@@ -6043,13 +6079,14 @@ function ai4seo_automated_attachment_attributes_generation(bool $debug = false, 
 
     // check the seo coverage of the attachment
     $generate_media_attributes_for_fully_covered_entries = ai4seo_get_setting(AI4SEO_SETTING_GENERATE_ATTACHMENT_ATTRIBUTES_FOR_FULLY_COVERED_ENTRIES);
+    $are_attachment_attributes_fully_covered = ai4seo_are_attachment_attributes_fully_covered($attachment_post_id);
 
     // we ignore fully covered entries -> only check if we have an generated_metadata_post_ids entry
     // to prevent regenerating media attribute for our own generated media attributes
     if ($generate_media_attributes_for_fully_covered_entries) {
         $generated_media_attributes_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_GENERATED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME);
 
-        if (in_array($attachment_post_id, $generated_media_attributes_post_ids)) {
+        if (in_array($attachment_post_id, $generated_media_attributes_post_ids) && $are_attachment_attributes_fully_covered) {
             if ($debug) {
                 echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("post-id is already in the generated_metadata_post_ids option", true)) . "<</pre>";
             }
@@ -6060,7 +6097,7 @@ function ai4seo_automated_attachment_attributes_generation(bool $debug = false, 
         }
 
         // check the full seo coverage of the media file
-    } else if (ai4seo_are_attachment_attributes_fully_covered($attachment_post_id)) {
+    } else if ($are_attachment_attributes_fully_covered) {
         if ($debug) {
             echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("full metadata coverage found -> skip", true)) . "<</pre>";
         }
@@ -10100,6 +10137,7 @@ function ai4seo_validate_environmental_variable_value(string $environmental_vari
         case AI4SEO_ENVIRONMENTAL_VARIABLE_TOS_LAST_MODAL_OPEN_TIME:
         case AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_WEBSITE_TOC_AND_PP_UPDATE_TIME:
         case AI4SEO_ENVIRONMENTAL_VARIABLE_EARLY_BIRD_DISCOUNT_TIME_LEFT:
+        case AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_SEO_AUTOPILOT_SET_UP_TIME:
             // contains only of numbers
             return is_numeric($environmental_variable_value) && $environmental_variable_value >= 0;
 

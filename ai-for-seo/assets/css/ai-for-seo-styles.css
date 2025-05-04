@@ -13,6 +13,10 @@
     margin-bottom: -0.4rem;
 }
 
+.ai4seo-hidden-notices-area {
+    display: none;
+}
+
 /* Dashboard */
 .ai4seo-sidebar-version-number {
     font-size: small;
@@ -1727,7 +1731,6 @@ div.ai4seo-credits-number {
 
 div.ai4seo-credits-generation-costs-info {
     width: 100%;
-    margin-bottom: 1rem;
     color: #666;
     text-align: center;
 }
@@ -1742,6 +1745,9 @@ div.ai4seo-credits-generation-costs-info li {
 
 div.ai4seo-how-to-get-credits-container {
     width: 100%;
+    text-align: center;
+    margin-top: 1rem;
+    height: 5rem;
 }
 
 div.ai4seo-how-to-get-credits-container h4 {
@@ -1817,7 +1823,7 @@ div.ai4seo-get-more-credits-section .ai4seo-button {
 
 div.ai4seo-bulk-generation-status-container {
     width: 100%;
-    margin-top: .5rem;
+    margin-top: 0rem;
     text-align: center;
     position: relative;
 }
@@ -1882,26 +1888,26 @@ div.ai4seo-bulk-generation-status-animated-logo-container > img.ai4seo-bulk-gene
 }
 
 div.ai4seo-bulk-generation-status-container > div.ai4seo-bulk-generation-status-text {
-    margin-top: 1rem;
+    margin-top: 1.5rem;
     font-size: 2rem;
     color: #888;
 }
 
 div.ai4seo-bulk-generation-status-subtext {
     margin-top: 1.2rem;
-    font-size: 1rem;
+    font-size: .9rem;
     color: #555;
-    height: 2.5rem;
+    height: 3rem;
 }
 
 div.ai4seo-bulk-generation-button-container, div.ai4seo-buy-credits-button-container {
-    margin-top: 2rem;
+    margin-top: 1.5rem;
     width: 100%;
     text-align: center;
 }
 
 div.ai4seo-bulk-generation-button-container > div.ai4seo-buttons-wrapper, div.ai4seo-buy-credits-button-container > div.ai4seo-buttons-wrapper {
-    margin: 0;
+    margin: 0 0 -.5rem 0;
 }
 
 /* Container styling */

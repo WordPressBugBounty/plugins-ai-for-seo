@@ -120,7 +120,10 @@ if (isset($_GET["ai4seo-just-purchased"]) || isset($_GET["amp;ai4seo-just-purcha
 
 <?php
 
-// TOP BAR (MOBILE)
+// ___________________________________________________________________________________________ \\
+// === TOP BAR / NAVIGATION (MOBILE) ========================================================= \\
+// ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
+
 echo "<div class='ai4seo-mobile-top-bar'>";
     // toggle button
     echo "<button class='ai4seo-mobile-top-bar-toggle-button' onclick='ai4seo_toggle_sidebar();'>";
@@ -141,7 +144,11 @@ echo "</div>";
 
 echo "<div class='wrap ai4seo-wrap'>";
 
-    // SIDE BAR
+
+    // ___________________________________________________________________________________________ \\
+    // === SIDE BAR / NAVIGATION (DESKTOP) ======================================================= \\
+    // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
+
     echo "<div class='ai4seo-sidebar'>";
 
         // Main logo
@@ -232,12 +239,20 @@ echo "<div class='wrap ai4seo-wrap'>";
 
     echo "</div>";
 
+    // ___________________________________________________________________________________________ \\
+    // === CONTENT AREA ========================================================================== \\
+    // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
+
     echo "<div class='tab-content ai4seo-tab-content'>";
 
         // NOTICES
         echo "<div class='ai4seo-notices-area'>";
+            // AI for SEO errors are added here dynamically
+        echo "</div>";
+
+        // hide all other errors
+        echo "<div class='ai4seo-hidden-notices-area'>";
             echo "<h1 style='display: none;'>" . esc_html(AI4SEO_PLUGIN_NAME) . "</h1>";
-            // errors are added here dynamically
         echo "</div>";
 
 
