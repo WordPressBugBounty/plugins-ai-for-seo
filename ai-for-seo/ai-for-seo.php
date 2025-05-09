@@ -3,7 +3,7 @@
 Plugin Name: AI for SEO
 Plugin URI: https://aiforseo.ai
 Description: One-Click SEO solution. "AI for SEO" helps your website to rank higher in Web Search results.
-Version: 2.0.3
+Version: 2.0.4
 Author: spacecodes
 Author URI: https://spa.ce.codes
 Text Domain: ai-for-seo
@@ -15,7 +15,7 @@ if (!defined("ABSPATH")) {
     exit;
 }
 
-const AI4SEO_PLUGIN_VERSION_NUMBER = "2.0.3";
+const AI4SEO_PLUGIN_VERSION_NUMBER = "2.0.4";
 const AI4SEO_PLUGIN_NAME = "AI for SEO";
 const AI4SEO_PLUGIN_DESCRIPTION = 'One-Click SEO solution. "AI for SEO" helps your website to rank higher in Web Search results.';
 const AI4SEO_PLUGIN_IDENTIFIER = "ai-for-seo";
@@ -59,6 +59,7 @@ const AI4SEO_MAX_LATEST_ACTIVITY_LOGS = 10;
 const AI4SEO_BLUE_GET_MORE_CREDITS_BUTTON_THRESHOLD = 250;
 const AI4SEO_FIRST_PURCHASE_DISCOUNT = 30; # in percent
 const AI4SEO_EARLY_BIRD_DISCOUNT = 50; # in percent
+const AI4SEO_NEXTGEN_GALLERY_POST_TYPE = "ai4seo_ngg";
 
 const AI4SEO_CREDITS_PACKS = array(
     "price_1QKhvmHNyvfVK0r9Qz70F98V" => array(
@@ -118,6 +119,7 @@ const AI4SEO_SVG_ICONS = array(
     "code" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M392.8 1.2c-17-4.9-34.7 5-39.6 22l-128 448c-4.9 17 5 34.7 22 39.6s34.7-5 39.6-22l128-448c4.9-17-5-34.7-22-39.6zm80.6 120.1c-12.5 12.5-12.5 32.8 0 45.3L562.7 256l-89.4 89.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0l112-112c12.5-12.5 12.5-32.8 0-45.3l-112-112c-12.5-12.5-32.8-12.5-45.3 0zm-306.7 0c-12.5-12.5-32.8-12.5-45.3 0l-112 112c-12.5 12.5-12.5 32.8 0 45.3l112 112c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L77.3 256l89.4-89.4c12.5-12.5 12.5-32.8 0-45.3z"/></svg>',
     "eye" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM144 256a144 144 0 1 1 288 0 144 144 0 1 1 -288 0zm144-64c0 35.3-28.7 64-64 64c-7.1 0-13.9-1.2-20.3-3.3c-5.5-1.8-11.9 1.6-11.7 7.4c.3 6.9 1.3 13.8 3.2 20.7c13.7 51.2 66.4 81.6 117.6 67.9s81.6-66.4 67.9-117.6c-11.1-41.5-47.8-69.4-88.6-71.1c-5.8-.2-9.2 6.1-7.4 11.7c2.1 6.4 3.3 13.2 3.3 20.3z"/></svg>',
     "eye-slash" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c8.4-19.3 10.6-41.4 4.8-63.3c-11.1-41.5-47.8-69.4-88.6-71.1c-5.8-.2-9.2 6.1-7.4 11.7c2.1 6.4 3.3 13.2 3.3 20.3c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zM373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5L373 389.9z"/></svg>',
+    "file-export" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M0 64C0 28.7 28.7 0 64 0L224 0l0 128c0 17.7 14.3 32 32 32l128 0 0 128-168 0c-13.3 0-24 10.7-24 24s10.7 24 24 24l168 0 0 112c0 35.3-28.7 64-64 64L64 512c-35.3 0-64-28.7-64-64L0 64zM384 336l0-48 110.1 0-39-39c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l80 80c9.4 9.4 9.4 24.6 0 33.9l-80 80c-9.4 9.4-24.6 9.4-33.9 0s-9.4-24.6 0-33.9l39-39L384 336zm0-208l-128 0L256 0 384 128z"/></svg>',
     "globe" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M352 256c0 22.2-1.2 43.6-3.3 64l-185.3 0c-2.2-20.4-3.3-41.8-3.3-64s1.2-43.6 3.3-64l185.3 0c2.2 20.4 3.3 41.8 3.3 64zm28.8-64l123.1 0c5.3 20.5 8.1 41.9 8.1 64s-2.8 43.5-8.1 64l-123.1 0c2.1-20.6 3.2-42 3.2-64s-1.1-43.4-3.2-64zm112.6-32l-116.7 0c-10-63.9-29.8-117.4-55.3-151.6c78.3 20.7 142 77.5 171.9 151.6zm-149.1 0l-176.6 0c6.1-36.4 15.5-68.6 27-94.7c10.5-23.6 22.2-40.7 33.5-51.5C239.4 3.2 248.7 0 256 0s16.6 3.2 27.8 13.8c11.3 10.8 23 27.9 33.5 51.5c11.6 26 20.9 58.2 27 94.7zm-209 0L18.6 160C48.6 85.9 112.2 29.1 190.6 8.4C165.1 42.6 145.3 96.1 135.3 160zM8.1 192l123.1 0c-2.1 20.6-3.2 42-3.2 64s1.1 43.4 3.2 64L8.1 320C2.8 299.5 0 278.1 0 256s2.8-43.5 8.1-64zM194.7 446.6c-11.6-26-20.9-58.2-27-94.6l176.6 0c-6.1 36.4-15.5 68.6-27 94.6c-10.5 23.6-22.2 40.7-33.5 51.5C272.6 508.8 263.3 512 256 512s-16.6-3.2-27.8-13.8c-11.3-10.8-23-27.9-33.5-51.5zM135.3 352c10 63.9 29.8 117.4 55.3 151.6C112.2 482.9 48.6 426.1 18.6 352l116.7 0zm358.1 0c-30 74.1-93.6 130.9-171.9 151.6c25.5-34.2 45.2-87.7 55.3-151.6l116.7 0z"/></svg>',
     "handshake" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M323.4 85.2l-96.8 78.4c-16.1 13-19.2 36.4-7 53.1c12.9 17.8 38 21.3 55.3 7.8l99.3-77.2c7-5.4 17-4.2 22.5 2.8s4.2 17-2.8 22.5l-20.9 16.2L512 316.8 512 128l-.7 0-3.9-2.5L434.8 79c-15.3-9.8-33.2-15-51.4-15c-21.8 0-43 7.5-60 21.2zm22.8 124.4l-51.7 40.2C263 274.4 217.3 268 193.7 235.6c-22.2-30.5-16.6-73.1 12.7-96.8l83.2-67.3c-11.6-4.9-24.1-7.4-36.8-7.4C234 64 215.7 69.6 200 80l-72 48 0 224 28.2 0 91.4 83.4c19.6 17.9 49.9 16.5 67.8-3.1c5.5-6.1 9.2-13.2 11.1-20.6l17 15.6c19.5 17.9 49.9 16.6 67.8-2.9c4.5-4.9 7.8-10.6 9.9-16.5c19.4 13 45.8 10.3 62.1-7.5c17.9-19.5 16.6-49.9-2.9-67.8l-134.2-123zM16 128c-8.8 0-16 7.2-16 16L0 352c0 17.7 14.3 32 32 32l32 0c17.7 0 32-14.3 32-32l0-224-80 0zM48 320a16 16 0 1 1 0 32 16 16 0 1 1 0-32zM544 128l0 224c0 17.7 14.3 32 32 32l32 0c17.7 0 32-14.3 32-32l0-208c0-8.8-7.2-16-16-16l-80 0zm32 208a16 16 0 1 1 32 0 16 16 0 1 1 -32 0z"/></svg>',
     "headline" => '<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" rx="15" ry="15"/><rect x="15" y="20" width="40" height="10" rx="5" ry="5" fill="#ffffff"/><rect x="60" y="20" width="20" height="10" rx="5" ry="5" fill="#ffffff"/></svg>',
@@ -225,6 +227,7 @@ const AI4SEO_GENERATION_STATUS_POST_ID_OPTIONS = array(
     AI4SEO_PROCESSING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME,
     AI4SEO_FAILED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME,
 );
+
 
 // === CRON JOBS ========================================================================================== \\
 
@@ -972,6 +975,7 @@ const AI4SEO_ALLOWED_AJAX_FUNCTIONS = array(
     "ai4seo_stop_bulk_generation",
     "ai4seo_disable_payg",
     "ai4seo_init_purchase",
+    "ai4seo_import_nextgen_gallery_images",
 );
 
 
@@ -1058,6 +1062,24 @@ function ai4seo_init_user_essentials() {
     add_action("wp_footer", "ai4seo_include_modal_schemas_file");
     add_action("get_footer", "ai4seo_include_modal_schemas_file");
     add_action("admin_footer", "ai4seo_include_modal_schemas_file");
+
+    // register compatibility with other plugins
+    if (ai4seo_is_plugin_or_theme_active(AI4SEO_THIRD_PARTY_PLUGIN_NEXTGEN_GALLERY)) {
+        register_post_type( AI4SEO_NEXTGEN_GALLERY_POST_TYPE, array(
+            'label'                 => AI4SEO_NEXTGEN_GALLERY_POST_TYPE,
+            'public'                => false,
+            'show_ui'               => false,
+            'show_in_menu'          => false,
+            'exclude_from_search'   => true,
+            'publicly_queryable'    => false,
+            'query_var'             => false,
+            'rewrite'               => false,
+            'capability_type'       => 'post',
+            'supports'              => array( 'title', 'editor' ),
+            'can_export'            => false,
+            'show_in_rest'          => false,
+        ) );
+    }
 
     // user needs to accept tos? stop here, to prevent further plugin actions
     if (ai4seo_does_user_need_to_accept_tos_toc_and_pp()) {
@@ -3431,6 +3453,7 @@ function ai4seo_wp_kses(string $content): string {
 function ai4seo_get_publicly_accessible_post_types(): array {
     $excluded_post_types = array(
         'attachment',
+        'ai4seo_ngg', # nextgen gallery
         'revision',
         'nav_menu_item',
         'custom_css',
@@ -3920,6 +3943,73 @@ function ai4seo_normalize_text($text) {
     return stripslashes($text);
 }
 
+// =========================================================================================== \\
+
+/**
+ * Fetch remote file contents with fallback strategies:
+ * 1. wp_safe_remote_get (default)
+ * 2. wp_safe_remote_get with 'sslverify' => false
+ * 3. Local file access (if URL is local)
+ * 4. download_url() fallback
+ *
+ * @param string $url The full URL of the media to fetch
+ * @return string|WP_Error The file contents on success, or WP_Error on failure
+ */
+function ai4seo_get_remote_body(string $url) {
+    // Attempt 1: Standard remote fetch
+    $response = wp_safe_remote_get($url, array(
+        'timeout'    => 15,
+        'redirection'=> 5,
+        'decompress' => true,
+    ));
+
+    if (!is_wp_error($response)) {
+        return wp_remote_retrieve_body($response);
+    }
+
+    // Attempt 2: Retry with sslverify disabled (less secure)
+    $response = wp_safe_remote_get($url, array(
+        'timeout'    => 15,
+        'redirection'=> 5,
+        'decompress' => true,
+        'sslverify'  => false,
+    ));
+
+    if (!is_wp_error($response)) {
+        return wp_remote_retrieve_body($response);
+    }
+
+    // Attempt 3: Try to resolve as a local file if URL is local
+    $parsed_url = wp_parse_url($url);
+    $site_url   = wp_parse_url(site_url());
+
+    if (isset($parsed_url['host'], $site_url['host']) && $parsed_url['host'] === $site_url['host']) {
+        $relative_path = $parsed_url['path'] ?? '';
+        $relative_path = str_replace($site_url['path'], '', $relative_path); // strip subdirectory if any
+        $local_path = ABSPATH . ltrim($relative_path, '/');
+
+        if (file_exists($local_path)) {
+            $contents = @file_get_contents($local_path);
+            if ($contents !== false) {
+                return $contents;
+            }
+        }
+    }
+
+    // Attempt 4: Use download_url as last resort
+    $temp_file = download_url($url);
+    if (!is_wp_error($temp_file)) {
+        $contents = @file_get_contents($temp_file);
+        @unlink($temp_file); // Always clean up temp file
+        if ($contents !== false) {
+            return $contents;
+        }
+    }
+
+    // All attempts failed
+    return new WP_Error('ai4seo_fetch_failed', 'Could not fetch media contents.');
+}
+
 
 // ___________________________________________________________________________________________ \\
 // === POSTS ================================================================================= \\
@@ -4342,6 +4432,13 @@ function ai4seo_analyze_post(int $post_id) {
 
     // check if the post could be read
     if (!$post || is_wp_error($post) || !isset($post->post_type)) {
+        return;
+    }
+
+    // ignore attachments
+    $supported_attachment_post_types = ai4seo_get_supported_attachment_post_types();
+
+    if (in_array($post->post_type, $supported_attachment_post_types)) {
         return;
     }
 
@@ -6034,9 +6131,10 @@ function ai4seo_handle_failed_metadata_generation(int $post_id, string $function
 function ai4seo_automated_attachment_attributes_generation(bool $debug = false, int $only_this_attachment_post_id = 0): bool {
     global $ai4seo_allowed_attachment_mime_types;
 
-    $ai4seo_active_attachment_attributes = ai4seo_get_active_attachment_attributes();
+    $active_attachment_attributes = ai4seo_get_active_attachment_attributes();
+    $supported_attachment_post_types = ai4seo_get_supported_attachment_post_types();
 
-    if (!$ai4seo_active_attachment_attributes) {
+    if (!$active_attachment_attributes) {
         return false;
     }
 
@@ -6114,9 +6212,10 @@ function ai4seo_automated_attachment_attributes_generation(bool $debug = false, 
     // there are missing attachment attributes -> generate it
     // first, let's get the wp_post entry for more checks
     $attachment_post = get_post($attachment_post_id);
+    $attachment_post_type = $attachment_post->post_type;
 
     // check if it's an attachment
-    if (!$attachment_post || $attachment_post->post_type !== "attachment") {
+    if (!$attachment_post || !in_array($attachment_post_type, $supported_attachment_post_types)) {
         ai4seo_handle_failed_attachment_generation($attachment_post_id, __FUNCTION__, "Post is not a media for media post ID: " . $attachment_post_id, $debug);
         ai4seo_add_latest_activity_entry($attachment_post_id, "error", "attachment-attributes-bulk-generated", 0, "Post is not a media");
         return true;
@@ -6130,14 +6229,20 @@ function ai4seo_automated_attachment_attributes_generation(bool $debug = false, 
     }
 
     // check url of the attachment
-    $attachment_url = wp_get_attachment_url($attachment_post_id);
-    $ai4seo_use_base64_image = false;
+    if ($attachment_post_type === "attachment") {
+        // check url of the attachment
+        $attachment_url = wp_get_attachment_url($attachment_post_id);
+    } else {
+        $attachment_url = get_the_guid($attachment_post);
+    }
 
     if (!$attachment_url) {
         ai4seo_handle_failed_attachment_generation($attachment_post_id, __FUNCTION__, "Media URL not found for media post ID: " . $attachment_post_id, $debug);
         ai4seo_add_latest_activity_entry($attachment_post_id, "error", "attachment-attributes-bulk-generated", 0, "Media URL not found");
         return true;
     }
+
+    $ai4seo_use_base64_image = false;
 
     // check if url is valid
     if (!filter_var($attachment_url, FILTER_VALIDATE_URL)) {
@@ -6163,47 +6268,19 @@ function ai4seo_automated_attachment_attributes_generation(bool $debug = false, 
 
     if ($ai4seo_use_base64_image) {
         // Use wp_safe_remote_get instead of file_get_contents for fetching remote files
-        $remote_get_response = wp_safe_remote_get($attachment_url);
+        $this_attachment_contents = ai4seo_get_remote_body($attachment_url);
 
-        if (is_wp_error($remote_get_response)) {
+        if (is_wp_error($this_attachment_contents)) {
+            $remote_get_response_error = $this_attachment_contents->get_error_message();
             ai4seo_handle_failed_attachment_generation(
                 $attachment_post_id,
                 __FUNCTION__,
-                "Media URL not accessible for media post ID: " . $attachment_post_id,
+                "Media URL not accessible for media post ID: " . $attachment_post_id . " ($remote_get_response_error)",
                 $debug
             );
             ai4seo_add_latest_activity_entry($attachment_post_id, "error", "attachment-attributes-bulk-generated", 0, "Media URL not accessible");
             return true;
         }
-
-        // Check HTTP response code
-        $response_code = wp_remote_retrieve_response_code($remote_get_response);
-        if ($response_code !== 200) {
-            ai4seo_handle_failed_attachment_generation(
-                $attachment_post_id,
-                __FUNCTION__,
-                "Error fetching media: HTTP Code $response_code for media post ID: " . $attachment_post_id,
-                $debug
-            );
-            ai4seo_add_latest_activity_entry($attachment_post_id, "error", "attachment-attributes-bulk-generated", 0, "Media URL not accessible");
-            return true;
-        }
-
-        // Check if the content type is an image
-        $headers = wp_remote_retrieve_headers($remote_get_response);
-        $content_type = isset($headers['content-type']) ? $headers['content-type'] : '';
-        if (strpos($content_type, 'image/') !== 0) {
-            ai4seo_handle_failed_attachment_generation(
-                $attachment_post_id,
-                __FUNCTION__,
-                "Fetched content is not an image. Detected type: $content_type for media post ID: " . $attachment_post_id,
-                $debug
-            );
-            ai4seo_add_latest_activity_entry($attachment_post_id, "error", "attachment-attributes-bulk-generated", 0, "Media URL not accessible");
-            return true;
-        }
-
-        $this_attachment_contents = wp_remote_retrieve_body($remote_get_response);
 
         if (!$this_attachment_contents) {
             ai4seo_handle_failed_attachment_generation(
@@ -6517,6 +6594,8 @@ function ai4seo_excavate_attachments_with_missing_attributes(bool $debug = false
     global $wpdb;
     global $ai4seo_allowed_attachment_mime_types;
 
+    $supported_attachment_post_types = ai4seo_get_supported_attachment_post_types();
+
     // check the current credits balance, compare it to AI4SEO_MIN_CREDITS_BALANCE and if it's lower, return true
     if (ai4seo_robhub_api()->get_credits_balance() < AI4SEO_MIN_CREDITS_BALANCE) {
         if ($debug) {
@@ -6624,8 +6703,21 @@ function ai4seo_excavate_attachments_with_missing_attributes(bool $debug = false
         $post_date_term_string = "";
     }
 
+    if (count($supported_attachment_post_types) > 1) {
+        $escaped_supported_attachment_post_types = array();
+
+        // escape each element
+        foreach ($supported_attachment_post_types AS $this_supported_attachment_post_type) {
+            $escaped_supported_attachment_post_types[] = esc_sql($this_supported_attachment_post_type);
+        }
+
+        $post_type_term = "post_type IN ('" . implode("', '", $escaped_supported_attachment_post_types) . "')";
+    } else {
+        $post_type_term = "post_type = '" . esc_sql(reset($supported_attachment_post_types)) . "'";
+    }
+
     // look for two entries in wp_posts that are not in the option "ai4seo_already_filled_attachment_attributes_post_ids" and match the post_type
-    $query = "SELECT ID FROM " . esc_sql($wpdb->prefix) . "posts WHERE post_type = 'attachment' AND ID IN (" . esc_sql($only_this_post_ids_term_string) . ") AND ID NOT IN (" . esc_sql($not_this_ids_term_string) . ") AND post_status IN ('publish', 'future', 'private', 'pending', 'inherit') AND post_mime_type IN ('{$only_this_mime_types_term_string}')" . ($post_date_term_string ? " AND {$post_date_term_string}" : "") . " ORDER BY " . esc_sql($order_by_term_string) . " LIMIT 2";
+    $query = "SELECT ID FROM " . esc_sql($wpdb->prefix) . "posts WHERE {$post_type_term} AND ID IN (" . esc_sql($only_this_post_ids_term_string) . ") AND ID NOT IN (" . esc_sql($not_this_ids_term_string) . ") AND post_status IN ('publish', 'future', 'private', 'pending', 'inherit') AND post_mime_type IN ('{$only_this_mime_types_term_string}')" . ($post_date_term_string ? " AND {$post_date_term_string}" : "") . " ORDER BY " . esc_sql($order_by_term_string) . " LIMIT 2";
 
     $new_pending_attachment_post_ids = $wpdb->get_col($query);
 
@@ -6751,6 +6843,8 @@ function ai4seo_refresh_all_posts_seo_coverage(bool $debug = false) {
 
     // === ATTACHMENT ATTRIBUTES ================================================================================= \\
 
+    $supported_attachment_post_types = ai4seo_get_supported_attachment_post_types();
+
     // PREPARE MIME TYPES
     $only_this_mime_types_sql_terms = array();
 
@@ -6760,8 +6854,21 @@ function ai4seo_refresh_all_posts_seo_coverage(bool $debug = false) {
 
     $only_this_mime_types_term_string = implode("', '", $only_this_mime_types_sql_terms);
 
+    if (count($supported_attachment_post_types) > 1) {
+        $escaped_supported_attachment_post_types = array();
+
+        // escape each element
+        foreach ($supported_attachment_post_types AS $this_supported_attachment_post_type) {
+            $escaped_supported_attachment_post_types[] = esc_sql($this_supported_attachment_post_type);
+        }
+
+        $post_type_term = "post_type IN ('" . implode("', '", $escaped_supported_attachment_post_types) . "')";
+    } else {
+        $post_type_term = "post_type = '" . esc_sql(reset($supported_attachment_post_types)) . "'";
+    }
+
     // READ
-    $query = "SELECT ID FROM " . esc_sql($wpdb->posts) . " WHERE post_type = 'attachment' AND post_status IN ('publish', 'future', 'private', 'pending', 'inherit') AND post_mime_type IN ('{$only_this_mime_types_term_string}')";
+    $query = "SELECT ID FROM " . esc_sql($wpdb->posts) . " WHERE {$post_type_term} AND post_status IN ('publish', 'future', 'private', 'pending', 'inherit') AND post_mime_type IN ('{$only_this_mime_types_term_string}')";
 
     $all_attachment_attributes_post_ids = $wpdb->get_col($query);
 
@@ -6833,14 +6940,15 @@ function ai4seo_refresh_all_posts_generation_status_summary(bool $debug = false)
 
     // POST TYPES
     $supported_post_types = ai4seo_get_supported_post_types();
+    $supported_attachment_post_types = ai4seo_get_supported_attachment_post_types();
 
     // add attachment to the supported post types
-    $supported_post_types[] = "attachment";
+    $supported_all_post_types = array_merge($supported_post_types, $supported_attachment_post_types);
 
     // generate IN-term for query for the post_type based on the automation settings
     // escape each element
     $post_type_sql_terms = array();
-    foreach ($supported_post_types AS $this_supported_post_type) {
+    foreach ($supported_all_post_types AS $this_supported_post_type) {
         $post_type_sql_terms[] = esc_sql($this_supported_post_type);
     }
 
@@ -6873,7 +6981,18 @@ function ai4seo_refresh_all_posts_generation_status_summary(bool $debug = false)
         }
 
         foreach ($this_num_posts_by_post_type as $this_row) {
-            $this_summary_entry[$this_row["post_type"]] = $this_row["num"];
+            $this_post_type = $this_row["post_type"];
+
+            // merge attachment post types to "attachment"
+            if (in_array($this_post_type, $supported_attachment_post_types)) {
+                $this_post_type = "attachment";
+            }
+
+            if (!isset($this_summary_entry[$this_post_type])) {
+                $this_summary_entry[$this_post_type] = 0;
+            }
+
+            $this_summary_entry[$this_post_type] += $this_row["num"];
         }
 
         if ($debug) {
@@ -8528,6 +8647,8 @@ function ai4seo_is_post_a_valid_attachment(int $post_id, WP_Post $post = null): 
         return false;
     }
 
+    $supported_attachment_post_types = ai4seo_get_supported_attachment_post_types();
+
     // read post
     if ($post === null) {
         $post = get_post($post_id);
@@ -8539,7 +8660,7 @@ function ai4seo_is_post_a_valid_attachment(int $post_id, WP_Post $post = null): 
     }
 
     // check if the post type is an attachment
-    if ($post->post_type != "attachment") {
+    if (!in_array($post->post_type, $supported_attachment_post_types)) {
         return false;
     }
 
@@ -8656,6 +8777,8 @@ function ai4seo_smart_image_base64_encode( string $image_data ): string {
  * @return bool true on success, false on failure
  */
 function ai4seo_update_active_attachment_attributes(int $attachment_post_id, array $updates = array(), bool $overwrite_existing_data = false, bool $save_inactive_attachment_attributes = false): bool {
+    global $wpdb;
+
     // sanitize
     $updates = ai4seo_deep_sanitize($updates);
 
@@ -8677,6 +8800,13 @@ function ai4seo_update_active_attachment_attributes(int $attachment_post_id, arr
 
     // keep track if we made changes to the post
     $we_made_changes_to_the_post = false;
+
+    // third party plugins
+    $is_nextgen_gallery_active = ai4seo_is_plugin_or_theme_active(AI4SEO_THIRD_PARTY_PLUGIN_NEXTGEN_GALLERY);
+
+    if ($is_nextgen_gallery_active) {
+        $nextgen_gallery_updates = array();
+    }
 
     // go through each update field and update the post or postmeta table
     foreach ($updates AS $this_attachment_attribute_name => $this_attachment_attribute_value) {
@@ -8715,6 +8845,12 @@ function ai4seo_update_active_attachment_attributes(int $attachment_post_id, arr
 
             // update the post object
             $attachment_post->$this_post_column = $this_attachment_attribute_value;
+
+            // handle nextgen gallery description
+            if ($is_nextgen_gallery_active && $this_attachment_attribute_name == "description") {
+                $nextgen_gallery_updates["description"] = $this_attachment_attribute_value;
+            }
+
             $we_made_changes_to_the_post = true;
         } else if ($this_attachment_attribute_name == "alt-text") {
             // update the postmeta table (mata_key = _wp_attachment_image_alt)
@@ -8728,12 +8864,24 @@ function ai4seo_update_active_attachment_attributes(int $attachment_post_id, arr
             }
 
             update_post_meta($attachment_post_id, "_wp_attachment_image_alt", $this_attachment_attribute_value);
+
+            // handle nextgen gallery description
+            if ($is_nextgen_gallery_active) {
+                $nextgen_gallery_updates["alttext"] = $this_attachment_attribute_value;
+            }
         }
     }
 
     // only update the post if we made changes
     if ($we_made_changes_to_the_post) {
         wp_update_post($attachment_post);
+    }
+
+    // handle nextgen gallery update
+    if ($is_nextgen_gallery_active && isset($nextgen_gallery_updates) && $nextgen_gallery_updates) {
+        $nextgen_gallery_pid = (int) $attachment_post->post_parent;
+        $nextgen_gallery_updates = ai4seo_deep_sanitize($nextgen_gallery_updates);
+        $wpdb->update(esc_sql($wpdb->prefix) . "ngg_pictures", $nextgen_gallery_updates, array("pid" => $nextgen_gallery_pid));
     }
 
     return true;
@@ -8769,7 +8917,6 @@ function ai4seo_get_attachments_language(int $attachment_post_id): string {
 
 // =========================================================================================== \\
 
-
 /**
  * Retrieves the active attachment attributes.
  *
@@ -8783,6 +8930,23 @@ function ai4seo_get_active_attachment_attributes(): array {
     }
 
     return $activate_attachment_attributes;
+}
+
+// =========================================================================================== \\
+
+/**
+ * Retrieves the supported attachment post types
+ *
+ * @return array the supported attachment post types
+ */
+function ai4seo_get_supported_attachment_post_types() {
+    $supported_attachment_post_types = array('attachment');
+
+    if (ai4seo_is_plugin_or_theme_active(AI4SEO_THIRD_PARTY_PLUGIN_NEXTGEN_GALLERY)) {
+        $supported_attachment_post_types[] = AI4SEO_NEXTGEN_GALLERY_POST_TYPE;
+    }
+
+    return $supported_attachment_post_types;
 }
 
 
@@ -9431,6 +9595,129 @@ function ai4seo_show_terms_of_service() {
     echo "<div class='ai4seo-tos-version-number'>" . esc_html($latest_tos_and_toc_and_pp_version) . "</div>";
     echo ai4seo_wp_kses(get_tos_content());
     wp_die();
+}
+
+// =========================================================================================== \\
+
+/**
+ * Called via AJAX - Imports possible nextgen gallery images to the posts table using our own post_type
+ * @return void
+ */
+function ai4seo_import_nextgen_gallery_images() {
+    global $wpdb;
+
+    // read all pid's of wp_ngg_pictures
+    $nextgen_gallery_images = $wpdb->get_results("SELECT `pid`, `image_slug`, `galleryid`, `filename`, `description`, `alttext`, `imagedate`, `updated_at` FROM " . esc_sql($wpdb->prefix) . "ngg_pictures WHERE `pid` > 0", ARRAY_A);
+
+    if (!$nextgen_gallery_images) {
+        ai4seo_return_error_as_json("No NextGen Gallery Images found", 18147525);
+    }
+
+    // find all distinct galleryid's
+    $nextgen_gallery_image_gallery_ids = array_column($nextgen_gallery_images, "galleryid");
+
+    if (!$nextgen_gallery_image_gallery_ids) {
+        ai4seo_return_error_as_json("No NextGen Gallery galleries found", 19147525);
+    }
+
+    $nextgen_gallery_image_gallery_ids = array_unique($nextgen_gallery_image_gallery_ids);
+    $nextgen_gallery_image_gallery_ids = ai4seo_deep_sanitize($nextgen_gallery_image_gallery_ids);
+
+    // read paths of galleries
+    $nextgen_gallery_galleries_temp = $wpdb->get_results("SELECT `gid`, `path` FROM " . esc_sql($wpdb->prefix) . "ngg_gallery WHERE `gid` IN (" . esc_sql(implode(",", $nextgen_gallery_image_gallery_ids)) . ")", ARRAY_A);
+
+    if (!$nextgen_gallery_galleries_temp) {
+        ai4seo_return_error_as_json("No NextGen Gallery gallery paths found", 20147525);
+    }
+
+    // reformat $ai4seo_nextgen_gallery_image_gallery_paths to array(galleryid => path)
+    $nextgen_gallery_gallery_paths = array();
+    foreach ($nextgen_gallery_galleries_temp AS $this_nextgen_gallery_image_gallery_paths_temp_entry) {
+        $this_nextgen_gallery_gallery_id = (int) $this_nextgen_gallery_image_gallery_paths_temp_entry["gid"];
+        $this_nextgen_gallery_gallery_path = sanitize_text_field($this_nextgen_gallery_image_gallery_paths_temp_entry["path"]);
+        $nextgen_gallery_gallery_paths[$this_nextgen_gallery_gallery_id] = $this_nextgen_gallery_gallery_path;
+    }
+
+    // reformat to array(pid => array(entry), ...)
+    $nextgen_gallery_images = array_column($nextgen_gallery_images, null, "pid");
+
+    // get the already imported pids from wp_posts where type is AI4SEO_NEXTGEN_GALLERY_POST_TYPE
+    $already_imported_nextgen_gallery_image_pids = $wpdb->get_results("SELECT post_parent FROM " . esc_sql($wpdb->posts) . " WHERE `post_type` = '" . esc_sql(AI4SEO_NEXTGEN_GALLERY_POST_TYPE) . "'", ARRAY_A);
+
+    if ($already_imported_nextgen_gallery_image_pids) {
+        $already_imported_nextgen_gallery_image_pids = array_column($already_imported_nextgen_gallery_image_pids, "post_parent");
+    } else {
+        $already_imported_nextgen_gallery_image_pids = array();
+    }
+
+    // go through $ai4seo_nextgen_gallery_images, build guid and insert into wp_posts
+    foreach ($nextgen_gallery_images AS $this_nextgen_gallery_image) {
+        $this_nextgen_gallery_image_pid = (int) $this_nextgen_gallery_image["pid"];
+        $this_nextgen_gallery_image_gallery_id = (int) $this_nextgen_gallery_image["galleryid"];
+
+        // check if pid is already imported
+        if (in_array($this_nextgen_gallery_image_pid, $already_imported_nextgen_gallery_image_pids)) {
+            continue;
+        }
+
+        // check if gallery id is valid
+        if (!isset($nextgen_gallery_gallery_paths[$this_nextgen_gallery_image_gallery_id])) {
+            continue;
+        }
+
+        $this_nextgen_gallery_gallery_path = $nextgen_gallery_gallery_paths[$this_nextgen_gallery_image_gallery_id];
+
+        // build guid
+        $this_website_url = get_site_url();
+        $this_nextgen_gallery_image_guid = untrailingslashit($this_website_url) . trailingslashit($this_nextgen_gallery_gallery_path) . $this_nextgen_gallery_image["filename"];
+        $this_image_mime_type = ai4seo_get_mime_type_from_url($this_nextgen_gallery_image_guid);
+
+        // fallback to jpeg, as this information is not technically required
+        if (!$this_image_mime_type) {
+            $this_image_mime_type = "image/jpeg";
+        }
+
+        // insert into wp_posts
+        $wpdb->insert($wpdb->posts, array(
+            "post_title" => sanitize_text_field($this_nextgen_gallery_image["image_slug"]),
+            "post_name" => sanitize_text_field($this_nextgen_gallery_image["image_slug"]),
+            "post_content" => sanitize_text_field($this_nextgen_gallery_image["description"]),
+            "post_excerpt" => sanitize_text_field($this_nextgen_gallery_image["alttext"]),
+            "post_type" => AI4SEO_NEXTGEN_GALLERY_POST_TYPE,
+            "post_status" => "publish",
+            "post_mime_type" => sanitize_text_field($this_image_mime_type),
+            "post_parent" => $this_nextgen_gallery_image_pid,
+            "guid" => esc_url($this_nextgen_gallery_image_guid),
+            "post_date" => date("Y-m-d H:i:s", strtotime($this_nextgen_gallery_image["imagedate"])),
+            "post_date_gmt" => gmdate("Y-m-d H:i:s", strtotime($this_nextgen_gallery_image["imagedate"])),
+            "post_modified" => date("Y-m-d H:i:s", $this_nextgen_gallery_image["updated_at"]),
+            "post_modified_gmt" => gmdate("Y-m-d H:i:s", $this_nextgen_gallery_image["updated_at"])
+        ));
+
+        // check for errors
+        if ($wpdb->last_error) {
+            ai4seo_return_error_as_json("Could not import NextGen Gallery image with pid " . $this_nextgen_gallery_image_pid . ": " . $wpdb->last_error, 21147525);
+        }
+
+        // get added post id
+        $this_new_post_id = $wpdb->insert_id;
+
+        // add _wp_attachment_image_alt post meta for the alt text too
+        if ($this_nextgen_gallery_image["alttext"]) {
+            $wpdb->insert($wpdb->postmeta, array(
+                "post_id" => $this_new_post_id,
+                "meta_key" => "_wp_attachment_image_alt",
+                "meta_value" => sanitize_text_field($this_nextgen_gallery_image["alttext"])
+            ));
+
+            // check for errors
+            if ($wpdb->last_error) {
+                ai4seo_return_error_as_json("Could not import NextGen Gallery image with pid " . $this_nextgen_gallery_image_pid . ": " . $wpdb->last_error, 22147525);
+            }
+        }
+    }
+
+    wp_send_json_success();
 }
 
 

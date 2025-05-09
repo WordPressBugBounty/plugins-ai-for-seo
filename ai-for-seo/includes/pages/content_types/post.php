@@ -298,7 +298,7 @@ echo "<table class='widefat striped table-view-list pages ai4seo-posts-table'>";
                             }
 
                             // execute sooner link
-                            if ($ai4seo_next_cron_job_call_diff >= 120) {
+                            if ($ai4seo_next_cron_job_call_diff >= 70) {
                                 echo " " . ai4seo_wp_kses($ai4seo_execute_sooner_button);
                             } else {
                                 echo " " . ai4seo_wp_kses($ai4seo_refresh_button);

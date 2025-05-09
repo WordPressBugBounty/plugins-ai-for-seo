@@ -24,8 +24,7 @@ $ai4seo_supported_post_types = ai4seo_get_supported_post_types();
 
 $ai4seo_num_missing_posts_by_post_type = ai4seo_get_all_missing_posts_by_post_type();
 
-// push "attachment" to the end of the array
-$ai4seo_supported_post_types[] = "attachment";
+$ai4seo_all_supported_post_types = array_merge($ai4seo_supported_post_types, array("attachment"));
 
 
 // ___________________________________________________________________________________________ \\
@@ -60,25 +59,25 @@ echo "<div class='ai4seo-modal-schema-content'>";
         $ai4seo_found_any_all_done_post_types = false;
         $ai4seo_this_bulk_generation_setting_name = ai4seo_get_prefixed_input_name(AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES);
 
-        foreach ($ai4seo_supported_post_types AS $ai4seo_supported_post_type) {
+        foreach ($ai4seo_all_supported_post_types AS $ai4seo_this_supported_post_type) {
             // attachment -> media workaround
-            if ($ai4seo_supported_post_type == "attachment") {
-                $ai4seo_supported_post_type_label = "media files";
+            if ($ai4seo_this_supported_post_type == "attachment") {
+                $ai4seo_this_supported_post_type_label = "media files";
             } else {
-                $ai4seo_supported_post_type_label = $ai4seo_supported_post_type;
+                $ai4seo_this_supported_post_type_label = $ai4seo_this_supported_post_type;
             }
 
-            $ai4seo_supported_post_type_label = ai4seo_get_post_type_translation($ai4seo_supported_post_type_label, true);
-            $ai4seo_supported_post_type_label = ucfirst($ai4seo_supported_post_type_label);
-            $ai4seo_this_num_missing_posts = $ai4seo_num_missing_posts_by_post_type[$ai4seo_supported_post_type] ?? 0;
-            $ai4seo_this_post_type_icon = AI4SEO_TAB_ICONS_BY_POST_TYPE[$ai4seo_supported_post_type] ?? AI4SEO_TAB_ICONS_BY_POST_TYPE['default'];
-            $ai4seo_this_post_type_is_checked = !$ai4seo_is_any_bulk_generation_enabled || in_array($ai4seo_supported_post_type, $ai4seo_active_bulk_generation_post_types);
+            $ai4seo_this_supported_post_type_label = ai4seo_get_post_type_translation($ai4seo_this_supported_post_type_label, true);
+            $ai4seo_this_supported_post_type_label = ucfirst($ai4seo_this_supported_post_type_label);
+            $ai4seo_this_num_missing_posts = $ai4seo_num_missing_posts_by_post_type[$ai4seo_this_supported_post_type] ?? 0;
+            $ai4seo_this_post_type_icon = AI4SEO_TAB_ICONS_BY_POST_TYPE[$ai4seo_this_supported_post_type] ?? AI4SEO_TAB_ICONS_BY_POST_TYPE['default'];
+            $ai4seo_this_post_type_is_checked = !$ai4seo_is_any_bulk_generation_enabled || in_array($ai4seo_this_supported_post_type, $ai4seo_active_bulk_generation_post_types);
 
             echo "<div class='ai4seo-bulk-generation-modal-checkbox-container ai4seo-checkbox-container'>";
                 echo ai4seo_wp_kses($ai4seo_this_post_type_icon);
-                echo "<input type='checkbox' id='ai4seo-bulk-generation-checkbox-" . esc_attr($ai4seo_supported_post_type) . "' name='" . esc_attr($ai4seo_this_bulk_generation_setting_name) . "[]' value='" . esc_attr($ai4seo_supported_post_type) . "'" . ($ai4seo_this_post_type_is_checked ? " checked" : "") . ">";
+                echo "<input type='checkbox' id='ai4seo-bulk-generation-checkbox-" . esc_attr($ai4seo_this_supported_post_type) . "' name='" . esc_attr($ai4seo_this_bulk_generation_setting_name) . "[]' value='" . esc_attr($ai4seo_this_supported_post_type) . "'" . ($ai4seo_this_post_type_is_checked ? " checked" : "") . ">";
                 echo "<label for='" . esc_attr($ai4seo_this_bulk_generation_setting_name) . "'>";
-                    echo esc_html($ai4seo_supported_post_type_label) . " (";
+                    echo esc_html($ai4seo_this_supported_post_type_label) . " (";
                         if ($ai4seo_this_num_missing_posts) {
                             printf(
                                 esc_html(_n('%s entry left', '%s entries left', $ai4seo_this_num_missing_posts, 'ai-for-seo')),

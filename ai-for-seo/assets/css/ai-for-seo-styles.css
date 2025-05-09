@@ -1897,7 +1897,7 @@ div.ai4seo-bulk-generation-status-subtext {
     margin-top: 1.2rem;
     font-size: .9rem;
     color: #555;
-    height: 3rem;
+    min-height: 3rem;
 }
 
 div.ai4seo-bulk-generation-button-container, div.ai4seo-buy-credits-button-container {

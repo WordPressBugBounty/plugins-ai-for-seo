@@ -173,6 +173,7 @@ let ai4seo_allowed_ajax_actions = [
     "ai4seo_reject_tos", "ai4seo_accept_tos", "ai4seo_show_terms_of_service", "ai4seo_dismiss_one_time_notice",
     "ai4seo_reset_plugin_data", "ai4seo_stop_bulk_generation",
     "ai4seo_disable_payg", "ai4seo_init_purchase",
+    "ai4seo_import_nextgen_gallery_images"
 ];
 
 
@@ -3556,4 +3557,20 @@ function ai4seo_disable_payg(submit_element) {
 
     ai4seo_perform_ajax_call("ai4seo_disable_payg")
         .finally(response => { ai4seo_reload_page(); });
+}
+
+// =========================================================================================== \\
+
+function ai4seo_import_nextgen_gallery_images(submit_element) {
+    ai4seo_add_loading_html_to_element(submit_element);
+    ai4seo_lock_and_disable_lockable_input_fields();
+
+    ai4seo_perform_ajax_call('ai4seo_import_nextgen_gallery_images')
+        .then( response => {
+            ai4seo_reload_page();
+        })
+        .catch(error => {
+            ai4seo_remove_loading_html_from_element(submit_element);
+            ai4seo_unlock_and_enable_lockable_input_fields();
+        });
 }

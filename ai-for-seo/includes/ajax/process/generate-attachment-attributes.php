@@ -101,7 +101,7 @@ if ($ai4seo_this_attachment_post->post_type === "attachment") {
     // check url of the attachment
     $ai4seo_this_attachment_url = wp_get_attachment_url($ai4seo_this_attachment_post_id);
 } else {
-    $ai4seo_this_attachment_url = get_the_guid($ai4seo_this_attachment_post->ID);
+    $ai4seo_this_attachment_url = get_the_guid($ai4seo_this_attachment_post);
 }
 
 if (!$ai4seo_this_attachment_url) {
@@ -144,32 +144,11 @@ if (!$ai4seo_use_base64_image) {
 
 if ($ai4seo_use_base64_image) {
     // Use wp_safe_remote_get instead of file_get_contents for fetching remote files
-    $ai4seo_remote_get_response = wp_safe_remote_get($ai4seo_this_attachment_url, array(
-        'decompress' => true // Enable automatic decompression
-    ));
+    $ai4seo_this_attachment_contents = ai4seo_get_remote_body($ai4seo_this_attachment_url);
 
-    if (is_wp_error($ai4seo_remote_get_response)) {
-        ai4seo_return_error_as_json("Could not fetch media contents.", 391024824);
-    }
-
-    $response_code = wp_remote_retrieve_response_code($ai4seo_remote_get_response);
-
-    if ($response_code !== 200) {
-        ai4seo_return_error_as_json("Error fetching the media: HTTP Code $response_code", 401024824);
-    }
-
-    // Check if the content type is an image
-    $headers = wp_remote_retrieve_headers($ai4seo_remote_get_response);
-    $content_type = isset($headers['content-type']) ? $headers['content-type'] : '';
-
-    if (strpos($content_type, 'image/') !== 0) {
-        ai4seo_return_error_as_json("Fetched content is not an image. Detected type: $content_type", 431024824);
-    }
-
-    $ai4seo_this_attachment_contents = wp_remote_retrieve_body($ai4seo_remote_get_response);
-
-    if (!$ai4seo_this_attachment_contents) {
-        ai4seo_return_error_as_json("Could not get media contents.", 411024824);
+    if (is_wp_error($ai4seo_this_attachment_contents)) {
+        $ai4seo_remote_get_response_error = $ai4seo_this_attachment_contents->get_error_message();
+        ai4seo_return_error_as_json("Could not fetch media contents: " . $ai4seo_remote_get_response_error, 391024824);
     }
 
     // Verify that the content is a valid image

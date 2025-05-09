@@ -66,6 +66,14 @@ $ai4seo_is_first_purchase_discount_available = (bool) ai4seo_read_environmental_
 $ai4seo_early_bird_discount_time_left = (int) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_EARLY_BIRD_DISCOUNT_TIME_LEFT);
 
 
+// === POST TYPES =========================================================================== \\
+
+$ai4seo_supported_post_types = ai4seo_get_supported_post_types();
+$ai4seo_supported_attachment_post_types = ai4seo_get_supported_attachment_post_types();
+
+$ai4seo_all_supported_post_types = array_merge($ai4seo_supported_post_types, $ai4seo_supported_attachment_post_types);
+
+
 // ___________________________________________________________________________________________ \\
 // === OUTPUT ================================================================================ \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
@@ -91,12 +99,7 @@ echo "<div class='ai4seo-cards-container'>";
             'failed' => ['value' => 0, 'color' => '#dc3545'], // Red
         ];
 
-        $ai4seo_supported_post_types = ai4seo_get_supported_post_types();
-
-        // push "attachment" to the end of the array
-        $ai4seo_supported_post_types[] = "attachment";
-
-        foreach ($ai4seo_supported_post_types AS $ai4seo_supported_post_type) {
+        foreach ($ai4seo_all_supported_post_types AS $ai4seo_supported_post_type) {
             $ai4seo_this_num_finished_post_ids = $ai4seo_num_finished_posts_by_post_type[$ai4seo_supported_post_type] ?? 0;
             $ai4seo_this_num_failed_post_ids = $ai4seo_num_failed_posts_by_post_type[$ai4seo_supported_post_type] ?? 0;
             $ai4seo_this_num_pending_post_ids = $ai4seo_num_pending_posts_by_post_type[$ai4seo_supported_post_type] ?? 0;
@@ -274,7 +277,7 @@ echo "<div class='ai4seo-cards-container'>";
     }
 
     // execute sooner link
-    if ($ai4seo_next_cron_job_call_diff >= 120) {
+    if ($ai4seo_next_cron_job_call_diff >= 70) {
         $ai4seo_additional_sub_status_text .= " " . ai4seo_wp_kses($ai4seo_execute_sooner_button);
     } else {
         $ai4seo_additional_sub_status_text .= " " . ai4seo_wp_kses($ai4seo_refresh_button);
@@ -335,11 +338,11 @@ echo "<div class='ai4seo-cards-container'>";
 
                 echo "<div class='ai4seo-bulk-generation-status-subtext'>";
                     echo esc_html__("The last bulk generation run was longer ago than expected, which may indicate an issue with your cron job configuration. Please check your cron job settings to ensure consistent execution.", "ai-for-seo");
+                    $ai4seo_pending_bulk_generation_tooltip_text = ai4seo_get_inefficient_cron_jobs_notice();
+                    echo ai4seo_wp_kses(ai4seo_get_icon_with_tooltip_tag($ai4seo_pending_bulk_generation_tooltip_text));
                     if ($ai4seo_additional_sub_status_text) {
                         echo " " . ai4seo_wp_kses($ai4seo_additional_sub_status_text);
                     }
-                    $ai4seo_pending_bulk_generation_tooltip_text = ai4seo_get_inefficient_cron_jobs_notice();
-                    echo ai4seo_wp_kses(ai4seo_get_icon_with_tooltip_tag($ai4seo_pending_bulk_generation_tooltip_text));
                 echo "</div>";
             } else if (in_array($ai4seo_bulk_generation_status, ["initiating", "processing", "finished"]) && $ai4seo_last_bulk_generation_update_time) {
                 echo "<div class='ai4seo-bulk-generation-status-animated-logo-container'>";
@@ -511,7 +514,7 @@ echo "<div class='ai4seo-cards-container'>";
                             echo ai4seo_wp_kses(ai4seo_get_button_text_link_tag($ai4seo_this_latest_activity_entry["url"], "eye", "", "", "", "_blank"));
                         }
 
-                        if (($ai4seo_this_latest_activity_entry["post_type"] ?? "") == "attachment") {
+                        if (in_array(($ai4seo_this_latest_activity_entry["post_type"] ?? ""), $ai4seo_supported_attachment_post_types)) {
                             echo ai4seo_wp_kses(ai4seo_get_button_text_link_tag("#", "pen-to-square", "", "", "ai4seo_open_attachment_attributes_editor_modal(" . esc_js($ai4seo_this_latest_activity_entry["post_id"]) . ");"));
                         } else {
                             if (isset($ai4seo_this_latest_activity_entry["url"]) && $ai4seo_this_latest_activity_entry["url"]) {

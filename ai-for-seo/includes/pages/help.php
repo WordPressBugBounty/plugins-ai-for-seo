@@ -518,6 +518,9 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-faq'>
         $ai4seo_this_accordion_content .= __('3. If you generated media attributes, consider enabling: "Include Complete Entries When Overwriting (SEO Autopilot Only)" in the Media Attributes section.', "ai-for-seo") . "<br />";
         $ai4seo_this_accordion_content .= __("These settings will allow the plugin to regenerate and overwrite metadata and media attributes, even for entries that were previously marked as complete.", "ai-for-seo");
         echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("I used the wrong settings for manual or bulk generation (e.g., wrong language or missing sync with other SEO plugins). What can I do?", "ai-for-seo"), $ai4seo_this_accordion_content));
+
+        $ai4seo_this_accordion_content = __("To import all images from the NextGen Gallery into *AI for SEO*, click the Import button in the Media section. Once imported, you can generate alt text, titles, captions, and descriptions for these images using the plugin. All changes will automatically sync with the NextGen Gallery plugin.", "ai-for-seo");
+        echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("I use the NextGen Gallery plugin — how do I generate media attributes for my images?", "ai-for-seo"), $ai4seo_this_accordion_content));
     echo "</div>";
 
     echo "<div class='ai4seo-gap'></div>";

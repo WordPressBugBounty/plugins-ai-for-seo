@@ -36,6 +36,13 @@ if ($ai4seo_this_attachment_post_id <= 0) {
     ai4seo_return_error_as_json("Post id is invalid.", 291920824);
 }
 
+// get post object
+$ai4seo_this_attachment_post = get_post($ai4seo_this_attachment_post_id);
+
+if (!$ai4seo_this_attachment_post) {
+    ai4seo_return_error_as_json("Attachment Post not found.", 57177525);
+}
+
 
 // === GET ADDITIONAL DETAILS ===================================================================== \\
 
@@ -54,6 +61,15 @@ foreach ($ai4seo_allowed_image_mime_types as $ai4seo_this_allowed_image_mime_typ
 }
 
 $ai4seo_this_attachment_url = wp_get_attachment_url($ai4seo_this_attachment_post_id);
+
+// fallback -> get guid
+if (!$ai4seo_this_attachment_url && $ai4seo_this_attachment_is_an_image) {
+    $ai4seo_this_attachment_url = $ai4seo_this_attachment_post->guid ?? "";
+}
+
+if (!$ai4seo_this_attachment_url) {
+    $ai4seo_this_attachment_url = ai4seo_get_assets_images_url("icons/document-question-48x48.png");
+}
 
 $ai4seo_active_attachment_attributes = ai4seo_get_active_attachment_attributes();
 
@@ -74,11 +90,9 @@ echo "</div>";
 echo "<div class='ai4seo-modal-sub-headline'>" . ai4seo_wp_kses(sprintf(__("Manage media attributes for <b>%s</b> (#%d)", "ai-for-seo"), $ai4seo_this_post_attachment_attributes["title"], $ai4seo_this_attachment_post_id)) . "</div>";
 
 // add an left floating image of the attachment
-if ($ai4seo_this_attachment_is_an_image) {
-    echo "<div class='ai4seo-attachment-editor-image-preview'>";
+echo "<div class='ai4seo-attachment-editor-image-preview'>";
     echo "<img src='" . esc_url($ai4seo_this_attachment_url) . "' />";
-    echo "</div>";
-}
+echo "</div>";
 
 // GENERATE ALL BUTTON
 echo "<div id='ai4seo-generate-all-attachment-attributes-button-hook'></div>";

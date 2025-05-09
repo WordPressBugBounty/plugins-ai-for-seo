@@ -21,8 +21,10 @@ if (!ai4seo_can_manage_this_plugin()) {
 global $wpdb;
 global $ai4seo_allowed_attachment_mime_types;
 
-$ai4seo_post_type = "attachment";
+$ai4seo_main_attachment_post_type = "attachment";
 $ai4seo_nice_post_type = "media";
+$ai4seo_post_types = ai4seo_get_supported_attachment_post_types();
+$ai4seo_additional_post_types = array();
 $ai4seo_current_credits_balance = ai4seo_robhub_api()->get_credits_balance();
 
 $ai4seo_media_label_singular = _n("media", "media", 1, "ai-for-seo");
@@ -50,10 +52,34 @@ if (isset($_GET["ai4seo-reset-failed-attachment-attributes-generation"]) && $_GE
 // === READ ================================================================================== \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
+// handle the import of NextGen Gallery images
+if (ai4seo_is_plugin_or_theme_active(AI4SEO_THIRD_PARTY_PLUGIN_NEXTGEN_GALLERY)) {
+    $ai4seo_num_not_imported_nextgen_gallery_images = 0;
+
+    // read all pid's of wp_ngg_pictures
+    $ai4seo_nextgen_gallery_image_pids = $wpdb->get_results("SELECT `pid` FROM " . esc_sql($wpdb->prefix) . "ngg_pictures WHERE `pid` > 0", ARRAY_A);
+
+    if ($ai4seo_nextgen_gallery_image_pids) {
+        $ai4seo_nextgen_gallery_image_pids = array_map(function ($ai4seo_this_nextgen_gallery_image) {
+            return (int) $ai4seo_this_nextgen_gallery_image["pid"];
+        }, $ai4seo_nextgen_gallery_image_pids);
+
+        // get the number of entries from wp_posts where type is AI4SEO_NEXTGEN_GALLERY_POST_TYPE and pid is not in wp_posts.post_parent
+        $ai4seo_num_imported_nextgen_gallery_images = (int) $wpdb->get_var("SELECT COUNT(*) FROM " . esc_sql($wpdb->posts) . " WHERE `post_type` = '" . esc_sql(AI4SEO_NEXTGEN_GALLERY_POST_TYPE) . "' AND `post_parent` IN (" . esc_sql(implode(",", $ai4seo_nextgen_gallery_image_pids)) . ")");
+        $ai4seo_num_not_imported_nextgen_gallery_images = count($ai4seo_nextgen_gallery_image_pids) - $ai4seo_num_imported_nextgen_gallery_images;
+    }
+
+    $ai4seo_import_nextgen_gallery_button = ai4seo_wp_kses(
+        ai4seo_get_button_text_link_tag("#", "file-export",  esc_html__("Import NextGen Gallery images ($ai4seo_num_not_imported_nextgen_gallery_images)", "ai-for-seo"),
+            ($ai4seo_num_not_imported_nextgen_gallery_images ? "ai4seo-success-button" : "ai4seo-inactive-button"),
+            ($ai4seo_num_not_imported_nextgen_gallery_images ? "ai4seo_import_nextgen_gallery_images(this);" : ""))
+    );
+}
+
 // Prepare arguments for the wp-query
 $ai4seo_posts_query_arguments = array(
     "post_status" => array('publish', 'future', 'private', 'pending', 'inherit'),
-    "post_type" => $ai4seo_post_type,
+    "post_type" => count($ai4seo_post_types) > 1 ? $ai4seo_post_types : reset($ai4seo_post_types),
     "post_mime_type" => $ai4seo_allowed_attachment_mime_types,
     "posts_per_page" => 20,
     "orderby" => "ID",
@@ -82,7 +108,7 @@ $ai4seo_attachment_attributes_coverage_summary = ai4seo_get_attachment_attribute
 $ai4seo_num_total_attachment_attributes = ai4seo_get_active_num_attachment_attributes();
 
 // get value for bulk generation toggle checkbox
-$ai4seo_is_bulk_generation_activated = ai4seo_is_bulk_generation_enabled($ai4seo_post_type);
+$ai4seo_is_bulk_generation_activated = ai4seo_is_bulk_generation_enabled($ai4seo_main_attachment_post_type);
 $ai4seo_is_bulk_generation_checked_phrase = ($ai4seo_is_bulk_generation_activated ? "checked" : "");
 
 // cronjob
@@ -156,6 +182,12 @@ foreach (AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS AS $ai4seo_this_attachment_attribu
 // === OUTPUT ================================================================================ \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
+if (isset($ai4seo_import_nextgen_gallery_button) && $ai4seo_import_nextgen_gallery_button) {
+    echo "<div class='ai4seo-buttons-wrapper'>";
+        echo ai4seo_wp_kses($ai4seo_import_nextgen_gallery_button);
+    echo "</div>";
+}
+
 // Stop script if no posts have been found -> show message and stop page rendering
 if (!$ai4seo_all_attachment_posts) {
     echo '<p>' . esc_html__('No relevant media found.', "ai-for-seo") . '</p>';
@@ -193,10 +225,10 @@ echo "<table class='widefat striped table-view-list attachments ai4seo-posts-tab
     // Loop through entries and display table-row for each entry
     foreach ($ai4seo_all_attachment_posts as $ai4seo_this_attachment) {
         // Prepare variables
-        $ai4seo_this_post_attachment_id = (int) $ai4seo_this_attachment->ID;
-        $ai4seo_this_attachment_title = $ai4seo_this_attachment->post_title;
-        $ai4seo_this_mime_type = get_post_mime_type($ai4seo_this_post_attachment_id);
-        $ai4seo_this_post_link = get_edit_post_link($ai4seo_this_post_attachment_id);
+        $ai4seo_this_post_attachment_id = (int) $ai4seo_this_attachment->ID ?? "";
+        $ai4seo_this_attachment_title = $ai4seo_this_attachment->post_title ?? "";
+        $ai4seo_this_mime_type = $ai4seo_this_attachment->post_mime_type ?? "";
+        $ai4seo_this_post_link = get_edit_post_link($ai4seo_this_attachment) ?: $ai4seo_this_attachment->guid ?? "";
 
         // get timestamp of post date
         $ai4seo_this_attachment_date_timestamp = strtotime($ai4seo_this_attachment->post_date_gmt);
@@ -270,10 +302,18 @@ echo "<table class='widefat striped table-view-list attachments ai4seo-posts-tab
             $ai4seo_is_attachment_post_waiting_for_cron_job = true;
         }
 
+        $ai4seo_preview_image_url = "";
+
         if (in_array($ai4seo_this_mime_type, array("image/jpeg", "image/png", "image/gif", "image/webp"))) {
             $ai4seo_preview_image_url = wp_get_attachment_image_url($ai4seo_this_post_attachment_id, array(48, 48));
-        } else {
-            $ai4seo_preview_image_url = ai4seo_get_assets_images_url("icons/document-question-48x48.png"); # todo: replace with more variants like pdf, doc, etc.
+
+            if (!$ai4seo_preview_image_url) {
+                $ai4seo_preview_image_url = $ai4seo_this_attachment->guid ?? "";
+            }
+        }
+
+        if (!$ai4seo_preview_image_url) {
+            $ai4seo_preview_image_url = ai4seo_get_assets_images_url("icons/document-question-48x48.png");
         }
 
         echo "<tr>";
@@ -317,7 +357,7 @@ echo "<table class='widefat striped table-view-list attachments ai4seo-posts-tab
                                 }
 
                                 // execute sooner link
-                                if ($ai4seo_next_cron_job_call_diff >= 120) {
+                                if ($ai4seo_next_cron_job_call_diff >= 70) {
                                     echo " " . ai4seo_wp_kses($ai4seo_execute_sooner_button);
                                 } else {
                                     echo " " . ai4seo_wp_kses($ai4seo_refresh_button);

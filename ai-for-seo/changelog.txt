@@ -1,5 +1,9 @@
 == Changelog ==
 
+= 2.0.4 =
+* Added support for NextGen Gallery: The plugin now recognizes and processes media attributes for images created with the NextGen Gallery plugin. Use the new "Import" button in the media page to import all images from the NextGen Gallery into the *AI for SEO* plugin.
+* Bug Fixes & Maintenance: Fixed 2 minor bugs
+
 = 2.0.3 =
 * SEO Autopilot now more accurately reflects its current status and includes an option to immediately schedule the next run.
 * Bug Fixes & Maintenance: Fixed 15 minor bugs, corrected typos, and implemented security updates.

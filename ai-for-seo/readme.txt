@@ -4,7 +4,7 @@ Donate link: https://spa.ce.codes
 Tags: AI, SEO, Metadata, Alt text, Bulk
 Requires at least: 4.7
 Tested up to: 6.8.1
-Stable tag: 2.0.3
+Stable tag: 2.0.4
 Requires PHP: 7.4
 License: GPLv2 or later (or compatible)
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -70,8 +70,8 @@ Additionally, when viewing or editing any content, you can click on the *AI for 
 = 🚀 ROADMAP =
 Our team is constantly working on refining and expanding the plugin's capabilities.
 Here are some features we are planning in the upcoming updates:
-- 2.X: Keyphrase / keywords generation (~April 2025)
-- 3.0: Content Optimizations (Recommended SEO-relevant improvements across all your content) (~July 2025)
+- 2.X: Keyphrase / keywords generation (~June 2025)
+- 3.0: Content Optimizations (Recommended SEO-relevant improvements across all your content) (~August 2025)
 - 4.0: Automatic blog post generator (~Q3 2025)
 For suggestions, questions or bug reports: Please drop us an email at [info@aiforseo.ai](mailto:info@aiforseo.ai). We're always eager to hear from you.
 
@@ -305,7 +305,14 @@ If you generated metadata or media attributes with incorrect settings, follow th
 3. If you generated media attributes, consider enabling: "Include Complete Entries When Overwriting (SEO Autopilot Only)" in the Media Attributes section.
 These settings will allow the plugin to regenerate and overwrite metadata and media attributes, even for entries that were previously marked as complete.
 
+= I use the NextGen Gallery plugin — how do I generate media attributes for my images? =
+To import all images from the NextGen Gallery into AI for SEO, click the Import button in the Media section. Once imported, you can generate alt text, titles, captions, and descriptions for these images using the plugin. All changes will automatically sync with the NextGen Gallery plugin.
+
 == Changelog ==
+
+= 2.0.4 =
+* Added support for NextGen Gallery: The plugin now recognizes and processes media attributes for images created with the NextGen Gallery plugin. Use the new "Import" button in the media page to import all images from the NextGen Gallery into the *AI for SEO* plugin.
+* Bug Fixes & Maintenance: Fixed 2 minor bugs
 
 = 2.0.3 =
 * SEO Autopilot now more accurately reflects its current status and includes an option to immediately schedule the next run.
