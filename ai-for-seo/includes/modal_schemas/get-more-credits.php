@@ -96,12 +96,12 @@ echo "<div class='ai4seo-modal-schema-content'>";
 
                 if ($ai4seo_early_bird_discount_time_left) {
                     echo sprintf(
-                        esc_html__("Get an additional %s%% discount for your first purchase."),
+                        esc_html__("Get an additional %s%% discount for your first purchase.", "ai-for-seo"),
                         AI4SEO_EARLY_BIRD_DISCOUNT
                     );
                 } else if ($ai4seo_is_first_purchase_discount_available) {
                     echo sprintf(
-                        esc_html__("Get an additional %s%% discount for your first purchase."),
+                        esc_html__("Get an additional %s%% discount for your first purchase.", "ai-for-seo"),
                         AI4SEO_FIRST_PURCHASE_DISCOUNT
                     );
                 }

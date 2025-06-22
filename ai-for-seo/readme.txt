@@ -4,7 +4,7 @@ Donate link: https://spa.ce.codes
 Tags: AI, SEO, Metadata, Alt text, Bulk
 Requires at least: 4.7
 Tested up to: 6.8.1
-Stable tag: 2.0.4
+Stable tag: 2.0.5
 Requires PHP: 7.4
 License: GPLv2 or later (or compatible)
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -309,6 +309,11 @@ These settings will allow the plugin to regenerate and overwrite metadata and me
 To import all images from the NextGen Gallery into AI for SEO, click the Import button in the Media section. Once imported, you can generate alt text, titles, captions, and descriptions for these images using the plugin. All changes will automatically sync with the NextGen Gallery plugin.
 
 == Changelog ==
+
+= 2.0.5 =
+* Added a setting to force the image upload to use either the image url only or convert the contents to base64. This can be useful for users who experience issues with the generation of media attributes.
+* Added support for AVIF image files
+* Bug Fixes & Maintenance: Fixed 11 minor bugs and implemented security updates.
 
 = 2.0.4 =
 * Added support for NextGen Gallery: The plugin now recognizes and processes media attributes for images created with the NextGen Gallery plugin. Use the new "Import" button in the media page to import all images from the NextGen Gallery into the *AI for SEO* plugin.

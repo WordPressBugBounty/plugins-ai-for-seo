@@ -44,7 +44,7 @@ $ai4seo_extended_data_collection_tooltip_text = esc_html__("This data includes f
 echo "<div class='ai4seo-modal-schema-headline'>";
     echo "<center>";
 
-    echo "<img src='" . esc_url(ai4seo_get_ai_for_seo_logo_url("full")) . "' class='ai4seo-tos-plugin-logo ai4seo-modal-headline-icon'><br>";
+    echo "<img src='" . esc_url(ai4seo_get_ai_for_seo_logo_url("full")) . "' class='ai4seo-tos-plugin-logo ai4seo-modal-headline-icon' /><br>";
 
     echo esc_html__("Terms of Service", "ai-for-seo");
 

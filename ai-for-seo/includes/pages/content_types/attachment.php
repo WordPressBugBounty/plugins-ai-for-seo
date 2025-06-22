@@ -41,12 +41,6 @@ if (isset($_GET["ai4seo-execute-cron-job-sooner"]) && $_GET["ai4seo-execute-cron
     ai4seo_inject_additional_cronjob_call(AI4SEO_BULK_GENERATION_CRON_JOB_NAME);
 }
 
-// check if the user wants to reset all failed metadata generation
-if (isset($_GET["ai4seo-reset-failed-attachment-attributes-generation"]) && $_GET["ai4seo-reset-failed-attachment-attributes-generation"]) {
-    update_option(AI4SEO_FAILED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME, json_encode(array()));
-    ai4seo_refresh_all_posts_generation_status_summary();
-}
-
 
 // ___________________________________________________________________________________________ \\
 // === READ ================================================================================== \\
@@ -151,8 +145,7 @@ $ai4seo_execute_sooner_button = ai4seo_get_small_button_tag($ai4seo_execute_soon
 $ai4seo_retry_all_failed_attachment_attributes_generations_link_label = "<span class='ai4seo-retry-failed'>" . __("Retry all failed media attributes generations", "ai-for-seo") . "</span><span class='ai4seo-retry-failed-mobile'>" . __("Retry all failed", "ai-for-seo") . "</span>";
 
 // retry all failed attachment attributes generations link
-$ai4seo_retry_all_failed_attachment_attributes_generations_link_url = ai4seo_get_admin_url($ai4seo_nice_post_type, array("ai4seo-reset-failed-attachment-attributes-generation" => true, "ai4seo-page" => $ai4seo_current_page));
-$ai4seo_retry_all_failed_attachment_attributes_generations_link_tag = ai4seo_get_small_button_tag($ai4seo_retry_all_failed_attachment_attributes_generations_link_url, "rotate", $ai4seo_retry_all_failed_attachment_attributes_generations_link_label);
+$ai4seo_retry_all_failed_attachment_attributes_generations_link_tag = ai4seo_get_small_button_tag("#", "rotate", $ai4seo_retry_all_failed_attachment_attributes_generations_link_label, "", "ai4seo_retry_all_failed_attachment_attributes(this); return false;");
 
 $ai4seo_consider_purchasing_more_credits_link_url = ai4seo_get_admin_url();
 $ai4seo_consider_purchasing_more_credits_link_tag = ai4seo_get_small_button_tag($ai4seo_consider_purchasing_more_credits_link_url, "circle-plus", __("Get more Credits", "ai-for-seo"), "ai4seo-success-button");
@@ -212,8 +205,7 @@ echo "<table class='widefat striped table-view-list attachments ai4seo-posts-tab
             echo " <span style='font-size: smaller'>(" . esc_html(implode(", ", $ai4seo_active_attachment_attribute_names)) . ")</span>";
 
             // RESET ALL FAILED ATTACHMENT ATTRIBUTES GENERATION
-            # todo: do ajax instead of reloading the page
-            if (count($ai4seo_failed_attributes_attachment_post_ids) && $ai4seo_is_bulk_generation_activated) {
+            if (count($ai4seo_failed_attributes_attachment_post_ids)) {
                 echo "<div class='ai4seo-table-title-button'>";
                 echo ai4seo_wp_kses($ai4seo_retry_all_failed_attachment_attributes_generations_link_tag);
                 echo "</div>";

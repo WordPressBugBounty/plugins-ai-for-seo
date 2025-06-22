@@ -87,8 +87,6 @@ if (count($ai4seo_generation_input_values) == 1) {
 
 // === CHECK ATTACHMENT ======================================================================= \\
 
-$ai4seo_use_base64_image = false;
-
 // first, let's get the wp_post entry for more checks
 $ai4seo_this_attachment_post = get_post($ai4seo_this_attachment_post_id);
 
@@ -120,27 +118,8 @@ if (!$ai4seo_this_mime_type || !in_array($ai4seo_this_mime_type, $ai4seo_allowed
     ai4seo_return_error_as_json("Media mime type is not allowed: " . $ai4seo_this_mime_type, 251823824);
 }
 
-// check if the url is valid -> if not we will try to use the image as base64
-if (!filter_var($ai4seo_this_attachment_url, FILTER_VALIDATE_URL)) {
-    $ai4seo_use_base64_image = true;
-}
-
-if (ai4seo_robhub_api()->are_we_on_a_localhost_system()) {
-    $ai4seo_use_base64_image = true;
-}
-
-if (!$ai4seo_use_base64_image) {
-    // check if the attachment url is accessible
-    $ai4seo_this_attachment_url_headers = get_headers($ai4seo_this_attachment_url);
-
-    if (!$ai4seo_this_attachment_url_headers || !is_array($ai4seo_this_attachment_url_headers) || !isset($ai4seo_this_attachment_url_headers[0])) {
-        $ai4seo_use_base64_image = true;
-    }
-
-    if (strpos($ai4seo_this_attachment_url_headers[0], "200") === false) {
-        $ai4seo_use_base64_image = true;
-    }
-}
+// Determine whether to use base64 or URL based on user setting
+$ai4seo_use_base64_image = ai4seo_should_use_base64_image($ai4seo_this_attachment_url);
 
 if ($ai4seo_use_base64_image) {
     // Use wp_safe_remote_get instead of file_get_contents for fetching remote files

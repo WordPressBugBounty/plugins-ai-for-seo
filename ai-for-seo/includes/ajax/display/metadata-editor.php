@@ -18,7 +18,6 @@ if (!ai4seo_can_manage_this_plugin()) {
 // === PREPARE =============================================================================== \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
-
 // === CHECK PARAMETER ============================================== \\
 
 // Make sure that input-fields exist
@@ -49,6 +48,10 @@ if ($ai4seo_this_metadata) {
     $ai4seo_this_metadata = $ai4seo_this_metadata[$ai4seo_post_id] ?? array();
 }
 
+// Prepare variables for prefixes and suffixes
+$ai4seo_metadata_prefixes = ai4seo_get_setting(AI4SEO_SETTING_METADATA_PREFIXES);
+$ai4seo_metadata_suffixes = ai4seo_get_setting(AI4SEO_SETTING_METADATA_SUFFIXES);
+
 
 // ___________________________________________________________________________________________ \\
 // === OUTPUT ================================================================================ \\
@@ -57,7 +60,7 @@ if ($ai4seo_this_metadata) {
 // HEADLINE
 echo "<div class='ai4seo-modal-headline'>";
     echo "<div class='ai4seo-modal-headline-icon'>";
-        echo "<img src='" . esc_url(ai4seo_get_ai_for_seo_logo_url("64x64")) . "'>";
+        echo "<img src='" . esc_url(ai4seo_get_ai_for_seo_logo_url("64x64")) . "' />";
     echo "</div>";
 
     echo esc_html(AI4SEO_PLUGIN_NAME) . " - " . esc_html__("Metadata Editor", "ai-for-seo");
@@ -82,6 +85,8 @@ echo "<div class='ai4seo-form ai4seo-editor-form'>";
         // get the value of the post meta entry for the input-field
         $ai4seo_this_metadata_input_value = $ai4seo_this_metadata[$ai4seo_this_metadata_identifier] ?? "";
         $ai4seo_this_metadata_input_name = ai4seo_get_prefixed_input_name("metadata_" . $ai4seo_this_metadata_identifier);
+        $ai4seo_this_metadata_prefix = sanitize_text_field($ai4seo_metadata_prefixes[$ai4seo_this_metadata_identifier] ?? "");
+        $ai4seo_this_metadata_suffix = sanitize_text_field($ai4seo_metadata_suffixes[$ai4seo_this_metadata_identifier] ?? "");
 
         // form item
         echo "<div class='ai4seo-form-item'>";
@@ -100,6 +105,15 @@ echo "<div class='ai4seo-form ai4seo-editor-form'>";
 
             // Input
             echo "<div class='ai4seo-form-item-input-wrapper ai4seo-form-input-wrapper-with-generate-button'>";
+                // Prefix
+                if ($ai4seo_this_metadata_prefix) {
+                    echo "<span class='ai4seo-editor-prefix ai4seo-gray-text' style='float: left'>";
+                        echo esc_html__("Prefix", "ai-for-seo") . ": " . esc_html($ai4seo_this_metadata_prefix) . " ";
+
+                        // tooltip
+                        echo ai4seo_wp_kses(ai4seo_get_icon_with_tooltip_tag(__("Prefix and suffix are added automatically when the page is rendered. Please do not include them in this input field.", "ai-for-seo")));
+                    echo "</span> ";
+                }
 
                 // Text field
                 if ($ai4seo_this_metadata_details["input"] == "textfield") {
@@ -109,6 +123,16 @@ echo "<div class='ai4seo-form ai4seo-editor-form'>";
                 // Textarea
                 else if ($ai4seo_this_metadata_details["input"] == "textarea") {
                     echo "<textarea class='ai4seo-editor-textarea' name='" . esc_attr($ai4seo_this_metadata_input_name) . "' id='" . esc_attr($ai4seo_this_metadata_input_name) . "'>" . esc_textarea($ai4seo_this_metadata_input_value) . "</textarea>";
+                }
+
+                // Suffix
+                if ($ai4seo_this_metadata_suffix) {
+                    echo "<span class='ai4seo-editor-suffix ai4seo-gray-text' style='float: left'>";
+                        echo esc_html__("Suffix", "ai-for-seo") . ": " .  esc_html($ai4seo_this_metadata_suffix) . " ";
+
+                        // tooltip
+                        echo ai4seo_wp_kses(ai4seo_get_icon_with_tooltip_tag(__("Prefix and suffix are added automatically when the page is rendered. Please do not include them in this input field.", "ai-for-seo")));
+                    echo "</span>";
                 }
             echo "</div>";
 

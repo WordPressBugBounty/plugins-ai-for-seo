@@ -94,18 +94,23 @@ echo "<div class='ai4seo-form'>";
 
         // === DESCRIPTION =========================================================================== \\
 
-        echo "<div class='ai4seo-form-item' style='padding-top:0;'>";
-            echo "<p>";
-                // Show description in case of existing license
-                if ($ai4seo_show_license_details) {
-                    echo esc_html__("Please make sure to save the username and license key somewhere safe in case your need to reconnect your website to your existing account. You can use these credentials on as many websites as you like which is especially convenient for SEO- and web agencies.", "ai-for-seo");
-                }
+        echo "<div class='ai4seo-form-item' style='padding: 0 1rem .5rem 1rem;'>";
+            // Show description in case of existing license
+            if ($ai4seo_show_license_details) {
+                echo "<ol>";
+                    echo "<li>" . esc_html__("Please make sure to save the username and license key somewhere safe in case your need to reconnect your website to your existing account.", "ai-for-seo") . "</li>";
+                    echo "<li><strong>" . esc_html__("You can use these credentials on as many websites as you like which is especially convenient for SEO- and web agencies.", "ai-for-seo") . "</strong></li>";
+                echo "</ol>";
+            }
 
-                // Show description in case of missing license
-                else {
-                    echo esc_html__("Here you can connect your website to an existing account in order to use the Credits from your main account.", "ai-for-seo");
-                }
-            echo "</p>";
+            // Show description in case of missing license
+            else {
+                echo "<ol>";
+                    echo "<li>" . esc_html__("Here you can connect your website to an existing account in order to use the Credits from your main account.", "ai-for-seo") . "</li>";
+                    echo "<li>" . esc_html__("Your credentials will be generated automatically when you purchase a plan or Credits and you will be able to find them here.", "ai-for-seo") . "</li>";
+                    echo "<li>" . esc_html__("If you have lost your credentials, please contact us via the link below.", "ai-for-seo") . "</li>";
+                echo "<ol>";
+            }
         echo "</div>";
 
 

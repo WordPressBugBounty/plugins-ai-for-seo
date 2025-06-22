@@ -274,6 +274,10 @@ echo "<div class='wrap ai4seo-wrap'>";
         // === DEBUG OPERATIONS ================================================================================= \\
 
         if (isset($_GET["ai4seo_debug_generate_cronjob"]) && $_GET["ai4seo_debug_generate_cronjob"]) {
+            $ai4seo_cron_job_status = ai4seo_get_cron_job_status(AI4SEO_BULK_GENERATION_CRON_JOB_NAME);
+            $ai4seo_cron_job_status_update_time = ai4seo_get_cron_job_status_update_time(AI4SEO_BULK_GENERATION_CRON_JOB_NAME);
+            echo "<pre>>" . print_r($ai4seo_cron_job_status, true) . "<</pre>";
+            echo "<pre>>" . print_r(ai4seo_format_unix_timestamp($ai4seo_cron_job_status_update_time), true) . "<</pre>";
             ai4seo_automated_generation_cron_job(true);
         }
 

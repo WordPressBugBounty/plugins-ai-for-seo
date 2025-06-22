@@ -34,14 +34,6 @@ foreach (ai4seo_robhub_api()::DEFAULT_ENVIRONMENTAL_VARIABLES as $ai4seo_this_ro
     $ai4seo_this_old_robhub_environmental_variable_value = ai4seo_robhub_api()->read_environmental_variable($ai4seo_this_robhub_environmental_variable_name);
     $ai4seo_this_new_robhub_environmental_variable_value = $ai4seo_post_parameter[$ai4seo_this_robhub_environmental_variable_name];
 
-    // for api_username and api_password -> if it's empty, ignore it
-    if ($ai4seo_this_robhub_environmental_variable_name === ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_API_USERNAME
-        || $ai4seo_this_robhub_environmental_variable_name === ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_API_PASSWORD) {
-        if (empty($ai4seo_this_new_robhub_environmental_variable_value)) {
-            continue;
-        }
-    }
-
     // is equal to old value -> ignore it
     if ($ai4seo_this_new_robhub_environmental_variable_value == $ai4seo_this_old_robhub_environmental_variable_value) {
         continue;
@@ -81,19 +73,30 @@ $ai4seo_robhub_api_username_key = ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_AP
 $ai4seo_robhub_api_password_key = ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_API_PASSWORD;
 
 if (isset($ai4seo_recent_robhub_environmental_variable_changes[$ai4seo_robhub_api_username_key]) || isset($ai4seo_recent_robhub_environmental_variable_changes[$ai4seo_robhub_api_password_key])) {
-    $ai4seo_robhub_api_response = ai4seo_robhub_api()->call("client/credits-balance");
+    // if we have new username or password, we need to test the new credentials
+    if ($ai4seo_recent_robhub_environmental_variable_changes[$ai4seo_robhub_api_username_key][1] && $ai4seo_recent_robhub_environmental_variable_changes[$ai4seo_robhub_api_password_key][1]) {
+        $ai4seo_robhub_api_response = ai4seo_robhub_api()->call("client/credits-balance");
 
-    // Unable to connect to RobHub API anymore -> restore old license key and return error
-    if (!isset($ai4seo_robhub_api_response["success"]) || $ai4seo_robhub_api_response["success"] !== true) {
-        ai4seo_robhub_api()->update_environmental_variable($ai4seo_robhub_api_username_key, $ai4seo_recent_robhub_environmental_variable_changes[$ai4seo_robhub_api_username_key][0]);
-        ai4seo_robhub_api()->update_environmental_variable($ai4seo_robhub_api_password_key, $ai4seo_recent_robhub_environmental_variable_changes[$ai4seo_robhub_api_password_key][0]);
-        ai4seo_return_error_as_json("Could not verify new credentials.", 391222324);
+        // Unable to connect to RobHub API anymore -> restore old license key and return error
+        if (!isset($ai4seo_robhub_api_response["success"]) || $ai4seo_robhub_api_response["success"] !== true) {
+            ai4seo_robhub_api()->update_environmental_variable($ai4seo_robhub_api_username_key, $ai4seo_recent_robhub_environmental_variable_changes[$ai4seo_robhub_api_username_key][0]);
+            ai4seo_robhub_api()->update_environmental_variable($ai4seo_robhub_api_password_key, $ai4seo_recent_robhub_environmental_variable_changes[$ai4seo_robhub_api_password_key][0]);
+            ai4seo_return_error_as_json("Could not verify new credentials.", 391222324);
+        } else {
+            ai4seo_robhub_api()->call("client/changed-api-user",
+                array("old-api-username" => $ai4seo_recent_robhub_environmental_variable_changes[$ai4seo_robhub_api_username_key][0],
+                    "new-api-username" => $ai4seo_recent_robhub_environmental_variable_changes[$ai4seo_robhub_api_username_key][1]), "POST");
+
+            // reset last credit balance check, so we can check the balance again
+            ai4seo_robhub_api()->reset_last_credit_balance_check();
+        }
+
+    // if we had old username or password, but now we have empty ones, we try to init a free account
+    } else if ($ai4seo_recent_robhub_environmental_variable_changes[$ai4seo_robhub_api_username_key][0] || $ai4seo_recent_robhub_environmental_variable_changes[$ai4seo_robhub_api_password_key][0]) {
+        // if the new username or password is empty, we try to init a free account
+        ai4seo_robhub_api()->init_free_account();
     } else {
-        ai4seo_robhub_api()->call("client/changed-api-user",
-            array("old-api-username" => $ai4seo_recent_robhub_environmental_variable_changes[$ai4seo_robhub_api_username_key][0],
-                "new-api-username" => $ai4seo_recent_robhub_environmental_variable_changes[$ai4seo_robhub_api_username_key][1]), "POST");
-
-        // reset last credit balance check, so we can check the balance again
-        ai4seo_robhub_api()->reset_last_credit_balance_check();
+        // if we had no username or password before, we do nothing
+        // this is the case when the user has not set any credentials before and jut saved
     }
 }

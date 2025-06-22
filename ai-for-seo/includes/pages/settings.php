@@ -550,6 +550,47 @@ echo "<div class='ai4seo-form'>";
         echo "</div>";
 
 
+        // === AI4SEO_SETTING_IMAGE_UPLOAD_METHOD ============================== \\
+
+        $ai4seo_this_setting_name = AI4SEO_SETTING_IMAGE_UPLOAD_METHOD;
+        $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
+        $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
+        $ai4seo_this_setting_description = __("Choose how images are sent to our server for generating attachment attributes: <strong>Auto (recommended)</strong>: Automatically selects a method based on image accessibility. Falls back to <strong>Data</strong> if the image cannot be accessed externally (e.g., on localhost or behind access restrictions). <strong>URL</strong>: Always sends the image URL. <strong>Data</strong>: Always sends the full image data.", "ai-for-seo");
+        $ai4seo_this_setting_description .= "<br><br>";
+        $ai4seo_this_setting_description .= __("If you experience issues with media attribute generation, try switching to the <strong>Data</strong> option. This method is slower but can be more reliable in some situations.", "ai-for-seo");
+
+        // Divider
+        echo "<hr class='ai4seo-form-item-divider'>";
+
+        // Display form elements
+        echo "<div class='ai4seo-form-item'>";
+            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
+            echo esc_html__("Image Upload Method:", "ai-for-seo") ;
+            echo "</label>";
+
+            echo "<div class='ai4seo-form-item-input-wrapper'>";
+                $ai4seo_image_upload_method_options = array(
+                    "auto" => __("Auto (default & recommended)", "ai-for-seo"),
+                    "url" => __("URL", "ai-for-seo"),
+                    "base64" => __("Data", "ai-for-seo")
+                );
+
+                echo "<select id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
+                foreach ($ai4seo_image_upload_method_options as $ai4seo_option_value => $ai4seo_option_label) {
+                    $ai4seo_is_selected = ($ai4seo_this_setting_input_value === $ai4seo_option_value) ? ' selected="selected"' : '';
+                    echo "<option value='" . esc_attr($ai4seo_option_value) . "'" . $ai4seo_is_selected . ">";
+                    echo esc_html($ai4seo_option_label);
+                    echo "</option>";
+                }
+                echo "</select>";
+
+                echo "<p class='ai4seo-form-item-description'>";
+                    echo ai4seo_wp_kses($ai4seo_this_setting_description);
+                echo "</p>";
+            echo "</div>";
+        echo "</div>";
+
+
         // === AI4SEO_SETTING_OVERWRITE_EXISTING_ATTACHMENT_ATTRIBUTES ========================================================== \\
 
         $ai4seo_this_setting_name = AI4SEO_SETTING_OVERWRITE_EXISTING_ATTACHMENT_ATTRIBUTES;

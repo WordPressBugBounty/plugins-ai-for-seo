@@ -925,14 +925,14 @@ class Ai4Seo_RobHubApiCommunicator {
     function validate_environmental_variable_value(string $environmental_variable_name, $environmental_variable_value): bool {
         switch ($environmental_variable_name) {
             case self::ENVIRONMENTAL_VARIABLE_API_USERNAME:
-                if (!preg_match("/^[a-z0-9_\-]{5,48}$/", $environmental_variable_value)) {
+                if ($environmental_variable_value && !preg_match("/^[a-z0-9_\-]{5,48}$/", $environmental_variable_value)) {
                     return false;
                 }
 
                 return true;
 
             case self::ENVIRONMENTAL_VARIABLE_API_PASSWORD:
-                if (!preg_match("/^[a-z0-9_\-]{48}$/", $environmental_variable_value)) {
+                if ($environmental_variable_value && !preg_match("/^[a-z0-9_\-]{48}$/", $environmental_variable_value)) {
                     return false;
                 }
 

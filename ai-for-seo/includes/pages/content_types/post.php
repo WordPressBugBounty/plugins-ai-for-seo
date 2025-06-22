@@ -45,12 +45,6 @@ if (isset($_GET["ai4seo-execute-cron-job-sooner"]) && $_GET["ai4seo-execute-cron
     ai4seo_inject_additional_cronjob_call(AI4SEO_BULK_GENERATION_CRON_JOB_NAME);
 }
 
-// check if the user wants to reset all failed metadata generation
-if (isset($_GET["ai4seo-reset-failed-metadata-generation"]) && $_GET["ai4seo-reset-failed-metadata-generation"]) {
-    ai4seo_remove_all_post_ids_by_post_type_and_generation_status($ai4seo_post_type, AI4SEO_FAILED_METADATA_POST_IDS_OPTION_NAME);
-    ai4seo_refresh_all_posts_generation_status_summary();
-}
-
 // collect some admin links and buttons
 $ai4seo_this_admin_tab_url = ai4seo_get_post_type_url($ai4seo_post_type, $ai4seo_current_page);
 $ai4seo_refresh_button = ai4seo_get_small_button_tag($ai4seo_this_admin_tab_url, "rotate", __("Refresh page", "ai-for-seo"));
@@ -63,8 +57,7 @@ $ai4seo_execute_sooner_button = ai4seo_get_small_button_tag($ai4seo_execute_soon
 $ai4seo_retry_all_failed_metadata_generations_link_label = "<span class='ai4seo-retry-failed'>" . __("Retry all failed metadata generations", "ai-for-seo") . "</span><span class='ai4seo-retry-failed-mobile'>" . __("Retry all failed", "ai-for-seo") . "</span>";
 
 // retry all failed metadata generations link
-$ai4seo_retry_all_failed_metadata_generations_link_url = ai4seo_get_post_type_url($ai4seo_post_type, $ai4seo_current_page, array("ai4seo-reset-failed-metadata-generation" => true));
-$ai4seo_retry_all_failed_metadata_generations_link_tag = ai4seo_get_small_button_tag($ai4seo_retry_all_failed_metadata_generations_link_url, "rotate", $ai4seo_retry_all_failed_metadata_generations_link_label);
+$ai4seo_retry_all_failed_metadata_generations_link_tag = ai4seo_get_small_button_tag("#", "rotate", $ai4seo_retry_all_failed_metadata_generations_link_label, "", "ai4seo_retry_all_failed_metadata(this, '" . esc_js($ai4seo_post_type) . "'); return false;");
 
 $ai4seo_consider_purchasing_more_credits_link_url = ai4seo_get_admin_url();
 $ai4seo_consider_purchasing_more_credits_link_tag = ai4seo_get_small_button_tag($ai4seo_consider_purchasing_more_credits_link_url, "circle-plus", __("Get more Credits", "ai-for-seo"), "ai4seo-success-button");
@@ -179,7 +172,7 @@ echo "<table class='widefat striped table-view-list pages ai4seo-posts-table'>";
             echo "</span>";
 
             // RESET ALL FAILED METADATA GENERATION
-            if (($ai4seo_num_failed_to_fill_this_post_type || $ai4seo_current_page_failed_to_fill_post_ids) && $ai4seo_is_bulk_generation_activated) {
+            if (($ai4seo_num_failed_to_fill_this_post_type || $ai4seo_current_page_failed_to_fill_post_ids)) {
                 echo "<div class='ai4seo-table-title-button'>";
                 echo ai4seo_wp_kses($ai4seo_retry_all_failed_metadata_generations_link_tag);
                 echo "</div>";

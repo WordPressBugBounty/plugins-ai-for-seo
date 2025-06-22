@@ -50,11 +50,6 @@ $ai4seo_post_content = sanitize_textarea_field($_REQUEST["ai4seo_content"] ?? ""
 // get sanitized old values parameter
 $ai4seo_generation_input_values = ai4seo_deep_sanitize($_REQUEST["ai4seo_generation_input_values"] ?? array());
 
-// Prepare variables for prefixes and suffixes
-$ai4seo_metadata_prefixes = ai4seo_get_setting(AI4SEO_SETTING_METADATA_PREFIXES);
-$ai4seo_metadata_suffixes = ai4seo_get_setting(AI4SEO_SETTING_METADATA_SUFFIXES);
-
-
 // ___________________________________________________________________________________________ \\
 // === INIT API COMMUNICATOR ================================================================= \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
@@ -292,13 +287,8 @@ foreach (AI4SEO_METADATA_DETAILS as $ai4seo_this_metadata_identifier => $ai4seo_
         continue;
     }
 
-    // Add prefix and suffix
-    $ai4seo_this_metadata_prefix = trim(sanitize_text_field($ai4seo_metadata_prefixes[$ai4seo_this_metadata_identifier] ?? ""));
-    $ai4seo_this_metadata_suffix = trim(sanitize_text_field($ai4seo_metadata_suffixes[$ai4seo_this_metadata_identifier] ?? ""));
-    $ai4seo_this_metadata_value = trim($ai4seo_this_metadata_prefix . " " . $ai4seo_this_generated_data_value . " " . $ai4seo_this_metadata_suffix);
-
     // Overwrite generated data entry
-    $ai4seo_new_metadata[$ai4seo_this_metadata_identifier] = html_entity_decode($ai4seo_this_metadata_value);
+    $ai4seo_new_metadata[$ai4seo_this_metadata_identifier] = html_entity_decode($ai4seo_this_generated_data_value);
 }
 
 

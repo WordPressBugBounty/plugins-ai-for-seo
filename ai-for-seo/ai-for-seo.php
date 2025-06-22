@@ -3,7 +3,7 @@
 Plugin Name: AI for SEO
 Plugin URI: https://aiforseo.ai
 Description: One-Click SEO solution. "AI for SEO" helps your website to rank higher in Web Search results.
-Version: 2.0.4
+Version: 2.0.5
 Author: spacecodes
 Author URI: https://spa.ce.codes
 Text Domain: ai-for-seo
@@ -15,7 +15,7 @@ if (!defined("ABSPATH")) {
     exit;
 }
 
-const AI4SEO_PLUGIN_VERSION_NUMBER = "2.0.4";
+const AI4SEO_PLUGIN_VERSION_NUMBER = "2.0.5";
 const AI4SEO_PLUGIN_NAME = "AI for SEO";
 const AI4SEO_PLUGIN_DESCRIPTION = 'One-Click SEO solution. "AI for SEO" helps your website to rank higher in Web Search results.';
 const AI4SEO_PLUGIN_IDENTIFIER = "ai-for-seo";
@@ -410,8 +410,7 @@ const AI4SEO_ALLOWED_CURRENCIES = array(
  * 2. Define a default Setting in $ai4seo_default_settings
  * 3. Define a validation in ai4seo_validate_setting_value()
  * 4. If the setting is changeable in the Settings menu: Go to settings.php and
- *  - add the Constant to $ai4seo_all_known_changeable_settings_names and then
- *  - create the output of the setting at the bottom of the file
+ *    create the output of the setting at the bottom of the file
  */
 const AI4SEO_SETTING_BULK_GENERATION_DURATION = 'bulk_generation_duration';
 const AI4SEO_SETTING_META_TAG_OUTPUT_MODE = 'meta_tags_output_method';
@@ -433,6 +432,7 @@ const AI4SEO_SETTING_METADATA_PREFIXES = 'metadata_prefix';
 const AI4SEO_SETTING_METADATA_SUFFIXES = 'metadata_suffix';
 const AI4SEO_SETTING_ATTACHMENT_ATTRIBUTES_PREFIXES = 'attachment_attributes_prefix';
 const AI4SEO_SETTING_ATTACHMENT_ATTRIBUTES_SUFFIXES = 'attachment_attributes_suffix';
+const AI4SEO_SETTING_IMAGE_UPLOAD_METHOD = 'image_upload_method';
 const AI4SEO_SETTING_PREFERRED_CURRENCY = 'preferred_currency';
 const AI4SEO_SETTING_PAYG_ENABLED = 'payg_enabled';
 const AI4SEO_SETTING_PAYG_STRIPE_PRICE_ID = 'payg_stripe_price_id';
@@ -495,6 +495,7 @@ const AI4SEO_DEFAULT_SETTINGS = array(
         "caption" => "",
         "description" => "",
     ),
+    AI4SEO_SETTING_IMAGE_UPLOAD_METHOD => "auto",
     AI4SEO_SETTING_ENABLE_INCOGNITO_MODE => false,
     AI4SEO_SETTING_INCOGNITO_MODE_USER_ID => "0",
     AI4SEO_SETTING_ENABLE_WHITE_LABEL => false,
@@ -673,7 +674,7 @@ add_action('init', function() {
         ),
         "alt-text" => array(
             "name" => __("Alt Text", "ai-for-seo"),
-            "icon" => "image-slash",
+            "icon" => "code",
             "mime-type-restrictions" => array(
                 "image/jpeg",
                 "image/gif",
@@ -901,8 +902,8 @@ $ai4seo_allowed_html_tags_and_attributes = array(
 
 $ai4seo_cached_active_plugins_and_themes = array();
 $ai4seo_cached_supported_post_types = array();
-$ai4seo_allowed_attachment_mime_types = array("image/jpeg", "image/png", "image/gif", "image/webp"); # IMPORTANT! Also apply changes to the api-service AND to ai4seo_supported_mime_types-variable in JS-file
-$ai4seo_allowed_image_mime_types = array("image/jpeg", "image/png", "image/gif", "image/webp");
+$ai4seo_allowed_attachment_mime_types = array("image/jpeg", "image/png", "image/gif", "image/webp", "image/avif"); # IMPORTANT! Also apply changes to the api-service AND to ai4seo_supported_mime_types-variable in JS-file
+$ai4seo_allowed_image_mime_types = array("image/jpeg", "image/png", "image/gif", "image/webp", "image/avif");
 
 // Define the constants for full and base language code mappings
 const AI4SEO_FULL_LANGUAGE_CODE_MAPPING = array(
@@ -973,6 +974,8 @@ const AI4SEO_ALLOWED_AJAX_FUNCTIONS = array(
     "ai4seo_dismiss_one_time_notice",
     "ai4seo_reset_plugin_data",
     "ai4seo_stop_bulk_generation",
+    "ai4seo_retry_all_failed_attachment_attributes",
+    "ai4seo_retry_all_failed_metadata",
     "ai4seo_disable_payg",
     "ai4seo_init_purchase",
     "ai4seo_import_nextgen_gallery_images",
@@ -5072,7 +5075,7 @@ function ai4seo_get_environmental_variable_accepted_time_output($environmental_v
  * @param int $duration The duration in seconds
  * @return bool True if the SEO Autopilot is running at least X amount of seconds
  */
-function ai4seo_was_seo_autopilot_set_up_at_least_x_seconds_ago(int $duration = 60): bool {
+function ai4seo_was_seo_autopilot_set_up_at_least_x_seconds_ago(int $duration = 300): bool {
     $ai4seo_seo_autopilot_start_time = (int) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_SEO_AUTOPILOT_SET_UP_TIME);
 
     if (!$ai4seo_seo_autopilot_start_time) {
@@ -5095,7 +5098,7 @@ function ai4seo_echo_inefficient_cron_jobs_notice() {
         return;
     }
 
-    // check if the SEO Autopilot was set up at least 60 seconds ago
+    // check if the SEO Autopilot was set up at least X seconds ago
     if (!ai4seo_was_seo_autopilot_set_up_at_least_x_seconds_ago()) {
         return;
     }
@@ -5625,12 +5628,12 @@ function ai4seo_inject_additional_cronjob_call(string $cronjob_name, int $delay 
 function ai4seo_add_cron_job_intervals($schedules) {
     $schedules["five_minutes"] = array(
         "interval" => 60 * 5, // Number of seconds, 5 minutes in seconds.
-        "display"  => __("Every Five Minutes", AI4SEO_PLUGIN_IDENTIFIER),
+        "display"  => __("Every Five Minutes", "ai-for-seo"),
     );
 
     $schedules["one_hour"] = array(
         "interval" => 60 * 60, // Number of seconds, 60 minutes in seconds.
-        "display"  => __("Every Hour", AI4SEO_PLUGIN_IDENTIFIER),
+        "display"  => __("Every Hour", "ai-for-seo"),
     );
 
     return $schedules;
@@ -5821,6 +5824,12 @@ function ai4seo_automated_generation_cron_job($debug = false): bool {
             echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("skipped, because of low Credits balance", true)) . "<</pre>";
         }
 
+        // remove all processing and pending ids
+        update_option(AI4SEO_PROCESSING_METADATA_POST_IDS_OPTION_NAME, "");
+        update_option(AI4SEO_PENDING_METADATA_POST_IDS_OPTION_NAME, "");
+        update_option(AI4SEO_PROCESSING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME, "");
+        update_option(AI4SEO_PENDING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME, "");
+
         ai4seo_set_cron_job_status(AI4SEO_BULK_GENERATION_CRON_JOB_NAME, "low-credits-balance");
         return true;
     }
@@ -5901,8 +5910,15 @@ function ai4seo_automated_metadata_generation($debug = false, $only_this_post_id
         $post_id = $only_this_post_id;
     } else {
         // try to search for posts with missing metadata
-        // todo: only if the user wants to generate new or yet unknown posts
-        ai4seo_excavate_post_entries_with_missing_metadata($debug);
+        $got_new_pending_posts = ai4seo_excavate_post_entries_with_missing_metadata($debug);
+
+        if (!$got_new_pending_posts) {
+            if ($debug) {
+                echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("No new pending posts found", true)) . "<</pre>";
+            }
+
+            return true;
+        }
 
         $pending_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_PENDING_METADATA_POST_IDS_OPTION_NAME);
 
@@ -5963,6 +5979,19 @@ function ai4seo_automated_metadata_generation($debug = false, $only_this_post_id
 
         ai4seo_remove_post_ids_from_all_generation_status_options($post_id);
         ai4seo_add_post_ids_to_option(AI4SEO_FULLY_COVERED_METADATA_POST_IDS_OPTION_NAME, $post_id);
+        return true;
+    }
+
+    // check the current credits balance, compare it to AI4SEO_MIN_CREDITS_BALANCE and if it's lower, return true
+    if (ai4seo_robhub_api()->get_credits_balance() < AI4SEO_MIN_CREDITS_BALANCE) {
+        if ($debug) {
+            echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("skipped, because of low Credits balance", true)) . "<</pre>";
+        }
+
+        // remove all processing and pending ids
+        update_option(AI4SEO_PROCESSING_METADATA_POST_IDS_OPTION_NAME, "");
+        update_option(AI4SEO_PENDING_METADATA_POST_IDS_OPTION_NAME, "");
+
         return true;
     }
 
@@ -6123,6 +6152,65 @@ function ai4seo_handle_failed_metadata_generation(int $post_id, string $function
 // =========================================================================================== \\
 
 /**
+ * Determines whether to use base64 encoding or URL for image upload based on user setting and automatic logic
+ * @param string $attachment_url The attachment URL to check
+ * @return bool true if base64 should be used, false if URL should be used
+ */
+function ai4seo_should_use_base64_image(string $attachment_url): bool {
+    // Get the user's preference for image upload method
+    $image_upload_method = ai4seo_get_setting(AI4SEO_SETTING_IMAGE_UPLOAD_METHOD);
+    
+    switch ($image_upload_method) {
+        case 'base64':
+            // User explicitly chose base64 - always encode and send image data directly
+            return true;
+            
+        case 'url':
+            // User explicitly chose URL - always send the image URL
+            return false;
+            
+        case 'auto':
+        default:
+            // Auto mode: use intelligent logic to decide the best method
+            // Default to URL method for better performance (smaller payload)
+            $ai4seo_use_base64_image = false;
+
+            // First check: Validate URL format
+            // If URL format is invalid, we must use base64 as fallback
+            if (!filter_var($attachment_url, FILTER_VALIDATE_URL)) {
+                $ai4seo_use_base64_image = true;
+            }
+
+            // Second check: Detect localhost/development environments
+            // Our API cannot access localhost URLs, so base64 is required
+            if (ai4seo_robhub_api()->are_we_on_a_localhost_system()) {
+                $ai4seo_use_base64_image = true;
+            }
+
+            // Third check: Test URL accessibility (only if we haven't already decided on base64)
+            if (!$ai4seo_use_base64_image) {
+                // Attempt to get HTTP headers to verify the URL is accessible
+                $attachment_url_headers = get_headers($attachment_url);
+
+                // If we can't get headers or they're malformed, the URL is not accessible
+                if (!$attachment_url_headers || !is_array($attachment_url_headers) || !isset($attachment_url_headers[0])) {
+                    $ai4seo_use_base64_image = true;
+                }
+
+                // Check for successful HTTP response (200 OK)
+                // If the response is not successful, our Server won't be able to access the URL
+                if (strpos($attachment_url_headers[0], "200") === false) {
+                    $ai4seo_use_base64_image = true;
+                }
+            }
+
+            return $ai4seo_use_base64_image;
+    }
+}
+
+// =========================================================================================== \\
+
+/**
  * Function to automatically generate attributes for attachments
  * @param bool $debug debug mode yes or no
  * @param int $only_this_attachment_post_id care only this attachment post id
@@ -6142,8 +6230,16 @@ function ai4seo_automated_attachment_attributes_generation(bool $debug = false, 
         $attachment_post_id = $only_this_attachment_post_id;
     } else {
         // try to search for attachment posts with missing attributes
-        // todo: only if the user wants to generate new or yet unknown posts
-        ai4seo_excavate_attachments_with_missing_attributes($debug);
+        $got_new_pending_attachment_post_ids = ai4seo_excavate_attachments_with_missing_attributes($debug);
+
+        if (!$got_new_pending_attachment_post_ids) {
+            // skip here because we don't have any attachment posts
+            if ($debug) {
+                echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("No pending media posts found", true)) . "<</pre>";
+            }
+
+            return true;
+        }
 
         $pending_attachment_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_PENDING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME);
 
@@ -6206,6 +6302,19 @@ function ai4seo_automated_attachment_attributes_generation(bool $debug = false, 
         return true;
     }
 
+    // check the current credits balance, compare it to AI4SEO_MIN_CREDITS_BALANCE and if it's lower, return true
+    if (ai4seo_robhub_api()->get_credits_balance() < AI4SEO_MIN_CREDITS_BALANCE) {
+        if ($debug) {
+            echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("skipped, because of low Credits balance", true)) . "<</pre>";
+        }
+
+        // remove all processing and pending ids
+        update_option(AI4SEO_PROCESSING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME, "");
+        update_option(AI4SEO_PENDING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME, "");
+
+        return true;
+    }
+
     // mark post as being processed
     ai4seo_add_post_ids_to_option(AI4SEO_PROCESSING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME, $attachment_post_id);
 
@@ -6242,29 +6351,7 @@ function ai4seo_automated_attachment_attributes_generation(bool $debug = false, 
         return true;
     }
 
-    $ai4seo_use_base64_image = false;
-
-    // check if url is valid
-    if (!filter_var($attachment_url, FILTER_VALIDATE_URL)) {
-        $ai4seo_use_base64_image = true;
-    }
-
-    if (ai4seo_robhub_api()->are_we_on_a_localhost_system()) {
-        $ai4seo_use_base64_image = true;
-    }
-
-    if (!$ai4seo_use_base64_image) {
-        // check if the attachment url is accessible
-        $attachment_url_headers = get_headers($attachment_url);
-
-        if (!$attachment_url_headers || !is_array($attachment_url_headers) || !isset($attachment_url_headers[0])) {
-            $ai4seo_use_base64_image = true;
-        }
-
-        if (strpos($attachment_url_headers[0], "200") === false) {
-            $ai4seo_use_base64_image = true;
-        }
-    }
+    $ai4seo_use_base64_image = ai4seo_should_use_base64_image($attachment_url);
 
     if ($ai4seo_use_base64_image) {
         // Use wp_safe_remote_get instead of file_get_contents for fetching remote files
@@ -6447,7 +6534,11 @@ function ai4seo_excavate_post_entries_with_missing_metadata(bool $debug = false)
             echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("skipped, because of low Credits balance", true)) . "<</pre>";
         }
 
-        return true;
+        // remove all processing and pending ids
+        update_option(AI4SEO_PROCESSING_METADATA_POST_IDS_OPTION_NAME, "");
+        update_option(AI4SEO_PENDING_METADATA_POST_IDS_OPTION_NAME, "");
+
+        return false;
     }
 
     $supported_post_types = ai4seo_get_supported_post_types();
@@ -6467,7 +6558,7 @@ function ai4seo_excavate_post_entries_with_missing_metadata(bool $debug = false)
             echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("No automation enabled", true)) . "<</pre>";
         }
 
-        return true;
+        return false;
     }
 
     // check the number of already pending posts
@@ -6480,7 +6571,7 @@ function ai4seo_excavate_post_entries_with_missing_metadata(bool $debug = false)
             echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("Already >= 2 posts pending -> skip", true)) . "<</pre>";
         }
 
-        return true;
+        return false;
     }
 
     // only these posts we have to look for
@@ -6492,7 +6583,7 @@ function ai4seo_excavate_post_entries_with_missing_metadata(bool $debug = false)
             echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("No posts found", true)) . "<</pre>";
         }
 
-        return true;
+        return false;
     }
 
     $missing_metadata_post_ids = array_unique($missing_metadata_post_ids);
@@ -6569,7 +6660,8 @@ function ai4seo_excavate_post_entries_with_missing_metadata(bool $debug = false)
         if ($debug) {
             echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("No posts found", true)) . "<</pre>";
         }
-        return true;
+
+        return false;
     }
 
     // add the new post ids to the option "ai4seo_processing_metadata_post_ids"
@@ -6596,12 +6688,17 @@ function ai4seo_excavate_attachments_with_missing_attributes(bool $debug = false
 
     $supported_attachment_post_types = ai4seo_get_supported_attachment_post_types();
 
-    // check the current credits balance, compare it to AI4SEO_MIN_CREDITS_BALANCE and if it's lower, return true
+    // check the current credits balance, compare it to AI4SEO_MIN_CREDITS_BALANCE and if it's lower, return false
     if (ai4seo_robhub_api()->get_credits_balance() < AI4SEO_MIN_CREDITS_BALANCE) {
         if ($debug) {
             echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("skipped, because of low Credits balance", true)) . "<</pre>";
         }
-        return true;
+
+        // remove all processing and pending ids
+        update_option(AI4SEO_PROCESSING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME, "");
+        update_option(AI4SEO_PENDING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME, "");
+
+        return false;
     }
 
     // is automation disabled, skip
@@ -6609,7 +6706,8 @@ function ai4seo_excavate_attachments_with_missing_attributes(bool $debug = false
         if ($debug) {
             echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("No automation enabled", true)) . "<</pre>";
         }
-        return true;
+
+        return false;
     }
 
     // check the number of already planned posts
@@ -6622,7 +6720,7 @@ function ai4seo_excavate_attachments_with_missing_attributes(bool $debug = false
             echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("Already >= 2 media posts to generate -> skip", true)) . "<</pre>";
         }
 
-        return true;
+        return false;
     }
 
     // only consider this attachment posts with missing post ids
@@ -6634,7 +6732,7 @@ function ai4seo_excavate_attachments_with_missing_attributes(bool $debug = false
             echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("No media posts found", true)) . "<</pre>";
         }
 
-        return true;
+        return false;
     }
 
     $missing_attachment_attributes_post_ids = array_unique($missing_attachment_attributes_post_ids);
@@ -6726,7 +6824,8 @@ function ai4seo_excavate_attachments_with_missing_attributes(bool $debug = false
         if ($debug) {
             echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("No new media found", true)) . "<</pre>";
         }
-        return true;
+
+        return false;
     }
 
     // add the new attachment post ids to be processed
@@ -9199,6 +9298,25 @@ function ai4seo_remove_post_ids_from_all_generation_status_options($post_ids) {
 // === AJAX ================================================================================== \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
+/*
+ * Instructions for adding a new AJAX action:
+ *
+ * - If the AJAX function **saves settings or environment variables**, use the `ai4seo_save_anything()` function.
+ *   - In that case, consider creating a new file under `includes/ajax/process/save-anything-categories/`
+ *     using the name of the form being submitted (e.g., `save-xxxx-editor-values.php`).
+ *
+ * - If the AJAX function **does not save settings or environment variables**:
+ *   - Create a new function following the pattern of `ai4seo_stop_bulk_generation()` for simpler functions and `ai4seo_generate_metadata()` for more complex operations
+ *   - For more complex operations, create a corresponding file under `includes/ajax/process/` (e.g., `generate-metadata.php`).
+ *   - For displaying content via AJAX, use `ai4seo_show_metadata_editor()` as an example.
+ *
+ * - Whitelist the AJAX function in two places:
+ *   1. Add the function name to the `ai4seo_allowed_ajax_actions` array in `ai-for-seo-scripts.js`.
+ *   2. Add the function name to the `AI4SEO_ALLOWED_AJAX_FUNCTIONS` constant in `ai-for-seo.php`.
+ *
+ * - To see how to call the AJAX function from JavaScript, refer to the `ai4seo_import_nextgen_gallery_images()` function in `ai-for-seo-scripts.js`.
+ */
+
 /**
  * Called via AJAX - saves various kind of data
  * @return void
@@ -9258,6 +9376,58 @@ function ai4seo_stop_bulk_generation() {
 
     // stop bulk generation
     ai4seo_update_setting(AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES, AI4SEO_DEFAULT_SETTINGS[AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES]);
+
+    // send success
+    wp_send_json_success();
+}
+
+// =========================================================================================== \\
+
+/**
+ * Called via AJAX - retry all failed attachment attributes
+ * @return void
+ */
+function ai4seo_retry_all_failed_attachment_attributes() {
+    // Make sure that this function is only called once
+    if (!ai4seo_singleton(__FUNCTION__)) {
+        return;
+    }
+
+    // Reset all failed attachment attributes by clearing the option
+    update_option(AI4SEO_FAILED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME, json_encode(array()));
+    
+    // Refresh the generation status summary
+    ai4seo_refresh_all_posts_generation_status_summary();
+
+    // send success
+    wp_send_json_success();
+}
+
+// =========================================================================================== \\
+
+/**
+ * Called via AJAX - retry all failed metadata for a specific post type
+ * @return void
+ */
+function ai4seo_retry_all_failed_metadata() {
+    // Make sure that this function is only called once
+    if (!ai4seo_singleton(__FUNCTION__)) {
+        return;
+    }
+
+    // Get the post type from the request
+    $post_type = sanitize_text_field($_POST['post_type'] ?? '');
+    
+    if (empty($post_type)) {
+        wp_send_json_error('Post type is required');
+        return;
+    }
+
+    // Remove all failed post IDs for this post type
+    ai4seo_remove_all_post_ids_by_post_type_and_generation_status($post_type, AI4SEO_FAILED_METADATA_POST_IDS_OPTION_NAME);
+    
+    // Refresh the generation status summary
+    ai4seo_refresh_all_posts_generation_status_summary();
 
     // send success
     wp_send_json_success();
@@ -9456,8 +9626,10 @@ function ai4seo_show_metadata_editor() {
         return;
     }
 
+    ob_start();
     require_once(ai4seo_get_includes_ajax_display_path("metadata-editor.php"));
-    wp_die();
+    $content = ob_get_clean(); // only your output
+    wp_send_json_success($content);
 }
 
 
@@ -9473,8 +9645,10 @@ function ai4seo_show_attachment_attributes_editor() {
         return;
     }
 
+    ob_start();
     require_once(ai4seo_get_includes_ajax_display_path("attachment-attributes-editor.php"));
-    wp_die();
+    $content = ob_get_clean(); // only your output
+    wp_send_json_success($content);
 }
 
 
@@ -10164,6 +10338,10 @@ function ai4seo_validate_setting_value(string $setting_name, $setting_value): bo
         case AI4SEO_SETTING_PAYG_MONTHLY_BUDGET:
             return is_numeric($setting_value) && $setting_value >= 0;
 
+        case AI4SEO_SETTING_IMAGE_UPLOAD_METHOD:
+            $allowed_values = array("auto", "url", "base64");
+            return in_array($setting_value, $allowed_values);
+
         default:
             return false;
     }
@@ -10474,6 +10652,7 @@ function ai4seo_validate_environmental_variable_value(string $environmental_vari
             }
 
             return true;
+
         default:
             return false;
     }

@@ -54,7 +54,7 @@ $ai4seo_active_bulk_generation_post_types = ai4seo_get_setting(AI4SEO_SETTING_EN
 $ai4seo_is_any_bulk_generation_enabled = !empty($ai4seo_active_bulk_generation_post_types);
 $ai4seo_bulk_generation_status = ai4seo_get_cron_job_status(AI4SEO_BULK_GENERATION_CRON_JOB_NAME);
 $ai4seo_last_bulk_generation_update_time = ai4seo_get_cron_job_status_update_time(AI4SEO_BULK_GENERATION_CRON_JOB_NAME);
-$ai4seo_last_bulk_generation_run_was_long_ago = $ai4seo_last_bulk_generation_update_time && (time() - $ai4seo_last_bulk_generation_update_time > 30);
+$ai4seo_last_bulk_generation_run_was_long_ago = $ai4seo_last_bulk_generation_update_time && (time() - $ai4seo_last_bulk_generation_update_time > 300);
 $ai4seo_was_seo_autopilot_set_up_at_least_x_seconds_ago = ai4seo_was_seo_autopilot_set_up_at_least_x_seconds_ago();
 $ai4seo_next_cron_job_call = wp_next_scheduled(AI4SEO_BULK_GENERATION_CRON_JOB_NAME);
 $ai4seo_next_cron_job_call_diff = ($ai4seo_next_cron_job_call ? $ai4seo_next_cron_job_call - time() : 9999999);
@@ -292,7 +292,7 @@ echo "<div class='ai4seo-cards-container'>";
                 echo "<img src='" . esc_url(ai4seo_get_ai_for_seo_logo_url("256x256")) . "' alt='" . esc_attr__("SEO Autopilot is deactivated", "ai-for-seo") . "' class='ai4seo-bulk-generation-status-inactive-logo'>";
 
                 echo "<div class='ai4seo-bulk-generation-status-text'>";
-                    echo esc_html__("Off");
+                    echo esc_html__("Off", "ai-for-seo");
                 echo "</div>";
 
                 echo "<div class='ai4seo-bulk-generation-status-subtext'>";
@@ -302,7 +302,7 @@ echo "<div class='ai4seo-cards-container'>";
                 echo "<img src='" . esc_url(ai4seo_get_ai_for_seo_logo_url("256x256")) . "' alt='" . esc_attr__("SEO Autopilot is active but idling", "ai-for-seo") . "' class='ai4seo-bulk-generation-status-active-logo'>";
 
                 echo "<div class='ai4seo-bulk-generation-status-text'>";
-                    echo esc_html__("All done & idle");
+                    echo esc_html__("All done & idle", "ai-for-seo");
                 echo "</div>";
 
                 echo "<div class='ai4seo-bulk-generation-status-subtext'>";
@@ -317,7 +317,7 @@ echo "<div class='ai4seo-cards-container'>";
                 echo "</div>";
 
                 echo "<div class='ai4seo-bulk-generation-status-text'>";
-                    echo esc_html__("Insufficient Credits");
+                    echo esc_html__("Insufficient Credits", "ai-for-seo");
                 echo "</div>";
 
                 echo "<div class='ai4seo-bulk-generation-status-subtext'>";
@@ -333,7 +333,7 @@ echo "<div class='ai4seo-cards-container'>";
                 echo "</div>";
 
                 echo "<div class='ai4seo-bulk-generation-status-text'>";
-                    echo esc_html__("Pending...");
+                    echo esc_html__("Pending...", "ai-for-seo");
                 echo "</div>";
 
                 echo "<div class='ai4seo-bulk-generation-status-subtext'>";
@@ -351,13 +351,13 @@ echo "<div class='ai4seo-cards-container'>";
                 echo "</div>";
 
                 echo "<div class='ai4seo-bulk-generation-status-text' style='color: #444;'>";
-                    echo esc_html__("Processing");
+                    echo esc_html__("Processing", "ai-for-seo");
                 echo "</div>";
 
                 echo "<div class='ai4seo-bulk-generation-status-subtext'>";
                     echo esc_html__("Please refresh this page and check the \"Recent Activity\" section for results.", "ai-for-seo");
                 echo "</div>";
-            } else if (in_array($ai4seo_bulk_generation_status, ["idle"]) && $ai4seo_last_bulk_generation_update_time) {
+            } else if (in_array($ai4seo_bulk_generation_status, ["idle", "scheduled"]) && $ai4seo_last_bulk_generation_update_time) {
                 // triangle-exclamation on the top right corner
                 #echo "<div class='ai4seo-bulk-generation-status-active-logo-triangle-exclamation'>";
                 #    echo ai4seo_wp_kses(ai4seo_get_svg_tag("triangle-exclamation"));
@@ -366,7 +366,7 @@ echo "<div class='ai4seo-cards-container'>";
                 echo "<img src='" . esc_url(ai4seo_get_ai_for_seo_logo_url("256x256")) . "' alt='" . esc_attr__("SEO Autopilot is active but not generating", "ai-for-seo") . "' class='ai4seo-bulk-generation-status-active-logo'>";
 
                 echo "<div class='ai4seo-bulk-generation-status-text' style='color: #444;'>";
-                    echo esc_html__("Pending...");
+                    echo esc_html__("Pending...", "ai-for-seo");
                 echo "</div>";
 
                 echo "<div class='ai4seo-bulk-generation-status-subtext'>";
@@ -387,7 +387,7 @@ echo "<div class='ai4seo-cards-container'>";
                 echo "</div>";
 
                 echo "<div class='ai4seo-bulk-generation-status-text'>";
-                    echo esc_html__("Error");
+                    echo esc_html__("Error", "ai-for-seo");
                 echo "</div>";
 
                 echo "<div class='ai4seo-bulk-generation-status-subtext'>";
@@ -402,7 +402,7 @@ echo "<div class='ai4seo-cards-container'>";
                 echo "<img src='" . esc_url(ai4seo_get_ai_for_seo_logo_url("256x256")) . "' alt='" . esc_attr__("SEO Autopilot is waiting for task scheduler to start", "ai-for-seo") . "' class='ai4seo-bulk-generation-status-active-logo'>";
 
                 echo "<div class='ai4seo-bulk-generation-status-text'>";
-                    echo esc_html__("Initializing...");
+                    echo esc_html__("Initializing...", "ai-for-seo");
                 echo "</div>";
 
                 echo "<div class='ai4seo-bulk-generation-status-subtext'>";
@@ -573,61 +573,161 @@ echo "<div class='ai4seo-cards-container'>";
         echo "<div class='ai4seo-recent-plugin-updates-content' style='display: none;'>";
             echo esc_html__("We update the plugin regularly to improve its performance and add new features. Please check the changelog for more information.", "ai-for-seo") . "<br><br><br>";
 
-            // 08th April 2025: 2.0.2 released
-            echo "<h4>" . esc_html("08th April 2025") . "</h4>";
-            echo "<div class='ai4seo-bubble'>v.2.0.2</div>";
-            echo '<ul>
-                <li>* Improved Prefix & Suffix Support: Prefixes and suffixes are now correctly applied when using the "Generate with AI" button in both the Metadata Editor and the Attachment Attributes Editor.</li>
-                <li>* Enhanced Mobile UX: Better responsiveness and usability on the Pages / Posts and Media Files views for mobile devices.</li>
-                <li>* Account Page Improvements: Added direct buttons for managing your active subscription and customizing Pay-As-You-Go settings.</li>
-                <li>* Updated Help Section: Improved help content and clearer "First Steps" guidance for new users.</li>
-                <li>* Bug Fixes & Maintenance: Fixed 11 minor bugs, corrected typos, and implemented security updates.</li>';
-            echo '</ul>';
-
-            // 20th March 2025: 2.0.0 released
-            echo "<h4>" . esc_html("20th March 2025") . "</h4>";
-            echo "<div class='ai4seo-bubble'>v.2.0.0</div>";
-
-            echo '<ul> 
-                <li>* Complete UI/UX Overhaul: The look, feel, design, layout, and navigation of the plugin have been completely redesigned.</li>
-                <li>* Enhanced Mobile Experience: Improved usability and user experience for mobile users.</li>
-                <li>* New "Account" Page: Users can now manage their license key directly from this page.</li>
-                <li>* Incognito Mode: SEO and web agencies can hide the plugin from other users/admins (available in the new "Account" page).</li>
-                <li>* White-Label Feature: SEO and web agencies can rebrand the plugin with their own name or further hide it from other users/admins (available in the new "Account" page).</li>
-                <li>* Customizable Generator Hints: Added a setting to modify or disable generator hints in the source code for additional privacy (available in the "Account" page).</li>
-                <li>* Privacy & Data Policy Update: Moved to the new "Account" page.</li>
-                <li>* New Metadata Customization Options: Added settings to apply prefixes and suffixes to metadata and media attributes.</li>
-                <li>* Advanced Media Attribute Control: New setting allows users to specify which media attributes the plugin should use.</li>
-                <li>* "SEO Autopilot" Feature: Replaces bulk generation checkboxes with a more intuitive and easy-to-use interface, directly accessible from the dashboard.</li>
-                <li>* "Recent Activity" Dashboard Section: Track all manual and automatic metadata and media attribute generations in one place.</li>
-                <li>* Implemented new ways to get credits:
-                    <ol>
-                        <li>* Introduced Credit Packs, allowing users to purchase additional credits as needed.</li>
-                        <li>* Added a Pay-As-You-Go option for automatic credit refills when running low.</li>
-                        <li>* All credit purchasing options are now combined in a "Get more Credits" modal, accessible from the dashboard.</li>
-                    </ol>
-                </li>
-                <li>* "Guarantee" Section: Review our Guarantees and Refund Policy directly on the dashboard.</li>
-                <li>* "Recent Plugin Updates" Section: Stay informed about the latest updates from the dashboard.</li>
-                <li>* New "Support & Feedback" Section: Easily access support and provide feedback directly from the dashboard.</li>
-                <li>* Tons more minor improvements, bug fixes, and performance enhancements.</li>
-            </ul>';
-
-            // 05th March 2025: v1.2.15 released
-            echo "<h4>" . esc_html("05th March 2025") . "</h4>";
-            echo "<div class='ai4seo-bubble'>v.1.2.15</div>";
-            echo '<ul>
-                <li>* Fixed a bug where the plugin would not recognize the correct post type for media files.</li>
+            // 2.0.5 released (current version - expanded by default)
+            echo "<h4 style='cursor: pointer; margin-bottom: 0;' onclick='ai4seo_toggle_visibility(jQuery(this).next(), jQuery(this).find(\".ai4seo-caret-down\"), jQuery(this).find(\".ai4seo-caret-up\"), 200);'>";
+                echo esc_html("June 22nd, 2025: ");
+                echo "<div class='ai4seo-bubble' style='margin-left: 10px;'>v.2.0.5</div>";
+                echo "<div class='ai4seo-caret-down' style='display: none;'>";
+                    echo ai4seo_wp_kses(ai4seo_get_svg_tag("caret-down"));
+                echo "</div>";
+                echo "<div class='ai4seo-caret-up'>";
+                    echo ai4seo_wp_kses(ai4seo_get_svg_tag("caret-up"));
+                echo "</div>";
+            echo "</h4>";
+            echo "<div class='ai4seo-changelog-entry-content'>";
+                echo '<ul>
+                    <li>* Added a setting to force the image upload to use either the image url only or convert the contents to base64. This can be useful for users who experience issues with the generation of media attributes.</li>
+                    <li>* Added support for AVIF image files</li>
+                    <li>* Bug Fixes & Maintenance: Fixed 11 minor bugs and implemented security updates.</li>
                 </ul>';
+            echo "</div>";
 
-            // 12th February 2025: v1.2.14 released
-            echo "<h4>" . esc_html("12th February 2025") . "</h4>";
-            echo "<div class='ai4seo-bubble'>v.1.2.14</div>";
-            echo '<ul>
-                <li>* Added a setting to control whether entries with a complete metadata set are ignored during bulk generation (default) or included, overwriting all of their existing metadata.</li>
-                <li>* Added a setting to control whether entries with a complete media attribute set are ignored during bulk generation (default) or included, overwriting all of their existing media attributes.</li>
-                <li>* Added a setting called "Bulk Generation Duration" in Help > Troubleshooting to adjust the runtime of a single bulk generation process. This can be useful in cases where server limitations impact processing.</li>
-            </ul>';
+            // 2.0.4 released (collapsed by default)
+            echo "<h4 style='cursor: pointer; margin-bottom: 0;' onclick='ai4seo_toggle_visibility(jQuery(this).next(), jQuery(this).find(\".ai4seo-caret-down\"), jQuery(this).find(\".ai4seo-caret-up\"), 200);'>";
+                echo esc_html("May 9th, 2025: ");
+                echo "<div class='ai4seo-bubble' style='margin-left: 10px;'>v.2.0.4</div>";
+                echo "<span class='ai4seo-changes-count'>(2 changes)</span>";
+                echo "<div class='ai4seo-caret-down'>";
+                    echo ai4seo_wp_kses(ai4seo_get_svg_tag("caret-down"));
+                echo "</div>";
+                echo "<div class='ai4seo-caret-up' style='display: none;'>";
+                    echo ai4seo_wp_kses(ai4seo_get_svg_tag("caret-up"));
+                echo "</div>";
+            echo "</h4>";
+            echo "<div class='ai4seo-changelog-entry-content' style='display: none;'>";
+                echo '<ul>
+                    <li>* Added support for NextGen Gallery: The plugin now recognizes and processes media attributes for images created with the NextGen Gallery plugin. Use the new "Import" button in the media page to import all images from the NextGen Gallery into the *AI for SEO* plugin.</li>
+                    <li>* Bug Fixes & Maintenance: Fixed 2 minor bugs</li>
+                </ul>';
+            echo "</div>";
+
+            // 2.0.3 released (collapsed by default)
+            echo "<h4 style='cursor: pointer; margin-bottom: 0;' onclick='ai4seo_toggle_visibility(jQuery(this).next(), jQuery(this).find(\".ai4seo-caret-down\"), jQuery(this).find(\".ai4seo-caret-up\"), 200);'>";
+                echo esc_html("May 4th, 2025: ");
+                echo "<div class='ai4seo-bubble' style='margin-left: 10px;'>v.2.0.3</div>";
+                echo "<span class='ai4seo-changes-count'>(2 changes)</span>";
+                echo "<div class='ai4seo-caret-down'>";
+                    echo ai4seo_wp_kses(ai4seo_get_svg_tag("caret-down"));
+                echo "</div>";
+                echo "<div class='ai4seo-caret-up' style='display: none;'>";
+                    echo ai4seo_wp_kses(ai4seo_get_svg_tag("caret-up"));
+                echo "</div>";
+            echo "</h4>";
+            echo "<div class='ai4seo-changelog-entry-content' style='display: none;'>";
+                echo '<ul>
+                    <li>* SEO Autopilot now more accurately reflects its current status and includes an option to immediately schedule the next run.</li>
+                    <li>* Bug Fixes & Maintenance: Fixed 15 minor bugs, corrected typos, and implemented security updates.</li>
+                </ul>';
+            echo "</div>";
+
+            // 08th April 2025: 2.0.2 released (collapsed by default)
+            echo "<h4 style='cursor: pointer; margin-bottom: 0;' onclick='ai4seo_toggle_visibility(jQuery(this).next(), jQuery(this).find(\".ai4seo-caret-down\"), jQuery(this).find(\".ai4seo-caret-up\"), 200);'>";
+                echo esc_html("08th April 2025");
+                echo "<div class='ai4seo-bubble' style='margin-left: 10px;'>v.2.0.2</div>";
+                echo "<span class='ai4seo-changes-count'>(5 changes)</span>";
+                echo "<div class='ai4seo-caret-down'>";
+                    echo ai4seo_wp_kses(ai4seo_get_svg_tag("caret-down"));
+                echo "</div>";
+                echo "<div class='ai4seo-caret-up' style='display: none;'>";
+                    echo ai4seo_wp_kses(ai4seo_get_svg_tag("caret-up"));
+                echo "</div>";
+            echo "</h4>";
+            echo "<div class='ai4seo-changelog-entry-content' style='display: none;'>";
+                echo '<ul>
+                    <li>* Improved Prefix & Suffix Support: Prefixes and suffixes are now correctly applied when using the "Generate with AI" button in both the Metadata Editor and the Attachment Attributes Editor.</li>
+                    <li>* Enhanced Mobile UX: Better responsiveness and usability on the Pages / Posts and Media Files views for mobile devices.</li>
+                    <li>* Account Page Improvements: Added direct buttons for managing your active subscription and customizing Pay-As-You-Go settings.</li>
+                    <li>* Updated Help Section: Improved help content and clearer "First Steps" guidance for new users.</li>
+                    <li>* Bug Fixes & Maintenance: Fixed 11 minor bugs, corrected typos, and implemented security updates.</li>
+                </ul>';
+            echo "</div>";
+
+            // 20th March 2025: 2.0.0 released (collapsed by default)
+            echo "<h4 style='cursor: pointer; margin-bottom: 0;' onclick='ai4seo_toggle_visibility(jQuery(this).next(), jQuery(this).find(\".ai4seo-caret-down\"), jQuery(this).find(\".ai4seo-caret-up\"), 200);'>";
+                echo esc_html("20th March 2025");
+                echo "<div class='ai4seo-bubble' style='margin-left: 10px;'>v.2.0.0</div>";
+                echo "<span class='ai4seo-changes-count'>(16 changes)</span>";
+                echo "<div class='ai4seo-caret-down'>";
+                    echo ai4seo_wp_kses(ai4seo_get_svg_tag("caret-down"));
+                echo "</div>";
+                echo "<div class='ai4seo-caret-up' style='display: none;'>";
+                    echo ai4seo_wp_kses(ai4seo_get_svg_tag("caret-up"));
+                echo "</div>";
+            echo "</h4>";
+            echo "<div class='ai4seo-changelog-entry-content' style='display: none;'>";
+                echo '<ul> 
+                    <li>* Complete UI/UX Overhaul: The look, feel, design, layout, and navigation of the plugin have been completely redesigned.</li>
+                    <li>* Enhanced Mobile Experience: Improved usability and user experience for mobile users.</li>
+                    <li>* New "Account" Page: Users can now manage their license key directly from this page.</li>
+                    <li>* Incognito Mode: SEO and web agencies can hide the plugin from other users/admins (available in the new "Account" page).</li>
+                    <li>* White-Label Feature: SEO and web agencies can rebrand the plugin with their own name or further hide it from other users/admins (available in the new "Account" page).</li>
+                    <li>* Customizable Generator Hints: Added a setting to modify or disable generator hints in the source code for additional privacy (available in the "Account" page).</li>
+                    <li>* Privacy & Data Policy Update: Moved to the new "Account" page.</li>
+                    <li>* New Metadata Customization Options: Added settings to apply prefixes and suffixes to metadata and media attributes.</li>
+                    <li>* Advanced Media Attribute Control: New setting allows users to specify which media attributes the plugin should use.</li>
+                    <li>* "SEO Autopilot" Feature: Replaces bulk generation checkboxes with a more intuitive and easy-to-use interface, directly accessible from the dashboard.</li>
+                    <li>* "Recent Activity" Dashboard Section: Track all manual and automatic metadata and media attribute generations in one place.</li>
+                    <li>* Implemented new ways to get credits:
+                        <ol>
+                            <li>* Introduced Credit Packs, allowing users to purchase additional credits as needed.</li>
+                            <li>* Added a Pay-As-You-Go option for automatic credit refills when running low.</li>
+                            <li>* All credit purchasing options are now combined in a "Get more Credits" modal, accessible from the dashboard.</li>
+                        </ol>
+                    </li>
+                    <li>* "Guarantee" Section: Review our Guarantees and Refund Policy directly on the dashboard.</li>
+                    <li>* "Recent Plugin Updates" Section: Stay informed about the latest updates from the dashboard.</li>
+                    <li>* New "Support & Feedback" Section: Easily access support and provide feedback directly from the dashboard.</li>
+                    <li>* Tons more minor improvements, bug fixes, and performance enhancements.</li>
+                </ul>';
+            echo "</div>";
+
+            // 05th March 2025: v1.2.15 released (collapsed by default)
+            echo "<h4 style='cursor: pointer; margin-bottom: 0;' onclick='ai4seo_toggle_visibility(jQuery(this).next(), jQuery(this).find(\".ai4seo-caret-down\"), jQuery(this).find(\".ai4seo-caret-up\"), 200);'>";
+                echo esc_html("05th March 2025");
+                echo "<div class='ai4seo-bubble' style='margin-left: 10px;'>v.1.2.15</div>";
+                echo "<span class='ai4seo-changes-count'>(1 change)</span>";
+                echo "<div class='ai4seo-caret-down'>";
+                    echo ai4seo_wp_kses(ai4seo_get_svg_tag("caret-down"));
+                echo "</div>";
+                echo "<div class='ai4seo-caret-up' style='display: none;'>";
+                    echo ai4seo_wp_kses(ai4seo_get_svg_tag("caret-up"));
+                echo "</div>";
+            echo "</h4>";
+            echo "<div class='ai4seo-changelog-entry-content' style='display: none;'>";
+                echo '<ul>
+                    <li>* Fixed a bug where the plugin would not recognize the correct post type for media files.</li>
+                </ul>';
+            echo "</div>";
+
+            // 12th February 2025: v1.2.14 released (collapsed by default)
+            echo "<h4 style='cursor: pointer; margin-bottom: 0;' onclick='ai4seo_toggle_visibility(jQuery(this).next(), jQuery(this).find(\".ai4seo-caret-down\"), jQuery(this).find(\".ai4seo-caret-up\"), 200);'>";
+                echo esc_html("12th February 2025");
+                echo "<div class='ai4seo-bubble' style='margin-left: 10px;'>v.1.2.14</div>";
+                echo "<span class='ai4seo-changes-count'>(3 changes)</span>";
+                echo "<div class='ai4seo-caret-down'>";
+                    echo ai4seo_wp_kses(ai4seo_get_svg_tag("caret-down"));
+                echo "</div>";
+                echo "<div class='ai4seo-caret-up' style='display: none;'>";
+                    echo ai4seo_wp_kses(ai4seo_get_svg_tag("caret-up"));
+                echo "</div>";
+            echo "</h4>";
+            echo "<div class='ai4seo-changelog-entry-content' style='display: none;'>";
+                echo '<ul>
+                    <li>* Added a setting to control whether entries with a complete metadata set are ignored during bulk generation (default) or included, overwriting all of their existing metadata.</li>
+                    <li>* Added a setting to control whether entries with a complete media attribute set are ignored during bulk generation (default) or included, overwriting all of their existing media attributes.</li>
+                    <li>* Added a setting called "Bulk Generation Duration" in Help > Troubleshooting to adjust the runtime of a single bulk generation process. This can be useful in cases where server limitations impact processing.</li>
+                </ul>';
+            echo "</div>";
 
         echo "</div>";
     echo "</div>";

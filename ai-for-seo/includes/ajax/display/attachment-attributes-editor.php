@@ -81,7 +81,7 @@ $ai4seo_active_attachment_attributes = ai4seo_get_active_attachment_attributes()
 // HEADLINE
 echo "<div class='ai4seo-modal-headline'>";
     echo "<div class='ai4seo-modal-headline-icon'>";
-        echo "<img src='" . esc_url(ai4seo_get_ai_for_seo_logo_url("64x64")) . "'>";
+        echo "<img src='" . esc_url(ai4seo_get_ai_for_seo_logo_url("64x64")) . "' />";
     echo "</div>";
 
     echo esc_html(AI4SEO_PLUGIN_NAME) . " - " . esc_html__("Media Attributes Editor", "ai-for-seo");

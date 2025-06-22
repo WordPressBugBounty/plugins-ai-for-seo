@@ -160,7 +160,7 @@ var ai4seo_css_file_id = "ai-for-seo-styles-css";
 var ai4seo_just_clicked_modal_wrapper = false;
 var ai4seo_min_content_length = 75;
 
-var ai4seo_supported_mime_types = ["image/jpeg", "JPEG", "image/jpg", "JPG", "image/png", "PNG", "image/gif", "GIF", "image/webp", "WEBP"];
+var ai4seo_supported_mime_types = ["image/jpeg", "JPEG", "image/jpg", "JPG", "image/png", "PNG", "image/gif", "GIF", "image/webp", "WEBP", "image/avif", "AVIF"];
 
 var ai4seo_attachment_mime_type_selectors = [".media-frame-content .attachment-info .details .file-type", "#minor-publishing #misc-publishing-actions .misc-pub-filetype"];
 
@@ -172,6 +172,7 @@ let ai4seo_allowed_ajax_actions = [
     "ai4seo_generate_metadata", "ai4seo_generate_attachment_attributes",
     "ai4seo_reject_tos", "ai4seo_accept_tos", "ai4seo_show_terms_of_service", "ai4seo_dismiss_one_time_notice",
     "ai4seo_reset_plugin_data", "ai4seo_stop_bulk_generation",
+    "ai4seo_retry_all_failed_attachment_attributes", "ai4seo_retry_all_failed_metadata",
     "ai4seo_disable_payg", "ai4seo_init_purchase",
     "ai4seo_import_nextgen_gallery_images"
 ];
@@ -1316,6 +1317,7 @@ function ai4seo_check_response( response, additional_error_list = {}, show_gener
     // check if we have a success key in the response
     if (typeof response.success === 'undefined') {
         ai4seo_open_generic_error_notification_modal(1104232361);
+        console.log(response);
         return false;
     }
 
@@ -1642,6 +1644,26 @@ function ai4seo_stop_bulk_generation(submit_element) {
         .finally(response => { ai4seo_reload_page(); });
 }
 
+// =========================================================================================== \\
+
+function ai4seo_retry_all_failed_attachment_attributes(submit_element) {
+    ai4seo_add_loading_html_to_element(submit_element);
+    ai4seo_lock_and_disable_lockable_input_fields();
+
+    ai4seo_perform_ajax_call("ai4seo_retry_all_failed_attachment_attributes")
+        .finally(response => { ai4seo_reload_page(); });
+}
+
+// =========================================================================================== \\
+
+function ai4seo_retry_all_failed_metadata(submit_element, post_type) {
+    ai4seo_add_loading_html_to_element(submit_element);
+    ai4seo_lock_and_disable_lockable_input_fields();
+
+    ai4seo_perform_ajax_call("ai4seo_retry_all_failed_metadata", { post_type: post_type })
+        .finally(response => { ai4seo_reload_page(); });
+}
+
 
 // ___________________________________________________________________________________________ \\
 // === GENERATE THROUGH AI - BUTTONS ========================================================= \\
@@ -1691,7 +1713,7 @@ function ai4seo_add_generate_all_button(processing_context, element_selector) {
     // Define button variables
     let onclick = "";
     let button_title = "";
-    let button_label = "<img src='" + ai4seo_get_ai4seo_plugin_directory_url() + "/assets/images/logos/ai-for-seo-logo-64x64.png' class='ai4seo-logo'  alt='AI'/>" + wp.i18n.__("Generate all SEO", "ai-for-seo");
+    let button_label = "<img src='" + ai4seo_get_ai4seo_plugin_directory_url() + "/assets/images/logos/ai-for-seo-logo-64x64.png' class='ai4seo-logo'  alt='AI' />" + wp.i18n.__("Generate all SEO", "ai-for-seo");
 
     if (processing_context === "metadata") {
         onclick += "ai4seo_generate_with_ai(\"ai4seo_generate_metadata\", false, false, true);";
@@ -2095,19 +2117,31 @@ function ai4seo_open_ajax_modal(ajax_action, ajax_data = {}, modal_settings = {}
                 return;
             }
 
-            if (!response || ai4seo_is_json_string(response) || typeof response !== "string") {
+            if (!response) {
+                ai4seo_close_modal(modal_id);
+                ai4seo_check_response(response);
+                return;
+            }
+
+            let modal_content = "";
+
+            if (typeof response.data !== "undefined" && typeof response.success !== "undefined" && response.success) {
+                modal_content = response.data;
+            } else if (typeof response === "string") {
+                modal_content = response;
+            } else {
                 ai4seo_close_modal(modal_id);
                 ai4seo_check_response(response);
                 return;
             }
 
             // insert response into content element
-            modal_element.find(".ai4seo-modal-content").html(response);
+            modal_element.find(".ai4seo-modal-content").html(modal_content);
 
             // init modal to reflect new changes and functions inside the modal
             ai4seo_init_modal_functions(modal_id, modal_settings.close_on_outside_click);
         })
-        .catch(error => { ai4seo_close_modal(modal_id); })
+        .catch(error => { ai4seo_close_modal(modal_id); ai4seo_check_response(error); })
         .finally(() => { /* do nothing */});
 }
 
