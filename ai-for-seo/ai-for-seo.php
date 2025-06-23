@@ -3,7 +3,7 @@
 Plugin Name: AI for SEO
 Plugin URI: https://aiforseo.ai
 Description: One-Click SEO solution. "AI for SEO" helps your website to rank higher in Web Search results.
-Version: 2.0.5
+Version: 2.0.6
 Author: spacecodes
 Author URI: https://spa.ce.codes
 Text Domain: ai-for-seo
@@ -15,7 +15,7 @@ if (!defined("ABSPATH")) {
     exit;
 }
 
-const AI4SEO_PLUGIN_VERSION_NUMBER = "2.0.5";
+const AI4SEO_PLUGIN_VERSION_NUMBER = "2.0.6";
 const AI4SEO_PLUGIN_NAME = "AI for SEO";
 const AI4SEO_PLUGIN_DESCRIPTION = 'One-Click SEO solution. "AI for SEO" helps your website to rank higher in Web Search results.';
 const AI4SEO_PLUGIN_IDENTIFIER = "ai-for-seo";
@@ -60,6 +60,7 @@ const AI4SEO_BLUE_GET_MORE_CREDITS_BUTTON_THRESHOLD = 250;
 const AI4SEO_FIRST_PURCHASE_DISCOUNT = 30; # in percent
 const AI4SEO_EARLY_BIRD_DISCOUNT = 50; # in percent
 const AI4SEO_NEXTGEN_GALLERY_POST_TYPE = "ai4seo_ngg";
+const AI4SEO_CRON_JOBS_ENABLED = true; # set to true to enable cron jobs, false to disable them
 
 const AI4SEO_CREDITS_PACKS = array(
     "price_1QKhvmHNyvfVK0r9Qz70F98V" => array(
@@ -400,6 +401,7 @@ const AI4SEO_ALLOWED_CURRENCIES = array(
     "UYU", "UZS", "VES", "VND", "VUV", "WST", "XAF", "XAG", "XAU", "XCD",
     "XDR", "XOF", "XPD", "XPF", "XPT", "YER", "ZAR", "ZMW", "ZWL"
 );
+
 
 // === Plugin's Settings ================================================================================= \\
 
@@ -5589,6 +5591,11 @@ function ai4seo_un_schedule_cron_jobs() {
  * @return void
  */
 function ai4seo_inject_additional_cronjob_call(string $cronjob_name, int $delay = 1) {
+    // is the cron job enabled?
+    if (!AI4SEO_CRON_JOBS_ENABLED && wp_doing_cron()) {
+        return;
+    }
+
     // Current time
     $now = time();
 
@@ -5752,16 +5759,21 @@ function ai4seo_get_cron_job_status_update_time(string $cron_job_name): int {
  * @return bool true on success, false on failure
  */
 function ai4seo_automated_generation_cron_job($debug = false): bool {
+    // is the cron job enabled?
+    if (!AI4SEO_CRON_JOBS_ENABLED && wp_doing_cron()) {
+        return true;
+    }
+
     $bulk_generation_duration = (int) ai4seo_get_setting(AI4SEO_SETTING_BULK_GENERATION_DURATION);
 
     if (!$bulk_generation_duration) {
         $bulk_generation_duration = AI4SEO_DEFAULT_SETTINGS[AI4SEO_SETTING_BULK_GENERATION_DURATION];
     }
 
-    $max_execution_time = ($bulk_generation_duration - 5);
+    $max_execution_time = $debug ? 15 : ($bulk_generation_duration - 5);
     $approximate_single_run_duration = 10;
-    $max_tolerated_execution_time = ($bulk_generation_duration + 10);
-    $max_runs = round($bulk_generation_duration / 3);
+    $max_tolerated_execution_time = $debug ? 20 : ($bulk_generation_duration + 10);
+    $max_runs = $debug ? 3 : round($bulk_generation_duration / 3);
 
     // set the maximum execution time according to these functions needs
     set_time_limit($max_tolerated_execution_time + 5);
@@ -5881,7 +5893,7 @@ function ai4seo_automated_generation_cron_job($debug = false): bool {
     } while (
         $made_some_progress &&
         time() - $start_time < $max_execution_time - $approximate_single_run_duration &&
-        $run_counter < $max_runs
+        $run_counter <= $max_runs
     );
 
     // workaround: empty all leftover processing ids (only relevant if the generation was aborted for an unknown reason)
@@ -5917,7 +5929,7 @@ function ai4seo_automated_metadata_generation($debug = false, $only_this_post_id
                 echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("No new pending posts found", true)) . "<</pre>";
             }
 
-            return true;
+            return false;
         }
 
         $pending_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_PENDING_METADATA_POST_IDS_OPTION_NAME);
@@ -5991,7 +6003,6 @@ function ai4seo_automated_metadata_generation($debug = false, $only_this_post_id
         // remove all processing and pending ids
         update_option(AI4SEO_PROCESSING_METADATA_POST_IDS_OPTION_NAME, "");
         update_option(AI4SEO_PENDING_METADATA_POST_IDS_OPTION_NAME, "");
-
         return true;
     }
 
@@ -6238,7 +6249,7 @@ function ai4seo_automated_attachment_attributes_generation(bool $debug = false, 
                 echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("No pending media posts found", true)) . "<</pre>";
             }
 
-            return true;
+            return false;
         }
 
         $pending_attachment_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_PENDING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME);
@@ -6571,7 +6582,7 @@ function ai4seo_excavate_post_entries_with_missing_metadata(bool $debug = false)
             echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("Already >= 2 posts pending -> skip", true)) . "<</pre>";
         }
 
-        return false;
+        return true;
     }
 
     // only these posts we have to look for
@@ -6655,7 +6666,7 @@ function ai4seo_excavate_post_entries_with_missing_metadata(bool $debug = false)
         }
     }
 
-    if (!$new_pending_post_ids) {
+    if (!$new_pending_post_ids && !$pending_metadata_post_ids) {
         // skip here because we don't have any posts or pages
         if ($debug) {
             echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("No posts found", true)) . "<</pre>";
@@ -6665,10 +6676,12 @@ function ai4seo_excavate_post_entries_with_missing_metadata(bool $debug = false)
     }
 
     // add the new post ids to the option "ai4seo_processing_metadata_post_ids"
-    ai4seo_add_post_ids_to_option(AI4SEO_PENDING_METADATA_POST_IDS_OPTION_NAME, $new_pending_post_ids);
+    if ($new_pending_post_ids) {
+        ai4seo_add_post_ids_to_option(AI4SEO_PENDING_METADATA_POST_IDS_OPTION_NAME, $new_pending_post_ids);
 
-    if ($debug) {
-        echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("New pending post(s): " . esc_textarea(implode(", ", $new_pending_post_ids)), true)) . "<</pre>";
+        if ($debug) {
+            echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("New pending post(s): " . esc_textarea(implode(", ", $new_pending_post_ids)), true)) . "<</pre>";
+        }
     }
 
     return true;
@@ -6720,7 +6733,7 @@ function ai4seo_excavate_attachments_with_missing_attributes(bool $debug = false
             echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("Already >= 2 media posts to generate -> skip", true)) . "<</pre>";
         }
 
-        return false;
+        return true;
     }
 
     // only consider this attachment posts with missing post ids
@@ -6819,7 +6832,7 @@ function ai4seo_excavate_attachments_with_missing_attributes(bool $debug = false
 
     $new_pending_attachment_post_ids = $wpdb->get_col($query);
 
-    if (!$new_pending_attachment_post_ids) {
+    if (!$new_pending_attachment_post_ids && !$pending_attributes_attachment_post_ids) {
         // skip here because we don't have any posts or pages
         if ($debug) {
             echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("No new media found", true)) . "<</pre>";
@@ -6829,10 +6842,12 @@ function ai4seo_excavate_attachments_with_missing_attributes(bool $debug = false
     }
 
     // add the new attachment post ids to be processed
-    ai4seo_add_post_ids_to_option(AI4SEO_PENDING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME, $new_pending_attachment_post_ids);
+    if ($new_pending_attachment_post_ids) {
+        ai4seo_add_post_ids_to_option(AI4SEO_PENDING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME, $new_pending_attachment_post_ids);
 
-    if ($debug) {
-        echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("Added pending media: " . (implode(", ", $new_pending_attachment_post_ids)), true)) . "<</pre>";
+        if ($debug) {
+            echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("Added pending media: " . (implode(", ", $new_pending_attachment_post_ids)), true)) . "<</pre>";
+        }
     }
 
     return true;

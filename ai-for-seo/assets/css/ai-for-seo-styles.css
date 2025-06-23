@@ -1254,11 +1254,12 @@ textarea.ai4seo-username-box {
     top: 0;
     display: flex;
     height: calc(100vh - 2rem);
-    width: 100%;
+    width: calc(100% + 20px);
     box-sizing: border-box;
     padding: 2rem 1.3rem 0 2rem;
     margin: 0;
     background-color: #f0f0f1;
+    overflow: auto;
 }
 
 .ai4seo-mobile-top-bar {
@@ -1407,6 +1408,7 @@ div.ai4seo-tab-content {
     flex-direction: column;
     flex: 1; /* Takes up the remaining space */
     padding: 0;
+    height: calc(100vh - 4rem);
 }
 
 div.ai4seo-cards-container {
@@ -1542,8 +1544,12 @@ div.ai4seo-status-box-credits {
     }
 
     .ai4seo-wrap {
-        padding-top: 7rem; /** account for the top bar */
+        padding-top: 8rem; /** account for the top bar */
         height: auto;
+    }
+
+    div.ai4seo-tab-content {
+        height: calc(100vh - 8rem);
     }
 
     .ai4seo-sidebar {

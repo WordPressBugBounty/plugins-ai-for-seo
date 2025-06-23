@@ -1,5 +1,8 @@
 == Changelog ==
 
+= 2.0.6 =
+* Bug Fixes & Maintenance: Fixed 3 minor bug
+
 = 2.0.5 =
 * Added a setting to force the image upload to use either the image url only or convert the contents to base64. This can be useful for users who experience issues with the generation of media attributes.
 * Added support for AVIF image files

@@ -4,7 +4,7 @@ Donate link: https://spa.ce.codes
 Tags: AI, SEO, Metadata, Alt text, Bulk
 Requires at least: 4.7
 Tested up to: 6.8.1
-Stable tag: 2.0.5
+Stable tag: 2.0.6
 Requires PHP: 7.4
 License: GPLv2 or later (or compatible)
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -66,15 +66,7 @@ Additionally, when viewing or editing any content, you can click on the *AI for 
 ✅ **WooCommerce Compatibility:** Effortlessly optimize your WooCommerce product pages to attract more valuable buyers from search engines.
 ✅ **Free Plan Available**: Get started with no credit card required. In addition, we provide you with free daily Credits.
 ✅ **Credit Rollover**: Unused Credits carry over to the next month.
-
-= 🚀 ROADMAP =
-Our team is constantly working on refining and expanding the plugin's capabilities.
-Here are some features we are planning in the upcoming updates:
-- 2.X: Keyphrase / keywords generation (~June 2025)
-- 3.0: Content Optimizations (Recommended SEO-relevant improvements across all your content) (~August 2025)
-- 4.0: Automatic blog post generator (~Q3 2025)
-For suggestions, questions or bug reports: Please drop us an email at [info@aiforseo.ai](mailto:info@aiforseo.ai). We're always eager to hear from you.
-
+✅ **One Account - Many Websites**: Use your subscription or Credits Packs on any number of websites.
 
 == Installation ==
 
@@ -309,6 +301,9 @@ These settings will allow the plugin to regenerate and overwrite metadata and me
 To import all images from the NextGen Gallery into AI for SEO, click the Import button in the Media section. Once imported, you can generate alt text, titles, captions, and descriptions for these images using the plugin. All changes will automatically sync with the NextGen Gallery plugin.
 
 == Changelog ==
+
+= 2.0.6 =
+* Bug Fixes & Maintenance: Fixed 3 minor bug
 
 = 2.0.5 =
 * Added a setting to force the image upload to use either the image url only or convert the contents to base64. This can be useful for users who experience issues with the generation of media attributes.

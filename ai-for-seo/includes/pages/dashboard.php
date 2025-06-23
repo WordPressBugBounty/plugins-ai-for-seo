@@ -123,6 +123,7 @@ echo "<div class='ai4seo-cards-container'>";
 
             if (in_array($ai4seo_supported_post_type, $ai4seo_active_bulk_generation_post_types)) {
                 $ai4seo_total_num_pending_posts += $ai4seo_this_num_missing_post_ids;
+                $ai4seo_total_num_pending_posts += $ai4seo_this_num_pending_post_ids;
                 $ai4seo_total_num_pending_posts += $ai4seo_this_num_processing_post_ids;
             }
 

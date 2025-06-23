@@ -131,7 +131,6 @@ if ($ai4seo_all_attachment_posts) {
         }
     }
 }
-$ai4seo_failed_attributes_attachment_post_ids = $ai4seo_current_page_failed_to_fill_attachment_post_ids;
 
 // collect some admin links and buttons
 $ai4seo_this_admin_tab_url = ai4seo_get_admin_url($ai4seo_nice_post_type, array("ai4seo-page" => $ai4seo_current_page));
