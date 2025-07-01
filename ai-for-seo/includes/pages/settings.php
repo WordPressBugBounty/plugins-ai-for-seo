@@ -93,10 +93,6 @@ echo "<div class='ai4seo-form'>";
                     echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "[]' value='" . esc_attr($ai4seo_this_metadata_identifier) . "'" . ($ai4seo_is_this_checkbox_checked ? " checked='checked'" : "") . "/> ";
                     echo esc_html($ai4seo_this_translated_checkbox_label);
 
-                    if ($ai4seo_this_metadata_identifier == "meta-title") {
-                        echo ai4seo_get_icon_with_tooltip_tag(__("<strong>We encourage you to read this information carefully before activating the AI-generated meta title output to ensure you understand the benefits.</strong><br><br>The meta title appears in your <strong>browser's title or tab</strong>.<br><br>If it's not specified, WordPress will default to using a combination of the page, post, or product title and your website's name. While this might seem natural for visitors, search engines could consider it duplicate content, which can <strong>negatively impact SEO</strong>. Our AI-generated meta titles are optimized with additional keywords and context, which can help improve your search rankings.", "ai-for-seo"));
-                    }
-
                     echo "<br>";
                     echo "</label>";
                 }

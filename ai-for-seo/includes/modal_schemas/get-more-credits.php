@@ -326,17 +326,21 @@ echo "<div class='ai4seo-modal-schema-content'>";
                     echo esc_html__("Free Credits", "ai-for-seo");
                 echo "</div>";
 
+                $ai4seo_free_plan_credits_amount = ai4seo_get_plan_credits("free");
+
                 echo ai4seo_wp_kses(sprintf(
-                        __("We provide you with <strong>%s free Credits every day</strong>. Just keep using the plugin to get them.", "ai-for-seo"),
-                        esc_html(AI4SEO_DAILY_FREE_CREDITS_AMOUNT),
+                    __("We provide you with <strong>%s free Credits each day</strong> if your balance falls below %s Credits. Simply keep using the plugin to receive them automatically.", "ai-for-seo"),
+                    esc_html(AI4SEO_DAILY_FREE_CREDITS_AMOUNT),
+                    esc_html($ai4seo_free_plan_credits_amount),
                 ));
 
                 echo "<br><br>";
                 $ai4seo_next_free_credits_seconds_left = ai4seo_get_time_difference_in_seconds($ai4seo_next_free_credits_timestamp);
                 echo ai4seo_wp_kses(sprintf(
-                    __('Next <span class="ai4seo-green-bubble">+%1$s Credits</span> in <strong>%2$s</strong>.', 'ai-for-seo'),
+                    __('Next <span class="ai4seo-green-bubble">+%1$s Credits</span> in <strong>%2$s</strong> if your balance falls below %3$s Credits.', 'ai-for-seo'),
                     esc_html(AI4SEO_DAILY_FREE_CREDITS_AMOUNT),
                     "<span class='ai4seo-countdown' data-trigger='add_refresh_credits_balance_parameter_and_reload_page'>" . esc_html(ai4seo_format_seconds_to_hhmmss($ai4seo_next_free_credits_seconds_left)) . "</span>",
+                    esc_html($ai4seo_free_plan_credits_amount)
                 ));
             echo "</div>";
         echo "</div>";

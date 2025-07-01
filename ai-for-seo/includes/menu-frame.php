@@ -41,7 +41,7 @@ $ai4seo_client_subscription = ai4seo_init_client_subscription();
 
 if (!ai4seo_robhub_api() instanceof Ai4Seo_RobHubApiCommunicator) {
     echo "<div class='wrap'>";
-        ai4seo_echo_error_notice(esc_html__("Could not initialize API communicator. Please contact the plugin developer.", "ai-for-seo") . "#101012523", false);
+        ai4seo_echo_notice(esc_html__("Could not initialize API communicator. Please contact the plugin developer.", "ai-for-seo") . "#101012523", false);
     echo "</div>";
     return;
 }
@@ -66,7 +66,7 @@ if (isset($ai4seo_client_subscription["success"]) && !$ai4seo_client_subscriptio
         esc_html(sanitize_url(AI4SEO_OFFICIAL_CONTACT_URL))
     );
 
-    ai4seo_echo_error_notice($ai4seo_subscription_error_notice, false);
+    ai4seo_echo_notice($ai4seo_subscription_error_notice, false);
 }
 
 
@@ -77,10 +77,19 @@ ai4seo_echo_inefficient_cron_jobs_notice();
 
 // === MULTI LANGUAGE PLUGINS NOTICES ================================================================================= \\
 
-if ((!ai4seo_is_one_time_notice_dismissed("wpml-notice") && ai4seo_is_plugin_or_theme_active(AI4SEO_THIRD_PARTY_PLUGIN_WPML))) {
-    $ai4seo_wpml_notice = sprintf(esc_html__("Please note that %s is active on your website, and %s fully supports its functionality. Ideally, metadata and media attributes should be generated for each entry in every language. For this reason, the total number displayed on the dashboard appears higher, as each entry is processed separately for each language.", "ai-for-seo"), "<strong>WPML</strong>", "<span class='ai4seo-plugin-name'>" . AI4SEO_PLUGIN_NAME . "</span>");
+if (ai4seo_is_plugin_or_theme_active(AI4SEO_THIRD_PARTY_PLUGIN_WPML)) {
+    $ai4seo_wpml_notice = sprintf(
+    /* translators: 1: Plugin name “WPML”, 2: Your plugin name */
+        esc_html__(
+            'Just a heads-up — this is not a warning. %1$s is active on your website, and %2$s fully supports its functionality. Ideally, metadata and media attributes should be generated for each entry in every language. For this reason, the total number displayed on the dashboard appears higher, as each entry is processed separately for each language.',
+            'ai-for-seo'
+        ),
+        '<strong>WPML</strong>',
+        '<span class="ai4seo-plugin-name">' . AI4SEO_PLUGIN_NAME . '</span>'
+    );
     $ai4seo_wpml_notice .= "<p>" . esc_html__("For best results, we recommend keeping the language settings at \"automatic\", as this ensures the metadata is generated correctly for each language.", "ai-for-seo") . "</p>";
-    ai4seo_echo_error_notice($ai4seo_wpml_notice, true, "wpml-notice");
+
+    ai4seo_echo_notice($ai4seo_wpml_notice, true, "wpml-heads-up", "notice-info", true);
 }
 
 
@@ -285,7 +294,7 @@ echo "<div class='wrap ai4seo-wrap'>";
             ai4seo_analyze_plugin_performance(true);
         }
 
-        if (isset($_GET["ai4seo-tidyup"]) && $_GET["ai4seo-tidyup"]) {
+        if (isset($_GET["ai4seo_tidyup"]) && $_GET["ai4seo_tidyup"]) {
             ai4seo_tidy_up();
 
             $ai4seo_dashboard_url = ai4seo_get_admin_url("dashboard");

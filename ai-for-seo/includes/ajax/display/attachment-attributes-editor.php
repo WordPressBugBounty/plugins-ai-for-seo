@@ -121,7 +121,7 @@ echo "<div class='ai4seo-form ai4seo-editor-form'>";
         $ai4seo_this_attachment_attribute_input_name = ai4seo_get_prefixed_input_name("attachment_attribute_" . $ai4seo_this_attachment_attribute_identifier);
 
         // form item
-        echo "<div class='ai4seo-form-item'>";
+        echo "<div class='ai4seo-form-item' style='margin-top: 0; padding-top: 0;'>";
 
             // Headline
             echo "<label for='" . esc_attr($ai4seo_this_attachment_attribute_input_name) . "'>";

@@ -52,6 +52,9 @@ if ($ai4seo_this_metadata) {
 $ai4seo_metadata_prefixes = ai4seo_get_setting(AI4SEO_SETTING_METADATA_PREFIXES);
 $ai4seo_metadata_suffixes = ai4seo_get_setting(AI4SEO_SETTING_METADATA_SUFFIXES);
 
+// Prepare variables for visible meta tags
+$ai4seo_visible_meta_tags = ai4seo_get_setting(AI4SEO_SETTING_VISIBLE_META_TAGS);
+
 
 // ___________________________________________________________________________________________ \\
 // === OUTPUT ================================================================================ \\
@@ -89,7 +92,7 @@ echo "<div class='ai4seo-form ai4seo-editor-form'>";
         $ai4seo_this_metadata_suffix = sanitize_text_field($ai4seo_metadata_suffixes[$ai4seo_this_metadata_identifier] ?? "");
 
         // form item
-        echo "<div class='ai4seo-form-item'>";
+        echo "<div class='ai4seo-form-item' style='margin-top: 0; padding-top: 0;'>";
 
             // Name
             echo "<label for='" . esc_attr($ai4seo_this_metadata_input_name) . "'>";
@@ -101,6 +104,15 @@ echo "<div class='ai4seo-form ai4seo-editor-form'>";
 
                 // Tooltip
                 echo ai4seo_wp_kses(ai4seo_get_icon_with_tooltip_tag($ai4seo_this_metadata_details["hint"]));
+
+                if (!in_array($ai4seo_this_metadata_identifier, $ai4seo_visible_meta_tags)) {
+                    echo "<div class='ai4seo-error-message ai4seo-sub-info' style='margin-top: 5px;'>";
+                    echo sprintf(
+                        esc_html__("The %s is not visible on the front-end as defined in the plugin settings 'Meta Tag Inclusion'.", "ai-for-seo"),
+                        esc_html($ai4seo_this_metadata_details["name"])
+                    );
+                    echo "</div>";
+                }
             echo "</label>";
 
             // Input
@@ -127,7 +139,7 @@ echo "<div class='ai4seo-form ai4seo-editor-form'>";
 
                 // Suffix
                 if ($ai4seo_this_metadata_suffix) {
-                    echo "<span class='ai4seo-editor-suffix ai4seo-gray-text' style='float: left'>";
+                    echo "<span class='ai4seo-editor-suffix ai4seo-gray-text' style='position: absolute; left: 0;'>";
                         echo esc_html__("Suffix", "ai-for-seo") . ": " .  esc_html($ai4seo_this_metadata_suffix) . " ";
 
                         // tooltip

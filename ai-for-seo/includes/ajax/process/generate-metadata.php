@@ -73,7 +73,7 @@ $ai4seo_credits_balance = ai4seo_robhub_api()->get_credits_balance();
 // if we have fresh input values, lets compare them with the old data. If we have old data, and if we see a difference
 // to the current data, then just return the old data. If we do not have old data or if the data is the same, then we
 // can continue with the generation process.
-if ($ai4seo_generation_input_values) {
+/*if ($ai4seo_generation_input_values) {
     $ai4seo_old_generated_values = ai4seo_read_generated_data_from_post_meta($ai4seo_post_id);
 
     if ($ai4seo_old_generated_values) {
@@ -102,7 +102,7 @@ if ($ai4seo_generation_input_values) {
             }
         }
     }
-}
+}*/
 
 
 // ___________________________________________________________________________________________ \\

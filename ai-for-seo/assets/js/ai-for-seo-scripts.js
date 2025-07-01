@@ -2958,6 +2958,24 @@ function ai4seo_toggle_visibility_on_checkbox(selector_checkbox, selector_target
 // === NOTICES =============================================================================== \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
+function ai4seo_permanently_dismiss_notice(clicked_element) {
+    if (!ai4seo_exists(clicked_element)) {
+        console.log("AI for SEO: clicked_element does not exist.");
+        return;
+    }
+
+    clicked_element = ai4seo_jQuery(clicked_element);
+
+    let ai4seo_notice_identifier = clicked_element.closest(".ai4seo-one-time-notice").data("notice-identifier");
+
+    if (!ai4seo_notice_identifier) {
+        return;
+    }
+
+    // call desired ajax action
+    ai4seo_perform_ajax_call('ai4seo_dismiss_one_time_notice', {ai4seo_notice_identifier: ai4seo_notice_identifier}).catch(error => { /* auto error handler enabled */ });
+}
+
 // add dismiss click action to notice elements
 // class "ai4seo-notice > notice-dismiss"
 jQuery(document).on("click", ".ai4seo-performance-notice > .notice-dismiss", function() {
@@ -2966,16 +2984,26 @@ jQuery(document).on("click", ".ai4seo-performance-notice > .notice-dismiss", fun
 });
 
 // class "ai4seo-one-time-notice > notice-dismiss"
-jQuery(document).on("click", ".ai4seo-one-time-notice > .notice-dismiss", function() {
-    let ai4seo_notice_identifier = ai4seo_jQuery(this).closest(".ai4seo-one-time-notice").data("notice-identifier");
+jQuery(document).on("click", ".ai4seo-one-time-notice .notice-dismiss", function() {
+    ai4seo_permanently_dismiss_notice(this);
+});
 
-    if (!ai4seo_notice_identifier) {
-        console.log("AI for SEO: Notice identifier not found.");
+// class .ai4seo-close-notice-button (without .ai4seo-one-time-notice)
+jQuery(document).on('click', '.ai4seo-close-notice-button', function() {
+    var ai4seo_this_notice = jQuery(this).closest('.notice');
+
+    if ( !ai4seo_exists(ai4seo_this_notice) ) {
         return;
     }
 
-    // call desired ajax action
-    ai4seo_perform_ajax_call('ai4seo_dismiss_one_time_notice', {ai4seo_notice_identifier: ai4seo_notice_identifier}).catch(error => { /* auto error handler enabled */ });
+    ai4seo_this_notice.slideUp(200, function() {
+        ai4seo_this_notice.remove();
+    });
+
+    // check if $notice got class .ai4seo-one-time-notice
+    if ( ai4seo_this_notice.hasClass('ai4seo-one-time-notice') ) {
+        ai4seo_permanently_dismiss_notice(this);
+    }
 });
 
 // move all .ai4seo-notice to .ai4seo-notices-area

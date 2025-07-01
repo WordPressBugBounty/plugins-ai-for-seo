@@ -321,9 +321,10 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-getti
 
     // Details on credits available with different plans
     $ai4seo_this_accordion_content .= "<p>" . sprintf(
-        __("The <b>free plan</b> provides you with %u Credits, allowing you to experiment with AI-generated SEO content without any cost. In addition, we provide you with %u free Credits every day.", "ai-for-seo"),
+        __("The <b>free plan</b> provides you with %u Credits, allowing you to experiment with AI-generated SEO content without any cost. In addition, we provide you with %u free Credits every day if your balance falls below %s Credits.", "ai-for-seo"),
         esc_html($ai4seo_free_plan_credits),
         esc_html(AI4SEO_DAILY_FREE_CREDITS_AMOUNT),
+        esc_html($ai4seo_free_plan_credits),
     ) . "</p>";
     $ai4seo_this_accordion_content .= "<p>" . sprintf(
         __("With the <b>Basic subscription</b> you receive %u Credits per month: Ideal for smaller websites or blogs.", "ai-for-seo"),
@@ -607,8 +608,9 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-faq'>
         echo "<h3>" . esc_html__("Plans / Subscriptions", "ai-for-seo") . "</h3>";
 
         $ai4seo_this_accordion_content = sprintf(
-            __("The free plan renews on a daily basis. You will receive %u free Credits every day, allowing you to continue using the basic features of the plugin at no cost.", "ai-for-seo"),
-            esc_html(AI4SEO_DAILY_FREE_CREDITS_AMOUNT)
+            __("The free plan renews on a daily basis. You will receive %u free Credits every day if your balance falls below %s Credits, allowing you to continue using the basic features of the plugin at no cost.", "ai-for-seo"),
+            esc_html(AI4SEO_DAILY_FREE_CREDITS_AMOUNT),
+            esc_html($ai4seo_free_plan_credits),
         );
         echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("Are Credits renewed in the Free plan?", "ai-for-seo"), $ai4seo_this_accordion_content));
 
@@ -627,9 +629,10 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-faq'>
         echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("How are Credits consumed in the *AI for SEO* plugin?", "ai-for-seo"), $ai4seo_this_accordion_content));
 
         $ai4seo_this_accordion_content = sprintf(
-            __("Yes, the free plan provides you with %u Credits, allowing you to experiment with AI-generated SEO content without any cost. In addition, we provide you with %u free Credits every day.", "ai-for-seo"),
+            __("Yes, the free plan provides you with %u Credits, allowing you to experiment with AI-generated SEO content without any cost. In addition, we provide you with %u free Credits every day if your balance falls below %s Credits.", "ai-for-seo"),
             esc_html($ai4seo_free_plan_credits),
             esc_html(AI4SEO_DAILY_FREE_CREDITS_AMOUNT),
+            esc_html($ai4seo_free_plan_credits),
         );
         echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("Can I try the *AI for SEO* plugin without purchasing a subscription?", "ai-for-seo"), $ai4seo_this_accordion_content));
 

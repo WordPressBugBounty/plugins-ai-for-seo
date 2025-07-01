@@ -4,7 +4,7 @@ Donate link: https://spa.ce.codes
 Tags: AI, SEO, Metadata, Alt text, Bulk
 Requires at least: 4.7
 Tested up to: 6.8.1
-Stable tag: 2.0.6
+Stable tag: 2.0.7
 Requires PHP: 7.4
 License: GPLv2 or later (or compatible)
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -22,7 +22,7 @@ Generate all your metadata, image alt text, titles, captions, and descriptions w
 
 *AI for SEO* assists in meeting the requirements of the **European Accessibility Act (EAA)** by generating alt text for all images on your website. This improves accessibility for all users, including those with visual impairments, ensuring a more inclusive web experience.
 
-Best of all, it's **practically free** for small and mid-sized websites! We provide 5 free Credits to your account daily, allowing you to use all the features of *AI for SEO* at no cost.
+**Free to use** for almost all small and mid-sized websites! If your balance drops below 100 credits, we’ll automatically add 5 **free credits** to your account every day, giving you full access to all AI for SEO features at no cost.
 
 = 🚀 How to Get Started =
 1. **Access the Dashboard**:
@@ -171,7 +171,7 @@ Yes, alternatively, you can go to the 'Pages' or 'Posts' tab within the *AI for 
 We currently support Elementor, BeTheme (Muffin-Builder / Be-Builder) and the standard editor. We are working on supporting more editors.
 
 = Are Credits renewed in the Free plan? =
-The free plan renews on a daily basis. You will receive 5 free Credits every day, allowing you to continue using the basic features of the plugin at no cost.
+The free plan renews on a daily basis. You will receive 5 free Credits every day if your balance falls below 100 Credits, allowing you to continue using the basic features of the plugin at no cost.
 
 = What do I need to do to receive the free daily Credits? =
 You don't need to do anything—they'll be automatically added to your account every day. Just make sure the plugin remains active on your website.
@@ -184,7 +184,7 @@ Credits are consumed when the AI generates metadata or media attributes for your
 Please note that Credits are not consumed when you manually edit the metadata or media attributes. Also, Credits-wise, it does not make a difference if you only generate metadata for a single field (e.g., the title) or for all fields at once.
 
 = Can I try the *AI for SEO* plugin without purchasing a subscription? =
-Yes, the free plan provides you with 100 Credits, allowing you to experiment with AI-generated SEO content without any cost. In addition, we provide you with 5 free Credits every day.
+Yes, the free plan provides you with 100 Credits, allowing you to experiment with AI-generated SEO content without any cost. In addition, we provide you with 5 free Credits every day if your balance falls below 100 Credits.
 
 = How many Credits do I get with the Basic, Pro, and Premium subscriptions? =
 - The Basic subscription grants you 500 Credits per month, suitable for smaller websites or blogs. It covers up to ~100 content posts/pages/products/images/etc. per month.
@@ -302,8 +302,11 @@ To import all images from the NextGen Gallery into AI for SEO, click the Import 
 
 == Changelog ==
 
+= 2.0.7 =
+* Bug Fixes & Maintenance: Fixed 7 minor bugs, added 3 quality of life improvements, and implemented security updates.
+
 = 2.0.6 =
-* Bug Fixes & Maintenance: Fixed 3 minor bug
+* Bug Fixes & Maintenance: Fixed 3 minor bugs
 
 = 2.0.5 =
 * Added a setting to force the image upload to use either the image url only or convert the contents to base64. This can be useful for users who experience issues with the generation of media attributes.
@@ -414,7 +417,7 @@ To import all images from the NextGen Gallery into AI for SEO, click the Import 
 * Implemented three minor bug fixes.
 
 = 1.2.2 =
-* All users now receive 5 free credits daily, allowing continued use of the basic features at no cost.
+* All users now receive 5 free credits daily if your balance falls below 100 Credits, allowing continued use of the basic features at no cost.
 * Overhauled pricing and credit rewards: Basic subscription now includes 500 credits (up from 200). Pro subscription now includes 1,500 credits (up from 600). Premium subscription now includes 5,000 credits (up from 3,000).
 * Added a "Getting Started" guide to the Help section, providing a step-by-step tutorial on how to use the plugin.
 * Implemented seven minor bug fixes, along with performance improvements and security updates.

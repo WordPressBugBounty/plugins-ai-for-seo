@@ -3,7 +3,7 @@
 Plugin Name: AI for SEO
 Plugin URI: https://aiforseo.ai
 Description: One-Click SEO solution. "AI for SEO" helps your website to rank higher in Web Search results.
-Version: 2.0.6
+Version: 2.0.7
 Author: spacecodes
 Author URI: https://spa.ce.codes
 Text Domain: ai-for-seo
@@ -15,7 +15,7 @@ if (!defined("ABSPATH")) {
     exit;
 }
 
-const AI4SEO_PLUGIN_VERSION_NUMBER = "2.0.6";
+const AI4SEO_PLUGIN_VERSION_NUMBER = "2.0.7";
 const AI4SEO_PLUGIN_NAME = "AI for SEO";
 const AI4SEO_PLUGIN_DESCRIPTION = 'One-Click SEO solution. "AI for SEO" helps your website to rank higher in Web Search results.';
 const AI4SEO_PLUGIN_IDENTIFIER = "ai-for-seo";
@@ -463,7 +463,7 @@ const AI4SEO_DEFAULT_SETTINGS = array(
     AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER => "both",
     AI4SEO_SETTING_METADATA_GENERATION_LANGUAGE => "auto",
     AI4SEO_SETTING_ATTACHMENT_ATTRIBUTES_GENERATION_LANGUAGE => "auto",
-    AI4SEO_SETTING_VISIBLE_META_TAGS => array("meta-description", "facebook-title", "facebook-description", "twitter-title", "twitter-description"),
+    AI4SEO_SETTING_VISIBLE_META_TAGS => array("meta-title", "meta-description", "facebook-title", "facebook-description", "twitter-title", "twitter-description"),
     AI4SEO_SETTING_ACTIVE_ATTACHMENT_ATTRIBUTES => array("title", "alt-text", "caption", "description"),
     AI4SEO_SETTING_OVERWRITE_EXISTING_METADATA => array(),
     AI4SEO_SETTING_OVERWRITE_EXISTING_ATTACHMENT_ATTRIBUTES => array("title"),
@@ -906,6 +906,7 @@ $ai4seo_cached_active_plugins_and_themes = array();
 $ai4seo_cached_supported_post_types = array();
 $ai4seo_allowed_attachment_mime_types = array("image/jpeg", "image/png", "image/gif", "image/webp", "image/avif"); # IMPORTANT! Also apply changes to the api-service AND to ai4seo_supported_mime_types-variable in JS-file
 $ai4seo_allowed_image_mime_types = array("image/jpeg", "image/png", "image/gif", "image/webp", "image/avif");
+$ai4seo_allowed_image_file_type_names = array("jpg", "jpeg", "png", "gif", "webp", "avif");
 
 // Define the constants for full and base language code mappings
 const AI4SEO_FULL_LANGUAGE_CODE_MAPPING = array(
@@ -1118,7 +1119,7 @@ function ai4seo_init_admin_area_essentials() {
 
     // plugin action link use filter "plugin_action_links_ + plugin_basename"
     $this_plugin_basename = sanitize_text_field(ai4seo_get_plugin_basename());
-    add_filter("plugin_action_links_{$this_plugin_basename}", 'ai4seo_add_links_to_the_plugin_directory');
+    add_filter("plugin_action_links_{$this_plugin_basename}", 'ai4seo_add_links_to_the_plugin_directory', 999);
 
     // show terms of service if not accepted yet
     $last_tos_modal_open_time = (int) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_TOS_LAST_MODAL_OPEN_TIME);
@@ -1266,7 +1267,7 @@ function ai4seo_check_and_handle_plugin_update() {
     ai4seo_update_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_KNOWN_PLUGIN_VERSION, AI4SEO_PLUGIN_VERSION_NUMBER);
 
     // tidy up some old version parameters, tables and options
-    ai4seo_tidy_up();
+    ai4seo_tidy_up($last_known_plugin_version);
 
     // call "product-updated" endpoint to RobHub
     // if there is no last known plugin version, we are on a fresh install
@@ -1286,7 +1287,7 @@ function ai4seo_check_and_handle_plugin_update() {
 
 // =========================================================================================== \\
 
-function ai4seo_tidy_up() {
+function ai4seo_tidy_up($last_known_plugin_version = AI4SEO_PLUGIN_VERSION_NUMBER) {
     // reestablish cron jobs
     ai4seo_un_schedule_cron_jobs();
     ai4seo_init_cron_jobs();
@@ -1530,6 +1531,12 @@ function ai4seo_tidy_up() {
                 ai4seo_update_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME, $new_bulk_generation_new_or_existing_filter_reference_time);
             }
         }
+    }
+
+    // V2.0.7: If older version is below 2.0.7 AND the setting AI4SEO_SETTING_VISIBLE_META_TAGS is empty, set it to the previous default value: array("meta-description", "facebook-title", "facebook-description", "twitter-title", "twitter-description")
+    if (version_compare($last_known_plugin_version, "2.0.7", "<") && (!isset($raw_settings[AI4SEO_SETTING_VISIBLE_META_TAGS])) || !$raw_settings[AI4SEO_SETTING_VISIBLE_META_TAGS]) {
+        // old default value for visible meta tags
+        ai4seo_update_setting(AI4SEO_SETTING_VISIBLE_META_TAGS, array("meta-description", "facebook-title", "facebook-description", "twitter-title", "twitter-description"));
     }
 
     // to finish the tidy up, we re-analyze the plugin performance
@@ -1957,6 +1964,23 @@ function ai4seo_add_links_to_the_plugin_directory($links): array {
         return array();
     }
 
+    // check if we loaded plugins already
+    if (!did_action("load-plugins.php")) {
+        return $links; // avoid running in unexpected contexts
+    }
+
+    // double check if we are in the plugin directory
+    $this_plugin_basename = sanitize_text_field(ai4seo_get_plugin_basename());
+
+    if (current_filter() !== "plugin_action_links_{$this_plugin_basename}") {
+        return $links;
+    }
+
+    // remove everything from $links, except the deactivate link
+    $links = array_filter($links, function($link) {
+        return strpos($link, 'deactivate') !== false;
+    });
+
     // Define variables for the incognito-setting
     $ai4seo_setting_enable_incognito_mode = ai4seo_get_setting(AI4SEO_SETTING_ENABLE_INCOGNITO_MODE);
     $ai4seo_setting_incognito_mode_user_id = ai4seo_get_setting(AI4SEO_SETTING_INCOGNITO_MODE_USER_ID);
@@ -2100,9 +2124,9 @@ function ai4seo_modify_html_header_adding_our_meta_tags(string $full_html_buffer
     $meta_tag_output_mode = ai4seo_get_setting(AI4SEO_SETTING_META_TAG_OUTPUT_MODE);
 
     // read settings AI4SEO_SETTING_VISIBLE_META_TAGS
-    $included_meta_tags = ai4seo_get_setting(AI4SEO_SETTING_VISIBLE_META_TAGS);
+    $visible_meta_tags = ai4seo_get_setting(AI4SEO_SETTING_VISIBLE_META_TAGS);
 
-    if (!$included_meta_tags) {
+    if (!$visible_meta_tags) {
         return $full_html_buffer;
     }
 
@@ -2119,7 +2143,7 @@ function ai4seo_modify_html_header_adding_our_meta_tags(string $full_html_buffer
     $head_end_position = strpos($full_html_buffer, '</head>');
 
     if ($head_end_position === false) {
-        return $full_html_buffer;
+        $head_end_position = strlen($full_html_buffer); // if no closing head tag is found, set end position to the end of the buffer
     }
 
     $head_html = substr($full_html_buffer, $head_start_position, $head_end_position - $head_start_position);
@@ -2147,7 +2171,7 @@ function ai4seo_modify_html_header_adding_our_meta_tags(string $full_html_buffer
             continue;
         }
 
-        if (!in_array($this_metadata_identifier, $included_meta_tags)) {
+        if (!in_array($this_metadata_identifier, $visible_meta_tags)) {
             continue;
         }
 
@@ -4456,16 +4480,40 @@ function ai4seo_analyze_post(int $post_id) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 /**
- * Outputs an error notice
- * @param string $message
- * @param bool $is_dismissible
+ * Outputs a notice
+ * @param string $message The message to display
+ * @param bool $add_xmark_button_top_right Whether the notice is dismissible through a standard WordPress notice-dismiss button
+ * @param string $one_time_notice_identifier An identifier for one-time notices, so they can be dismissed permanently
+ * @param string $notice_class The class to add to the notice, defaults to "notice-error" (values: "notice-error", "notice-success", "notice-warning", "notice-info")
+ * @param bool $add_close_button_below_message Whether to add a close button to the notice or not
  * @return void
  */
-function ai4seo_echo_error_notice(string $message, bool $is_dismissible = true, $one_time_notice_identifier = "") {
-    echo '<div class="notice notice-error ai4seo-notice ' . ($is_dismissible ? "is-dismissible" : "") . ($one_time_notice_identifier ? ' ai4seo-one-time-notice' : '') . '"' . ($one_time_notice_identifier ? ' data-notice-identifier="' . esc_attr($one_time_notice_identifier)  . '"' : '') . '><p>';
-    echo '<img class="ai4seo-notice-icon" src="' . esc_url(ai4seo_get_ai_for_seo_logo_url("32x32")) . '" alt="' . esc_attr(AI4SEO_PLUGIN_NAME) . '" /> ';
-    echo ai4seo_wp_kses($message);
-    echo '</p></div>';
+function ai4seo_echo_notice(string $message, bool $add_xmark_button_top_right = true, string $one_time_notice_identifier = "", string $notice_class = "notice-error", bool $add_close_button_below_message = false) {
+    // check ai4seo_is_one_time_notice_dismissed($one_time_notice_identifier) and skip output if it is dismissed
+    if ($one_time_notice_identifier && ai4seo_is_one_time_notice_dismissed($one_time_notice_identifier)) {
+        return;
+    }
+
+    echo '<div class="notice ai4seo-notice' . ($add_xmark_button_top_right ? " is-dismissible" : "") . ($one_time_notice_identifier ? ' ai4seo-one-time-notice' : '') . ($notice_class ? " " . esc_attr($notice_class) : "") . '"' . ($one_time_notice_identifier ? ' data-notice-identifier="' . esc_attr($one_time_notice_identifier)  . '"' : '') . '>';
+        echo '<img class="ai4seo-notice-icon" src="' . esc_url(ai4seo_get_ai_for_seo_logo_url("32x32")) . '" alt="' . esc_attr(AI4SEO_PLUGIN_NAME) . '" /> ';
+
+        // the message
+        echo ai4seo_wp_kses($message);
+
+        // If we want to output a separate close button
+        if ($add_close_button_below_message) {
+            echo '<button type="button" class="ai4seo-button ai4seo-close-notice-button" title="' . esc_attr__("Dismiss this notice", "ai-for-seo") . '">';
+                echo ai4seo_wp_kses(ai4seo_get_svg_tag("circle-xmark", "", "ai-for-seo"));
+                if ($one_time_notice_identifier) {
+                    echo esc_html__("Dismiss this notice (forever)", "ai-for-seo");
+                } else {
+                    echo esc_html__("Dismiss this notice", "ai-for-seo");
+                }
+
+            echo '</button>';
+        }
+
+    echo '</div>';
 }
 
 // =========================================================================================== \\
@@ -5118,7 +5166,7 @@ function ai4seo_echo_inefficient_cron_jobs_notice() {
 
     $ai4seo_cron_job_too_slow_notification = ai4seo_get_inefficient_cron_jobs_notice();
 
-    ai4seo_echo_error_notice($ai4seo_cron_job_too_slow_notification);
+    ai4seo_echo_notice($ai4seo_cron_job_too_slow_notification, true, "", "notice-warning");
 }
 
 // =========================================================================================== \\
@@ -5770,13 +5818,13 @@ function ai4seo_automated_generation_cron_job($debug = false): bool {
         $bulk_generation_duration = AI4SEO_DEFAULT_SETTINGS[AI4SEO_SETTING_BULK_GENERATION_DURATION];
     }
 
-    $max_execution_time = $debug ? 15 : ($bulk_generation_duration - 5);
+    $max_execution_time = $debug ? 20 : ($bulk_generation_duration - 5);
     $approximate_single_run_duration = 10;
-    $max_tolerated_execution_time = $debug ? 20 : ($bulk_generation_duration + 10);
+    $max_tolerated_execution_time = $debug ? 25 : ($bulk_generation_duration + 10);
     $max_runs = $debug ? 3 : round($bulk_generation_duration / 3);
 
     // set the maximum execution time according to these functions needs
-    set_time_limit($max_tolerated_execution_time + 5);
+    set_time_limit($max_tolerated_execution_time + 30);
 
     // define the start time of this cron job function call
     $start_time = time();
@@ -5821,7 +5869,7 @@ function ai4seo_automated_generation_cron_job($debug = false): bool {
     }
 
     // check if credentials are set
-    if (!ai4seo_robhub_api()->init_credentials()) {
+    if (!ai4seo_robhub_api()->init_credentials(false)) {
         if ($debug) {
             echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("auth failed -> skip", true)) . "<</pre>";
         }
@@ -6034,7 +6082,7 @@ function ai4seo_automated_metadata_generation($debug = false, $only_this_post_id
     $new_generated_metadata = array();
 
     // check, if we already have a post content summary and compare for similarities
-    $existing_post_content_summary = ai4seo_read_post_content_summary_from_post_meta($post_id);
+    /*$existing_post_content_summary = ai4seo_read_post_content_summary_from_post_meta($post_id);
 
     if ($existing_post_content_summary && ai4seo_are_post_content_summaries_similar($post_content_summary, $existing_post_content_summary)) {
         // add the post ids to the option "ai4seo_already_filled_metadata_post_ids"
@@ -6043,7 +6091,7 @@ function ai4seo_automated_metadata_generation($debug = false, $only_this_post_id
         }
 
         $new_generated_metadata = ai4seo_read_generated_data_from_post_meta($post_id);
-    }
+    }*/
 
     // if we don't have any generated data yet, we have to generate it
     if (!$new_generated_metadata) {
@@ -6056,8 +6104,6 @@ function ai4seo_automated_metadata_generation($debug = false, $only_this_post_id
         );
 
         // check for a key phrase
-        $ai4seo_keyphrase = "";
-
         $ai4seo_keyphrase = sanitize_text_field(ai4seo_get_any_third_party_seo_plugin_keyphrase($post_id));
 
         if ($ai4seo_keyphrase) {
@@ -6168,6 +6214,8 @@ function ai4seo_handle_failed_metadata_generation(int $post_id, string $function
  * @return bool true if base64 should be used, false if URL should be used
  */
 function ai4seo_should_use_base64_image(string $attachment_url): bool {
+    global $ai4seo_allowed_image_file_type_names;
+
     // Get the user's preference for image upload method
     $image_upload_method = ai4seo_get_setting(AI4SEO_SETTING_IMAGE_UPLOAD_METHOD);
     
@@ -6194,8 +6242,19 @@ function ai4seo_should_use_base64_image(string $attachment_url): bool {
 
             // Second check: Detect localhost/development environments
             // Our API cannot access localhost URLs, so base64 is required
-            if (ai4seo_robhub_api()->are_we_on_a_localhost_system()) {
+            if (!$ai4seo_use_base64_image && ai4seo_robhub_api()->are_we_on_a_localhost_system()) {
                 $ai4seo_use_base64_image = true;
+            }
+
+            // third check: Validate file type at the end of the URL
+            if (!$ai4seo_use_base64_image) {
+                // Get the file extension from the URL
+                $file_extension = pathinfo($attachment_url, PATHINFO_EXTENSION);
+
+                // If the file extension is not in our allowed list, we must use base64
+                if (!in_array(strtolower($file_extension), $ai4seo_allowed_image_file_type_names)) {
+                    $ai4seo_use_base64_image = true;
+                }
             }
 
             // Third check: Test URL accessibility (only if we haven't already decided on base64)
@@ -8819,7 +8878,7 @@ function ai4seo_smart_image_base64_encode( string $image_data ): string {
             || !function_exists( 'imagecreatetruecolor' )
             || !function_exists( 'imagedestroy' )
         ) {
-            return "";
+            throw new Exception( 'Required image functions are not available.' );
         }
 
         // Try to create an image from the string.
@@ -8866,7 +8925,7 @@ function ai4seo_smart_image_base64_encode( string $image_data ): string {
 
         if (function_exists( 'imagedestroy' ) && function_exists('is_resource')) {
             // Free any allocated resources in case of an error.
-            if (is_resource($image)) {
+            if (isset($image) && is_resource($image)) {
                 imagedestroy($image);
             }
 
@@ -9753,6 +9812,12 @@ function ai4seo_dismiss_one_time_notice() {
         $existing_one_time_notices = array();
     }
 
+    // check if the notice is already dismissed
+    if (in_array($notice_identifier, $existing_one_time_notices)) {
+        wp_send_json_success();
+        return;
+    }
+
     $existing_one_time_notices[] = $notice_identifier;
 
     ai4seo_update_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_DISMISSED_ONE_TIME_NOTICES, $existing_one_time_notices);
@@ -10634,7 +10699,7 @@ function ai4seo_validate_environmental_variable_value(string $environmental_vari
             }
 
             foreach ($environmental_variable_value as $key => $value) {
-                if (!is_string($value) || !preg_match("/^[a-z-]+$/", $value)) {
+                if (!is_string($value) || !preg_match("/^[a-z0-9-]+$/", $value)) {
                     return false;
                 }
             }
@@ -11147,6 +11212,10 @@ function ai4seo_add_latest_activity_entry(int $post_id, string $status, string $
         $url = get_edit_post_link($post_id);
     } else {
         $url = get_permalink($post_id);
+    }
+
+    if (!$url) {
+        $url = "";
     }
 
     // check url

@@ -516,7 +516,7 @@ class Ai4Seo_RobHubApiCommunicator {
      */
     function respond_error(string $message, int $code): array {
         if (strlen($message) > 256) {
-            $message = substr($message, 0, 256) . "...";
+            $message = substr($message, 0, 256) . "..."; # remove this to see full error message in the response
         }
 
         return array(
@@ -1056,6 +1056,6 @@ class Ai4Seo_RobHubApiCommunicator {
     // =========================================================================================== \\
 
     function are_we_on_a_localhost_system(): bool {
-        return (sanitize_text_field($_SERVER["SERVER_NAME"]) === "localhost" || sanitize_text_field($_SERVER["SERVER_NAME"]) === str_replace("http://", "", $this->local_api_url));
+        return (sanitize_text_field($_SERVER["SERVER_NAME"]) === "127.0.0.1" || sanitize_text_field($_SERVER["SERVER_NAME"]) === "localhost" || sanitize_text_field($_SERVER["SERVER_NAME"]) === str_replace("http://", "", $this->local_api_url));
     }
 }
