@@ -18,17 +18,17 @@ if (!ai4seo_can_manage_this_plugin()) {
 // === PREPARE =============================================================================== \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
-$ai4seo_client_subscription = ai4seo_init_client_subscription();
+global $ai4seo_synced_robhub_client_data;
 
-$ai4seo_current_subscription_plan = $ai4seo_client_subscription["plan"] ?? "free";
+$ai4seo_current_subscription_plan = $ai4seo_synced_robhub_client_data["plan"] ?? "free";
 $ai4seo_current_subscription_plan_name = ai4seo_get_plan_name($ai4seo_current_subscription_plan);
 
-$ai4seo_current_subscription_next_credits_refresh_date_and_time = $ai4seo_client_subscription["next_credits_refresh"] ?? false;
+$ai4seo_current_subscription_next_credits_refresh_date_and_time = $ai4seo_synced_robhub_client_data["next_credits_refresh"] ?? false;
 $ai4seo_current_subscription_next_credits_refresh_timestamp = $ai4seo_current_subscription_next_credits_refresh_date_and_time
     ? strtotime($ai4seo_current_subscription_next_credits_refresh_date_and_time) : 0;
 $ai4seo_current_subscription_next_credits_refresh_formatted_text = ai4seo_format_unix_timestamp($ai4seo_current_subscription_next_credits_refresh_timestamp);
 
-$ai4seo_current_subscription_end_date_and_time = $ai4seo_client_subscription["subscription_end"] ?? false;
+$ai4seo_current_subscription_end_date_and_time = $ai4seo_synced_robhub_client_data["subscription_end"] ?? false;
 $ai4seo_current_subscription_end_timestamp = $ai4seo_current_subscription_end_date_and_time
     ? strtotime($ai4seo_current_subscription_end_date_and_time) : 0;
 $ai4seo_current_subscription_end_formatted_text = ai4seo_format_unix_timestamp($ai4seo_current_subscription_end_timestamp);
@@ -37,27 +37,21 @@ $ai4seo_user_is_on_free_plan = ($ai4seo_current_subscription_plan == "free") || 
 $ai4seo_current_subscription_plan_css_class = ($ai4seo_user_is_on_free_plan ? "ai4seo-black-message" : "ai4seo-green-message");
 
 // double check if subscription should be renewed
-$ai4seo_current_subscription_do_renew = $ai4seo_client_subscription["do_renew"] ?? false;
+$ai4seo_current_subscription_do_renew = $ai4seo_synced_robhub_client_data["do_renew"] ?? false;
 $ai4seo_current_subscription_do_renew = !$ai4seo_user_is_on_free_plan
     && $ai4seo_current_subscription_end_timestamp
     && $ai4seo_current_subscription_do_renew == "1";
 
-$ai4seo_current_subscription_renew_frequency = $ai4seo_client_subscription["renew_frequency"] ?? false;
+$ai4seo_current_subscription_renew_frequency = $ai4seo_synced_robhub_client_data["renew_frequency"] ?? false;
 $ai4seo_current_subscription_renew_frequency = $ai4seo_current_subscription_do_renew
     ? $ai4seo_current_subscription_renew_frequency : false;
 
-$ai4seo_next_free_credits_timestamp = $ai4seo_client_subscription["next_free_credits"] ?? 0;
+$ai4seo_next_free_credits_timestamp = $ai4seo_synced_robhub_client_data["next_free_credits"] ?? 0;
 $ai4seo_current_credits_balance = ai4seo_robhub_api()->get_credits_balance();
 
 $ai4seo_is_payg_enabled = (bool) ai4seo_get_setting(AI4SEO_SETTING_PAYG_ENABLED);
 $ai4seo_has_purchased_something = (bool) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_HAS_PURCHASED_SOMETHING);
 $ai4seo_payg_credits_threshold = (int) ai4seo_get_setting(AI4SEO_SETTING_PAYG_CREDITS_THRESHOLD);
-
-
-// === DISCOUNTS ============================================================================= \\
-
-$ai4seo_is_first_purchase_discount_available = (bool) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_IS_FIRST_PURCHASE_DISCOUNT_AVAILABLE);
-$ai4seo_early_bird_discount_time_left = (int) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_EARLY_BIRD_DISCOUNT_TIME_LEFT);
 
 
 // ___________________________________________________________________________________________ \\
@@ -91,45 +85,10 @@ echo "<div class='ai4seo-modal-schema-content'>";
                 echo esc_html__("Credits Pack", "ai-for-seo");
             echo "</div>";
 
-            // discount info
-            echo "<div class='ai4seo-get-more-credits-section-discount-info'>";
+            echo esc_html__("Need more Credits for a one-time job? Choose a Credits Pack that fits your needs.", "ai-for-seo");
 
-                if ($ai4seo_early_bird_discount_time_left) {
-                    echo sprintf(
-                        esc_html__("Get an additional %s%% discount for your first purchase.", "ai-for-seo"),
-                        AI4SEO_EARLY_BIRD_DISCOUNT
-                    );
-                } else if ($ai4seo_is_first_purchase_discount_available) {
-                    echo sprintf(
-                        esc_html__("Get an additional %s%% discount for your first purchase.", "ai-for-seo"),
-                        AI4SEO_FIRST_PURCHASE_DISCOUNT
-                    );
-                }
-
-            echo "</div>";
-
-            // discount available
-            if ($ai4seo_is_first_purchase_discount_available || $ai4seo_early_bird_discount_time_left) {
-                echo "<br>";
-                echo "<div class='ai4seo-red-bubble ai4seo-discount-available-message'>";
-                    if ($ai4seo_early_bird_discount_time_left) {
-                        echo sprintf(
-                            esc_html__("%s%% discount available (time left: %s)", "ai-for-seo"),
-                            AI4SEO_EARLY_BIRD_DISCOUNT,
-                            "<span class='ai4seo-countdown' data-trigger='add_refresh_credits_balance_parameter_and_reload_page'>" . esc_html(ai4seo_format_seconds_to_hhmmss($ai4seo_early_bird_discount_time_left)) . "</span>"
-                        );
-                    } else {
-                        echo sprintf(
-                            esc_html__("%s%% discount available for your first purchase", "ai-for-seo"),
-                            AI4SEO_FIRST_PURCHASE_DISCOUNT
-                        );
-                    }
-                echo "</div>";
-            }
-
-            if (!$ai4seo_early_bird_discount_time_left && !$ai4seo_is_first_purchase_discount_available) {
-                echo esc_html__("Need more Credits for a one-time job? Choose a Credits Pack that fits your needs.", "ai-for-seo");
-            }
+            // current discount
+            ai4seo_echo_current_discount();
 
             echo "<br>";
 
@@ -339,7 +298,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
                 echo ai4seo_wp_kses(sprintf(
                     __('Next <span class="ai4seo-green-bubble">+%1$s Credits</span> in <strong>%2$s</strong> if your balance falls below %3$s Credits.', 'ai-for-seo'),
                     esc_html(AI4SEO_DAILY_FREE_CREDITS_AMOUNT),
-                    "<span class='ai4seo-countdown' data-trigger='add_refresh_credits_balance_parameter_and_reload_page'>" . esc_html(ai4seo_format_seconds_to_hhmmss($ai4seo_next_free_credits_seconds_left)) . "</span>",
+                    "<span class='ai4seo-countdown' data-time-left='" . esc_attr($ai4seo_next_free_credits_seconds_left) . "' data-trigger='add_refresh_credits_balance_parameter_and_reload_page'>" . esc_html(ai4seo_format_seconds_to_hhmmss_or_days_hhmmss($ai4seo_next_free_credits_seconds_left)) . "</span>",
                     esc_html($ai4seo_free_plan_credits_amount)
                 ));
             echo "</div>";

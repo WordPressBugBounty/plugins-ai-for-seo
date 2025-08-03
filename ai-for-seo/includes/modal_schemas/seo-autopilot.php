@@ -22,7 +22,7 @@ $ai4seo_is_any_bulk_generation_enabled = !empty($ai4seo_active_bulk_generation_p
 
 $ai4seo_supported_post_types = ai4seo_get_supported_post_types();
 
-$ai4seo_num_missing_posts_by_post_type = ai4seo_get_all_missing_posts_by_post_type();
+$ai4seo_num_missing_posts_by_post_type = ai4seo_get_num_missing_posts_by_post_type();
 
 $ai4seo_all_supported_post_types = array_merge($ai4seo_supported_post_types, array("attachment"));
 
@@ -130,27 +130,33 @@ echo "<div class='ai4seo-modal-schema-content'>";
                     }
                     echo "</select>";
 
-                    $ai4seo_this_new_or_existing_filter_reference_time_label = "";
+                    // Add datetime picker for reference time
+                    $ai4seo_this_datetime_input_name = ai4seo_get_prefixed_input_name(AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME);
+                    $ai4seo_datetime_value = "";
+                    
+                    // Use current timestamp if no stored timestamp exists
+                    $ai4seo_reference_timestamp = $ai4seo_automated_generation_new_or_existing_filter_reference_timestamp;
 
-                    if ($ai4seo_current_automated_generation_new_or_existing_filter && $ai4seo_automated_generation_new_or_existing_filter_reference_timestamp) {
-                        if ($ai4seo_current_automated_generation_new_or_existing_filter == "new") {
-                            $ai4seo_this_new_or_existing_filter_reference_time_label = sprintf(
-                                esc_html__("Note: SEO Autopilot only considers new entries created after %s.", "ai-for-seo"),
-                                "<strong>" . esc_html(ai4seo_format_unix_timestamp($ai4seo_automated_generation_new_or_existing_filter_reference_timestamp)) . "</strong>"
-                            );
-                        } else if ($ai4seo_current_automated_generation_new_or_existing_filter == "existing") {
-                            $ai4seo_this_new_or_existing_filter_reference_time_label = sprintf(
-                                esc_html__("Note: SEO Autopilot only considers existing entries created before %s.", "ai-for-seo"),
-                                "<strong>" . esc_html(ai4seo_format_unix_timestamp($ai4seo_automated_generation_new_or_existing_filter_reference_timestamp)) . "</strong>"
-                            );
-                        }
+                    if (!$ai4seo_reference_timestamp) {
+                        $ai4seo_reference_timestamp = time();
                     }
 
-                    if ($ai4seo_this_new_or_existing_filter_reference_time_label) {
-                        echo "<div style='margin-top: .5rem;'>";
-                            echo ai4seo_wp_kses($ai4seo_this_new_or_existing_filter_reference_time_label);
-                        echo "</div>";
-                    }
+                    $ai4seo_datetime_value = ai4seo_format_unix_timestamp($ai4seo_reference_timestamp, 'Y-m-d', 'H:i', '\T');
+
+                    $ai4seo_is_datetime_visible = ($ai4seo_current_automated_generation_new_or_existing_filter == "new" || $ai4seo_current_automated_generation_new_or_existing_filter == "existing");
+                    
+                    echo "<div class='ai4seo-datetime-picker-container' style='margin-top: 1rem;" . (!$ai4seo_is_datetime_visible ? " display: none;" : "") . "'>";
+                        echo "<label for='" . esc_attr($ai4seo_this_datetime_input_name) . "' class='ai4seo-datetime-picker-label'>";
+                            if ($ai4seo_current_automated_generation_new_or_existing_filter == "new") {
+                                echo esc_html__("New entries since:", "ai-for-seo");
+                            } else if ($ai4seo_current_automated_generation_new_or_existing_filter == "existing") {
+                                echo esc_html__("Old entries before:", "ai-for-seo");
+                            } else {
+                                echo esc_html__("Reference time:", "ai-for-seo"); // fallback
+                            }
+                        echo "</label>";
+                        echo "<input type='datetime-local' id='" . esc_attr($ai4seo_this_datetime_input_name) . "' name='" . esc_attr($ai4seo_this_datetime_input_name) . "' value='" . esc_attr($ai4seo_datetime_value) . "' class='ai4seo-datetime-picker-input' data-stored-timestamp='" . esc_attr($ai4seo_reference_timestamp) . "'>";
+                    echo "</div>";
 
                 echo "</div>";
 

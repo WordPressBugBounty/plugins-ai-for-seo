@@ -9,6 +9,8 @@ if (!defined("ABSPATH")) {
     exit;
 }
 
+global $ai4seo_synced_robhub_client_data;
+
 // Define boolean to determine whether to read license-data
 $ai4seo_show_license_details = (bool) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_HAS_PURCHASED_SOMETHING);
 
@@ -41,9 +43,9 @@ $ai4seo_setting_source_code_notes_content_start = stripslashes($ai4seo_setting_s
 $ai4seo_setting_source_code_notes_content_end = stripslashes($ai4seo_setting_source_code_notes_content_end);
 
 $ai4seo_current_credits_balance = ai4seo_robhub_api()->get_credits_balance();
-$ai4seo_client_subscription = ai4seo_init_client_subscription();
-$ai4seo_current_subscription_plan = $ai4seo_client_subscription["plan"] ?? "free";
-$ai4seo_current_subscription_end_date_and_time = $ai4seo_client_subscription["subscription_end"] ?? false;
+
+$ai4seo_current_subscription_plan = $ai4seo_synced_robhub_client_data["plan"] ?? "free";
+$ai4seo_current_subscription_end_date_and_time = $ai4seo_synced_robhub_client_data["subscription_end"] ?? false;
 $ai4seo_current_subscription_end_timestamp = $ai4seo_current_subscription_end_date_and_time
     ? strtotime($ai4seo_current_subscription_end_date_and_time) : 0;
 $ai4seo_user_is_on_free_plan = ($ai4seo_current_subscription_plan == "free") || $ai4seo_current_subscription_end_timestamp < time();
@@ -58,7 +60,7 @@ $ai4seo_has_purchased_something = (bool) ai4seo_read_environmental_variable(AI4S
     // Function to display lost-key-modal
     function ai4seo_open_lost_key_modal() {
         // Define variables for the modal
-        let modal_headline = wp.i18n.__("Lost your license key?", "ai-for-seo");
+        let modal_headline = wp.i18n.__("Lost your license data?", "ai-for-seo");
         let modal_content = wp.i18n.__("Please contact us for assistance. To help us resolve your issue quickly, kindly provide details such as your <strong>website domain</strong> and the <strong>email address</strong> used during the purchase.", "ai-for-seo");
         let modal_footer = "<button type='button' class='ai4seo-button ai4seo-abort-button' onclick='ai4seo_close_modal_by_child(this);'>" + wp.i18n.__("Close", "ai-for-seo") + "</button> ";
         modal_footer += wp.i18n.sprintf(wp.i18n.__("<a href='%s' target='_blank' class='button ai4seo-button ai4seo-success-button'>Contact us</a>", "ai-for-seo"), ai4seo_official_contact_url);
@@ -92,26 +94,27 @@ echo "<div class='ai4seo-form'>";
             echo esc_html__("License", "ai-for-seo");
         echo "</h2>";
 
+
         // === DESCRIPTION =========================================================================== \\
 
-        echo "<div class='ai4seo-form-item' style='padding: 0 1rem .5rem 1rem;'>";
-            // Show description in case of existing license
-            if ($ai4seo_show_license_details) {
-                echo "<ol>";
-                    echo "<li>" . esc_html__("Please make sure to save the username and license key somewhere safe in case your need to reconnect your website to your existing account.", "ai-for-seo") . "</li>";
-                    echo "<li><strong>" . esc_html__("You can use these credentials on as many websites as you like which is especially convenient for SEO- and web agencies.", "ai-for-seo") . "</strong></li>";
-                echo "</ol>";
-            }
+            echo "<div class='ai4seo-form-item-description' style='margin: 1rem; padding-bottom: 1rem;'>";
+                // Show description in case of existing license
+                if ($ai4seo_show_license_details) {
+                    echo "<ol>";
+                        echo "<li>" . esc_html__("Please make sure to save the username and license key somewhere safe in case your need to reconnect your website to your existing account.", "ai-for-seo") . "</li>";
+                        echo "<li><strong>" . esc_html__("You can use these credentials on as many websites as you like which is especially convenient for SEO- and web agencies.", "ai-for-seo") . "</strong></li>";
+                    echo "</ol>";
+                }
 
-            // Show description in case of missing license
-            else {
-                echo "<ol>";
-                    echo "<li>" . esc_html__("Here you can connect your website to an existing account in order to use the Credits from your main account.", "ai-for-seo") . "</li>";
-                    echo "<li>" . esc_html__("Your credentials will be generated automatically when you purchase a plan or Credits and you will be able to find them here.", "ai-for-seo") . "</li>";
-                    echo "<li>" . esc_html__("If you have lost your credentials, please contact us via the link below.", "ai-for-seo") . "</li>";
-                echo "<ol>";
-            }
-        echo "</div>";
+                // Show description in case of missing license
+                else {
+                    echo "<ol>";
+                        echo "<li>" . esc_html__("Here you can connect your website to an existing account in order to use the Credits from your main account.", "ai-for-seo") . "</li>";
+                        echo "<li>" . esc_html__("Your credentials will be generated automatically when you purchase a plan or Credits and you will be able to find them here.", "ai-for-seo") . "</li>";
+                        echo "<li>" . esc_html__("If you have lost your credentials, please contact us via the link below.", "ai-for-seo") . "</li>";
+                    echo "<ol>";
+                }
+            echo "</div>";
 
 
         // === API USERNAME / LICENSE OWNER ========================================================== \\
@@ -167,12 +170,13 @@ echo "<div class='ai4seo-form'>";
 
         echo "<hr class='ai4seo-form-item-divider'>";
 
+
         // === MANAGE CREDITS BUTTON ================================================================= \\
 
         echo "<div class='ai4seo-form-item' style='padding-top:0;'>";
             echo "<div class='ai4seo-buttons-wrapper' style='margin-top: 0; margin-bottom: 5px;'>";
                 // Button to show lost-license-instructions
-                echo ai4seo_wp_kses(ai4seo_get_button_text_link_tag("#", "key", esc_html__("Lost your license key?", "ai-for-seo"), "", "ai4seo_open_lost_key_modal();"));
+                echo ai4seo_wp_kses(ai4seo_get_button_text_link_tag("#", "key", esc_html__("Lost your license data?", "ai-for-seo"), "", "ai4seo_open_lost_key_modal();"));
 
                 // Button to manage subscription if user has an active subscription
                 if (!$ai4seo_user_is_on_free_plan) {
@@ -211,16 +215,17 @@ echo "<div class='ai4seo-form'>";
         $ai4seo_this_prefixed_input_id = ai4seo_get_prefixed_input_name(AI4SEO_SETTING_ENABLE_INCOGNITO_MODE);
 
         $ai4seo_this_setting_description = sprintf(
-            __("By enabling this checkbox you can hide the plugin from all other users. This means that only you (%s, %s) will be able to generate data, access and edit plugin settings and see the menu item in the header and the main menu of your website. Please note that the plugin will still be visible in the plugin list to other users. However, you may white-label the appearance using the settings below.", "ai-for-seo"),
+            __("By enabling this checkbox you can hide the plugin from all other users. This means that <strong><u>only you</u> (%s, %s)</strong> will be able to generate data, access and edit plugin settings and see the menu item in the header and the main menu of your website. Please note that the plugin will still be visible in the plugin list to other users. However, you may white-label the appearance using the settings below.", "ai-for-seo"),
             $ai4seo_current_user_username,
             $ai4seo_current_user_email
         );
 
         echo "<div class='ai4seo-form-item'>";
-            echo "<label for='" . esc_attr($ai4seo_this_prefixed_input_id) . "'>" . esc_html__("Enable Incognito Mode:", "ai-for-seo") . "</label>";
+            echo "<label for='" . esc_attr($ai4seo_this_prefixed_input_id) . "'>" . esc_html__("Incognito Mode", "ai-for-seo") . ":</label>";
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                 // Input
-                echo "<input type='checkbox' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' class='ai4seo-single-checkbox' " . ($ai4seo_setting_enable_incognito_mode ? " checked='checked'" : "") . " />";
+                echo "<input type='checkbox' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' class='ai4seo-single-checkbox' " . ($ai4seo_setting_enable_incognito_mode ? " checked='checked'" : "") . " /> ";
+                echo esc_html__("Enable Incognito Mode", "ai-for-seo");
 
                 // Description
                 echo "<p class='ai4seo-form-item-description'>";
@@ -239,10 +244,11 @@ echo "<div class='ai4seo-form'>";
         $ai4seo_this_setting_description = __("Enabling this option will give you access to change the display of certain plugin related information (i.e. the plugin name).", "ai-for-seo");
 
         echo "<div class='ai4seo-form-item'>";
-            echo "<label for='" . esc_attr($ai4seo_this_prefixed_input_id) . "'>" . esc_html__("Enable White-Label:", "ai-for-seo") . "</label>";
+            echo "<label for='" . esc_attr($ai4seo_this_prefixed_input_id) . "'>" . esc_html__("White-Label Mode", "ai-for-seo") . ":</label>";
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                 // Input
-                echo "<input type='checkbox' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' class='ai4seo-single-checkbox' onchange='ai4seo_toggle_visibility_on_checkbox(jQuery(this), jQuery(\".ai4seo-white-label-only-container\"))'" . ($ai4seo_setting_enable_white_label ? " checked='checked'" : "") . " />";
+                echo "<input type='checkbox' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' class='ai4seo-single-checkbox' onchange='ai4seo_toggle_visibility_on_checkbox(jQuery(this), jQuery(\".ai4seo-white-label-only-container\"))'" . ($ai4seo_setting_enable_white_label ? " checked='checked'" : "") . " /> ";
+                echo esc_html__("Enable White-Label Mode", "ai-for-seo");
 
                 // Description
                 echo "<p class='ai4seo-form-item-description'>";
@@ -318,10 +324,11 @@ echo "<div class='ai4seo-form'>";
             $ai4seo_this_setting_description = __("With this setting you can decide whether to display a comment block before and after the meta tags block generated by the plugin in the <u>source code</u> of your website.", "ai-for-seo");
 
             echo "<div class='ai4seo-form-item'>";
-                echo "<label for='" . esc_attr($ai4seo_this_prefixed_input_id) . "'>" . esc_html__("Add Generator Hints (Source Code):", "ai-for-seo") . "</label>";
+                echo "<label for='" . esc_attr($ai4seo_this_prefixed_input_id) . "'>" . esc_html__("Generator Hints (Source Code)", "ai-for-seo") . ":</label>";
                 echo "<div class='ai4seo-form-item-input-wrapper'>";
                     // Input
-                    echo "<input type='checkbox' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' class='ai4seo-single-checkbox' onchange='ai4seo_toggle_visibility_on_checkbox(jQuery(this), jQuery(\".ai4seo-source-code-adjustments-only-container\"))' " . ($ai4seo_setting_display_source_code_notes ? " checked='checked'" : "") . " />";
+                    echo "<input type='checkbox' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' class='ai4seo-single-checkbox' onchange='ai4seo_toggle_visibility_on_checkbox(jQuery(this), jQuery(\".ai4seo-source-code-adjustments-only-container\"))' " . ($ai4seo_setting_display_source_code_notes ? " checked='checked'" : "") . " /> ";
+                    echo esc_html__("Add Generator Hints", "ai-for-seo");
 
                     // Description
                     echo "<p class='ai4seo-form-item-description'>";
@@ -404,10 +411,17 @@ echo "<div class='ai4seo-form'>";
             echo "</label>";
 
             echo "<div class='ai4seo-form-item-input-wrapper'>";
-                echo "<button type='button' class='button ai4seo-button' onclick='ai4seo_open_ajax_modal(\"ai4seo_show_terms_of_service\", {}, {modal_size: \"small\"})'>";
-                    echo ai4seo_wp_kses(ai4seo_get_svg_tag("arrow-up-right-from-square")) . " ";
-                    echo esc_html__("Show Terms of Service", "ai-for-seo");
-                echo "</button>";
+                if (ai4seo_does_user_need_to_accept_tos_toc_and_pp(false)) {
+                    echo "<button type='button' class='button ai4seo-button' onclick='ai4seo_open_modal_from_schema(\"tos\", {modal_css_class: \"ai4seo-tos-modal\", modal_size: \"auto\"})'>";
+                        echo ai4seo_wp_kses(ai4seo_get_svg_tag("arrow-up-right-from-square")) . " ";
+                        echo esc_html__("Show Terms of Service", "ai-for-seo");
+                    echo "</button>";
+                } else {
+                    echo "<button type='button' class='button ai4seo-button' onclick='ai4seo_open_ajax_modal(\"ai4seo_show_terms_of_service\", {}, {modal_size: \"small\"})'>";
+                        echo ai4seo_wp_kses(ai4seo_get_svg_tag("arrow-up-right-from-square")) . " ";
+                        echo esc_html__("Show Terms of Service", "ai-for-seo");
+                    echo "</button>";
+                }
 
                 echo "<p class='ai4seo-form-item-description'>";
                     $latest_tos_and_toc_and_pp_version = ai4seo_get_latest_tos_and_toc_and_pp_version();

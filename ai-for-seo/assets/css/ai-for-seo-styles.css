@@ -24,7 +24,24 @@
     color: #666;
     width: 100%;
     margin-top: 1rem;
+    margin-bottom: 1rem;
     text-align: center;
+    pointer-events: none;
+}
+
+@media (min-width: 960px) {
+    .ai4seo-sidebar {
+        min-height: calc(100vh - 4rem);
+    }
+}
+
+@media (max-width: 960px) {
+    .ai4seo-sidebar-version-number {
+        position: relative !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        margin-bottom: 0 !important;
+    }
 }
 
 .ai4seo-plugin-name {
@@ -95,7 +112,7 @@
 }
 
 /* Generate-button details for attachments */
-.attachment-info .ai4seo-generate-button.ai4seo-attachment-generate-attributes-button {
+.attachment-info .ai4seo-generate-button.ai4seo-attachment-generate-attributes-button, .attachment-details .ai4seo-generate-button.ai4seo-attachment-generate-attributes-button  {
     padding: 0 !important;
     margin-bottom: 1em !important;
     width: 65% !important;
@@ -218,12 +235,20 @@
     border-radius: .5rem;
     display: inline-block;
     font-weight: bold;
-    height: 1.5rem;
+    height: auto;
 }
 
 .ai4seo-green-bubble {
     background-color: #21C653;
     color: white !important;
+}
+
+.ai4seo-green-bubble span {
+    color: white !important;
+}
+
+.ai4seo-green-bubble svg {
+    fill: white !important;
 }
 
 .ai4seo-bubble {
@@ -240,9 +265,80 @@
     color: white !important;
 }
 
+.ai4seo-red-bubble svg {
+    fill: white !important;
+}
+
 .ai4seo-blue-bubble {
     background-color: #2271b1;
     color: white !important;
+}
+
+.ai4seo-blue-bubble span {
+    color: white !important;
+}
+
+.ai4seo-blue-bubble svg {
+    fill: white !important;
+}
+
+.ai4seo-voucher-code-wrapper {
+    margin-top: 1rem;
+    border: 3px dashed #0a0;
+    display: inline-block;
+    border-radius: 10px;
+}
+
+.ai4seo-voucher-code-wrapper .ai4seo-voucher-code {
+    color: #050;
+    font-weight: bold;
+    font-size: 1.2rem;
+    padding: 6px 15px;
+    background-color: #7d7;
+    text-align: left;
+    padding-right: 40px;
+    display: inline-block;
+    position: relative;
+    border-radius: 8px;
+}
+
+.ai4seo-voucher-code-wrapper .ai4seo-copy-voucher-code-button {
+    position: absolute;
+    right: -2px;
+    top: -2px;
+    border: none !important;
+    box-shadow: none !important;
+    line-height: 1rem;
+    border-radius: 0 10px 10px 0;
+}
+
+.ai4seo-voucher-code-wrapper .ai4seo-copy-voucher-code-button:hover {
+    background-color: #0a0 !important;
+    border-color: #0a0 !important;
+    color: white !important;
+}
+
+.ai4seo-voucher-code-wrapper .ai4seo-copy-voucher-code-button svg {
+    fill: #050 !important;
+}
+
+.ai4seo-copy-voucher-code-tooltip {
+    color: black !important;
+    font-weight: bold;
+    font-size: .7rem;
+    padding: 2px 14px;
+    border: 2px dashed #7a7;
+    background-color: whitesmoke;
+    text-align: left;
+    border-radius: 8px;
+    position: absolute;
+    right: -23px;
+    top: -30px;
+    animation: ai4seo-rotate-shake-animation .5s infinite ease-in-out;
+}
+
+.ai4seo-copied-to-clipboard {
+    display: none;
 }
 
 .ai4seo-plan-name {
@@ -293,14 +389,14 @@
     transform-style: unset !important;
 }
 
-.ai4seo-success-button, .ai4seo-submit-button {
+.ai4seo-success-button, .ai4seo-submit-button, .ai4seo-primary-button {
     background-color: #21a6cf !important;
     border-color: #0186af !important;
     color: white !important;
     transform-style: unset !important;
 }
 
-.ai4seo-success-button:hover, .ai4seo-submit-button:hover {
+.ai4seo-success-button:hover, .ai4seo-submit-button:hover, .ai4seo-primary-button:hover {
     background-color: #31b6df !important;
     border-color: #1196bf !important;
     color: white !important;
@@ -337,25 +433,51 @@
     align-items: center; /* Centers the content vertically */
     margin-top: 1rem;
     margin-bottom: 1rem;
-    gap: 2rem;
+    gap: 1.5rem;
     clear: both;
     flex-wrap: wrap;
 }
 
+.ai4seo-notice .ai4seo-buttons-wrapper {
+    justify-content: flex-start; /* Aligns buttons to the right */
+    margin-bottom: .4rem !important;
+}
+
 @media only screen and (min-width: 800px) {
     .ai4seo-big-button {
-        font-size: 1.5rem !important;
-        padding: .8rem 2rem !important;
-        line-height: 2.5rem !important;
-        box-shadow: 3px 3px 0 rgba(0, 0, 0, .5) !important;
+        font-size: 1.1rem !important;
+        padding: .7rem 1.5rem !important;
+        line-height: 1.5rem !important;
+        box-shadow: 2px 2px 0 rgba(0, 0, 0, .5) !important;
     }
 }
 
-.ai4seo-success-button svg, .ai4seo-submit-button svg {
+.ai4seo-success-button svg, .ai4seo-submit-button svg, .ai4seo-primary-button svg {
     fill: #ffffff;
 }
 
-.ai4seo-abort-button {
+.ai4seo-unicorn-button {
+    background: linear-gradient(135deg, #ff9a9e, #fad0c4, #fbc2eb, #a18cd1, #fbc2eb, #ff9a9e);
+    background-size: 400% 400%;
+    font-weight: bold;
+    transition: all 0.3s ease;
+    animation: ai4seo-unicorn-animation 7s ease infinite;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.ai4seo-unicorn-button:hover {
+    background: linear-gradient(135deg, #ffaaae, #ffe0d4, #ffd2fb, #b19ce1, #ffd2fb, #ffaaae);
+    background-size: 400% 400%;
+    animation: ai4seo-unicorn-animation 7s ease infinite;
+}
+
+@keyframes ai4seo-unicorn-animation {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+.ai4seo-abort-button, .ai4seo-secondary-button {
     background-color: transparent !important;
     border-color: transparent !important;
     color: #6295c8 !important;
@@ -364,11 +486,18 @@
     box-shadow: none !important;
 }
 
-.ai4seo-abort-button:hover {
-    background-color: red !important;
+.ai4seo-abort-button:hover, .ai4seo-secondary-button:hover {
     border-color: transparent !important;
     color: white !important;
     transform-style: unset !important;
+}
+
+.ai4seo-abort-button:hover {
+    background-color: red !important;
+}
+
+.ai4seo-secondary-button:hover {
+    background-color: #21a6cf !important;
 }
 
 .ai4seo-disabled-button {
@@ -811,6 +940,26 @@ body.ai4seo-has-open-modal {
     box-sizing: border-box;
 }
 
+.ai4seo-settings-top-buttons {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    justify-content: right;
+    align-items: center;
+}
+
+.ai4seo-advanced-settings-highlight {
+    background-color: #efefae !important;
+}
+
+.ai4seo-advanced-settings-highlight:hover {
+    background-color: #efefae !important;
+}
+
+.ai4seo-is-advanced-setting {
+    background-color: #ffffde !important;
+}
+
 .ai4seo-hidden-loading-icon-holder {
     display: none;
     margin-left: .5rem;
@@ -831,7 +980,6 @@ body.ai4seo-has-open-modal {
 }
 
 .ai4seo-posts-table-container {
-    overflow-x: auto; /* Enables horizontal scrolling */
     -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
     width: 100%;
 }
@@ -975,6 +1123,13 @@ body.ai4seo-has-open-modal {
     clear: both;
     padding: 1em 0;
     height: 1em;
+    box-sizing: border-box;
+}
+
+.ai4seo-gap-zero {
+    clear: both;
+    padding: 0;
+    height: 0;
     box-sizing: border-box;
 }
 
@@ -1249,17 +1404,16 @@ textarea.ai4seo-username-box {
 }
 
 .ai4seo-wrap {
-    position: absolute;
+    position: relative; /* oder static */
+    height: auto;
+    min-height: calc(100vh - 4rem); /* Adjusted for the top bar height */
     left: -20px;
     top: 0;
     display: flex;
-    height: calc(100vh - 2rem);
     width: calc(100% + 20px);
     box-sizing: border-box;
     padding: 2rem 1.3rem 0 2rem;
     margin: 0;
-    background-color: #f0f0f1;
-    overflow: auto;
 }
 
 .ai4seo-mobile-top-bar {
@@ -1293,12 +1447,12 @@ textarea.ai4seo-username-box {
 div.ai4seo-top-bar-headline {
     font-size: 1.5rem;
     padding-top: 1rem;
-    width: 100%;
+    width: calc(100% - 2rem);
     text-align: center;
     font-weight: bold;
     position: relative;
     z-index: 1;
-    margin-left: 2rem;
+    margin-left: 2rem; /* account for the toggle button */
 }
 
 .ai4seo-mobile-top-bar .ai4seo-local-mode-hint {
@@ -1323,6 +1477,9 @@ div.ai4seo-top-bar-headline {
     margin-top: -.5rem;
     z-index: 10;
     box-sizing: border-box;
+    position: sticky;
+    top: 4rem;
+    align-self: flex-start;
 }
 
 div.ai4seo-sidebar-headline {
@@ -1408,7 +1565,6 @@ div.ai4seo-tab-content {
     flex-direction: column;
     flex: 1; /* Takes up the remaining space */
     padding: 0;
-    height: calc(100vh - 4rem);
 }
 
 div.ai4seo-cards-container {
@@ -1544,7 +1700,7 @@ div.ai4seo-status-box-credits {
     }
 
     .ai4seo-wrap {
-        padding-top: 8rem; /** account for the top bar */
+        padding-top: 5rem; /** account for the top bar */
         height: auto;
     }
 
@@ -1565,7 +1721,7 @@ div.ai4seo-status-box-credits {
         border-right: 1px solid #ccc;
         box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
         padding-left: 1.5rem;
-        margin-top: -4rem;
+        margin-top: -3.5rem;
         border-radius: 0 0 .5rem 0;
     }
 
@@ -1591,8 +1747,47 @@ div.ai4seo-max-width-100 {
     max-width: 100%;
 }
 
+.ai4seo-developer-avatar-wrapper {
+    position: absolute;
+    left: 6px;
+    top: 6px;
+    border-radius: 50%;
+    border: 2px solid #b29a76;
+    overflow: hidden;
+    width: 30px;
+    height: 30px;
+}
+
+.ai4seo-developer-avatar-wrapper img {
+    width: 30px;
+    height: 30px;
+}
+
+.ai4seo-menu-counter {
+    display: inline-block;
+    vertical-align: top;
+    box-sizing: border-box;
+    padding: 0 5px;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    background-color: #d63638;
+    color: #fff;
+    font-size: 11px;
+    line-height: 1.6;
+    text-align: center;
+    margin-left: 1rem;
+    position: relative;
+    bottom: -3px;
+    font-weight: normal;
+}
+
+/* Notices */
+
 div.ai4seo-notice {
-    padding: .8rem;
+    font-size: 1rem;
+    line-height: 1.5rem;
+    padding: .5rem 1rem;
     padding-left: 45px !important;
     position: relative !important;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -1600,6 +1795,16 @@ div.ai4seo-notice {
     width: 100%;
     max-width: calc((3 * 512px) + (3 * 4rem) + (2 * 1.5rem));
     box-sizing: border-box;
+    margin-bottom: 1.5rem !important;
+}
+
+div.ai4seo-notice li {
+    list-style-type: disc;
+    padding-left: .5rem;
+    position: relative;
+    color: #333;
+    margin-left: 1rem;
+    font-size: smaller;
 }
 
 @media (max-width: calc((3 * 512px) + (3 * 4rem) + (2 * 1.5rem) + 200px + 280px)) {
@@ -1614,6 +1819,11 @@ img.ai4seo-notice-icon {
     top: 10px;
     width: 24px;
     height: 24px;
+}
+
+.ai4seo-unread-notice {
+    animation: ai4seo-highlight-animation-yellow .5s ease-in-out;
+    animation-iteration-count: 3;
 }
 
 .ai4seo-chart-container {
@@ -1775,6 +1985,20 @@ div.ai4seo-how-to-get-credits-container h4 {
 
 div.ai4seo-discount-available-message {
     position: relative;
+    padding-left: 33px;
+    margin: 10px;
+    white-space: normal;
+}
+
+div.ai4seo-discount-available-message svg {
+    position: absolute;
+    transform: scale(1.5);
+    top: -1px;
+    left: -3px;
+    padding: 5px;
+    background-color: #21C653;
+    border-radius: 50%;
+    animation: ai4seo-gift-animation 2s infinite ease-in-out;
 }
 
 div.ai4seo-get-more-credits-section:first-of-type {
@@ -2142,7 +2366,7 @@ div.ai4seo-recent-plugin-updates-content div.ai4seo-recent-plugin-updates-title 
 
 div.ai4seo-recent-plugin-updates-important-title {
     font-weight: bold;
-    color: #d9534f; /* Bootstrap danger color */
+    color: #0000aa;
 }
 
 div.ai4seo-recent-plugin-updates-title > .ai4seo-bubble {
@@ -2164,6 +2388,18 @@ div.ai4seo-recent-plugin-updates-content li {
     position: relative;
     color: #333;
     margin-left: -3px;
+}
+
+div.ai4seo-recent-plugin-updates-content ul > li > ul {
+    margin-top: .5rem;
+    margin-bottom: 1.2rem;
+}
+
+div.ai4seo-recent-plugin-updates-content ul > li > ul > li {
+    margin-bottom: .5rem;
+    list-style-type: "–";
+    padding-left: 1rem;
+    margin-left: .5rem;
 }
 
 div.ai4seo-recent-plugin-updates-content li::marker {
@@ -2506,8 +2742,8 @@ div.ai4seo-pay-as-you-go-summary-container {
 }
 
 .ai4seo-form-section {
-    width: 1000px;
-    max-width: 1000px;
+    max-width: 100%;
+    margin-top: 0;
     margin-bottom: 2rem;
     padding: 0 !important;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -2515,7 +2751,7 @@ div.ai4seo-pay-as-you-go-summary-container {
     border-radius: .5rem;
 }
 
-.ai4seo-form h2 {
+.ai4seo-form-section > h2 {
     margin: 0 !important;
     margin-bottom: 1.5rem !important;
     width: 100%;
@@ -2526,31 +2762,54 @@ div.ai4seo-pay-as-you-go-summary-container {
     border-radius: .5rem .5rem 0 0;
 }
 
-.ai4seo-form h2 svg {
+.ai4seo-form-section > h2 svg {
     fill: #666;
     margin-right: 7px;
     margin-top: -2px;
     height: 28px !important;
 }
 
-.ai4seo-form h2 i {
+.ai4seo-form-section > h2 i {
     color: #555;
     margin-right: 15px;
     margin-top: -4px;
     font-size: 28px !important;
 }
 
-.ai4seo-form .ai4seo-form-section .ai4seo-form-item {
-    padding: .5rem 2rem 1rem 2rem;
+.ai4seo-modal-content .ai4seo-form-section > h2 i {
+    margin-top: 0;
+}
+
+.ai4seo-modal-content .ai4seo-form-item {
+    flex-direction: column;
+}
+
+.ai4seo-modal-content .ai4seo-form-item > label {
+    width: 100%;
+    margin-right: 0;
+}
+
+.ai4seo-modal-content .ai4seo-form-item-input-wrapper {
+    width: 100%;
+}
+
+.ai4seo-modal-content .ai4seo-form-item-description {
+    margin-top: 20px;
+}
+
+.ai4seo-modal-content .ai4seo-form-section {
+    width: 100%;
+    max-width: 100%;
 }
 
 .ai4seo-form-item {
     display: flex;
     align-items: flex-start;
     flex-wrap: wrap; /* Ensure that items can wrap */
-    padding: 20px 0;
     font-size: .9rem;
     line-height: 1.4rem;
+    padding: 0 2rem 1.5rem 2rem;
+    border-radius: .5rem;
 }
 
 .ai4seo-form-item p {
@@ -2560,8 +2819,9 @@ div.ai4seo-pay-as-you-go-summary-container {
 
 .ai4seo-form-item-divider {
     border-top: 1px solid #eee;
-    margin-top: .5rem;
-    margin-bottom: 1.25rem;
+    padding-bottom: 1rem;
+    margin: 0;
+    border-bottom: 0;
 }
 
 .ai4seo-form-input-wrapper-with-generate-button {
@@ -2613,16 +2873,16 @@ div.ai4seo-pay-as-you-go-summary-container {
 }
 
 .ai4seo-form-item-input-wrapper > label {
-    max-width: 480px;
+    max-width: 620px;
     display: block;
 }
 
 .ai4seo-form-item-description {
     color: #666;
-    max-width: 600px;
+    max-width: 620px;
     margin-top: 20px;
     display: block;
-    margin-bottom: .5rem !important;
+    margin-bottom: 0rem !important;
     text-align: justify;
 }
 
@@ -2646,6 +2906,15 @@ div.ai4seo-pay-as-you-go-summary-container {
     min-height: 80px !important;
 }
 
+.ai4seo-form-item-input-wrapper .ai4seo-file-input {
+    width: 100% !important;
+    padding: 8px 12px !important;
+    border: 1px solid #ddd !important;
+    border-radius: 4px !important;
+    background-color: #fff !important;
+    font-size: 1rem !important;
+}
+
 .ai4seo-form-multiple-inputs {
     display: block;
     margin-bottom: .5rem;
@@ -2656,6 +2925,7 @@ div.ai4seo-pay-as-you-go-summary-container {
     transform: scale(1.2);
     transform-origin: left;
     margin-left: 0;
+    max-width: 80% !important;
 }
 
 .ai4seo-contact-form {
@@ -2708,6 +2978,7 @@ div.ai4seo-pay-as-you-go-summary-container {
     }
 
     .ai4seo-form-item-description {
+        width: 100%;
         margin-top: 20px;
     }
 
@@ -2900,6 +3171,7 @@ div.ai4seo-pay-as-you-go-summary-container {
     display: none;
 }
 
+
 /* === ADMIN MENU =========================================================================== */
 
 #wpadminbar .ai4seo-main-menu-icon {
@@ -3037,6 +3309,18 @@ div.ai4seo-pay-as-you-go-summary-container {
 /*** ANIMATIONS *******************************************************************************************************/
 /**********************************************************************************************************************/
 
+@keyframes ai4seo-highlight-animation-yellow {
+    0% {
+        background-color: white;
+    }
+    30% {
+        background-color: #f5f5ca;
+    }
+    100% {
+        background-color: white;
+    }
+}
+
 /* blinking text animation */
 @keyframes ai4seo-blink-animation {
     0% {
@@ -3107,6 +3391,66 @@ div.ai4seo-pay-as-you-go-summary-container {
     animation: ai4seo-shake-animation 0.5s;
 }
 
+/* shaking by rotation animation */
+@keyframes ai4seo-rotate-shake-animation {
+    0% {
+        transform: rotate(0deg);
+    }
+    25% {
+        transform: rotate(-5deg);
+    }
+    50% {
+        transform: rotate(5deg);
+    }
+    75% {
+        transform: rotate(-5deg);
+    }
+    100% {
+        transform: rotate(0deg);
+    }
+}
+
+/* shaking by rotation animation + scale */
+@keyframes ai4seo-gift-animation {
+    0% {
+        transform: rotate(0deg) scale(1.4);
+    }
+    55% {
+        transform: rotate(0deg) scale(1.4);
+    }
+    60% {
+        transform: rotate(-5deg) scale(1.5);
+    }
+    65% {
+        transform: rotate(5deg) scale(1.5);
+    }
+    70% {
+        transform: rotate(-5deg) scale(1.5);
+    }
+    75% {
+        transform: rotate(5deg) scale(1.5);
+    }
+    80% {
+        transform: rotate(-5deg) scale(1.5);
+    }
+    85% {
+        transform: rotate(5deg) scale(1.5);
+    }
+    90% {
+        transform: rotate(-5deg) scale(1.5);
+    }
+    95% {
+        transform: rotate(5deg) scale(1.5);
+    }
+    100% {
+        transform: rotate(0deg) scale(1.4);
+    }
+}
+
+.ai4seo-rotate-shake-animation {
+    animation: ai4seo-rotate-shake-animation infinite 0.5s ease-in-out;
+}
+
 @keyframes ai4seo-enlarge-animation {
     0% {
         transform: scale(1);
@@ -3132,4 +3476,32 @@ div.ai4seo-pay-as-you-go-summary-container {
         transform: scale(1.3);
         opacity: 0;
     }
+}
+
+/* Datetime picker styling for SEO Autopilot */
+.ai4seo-datetime-picker-container {
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.ai4seo-datetime-picker-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: #1d2327;
+}
+
+.ai4seo-datetime-picker-input {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #8c8f94;
+    border-radius: 4px;
+    font-size: 14px;
+    background-color: #fff;
+    color: #1d2327;
+}
+
+.ai4seo-datetime-picker-input:focus {
+    border-color: #2271b1;
+    outline: none;
+    box-shadow: 0 0 0 1px #2271b1;
 }

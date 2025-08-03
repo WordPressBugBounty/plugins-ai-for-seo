@@ -72,7 +72,7 @@ if (ai4seo_is_plugin_or_theme_active(AI4SEO_THIRD_PARTY_PLUGIN_NEXTGEN_GALLERY))
 
 // Prepare arguments for the wp-query
 $ai4seo_posts_query_arguments = array(
-    "post_status" => array('publish', 'future', 'private', 'pending', 'inherit'),
+    "post_status" => array('publish', 'future', 'inherit'),
     "post_type" => count($ai4seo_post_types) > 1 ? $ai4seo_post_types : reset($ai4seo_post_types),
     "post_mime_type" => $ai4seo_allowed_attachment_mime_types,
     "posts_per_page" => 20,

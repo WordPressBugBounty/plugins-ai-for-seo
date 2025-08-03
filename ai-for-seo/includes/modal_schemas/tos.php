@@ -31,7 +31,7 @@ $ai4seo_tos_toc_and_pp_accepted_time = ai4seo_read_environmental_variable(AI4SEO
 $ai4seo_enhanced_reporting_accepted = ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_ENHANCED_REPORTING_ACCEPTED);
 
 // we are inside the AI for SEO plugin?
-$ai4seo_is_user_inside_plugin_admin_pages = ai4seo_is_user_inside_plugin_admin_pages();
+$ai4seo_is_user_inside_plugin_admin_pages = ai4seo_is_user_inside_our_plugin_admin_pages();
 $ai4seo_is_user_inside_installed_plugins_page = ai4seo_is_user_inside_installed_plugins_page();
 
 $ai4seo_extended_data_collection_tooltip_text = esc_html__("This data includes feature usage, performance metrics, and error logs. It will be stored for up to 30 days to assist with improving the plugin. You can opt out of data collection at any time through the plugin settings.", "ai-for-seo");

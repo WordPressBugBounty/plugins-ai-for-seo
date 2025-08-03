@@ -445,6 +445,12 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-faq'>
         $ai4seo_this_accordion_content = __("Including image metadata helps search engines better interpret your images, potentially boosting your rankings in image search results and the overall quality of your website. In addition, it also shows your commitment to accessibility, catering to a wider audience and complying with accessibility standards.", "ai-for-seo");
         echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("What are the benefits of providing alt text, titles, captions, and descriptions for images on my website?", "ai-for-seo"), $ai4seo_this_accordion_content));
 
+        $ai4seo_this_accordion_content = __("If you notice that alt text is missing on images, it may be due to your theme or other plugins not properly outputting the alt text stored in the database. In such cases, you can enable the 'Render-Level Alt Text Injection' setting in the plugin settings. This feature injects alt text directly at the render level, ensuring that images display the correct alt text and improving accessibility and SEO compliance.", "ai-for-seo");
+        echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("What can I do if alt text is missing on images?", "ai-for-seo"), $ai4seo_this_accordion_content));
+
+        $ai4seo_this_accordion_content = __("The 'Render-Level Alt Text Injection' setting ensures that images on your website always display the correct alt text, even when your theme or other plugins fail to properly output the alt text stored in the database. When enabled, *AI for SEO* will inject alt text directly at the render level, helping to improve accessibility and SEO compliance. This setting is particularly useful if you experience issues with missing alt text on images due to theme or plugin limitations. It is enabled by default and can be found in the plugin settings.", "ai-for-seo");
+        echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("What is the 'Render-Level Alt Text Injection' setting and why should I use it?", "ai-for-seo"), $ai4seo_this_accordion_content));
+
         $ai4seo_this_accordion_content = sprintf(
             __("Currently, Google's stance on the use of AI or automation in content creation is generally permissive, as indicated in a Google Developers blog post from February 2023. They state that appropriate use of AI or automation is not against their guidelines. More information can be found at %s.", "ai-for-seo"),
             "<a target='_blank' href='https://developers.google.com/search/blog/2023/02/google-search-and-ai-content'>https://developers.google.com/search/blog/2023/02/google-search-and-ai-content</a>"
@@ -457,7 +463,7 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-faq'>
         $ai4seo_this_accordion_content = __("No, the plugin does not support Multi-Site installations. If you would like to use the plugin on a Multi-Site installation, you will need to purchase Credits for each site individually.", "ai-for-seo");
         echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("Does *AI for SEO* support Multi-Site installations?", "ai-for-seo"), $ai4seo_this_accordion_content));
 
-        $ai4seo_this_accordion_content = __("Yes, you can use your existing subscription and Credits Packs on another website. Simply enter the same license holder and the license key on the new website under AI for SEO > Account. You can link any number of websites together. All linked websites share the same pool of Credits and various settings.", "ai-for-seo");
+        $ai4seo_this_accordion_content = __("Yes, you can use your existing subscription and Credits Packs on another website. Simply enter the same license holder and the license key on the new website under AI for SEO > Account. You can link any number of websites together. All linked websites share the same pool of Credits and various settings. You can even export and import settings between linked websites using the 'Export/Import Settings' button in the plugin settings.", "ai-for-seo");
         echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("Can I use my already purchased subscription or Credits Packs on another website?", "ai-for-seo"), $ai4seo_this_accordion_content));
 
         $ai4seo_this_accordion_content = sprintf(
@@ -614,10 +620,10 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-faq'>
         );
         echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("Are Credits renewed in the Free plan?", "ai-for-seo"), $ai4seo_this_accordion_content));
 
-        $ai4seo_this_accordion_content = __("You don't need to do anything—they'll be automatically added to your account every day. Just make sure the plugin remains active on your website.", "ai-for-seo");
+        $ai4seo_this_accordion_content = __("You don't need to do anything—they'll be automatically added to your account every day if your balance falls below 100 Credits. Just make sure the plugin remains active on your website.", "ai-for-seo");
         echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("What do I need to do to receive the free daily Credits?", "ai-for-seo"), $ai4seo_this_accordion_content));
 
-        $ai4seo_this_accordion_content = __("Yes, you'll continue to receive the free daily Credits even if you're on a paid subscription. These Credits are in addition to those included in your subscription.", "ai-for-seo");
+        $ai4seo_this_accordion_content = __("Yes, you'll continue to receive the free daily Credits even if you're on a paid subscription if your balance falls below 100 Credits. These Credits are in addition to those included in your subscription.", "ai-for-seo");
         echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("Will I still receive the free daily Credits if I'm on a paid subscription?", "ai-for-seo"), $ai4seo_this_accordion_content));
 
         $ai4seo_this_accordion_content = sprintf(
@@ -680,7 +686,7 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-faq'>
         // lost key content
         $ai4seo_this_accordion_content = sprintf(
             __(
-                "If you’ve lost your license key, don’t worry! You can contact our support team by <a href='%s' target='_blank'>filling out our contact form</a>. To help us resolve your issue quickly, please provide the following details when reaching out:<br>- Your website domain<br>- The email address you used during the purchase.<br>Our team will respond as soon as possible to help you retrieve your license key.",
+                "If you’ve lost your license data, don’t worry! You can contact our support team by <a href='%s' target='_blank'>filling out our contact form</a>. To help us resolve your issue quickly, please provide the following details when reaching out:<br>- Your website domain<br>- The email address you used during the purchase.<br>Our team will respond as soon as possible to help you retrieve your license key.",
                 "ai-for-seo"
             ),
             esc_url(AI4SEO_OFFICIAL_CONTACT_URL)
@@ -815,11 +821,19 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-troub
                         echo "<label for='ai4seo-troubleshooting-reset-cache'>" . esc_html__("Reset cache", "ai-for-seo") . "</label>";
                     echo "</div>";
 
+                    // Reset notifications
+                    echo "<div class='ai4seo-form-multiple-inputs'>";
+                        echo "<input type='checkbox' id='ai4seo-troubleshooting-reset-notifications' name='ai4seo-troubleshooting-reset-checkbox[]' />";
+                        echo "<label for='ai4seo-troubleshooting-reset-notifications'>" . esc_html__("Reset notifications", "ai-for-seo") . "</label>";
+                        $ai4seo_notifications_tooltip = __("Dismissed notifications will be reset and eventually reappear in the notifications section of the plugin.", "ai-for-seo");
+                        echo ai4seo_wp_kses(ai4seo_get_icon_with_tooltip_tag($ai4seo_notifications_tooltip));
+                    echo "</div>";
+
                     // Reset environmental variables
                     echo "<div class='ai4seo-form-multiple-inputs'>";
                         echo "<input type='checkbox' id='ai4seo-troubleshooting-reset-env' name='ai4seo-troubleshooting-reset-checkbox[]' />";
                         echo "<label for='ai4seo-troubleshooting-reset-env'>" . esc_html__("Reset environmental variables", "ai-for-seo") . "</label>";
-                        $ai4seo_environmental_variables_tooltip = __("<strong>This will reset all environmental variables.</strong><br>Use this option if you are advised to do so by our support team.<br><br>- <strong>Note:</strong> You will need to re-enter your license data after using this option.", "ai-for-seo");
+                        $ai4seo_environmental_variables_tooltip = __("<strong>This will reset all environmental variables.</strong><br>Use this option if you are advised to do so by our support team.<br><br><strong>Note:</strong> You will need to re-enter your license data after using this option.", "ai-for-seo");
                         echo ai4seo_wp_kses(ai4seo_get_icon_with_tooltip_tag($ai4seo_environmental_variables_tooltip));
                     echo "</div>";
 
@@ -827,6 +841,8 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-troub
                     echo "<div class='ai4seo-form-multiple-inputs'>";
                         echo "<input type='checkbox' id='ai4seo-troubleshooting-reset-settings' name='ai4seo-troubleshooting-reset-checkbox[]' />";
                         echo "<label for='ai4seo-troubleshooting-reset-settings'>" . esc_html__("Reset plugin settings", "ai-for-seo") . "</label>";
+                        $ai4seo_settings_tooltip = __("<strong>This will reset all settings across the following pages:</strong><br>Settings Page, Account Page (license data will be kept), Pay-As-You-Go Settings, and Autopilot Settings.<br><br>To reset only the Settings Page, please use the \"Restore Default\" button on that page.", "ai-for-seo");
+                        echo ai4seo_wp_kses(ai4seo_get_icon_with_tooltip_tag($ai4seo_settings_tooltip));
                     echo "</div>";
 
                     // Reset generated metadata

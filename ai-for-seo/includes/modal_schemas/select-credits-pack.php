@@ -22,11 +22,11 @@ if (!ai4seo_can_manage_this_plugin()) {
 $ai4seo_preferred_currency = "USD"; # todo: implement proper currency selection
 $ai4seo_recommended_credits_pack_size = (int) ai4seo_get_recommended_credits_pack_size_by_num_missing_entries();
 
-// === DISCOUNTS ============================================================================= \\
 
-$ai4seo_is_first_purchase_discount_available = (bool) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_IS_FIRST_PURCHASE_DISCOUNT_AVAILABLE);
-$ai4seo_early_bird_discount_time_left = (int) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_EARLY_BIRD_DISCOUNT_TIME_LEFT);
-$ai4seo_total_discount_available = $ai4seo_early_bird_discount_time_left ? AI4SEO_EARLY_BIRD_DISCOUNT : ($ai4seo_is_first_purchase_discount_available ? AI4SEO_FIRST_PURCHASE_DISCOUNT : 0);
+// === DISCOUNT ============================================================================= \\
+
+$ai4seo_current_discount = ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_CURRENT_DISCOUNT);
+$ai4seo_current_discount_percentage = $ai4seo_current_discount["percentage"] ?? 0;
 
 
 // ___________________________________________________________________________________________ \\
@@ -52,23 +52,13 @@ echo "<div class='ai4seo-modal-schema-content'>";
 
     echo esc_html__("Select the amount of Credits for your needs.", "ai-for-seo") . " ";
 
-    // discount available
-    if ($ai4seo_is_first_purchase_discount_available || $ai4seo_early_bird_discount_time_left) {
-        echo "<br><br>";
-        echo "<center><div class='ai4seo-red-bubble ai4seo-discount-available-message'>";
-        if ($ai4seo_early_bird_discount_time_left) {
-            echo sprintf(
-                esc_html__("%s%% off already applied (time left: %s)", "ai-for-seo"),
-                AI4SEO_EARLY_BIRD_DISCOUNT,
-                "<span class='ai4seo-countdown' data-trigger='add_refresh_credits_balance_parameter_and_reload_page'>" . esc_html(ai4seo_format_seconds_to_hhmmss($ai4seo_early_bird_discount_time_left)) . "</span>"
-            );
-        } else {
-            echo sprintf(
-                esc_html__("%s%% off already applied to your first purchase", "ai-for-seo"),
-                AI4SEO_FIRST_PURCHASE_DISCOUNT
-            );
-        }
-        echo "</div></center>";
+    // current discount
+    ai4seo_echo_current_discount();
+
+    if (!empty($ai4seo_current_discount["voucher_code"])) {
+        echo "<br>";
+        echo esc_html__("Enter this voucher code during checkout to apply the discount: ", "ai-for-seo") . "<br>";
+        echo ai4seo_wp_kses(ai4seo_get_voucher_code_output($ai4seo_current_discount["voucher_code"]));
     }
 
     echo "<div class='ai4seo-credits-pack-selection-container'>";
@@ -81,7 +71,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
             $ai4seo_this_credits_amount = (int) $ai4seo_credits_pack_entry["credits_amount"];
             $ai4seo_this_price_usd = $ai4seo_credits_pack_entry["price_usd"];
             $ai4seo_this_reference_price_usd = $ai4seo_credits_pack_entry["reference_price_usd"];
-            $ai4seo_this_price_usd = $ai4seo_total_discount_available ? $ai4seo_this_price_usd * (1 - ($ai4seo_total_discount_available / 100)) : $ai4seo_this_price_usd;
+            $ai4seo_this_price_usd = $ai4seo_current_discount_percentage ? $ai4seo_this_price_usd * (1 - ($ai4seo_current_discount_percentage / 100)) : $ai4seo_this_price_usd;
             $ai4seo_this_discount_percentage = round((1 - ($ai4seo_this_price_usd / $ai4seo_this_reference_price_usd)) * 100);
             $ai4seo_this_entry_is_pre_selected = $ai4seo_this_credits_amount === $ai4seo_recommended_credits_pack_size;
             $ai4seo_this_entry_is_recommendation = $ai4seo_this_credits_amount === $ai4seo_recommended_credits_pack_size;

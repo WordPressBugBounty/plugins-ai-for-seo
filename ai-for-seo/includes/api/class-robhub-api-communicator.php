@@ -23,6 +23,7 @@ class Ai4Seo_RobHubApiCommunicator {
     private bool $does_user_need_to_accept_tos_toc_and_pp = false;
     private bool $is_local_api_enabled = false;
     private string $local_api_url = "http://localhost";
+    public int $product_activation_time = 0;
 
     private const ENDPOINT_LOCK_DURATIONS = array( # in seconds
         "ai4seo/generate-all-metadata" => 1,
@@ -44,9 +45,7 @@ class Ai4Seo_RobHubApiCommunicator {
     public const ENVIRONMENTAL_VARIABLE_API_PASSWORD = "api_password";
     public const ENVIRONMENTAL_VARIABLE_CREDITS_BALANCE = "credits_balance";
     public const ENVIRONMENTAL_VARIABLE_LAST_CREDIT_BALANCE_CHECK = "last_credit_balance_check";
-
     public string $environmental_variables_option_name = "robhub_environmental_variables";
-    public string $product_activation_time_option_name = "robhub_product_activation_time";
     public const DEFAULT_ENVIRONMENTAL_VARIABLES = array(
         self::ENVIRONMENTAL_VARIABLE_DEPRECATED_API_AUTH_DATA => array(),
         self::ENVIRONMENTAL_VARIABLE_API_USERNAME => "",
@@ -61,8 +60,7 @@ class Ai4Seo_RobHubApiCommunicator {
         "ai4seo/generate-all-attachment-attributes",
 
         "client/get-free-account",
-        "client/credits-balance",
-        "client/subscription",
+        "client/sync",
         "client/accept-terms",
         "client/reject-terms",
         "client/product-deactivated",
@@ -74,8 +72,7 @@ class Ai4Seo_RobHubApiCommunicator {
 
     private array $free_endpoints = array(
         "client/get-free-account",
-        "client/credits-balance",
-        "client/subscription",
+        "client/sync",
         "client/accept-terms",
         "client/reject-terms",
         "client/product-deactivated",
@@ -113,6 +110,7 @@ class Ai4Seo_RobHubApiCommunicator {
         // check if we already have a response for this endpoint and parameters
         $api_call_checksum = $this->get_api_call_checksum($endpoint, $parameters, $request_method);
         $api_call_endpoint_checksum = $this->get_api_call_endpoint_checksum($endpoint);
+        $transient_name = "robhub_api_lock_" . $api_call_endpoint_checksum;
 
         if (isset($this->recent_endpoint_responses[$api_call_checksum])) {
             return $this->recent_endpoint_responses[$api_call_checksum];
@@ -122,8 +120,6 @@ class Ai4Seo_RobHubApiCommunicator {
         $endpoint_lock_duration = self::ENDPOINT_LOCK_DURATIONS[$endpoint] ?? 0;
 
         if ($endpoint_lock_duration > 0) {
-            $transient_name = "robhub_api_lock_" . $api_call_endpoint_checksum;
-
             $last_api_call_checksum = get_transient($transient_name);
 
             if ($last_api_call_checksum == $api_call_checksum) {
@@ -165,6 +161,7 @@ class Ai4Seo_RobHubApiCommunicator {
         // separate input parameter
         if (isset($parameters["input"])) {
             $input = $parameters["input"];
+            $input = html_entity_decode($input);
             unset($parameters["input"]);
         } else {
             $input = "";
@@ -212,7 +209,7 @@ class Ai4Seo_RobHubApiCommunicator {
 
         // Make the request
         try {
-            $response = wp_safe_remote_request($curl_url, $args);
+            $raw_response = wp_safe_remote_request($curl_url, $args);
         } catch(TypeError $e) {
             return $this->respond_error($e->getMessage(), 2313111223);
         } catch(Exception $e) {
@@ -220,67 +217,188 @@ class Ai4Seo_RobHubApiCommunicator {
         }
 
         // Check for WP Error
-        if (is_wp_error($response)) {
-            $response = $response->get_error_message();
+        if (is_wp_error($raw_response)) {
+            $raw_response = $raw_response->get_error_message();
             $http_status = 999;
         } else {
-            $http_status = wp_remote_retrieve_response_code($response);
-            $response = wp_remote_retrieve_body($response);
+            try {
+                $http_status = wp_remote_retrieve_response_code($raw_response);
+                $raw_response = wp_remote_retrieve_body($raw_response);
+            } catch (Exception $e) {
+                return $this->respond_error("Error retrieving response code: " . $e->getMessage(), 31224725);
+            }
         }
 
         // check the response status
         if ($http_status !== 200) {
-            return $this->respond_error("API request failed with HTTP status " . $http_status .  " - response: " . $response, 221313823);
+            return $this->respond_error("API request failed with HTTP status " . $http_status .  " - response: " . $raw_response, 221313823);
         }
 
-        // decode the json response
-        $decoded_response = json_decode($response, true);
+        // normalize response
+        $normalized_response = $this->normalize_call_response($raw_response);
 
-        // sanitize the response
-        if (is_array($decoded_response)) {
-            $decoded_response = $this->deep_sanitize($decoded_response);
-        } else {
+        // on error
+        if (!isset($normalized_response["success"]) || $normalized_response["success"] !== true) {
             // check if response is html
-            if (strpos($response, "<html") !== false || strpos($response, "html>") !== false) {
+            if (strpos($raw_response, "<html") !== false || strpos($raw_response, "html>") !== false) {
                 // if it contains "One moment, please", then the request was blocked by cloudflare
-                if (strpos($response, "One moment, please") !== false) {
+                if (strpos($raw_response, "One moment, please") !== false) {
                     return $this->respond_error("Failed to connect to our servers. It’s possible that your request was blocked by our server provider's security system, which may occur if your IP address has been flagged as suspicious. Please try again later. If this error persists, please contact our support team.", 4314181024);
-                } else if (strpos($response, "<title>Maintenance</title>") !== false) {
+                } else if (strpos($raw_response, "<title>Maintenance</title>") !== false) {
                     return $this->respond_error("Our servers are currently undergoing maintenance. Please try again later.", 401211124);
                 } else {
                     return $this->respond_error("There was an error receiving a proper response from our server. Please try again later.", 4414181024);
                 }
             }
 
-            return $this->respond_error("API request failed with unknown error: " . print_r($response, true), 231313823);
-        }
+            // some errors need more attention
+            $this->handle_api_errors($normalized_response);
 
-        if (!isset($decoded_response["success"]) || $decoded_response["success"] !== "true") {
-            if (isset($decoded_response["error"])) {
-                $this->handle_api_errors($decoded_response);
-                return $this->respond_error("#" . $decoded_response["code"] . ": " . $decoded_response["message"], 241313823);
-            } else {
-                return $this->respond_error("API request failed with unknown error: " . print_r($response, true), 251313823);
-            }
+            // respond with error
+            return $this->respond_error($normalized_response["message"] ?? "An unknown API error occurred!", $normalized_response["code"] ?? 571124725);
         }
 
         // update new credits balance
-        if (isset($decoded_response["new-credits-balance"]) && is_numeric($decoded_response["new-credits-balance"])) {
-            $this->update_environmental_variable(self::ENVIRONMENTAL_VARIABLE_CREDITS_BALANCE, $decoded_response["new-credits-balance"]);
+        if (isset($normalized_response["new-credits-balance"]) && is_numeric($normalized_response["new-credits-balance"])) {
+            $this->update_environmental_variable(self::ENVIRONMENTAL_VARIABLE_CREDITS_BALANCE, $normalized_response["new-credits-balance"]);
         }
 
-        // build the final response
-        $final_response = $this->respond_success($decoded_response);
-
         // save the response in the recent_endpoint_responses array
-        $this->recent_endpoint_responses[$api_call_checksum] = $final_response;
+        $this->recent_endpoint_responses[$api_call_checksum] = $normalized_response;
 
         // set transient
         if ($endpoint_lock_duration > 0) {
             set_transient($transient_name, $api_call_checksum, $endpoint_lock_duration);
         }
 
-        return $final_response;
+        return $normalized_response;
+    }
+
+    // =========================================================================================== \\
+
+    function normalize_call_response($call_response): array {
+        if (empty($call_response)) {
+            return array(
+                "success" => false,
+                "code" => 271823824,
+                "message" => "Could not execute API call: empty response."
+            );
+        }
+
+        // is json -> decode it
+        if (ai4seo_is_json($call_response)) {
+            $call_response = json_decode($call_response, true);
+        }
+
+        if (!is_array($call_response) || empty($call_response)) {
+            return array(
+                "success" => false,
+                "code" => 281823824,
+                "message" => "API call did not return a proper array."
+            );
+        }
+
+        // normalize success and error values
+        if (isset($call_response["success"]) && $call_response["success"] === "true") {
+            $call_response["success"] = true;
+        }
+
+        if (isset($call_response["success"]) && $call_response["success"] === "false") {
+            $call_response["success"] = false;
+        }
+
+        if (isset($call_response["error"]) && $call_response["error"] === "true") {
+            $call_response["success"] = false;
+        }
+
+        if (isset($call_response["error"]) && $call_response["error"] === "false") {
+            $call_response["success"] = true;
+        }
+
+        if (isset($call_response["error"]) && $call_response["error"] === true) {
+            $call_response["success"] = false;
+        }
+
+        if (!isset($call_response["success"]) || $call_response["success"] !== true) {
+            $call_response["code"] = isset($call_response["code"]) ? (int) $call_response["code"] : 391124725;
+            $call_response["message"] = isset($call_response["message"]) ? sanitize_text_field($call_response["message"]) : "API call returned an error without a message.";
+            $call_response["message"] = "API-Error #{$call_response["code"]}: " . $call_response["message"];
+
+            return array(
+                "success" => false,
+                "code" => 311823824,
+                "message" => $call_response["message"]
+            );
+        }
+
+        // check if data is set
+        if (!isset($call_response["data"])) {
+            return array(
+                "success" => false,
+                "code" => 331823824,
+                "message" => "API call did not return data."
+            );
+        }
+
+        if (empty($call_response["data"])) {
+            return array(
+                "success" => false,
+                "code" => 321823824,
+                "message" => "API call returned an empty data array."
+            );
+        }
+
+        // check if data is an array
+        if (ai4seo_is_json($call_response["data"])) {
+            $call_response["data"] = json_decode($call_response["data"], true);
+        }
+
+        // sanitize data
+        $call_response["data"] = $this->deep_sanitize($call_response["data"], 'ai4seo_wp_kses');
+
+        if (empty($call_response["data"])) {
+            return array(
+                "success" => false,
+                "code" => 341823824,
+                "message" => "Could not decode or sanitize API call data."
+            );
+        }
+
+        // check if credits are set
+        if (!isset($call_response["credits-consumed"])) {
+            return array(
+                "success" => false,
+                "code" => 361823824,
+                "message" => "API call did not return consumed Credits."
+            );
+        }
+
+        // sanitize credits
+        $call_response["credits-consumed"] = (int) $call_response["credits-consumed"];
+
+        // check if new credits balance is set
+        if (!isset($call_response["new-credits-balance"])) {
+            return array(
+                "success" => false,
+                "code" => 371823824,
+                "message" => "API call did not return new Credits balance."
+            );
+        }
+
+        // sanitize new credits balance
+        $call_response["new-credits-balance"] = (int) $call_response["new-credits-balance"];
+
+        return $call_response;
+    }
+
+    // =========================================================================================== \\
+
+    function was_call_successful($response): bool {
+        if (is_array($response) && isset($response["success"]) && $response["success"] === true) {
+            return true;
+        }
+
+        return false;
     }
 
     // =========================================================================================== \\
@@ -302,13 +420,15 @@ class Ai4Seo_RobHubApiCommunicator {
      * @param $product_version string The product version.
      * @param $min_credits_balance int The minimum credits balance to use the API.
      * @param $credits_balance_cache_lifetime int The lifetime of the credits balance cache.
+     * @param $product_activation_time int the product activation time
      * @return void
      */
-    function set_product_parameters(string $product, string $product_version, int $min_credits_balance, int $credits_balance_cache_lifetime): void {
+    function set_product_parameters(string $product, string $product_version, int $min_credits_balance, int $credits_balance_cache_lifetime, int $product_activation_time): void {
         $this->product = $product;
         $this->product_version = $product_version;
         $this->min_credits_balance = $min_credits_balance;
         $this->credits_balance_cache_lifetime = $credits_balance_cache_lifetime;
+        $this->product_activation_time = $product_activation_time;
     }
 
     // =========================================================================================== \\
@@ -366,19 +486,16 @@ class Ai4Seo_RobHubApiCommunicator {
             return false;
         }
 
-        $product_activation_time = (int) get_option($this->product_activation_time_option_name, 0);
-
         $parameters = array(
-            "product_activation_time" => $product_activation_time,
+            "product_activation_time" => $this->product_activation_time,
             "users_current_time" => time(),
         );
 
         // retrieve our real credentials
         $response = $this->call("client/get-free-account", $parameters);
-        $response = $this->deep_sanitize($response);
 
         // check response
-        if (!isset($response["success"]) || !$response["success"] || !isset($response["data"]["api_username"]) || !isset($response["data"]["api_password"])) {
+        if (!ai4seo_robhub_api()->was_call_successful($response) || !isset($response["data"]["api_username"]) || !isset($response["data"]["api_password"])) {
             $this->api_username = "";
             $this->api_password = "";
             return false;
@@ -390,9 +507,6 @@ class Ai4Seo_RobHubApiCommunicator {
             $this->api_password = "";
             return false;
         }
-
-        // remove AI4SEO_PLUGIN_ACTIVATION_TIME_OPTION_NAME
-        delete_option(AI4SEO_PLUGIN_ACTIVATION_TIME_OPTION_NAME);
 
         // everything went fine
         return true;
@@ -465,12 +579,7 @@ class Ai4Seo_RobHubApiCommunicator {
      */
     function build_api_username(string $base_username = ""): string {
         if (!$base_username) {
-            $base_username = sanitize_url($_SERVER["SERVER_NAME"]);
-        }
-
-        // fallback: if the base_username is empty, use a different $_SERVER variable
-        if (!$base_username) {
-            $base_username = sanitize_key($_SERVER["SERVER_ADDR"]);
+            $base_username = $this->get_server_identity();
         }
 
         // remove schema
@@ -484,11 +593,17 @@ class Ai4Seo_RobHubApiCommunicator {
         // replace dots with dashes
         $base_username = str_replace(".", "-", $base_username);
 
+        // replace duplicate dashes with a single dash
+        $base_username = preg_replace("/-+/", "-", $base_username);
+
+        // remove leading and trailing dashes
+        $base_username = trim($base_username, "-");
+
         // remove all non-alphanumeric characters
         $base_username = preg_replace("/[^a-zA-Z0-9\-]/", "", $base_username);
 
-        // fallback: use random if still empty
-        if (!$base_username) {
+        // fallback: use random if still empty or shorter than 3 -> generate a random pseudo api username
+        if (!$base_username || strlen($base_username) <= 3) {
             $base_username = $this->generate_random_pseudo_api_username();
         }
 
@@ -509,12 +624,85 @@ class Ai4Seo_RobHubApiCommunicator {
     // =========================================================================================== \\
 
     /**
+     *
+     * @return string A reliable server identity based on the server name, address, hostname or site URL.
+     */
+    function get_server_identity(): string {
+        $identifier = '';
+
+        // Check SERVER_NAME
+        if (!empty($_SERVER['SERVER_NAME']) && is_string($_SERVER['SERVER_NAME']) && strlen($_SERVER['SERVER_NAME']) >= 3) {
+            $identifier = $_SERVER['SERVER_NAME'];
+        }
+        // Fallback: SERVER_ADDR
+        elseif (!empty($_SERVER['SERVER_ADDR']) && is_string($_SERVER['SERVER_ADDR']) && strlen($_SERVER['SERVER_ADDR']) >= 3) {
+            $identifier = $_SERVER['SERVER_ADDR'];
+        }
+        // Fallback: gethostname()
+        elseif (function_exists('gethostname') && is_string(gethostname()) && strlen(gethostname()) >= 3) {
+            $identifier = gethostname();
+        }
+        // Fallback: WordPress site URL
+        elseif (function_exists('get_option')) {
+            $site_url = get_option('siteurl');
+            if (is_string($site_url) && strlen($site_url) >= 3) {
+                $identifier = $site_url;
+            }
+        }
+
+        // Final fallback
+        if (empty($identifier)) {
+            $identifier = '';
+        }
+
+        // Calculate hash and determine group
+        return $identifier;
+    }
+
+    // =========================================================================================== \\
+
+    /**
+     * Determines an A/B group (a or b) based on api username
+     *
+     * @return string 'a' or 'b'
+     */
+    function get_ab_group($api_username = ''): string {
+        // got credentials -> get username
+        if (!$api_username && $this->has_credentials()) {
+            $api_username = $this->get_api_username();
+        }
+
+        // otherwise build it
+        if (!$api_username) {
+            $api_username = $this->build_api_username();
+        }
+
+        // Calculate hash and determine group
+        $hash = crc32($api_username);
+        return ($hash % 2 === 0) ? 'a' : 'b';
+    }
+
+    // =========================================================================================== \\
+
+    function is_group_a($api_username = ''):  bool {
+        return $this->get_ab_group($api_username) === 'a';
+    }
+
+    // =========================================================================================== \\
+
+    function is_group_b($api_username = ''):  bool {
+        return $this->get_ab_group($api_username) === 'b';
+    }
+
+    // =========================================================================================== \\
+
+    /**
      * This creates and error array response with message and code
-     * @param $message string The message to return as an error.
-     * @param $code int The error code to return.
+     * @param string $message The message to return as an error.
+     * @param mixed $code The error code to return. Keep this mixed to prevent int overflow errors on large numbers
      * @return array The error response.
      */
-    function respond_error(string $message, int $code): array {
+    function respond_error(string $message, $code): array {
         if (strlen($message) > 256) {
             $message = substr($message, 0, 256) . "..."; # remove this to see full error message in the response
         }
@@ -643,40 +831,24 @@ class Ai4Seo_RobHubApiCommunicator {
      * @return int The credits balance of the client.
      */
     function get_credits_balance(): int {
+        global $ai4seo_synced_robhub_client_data;
+
         // check _ai4seo_last_credit_balance_check option, if it's empty or older than 24 hours, call the robhub api to get the credits balance
         $last_credits_balance_check_timestamp = (int) $this->read_environmental_variable(self::ENVIRONMENTAL_VARIABLE_LAST_CREDIT_BALANCE_CHECK);
 
         // if the last credit balance check is older than $creditsBalanceCacheLifetime hours,
         // call the robhub api to get the credits balance
         do if ($last_credits_balance_check_timestamp < time() - $this->credits_balance_cache_lifetime) {
-            // if the option is empty, initialize the credentials and call the robhub api to get the credits balance
-            // if it fails, return the current credits balance from the option
-            if (!$this->init_credentials()) {
-                break;
+            // not synced robhub account yet?
+            if (!$ai4seo_synced_robhub_client_data) {
+                ai4seo_sync_robhub_account(true);
             }
-
-            // call robhub api to get the credits balance
-            $robhub_api_response = $this->call("client/credits-balance");
-
-            if (!isset($robhub_api_response["success"]) || $robhub_api_response["success"] !== true) {
-                break;
-            }
-
-            $credits_balance = (int) ($robhub_api_response["new-credits-balance"] ?? 0);
-
-            // update ENVIRONMENTAL_VARIABLE_CREDITS_BALANCE
-            $this->update_environmental_variable(self::ENVIRONMENTAL_VARIABLE_CREDITS_BALANCE, $credits_balance);
 
             // update ENVIRONMENTAL_VARIABLE_LAST_CREDIT_BALANCE_CHECK
             $this->update_environmental_variable(self::ENVIRONMENTAL_VARIABLE_LAST_CREDIT_BALANCE_CHECK, time());
         } while (false);
 
-        if (!isset($credits_balance)) {
-            // get the old current credits balance from the option
-            $credits_balance = (int) $this->read_environmental_variable(self::ENVIRONMENTAL_VARIABLE_CREDITS_BALANCE);
-        }
-
-        return $credits_balance;
+        return (int) $this->read_environmental_variable(self::ENVIRONMENTAL_VARIABLE_CREDITS_BALANCE);
     }
 
     // =========================================================================================== \\
@@ -733,12 +905,6 @@ class Ai4Seo_RobHubApiCommunicator {
      */
     function generate_random_pseudo_api_username(): string {
         return $this->product . "-" . rand(1000000, 9999999);
-    }
-
-    // =========================================================================================== \\
-
-    function set_product_activation_time_option_name(string $product_activation_time_option_name): void {
-        $this->product_activation_time_option_name = $product_activation_time_option_name;
     }
 
 

@@ -60,12 +60,6 @@ $ai4seo_next_cron_job_call = wp_next_scheduled(AI4SEO_BULK_GENERATION_CRON_JOB_N
 $ai4seo_next_cron_job_call_diff = ($ai4seo_next_cron_job_call ? $ai4seo_next_cron_job_call - time() : 9999999);
 
 
-// === DISCOUNTS ============================================================================= \\
-
-$ai4seo_is_first_purchase_discount_available = (bool) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_IS_FIRST_PURCHASE_DISCOUNT_AVAILABLE);
-$ai4seo_early_bird_discount_time_left = (int) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_EARLY_BIRD_DISCOUNT_TIME_LEFT);
-
-
 // === POST TYPES =========================================================================== \\
 
 $ai4seo_supported_post_types = ai4seo_get_supported_post_types();
@@ -74,104 +68,19 @@ $ai4seo_supported_attachment_post_types = ai4seo_get_supported_attachment_post_t
 $ai4seo_all_supported_post_types = array_merge($ai4seo_supported_post_types, $ai4seo_supported_attachment_post_types);
 
 
-// === RECENT PLUGIN UPDATES ================================================================ \\
+// === CHANGE LOG ============================================================================ \\
 
-const AI4SEO_RECENT_PLUGIN_UPDATES = [
-    [
-        'date' => 'June 23nd, 2025',
-        'version' => 'v.2.0.6',
-        'important' => false,
-        'updates' => [
-            'Bug Fixes & Maintenance: Fixed 3 minor bug'
-        ]
-    ],
-    [
-        'date' => 'June 22nd, 2025',
-        'version' => 'v.2.0.5',
-        'important' => true,
-        'updates' => [
-            'Added a setting to force the image upload to use either the image url only or convert the contents to base64. This can be useful for users who experience issues with the generation of media attributes.',
-            'Added support for AVIF image files',
-            'Bug Fixes & Maintenance: Fixed 11 minor bugs and implemented security updates.'
-        ]
-    ],
-    [
-        'date' => 'May 9th, 2025',
-        'version' => 'v.2.0.4',
-        'important' => false,
-        'updates' => [
-            'Added support for NextGen Gallery: The plugin now recognizes and processes media attributes for images created with the NextGen Gallery plugin. Use the new "Import" button in the media page to import all images from the NextGen Gallery into the *AI for SEO* plugin.',
-            'Bug Fixes & Maintenance: Fixed 2 minor bugs'
-        ]
-    ],
-    [
-        'date' => 'May 4th, 2025',
-        'version' => 'v.2.0.3',
-        'important' => false,
-        'updates' => [
-            'SEO Autopilot now more accurately reflects its current status and includes an option to immediately schedule the next run.',
-            'Bug Fixes & Maintenance: Fixed 15 minor bugs, corrected typos, and implemented security updates.'
-        ]
-    ],
-    [
-        'date' => '08th April 2025',
-        'version' => 'v.2.0.2',
-        'important' => false,
-        'updates' => [
-            'Improved Prefix & Suffix Support: Prefixes and suffixes are now correctly applied when using the "Generate with AI" button in both the Metadata Editor and the Attachment Attributes Editor.',
-            'Enhanced Mobile UX: Better responsiveness and usability on the Pages / Posts and Media Files views for mobile devices.',
-            'Account Page Improvements: Added direct buttons for managing your active subscription and customizing Pay-As-You-Go settings.',
-            'Updated Help Section: Improved help content and clearer "First Steps" guidance for new users.',
-            'Bug Fixes & Maintenance: Fixed 11 minor bugs, corrected typos, and implemented security updates.'
-        ]
-    ],
-    [
-        'date' => '20th March 2025',
-        'version' => 'v.2.0.0',
-        'important' => true,
-        'updates' => [
-            'Complete UI/UX Overhaul: The look, feel, design, layout, and navigation of the plugin have been completely redesigned.',
-            'Enhanced Mobile Experience: Improved usability and user experience for mobile users.',
-            'New "Account" Page: Users can now manage their license key directly from this page.',
-            'Incognito Mode: SEO and web agencies can hide the plugin from other users/admins (available in the new "Account" page).',
-            'White-Label Feature: SEO and web agencies can rebrand the plugin with their own name or further hide it from other users/admins (available in the new "Account" page).',
-            'Customizable Generator Hints: Added a setting to modify or disable generator hints in the source code for additional privacy (available in the "Account" page).',
-            'Privacy & Data Policy Update: Moved to the new "Account" page.',
-            'New Metadata Customization Options: Added settings to apply prefixes and suffixes to metadata and media attributes.',
-            'Advanced Media Attribute Control: New setting allows users to specify which media attributes the plugin should use.',
-            '"SEO Autopilot" Feature: Replaces bulk generation checkboxes with a more intuitive and easy-to-use interface, directly accessible from the dashboard.',
-            '"Recent Activity" Dashboard Section: Track all manual and automatic metadata and media attribute generations in one place.',
-            'Implemented new ways to get credits:
-                        <ol>
-                            <li>* Introduced Credit Packs, allowing users to purchase additional credits as needed.</li>
-                            <li>* Added a Pay-As-You-Go option for automatic credit refills when running low.</li>
-                            <li>* All credit purchasing options are now combined in a "Get more Credits" modal, accessible from the dashboard.</li>
-                        </ol>',
-            '"Guarantee" Section: Review our Guarantees and Refund Policy directly on the dashboard.',
-            '"Recent Plugin Updates" Section: Stay informed about the latest updates from the dashboard.',
-            'New "Support & Feedback" Section: Easily access support and provide feedback directly from the dashboard.',
-            'Tons more minor improvements, bug fixes, and performance enhancements.'
-        ]
-    ],
-    [
-        'date' => '05th March 2025',
-        'version' => 'v.1.2.15',
-        'important' => false,
-        'updates' => [
-            'Fixed a bug where the plugin would not recognize the correct post type for media files.'
-        ]
-    ],
-    [
-        'date' => '12th February 2025',
-        'version' => 'v.1.2.14',
-        'important' => false,
-        'updates' => [
-            'Added a setting to control whether entries with a complete metadata set are ignored during bulk generation (default) or included, overwriting all of their existing metadata.',
-            'Added a setting to control whether entries with a complete media attribute set are ignored during bulk generation (default) or included, overwriting all of their existing media attributes.',
-            'Added a setting called "Bulk Generation Duration" in Help > Troubleshooting to adjust the runtime of a single bulk generation process. This can be useful in cases where server limitations impact processing.'
-        ]
-    ]
-];
+$ai4seo_change_log = ai4seo_get_change_log();
+// check if the anchor "ai4seo-recent-plugin-updates" parameter is in the URL
+$ai4seo_pre_open_recent_plugin_updates = isset($_GET["ai4seo_recent_plugin_updates"]) && $_GET["ai4seo_recent_plugin_updates"] == "true";
+
+
+// === NOTIFICATIONS ========================================================================= \\
+
+$ai4seo_notifications = ai4seo_get_displayable_notifications();
+
+// Mark all unread notifications as read when displayed
+ai4seo_mark_all_displayable_notifications_as_read();
 
 
 // ___________________________________________________________________________________________ \\
@@ -180,14 +89,23 @@ const AI4SEO_RECENT_PLUGIN_UPDATES = [
 
 echo "<div class='ai4seo-cards-container'>";
 
+    // === NOTIFICATIONS ================================================================================= \\
+
+    if ($ai4seo_notifications) {
+        // Display the notifications
+        foreach ($ai4seo_notifications as $ai4seo_this_notification_index => $ai4seo_this_notification) {
+            ai4seo_echo_notice_from_notification($ai4seo_this_notification_index, $ai4seo_this_notification);
+        }
+    }
+
     // === STATISTICS ============================================================================ \\
 
     $ai4seo_total_num_pending_posts = 0;
-    $ai4seo_num_finished_posts_by_post_type = ai4seo_get_all_finished_posts_by_post_type();
-    $ai4seo_num_failed_posts_by_post_type = ai4seo_get_all_failed_posts_by_post_type();
-    $ai4seo_num_pending_posts_by_post_type = ai4seo_get_all_pending_posts_by_post_type();
-    $ai4seo_num_processing_posts_by_post_type = ai4seo_get_all_processing_posts_by_post_type();
-    $ai4seo_num_missing_posts_by_post_type = ai4seo_get_all_missing_posts_by_post_type();
+    $ai4seo_num_finished_posts_by_post_type = ai4seo_get_num_finished_posts_by_post_type();
+    $ai4seo_num_failed_posts_by_post_type = ai4seo_get_num_failed_posts_by_post_type();
+    $ai4seo_num_pending_posts_by_post_type = ai4seo_get_num_pending_posts_by_post_type();
+    $ai4seo_num_processing_posts_by_post_type = ai4seo_get_num_processing_posts_by_post_type();
+    $ai4seo_num_missing_posts_by_post_type = ai4seo_get_num_missing_posts_by_post_type();
 
     echo "<div class='card ai4seo-card ai4seo-fully-centered-card ai4seo-three-column-card' style='padding-bottom: 0;'>";
 
@@ -266,6 +184,9 @@ echo "<div class='ai4seo-cards-container'>";
 
     echo "</div>";
 
+    // force line break
+    //echo "<div class='ai4seo-gap-zero'></div>";
+
 
     // === CREDITS ========================================================================== \\
 
@@ -304,26 +225,8 @@ echo "<div class='ai4seo-cards-container'>";
         // how to get credits section
         echo "<div class='ai4seo-how-to-get-credits-container'>";
 
-            // discount available
-            if ($ai4seo_is_first_purchase_discount_available || $ai4seo_early_bird_discount_time_left) {
-                echo "<div class='ai4seo-red-bubble ai4seo-discount-available-message'>";
-                if ($ai4seo_early_bird_discount_time_left) {
-                    echo sprintf(
-                        esc_html__("%s%% discount available (time left: %s)", "ai-for-seo"),
-                        AI4SEO_EARLY_BIRD_DISCOUNT,
-                        "<span class='ai4seo-countdown' data-trigger='add_refresh_credits_balance_parameter_and_reload_page'>" . esc_html(ai4seo_format_seconds_to_hhmmss($ai4seo_early_bird_discount_time_left)) . "</span>"
-                    );
-                } else {
-                    echo sprintf(
-                        esc_html__("%s%% discount available", "ai-for-seo"),
-                        AI4SEO_FIRST_PURCHASE_DISCOUNT
-                    );
-                }
-                echo "</div>";
-            } else {
-                echo "<div class='ai4seo-gap'>";
-                echo "</div>";
-            }
+            // current discount
+            ai4seo_echo_current_discount();
 
             // Turn Buy credits button
             echo "<div class='ai4seo-buy-credits-button-container'>";
@@ -439,8 +342,6 @@ echo "<div class='ai4seo-cards-container'>";
 
                 echo "<div class='ai4seo-bulk-generation-status-subtext'>";
                     echo esc_html__("The last bulk generation run was longer ago than expected, which may indicate an issue with your cron job configuration. Please check your cron job settings to ensure consistent execution.", "ai-for-seo");
-                    $ai4seo_pending_bulk_generation_tooltip_text = ai4seo_get_inefficient_cron_jobs_notice();
-                    echo ai4seo_wp_kses(ai4seo_get_icon_with_tooltip_tag($ai4seo_pending_bulk_generation_tooltip_text));
                     if ($ai4seo_additional_sub_status_text) {
                         echo " " . ai4seo_wp_kses($ai4seo_additional_sub_status_text);
                     }
@@ -479,39 +380,39 @@ echo "<div class='ai4seo-cards-container'>";
                 echo "</div>";
 
             // something went wrong, if we wait at least x seconds after setup without any activity
-            } else if ($ai4seo_was_seo_autopilot_set_up_at_least_x_seconds_ago) {
-                echo "<img src='" . esc_url(ai4seo_get_ai_for_seo_logo_url("256x256")) . "' alt='" . esc_attr__("SEO Autopilot is stuck", "ai-for-seo") . "' class='ai4seo-bulk-generation-status-inactive-logo'>";
-
-                // triangle-exclamation on the top right corner
-                echo "<div class='ai4seo-bulk-generation-status-active-logo-triangle-exclamation'>";
-                    echo ai4seo_wp_kses(ai4seo_get_svg_tag("triangle-exclamation"));
-                echo "</div>";
-
-                echo "<div class='ai4seo-bulk-generation-status-text'>";
-                    echo esc_html__("Error", "ai-for-seo");
-                echo "</div>";
-
-                echo "<div class='ai4seo-bulk-generation-status-subtext'>";
-                    echo esc_html__("Something went wrong. Please check your cron job settings and (cli) PHP error logs.", "ai-for-seo");
-
-                    if ($ai4seo_additional_sub_status_text) {
-                        echo " " . ai4seo_wp_kses($ai4seo_additional_sub_status_text);
-                    }
-                echo "</div>";
-            } else {
+            } else if (!$ai4seo_was_seo_autopilot_set_up_at_least_x_seconds_ago) {
                 // waiting for task scheduler to start
                 echo "<img src='" . esc_url(ai4seo_get_ai_for_seo_logo_url("256x256")) . "' alt='" . esc_attr__("SEO Autopilot is waiting for task scheduler to start", "ai-for-seo") . "' class='ai4seo-bulk-generation-status-active-logo'>";
 
                 echo "<div class='ai4seo-bulk-generation-status-text'>";
-                    echo esc_html__("Initializing...", "ai-for-seo");
+                echo esc_html__("Initializing...", "ai-for-seo");
                 echo "</div>";
 
                 echo "<div class='ai4seo-bulk-generation-status-subtext'>";
-                    echo esc_html__("Waiting for task scheduler to start.", "ai-for-seo");
+                echo esc_html__("Waiting for task scheduler to start.", "ai-for-seo");
 
-                    if ($ai4seo_additional_sub_status_text) {
-                        echo " " . ai4seo_wp_kses($ai4seo_additional_sub_status_text);
-                    }
+                if ($ai4seo_additional_sub_status_text) {
+                    echo " " . ai4seo_wp_kses($ai4seo_additional_sub_status_text);
+                }
+                echo "</div>";
+            } else {
+                echo "<img src='" . esc_url(ai4seo_get_ai_for_seo_logo_url("256x256")) . "' alt='" . esc_attr__("SEO Autopilot is stuck", "ai-for-seo") . "' class='ai4seo-bulk-generation-status-inactive-logo'>";
+
+                // triangle-exclamation on the top right corner
+                echo "<div class='ai4seo-bulk-generation-status-active-logo-triangle-exclamation'>";
+                echo ai4seo_wp_kses(ai4seo_get_svg_tag("triangle-exclamation"));
+                echo "</div>";
+
+                echo "<div class='ai4seo-bulk-generation-status-text'>";
+                echo esc_html__("Error", "ai-for-seo");
+                echo "</div>";
+
+                echo "<div class='ai4seo-bulk-generation-status-subtext'>";
+                echo esc_html__("Something went wrong. Please check your cron job settings and (cli) PHP error logs.", "ai-for-seo");
+
+                if ($ai4seo_additional_sub_status_text) {
+                    echo " " . ai4seo_wp_kses($ai4seo_additional_sub_status_text);
+                }
                 echo "</div>";
             }
 
@@ -658,9 +559,9 @@ echo "<div class='ai4seo-cards-container'>";
     echo "</div>";
 
 
-    // === Plugin Recent Updates ========================================================================== \\
+    // === Recent Plugin Updates ========================================================================== \\
 
-    echo "<div class='card ai4seo-card'>";
+    echo "<div class='card ai4seo-card' id='ai4seo-recent-plugin-updates'>";
         echo "<h4 style='cursor: pointer; margin-bottom: 0;' onclick='ai4seo_toggle_visibility(jQuery(this).next(), jQuery(this).find(\".ai4seo-caret-down\"), jQuery(this).find(\".ai4seo-caret-up\"), 200);'>";
             echo esc_html__("Recent Plugin Updates", "ai-for-seo");
             echo "<div class='ai4seo-caret-down'>";
@@ -671,11 +572,11 @@ echo "<div class='ai4seo-cards-container'>";
             echo "</div>";
         echo "</h4>";
 
-        echo "<div class='ai4seo-recent-plugin-updates-content' style='display: none;'>";
+        echo "<div class='ai4seo-recent-plugin-updates-content' style='display: " . ($ai4seo_pre_open_recent_plugin_updates ? "inline-block" : "none") . ";'>";
             echo esc_html__("We update the plugin regularly to improve its performance and add new features. Please check the changelog for more information.", "ai-for-seo") . "<br>";
 
             // Generate updates dynamically from const parameter
-            foreach (AI4SEO_RECENT_PLUGIN_UPDATES as $ai4seo_this_plugin_update_index => $this_plugin_update_details) {
+            foreach ($ai4seo_change_log as $ai4seo_this_plugin_update_index => $this_plugin_update_details) {
                 $ai4seo_this_is_first_plugin_update = ($ai4seo_this_plugin_update_index === 0);
                 $ai4seo_this_changes_count = count($this_plugin_update_details['updates']);
                 $ai4seo_this_is_important_update = $this_plugin_update_details['important'] ?? false;
@@ -694,11 +595,9 @@ echo "<div class='ai4seo-cards-container'>";
 
                     echo esc_html($this_plugin_update_details['date'] . " ");
 
-                    // Only show changes count for non-first entries
-                    if (!$ai4seo_this_is_first_plugin_update) {
-                        echo "<span class='ai4seo-changes-count'>(" . $ai4seo_this_changes_count . " change" . ($ai4seo_this_changes_count > 1 ? "s" : "") . ")</span>";
-                    }
-                    
+                    // Changes count
+                    echo "<span class='ai4seo-changes-count'>(" . $ai4seo_this_changes_count . " change" . ($ai4seo_this_changes_count > 1 ? "s" : "") . ")</span>";
+
                     // Caret icons - first entry expanded, others collapsed
                     if ($ai4seo_this_is_first_plugin_update) {
                         echo "<div class='ai4seo-caret-down' style='display: none;'>";
@@ -769,7 +668,7 @@ echo "<div class='ai4seo-cards-container'>";
 
             // CONTACT US
             // icon
-            echo ai4seo_wp_kses(ai4seo_get_svg_tag("rocket-chat", __("Contact us", "ai-for-seo"), "ai4seo-big-paragraph-icon")) . " ";
+            echo ai4seo_wp_kses(ai4seo_get_svg_tag("envelope", __("Contact us", "ai-for-seo"), "ai4seo-big-paragraph-icon")) . " ";
 
             echo ai4seo_wp_kses(sprintf(
                 /* translators: %s is a clickable email address */
@@ -792,13 +691,13 @@ echo "<div class='ai4seo-cards-container'>";
             //  like our plugin rate us at AI4SEO_OFFICIAL_WORDPRESS_ORG_PAGE
             echo ai4seo_wp_kses(sprintf(
                 __("Like our plugin and want to support us? Please <a href='%s' target='blank'>rate us</a> on WordPress.org. We appreciate your feedback!", "ai-for-seo"),
-                esc_url(AI4SEO_RATE_US_URL)
+                esc_url(AI4SEO_OFFICIAL_RATE_US_URL)
             ));
 
             echo "<br><br>";
 
             // button to rate us
-            echo ai4seo_wp_kses(ai4seo_get_button_text_link_tag(esc_url(AI4SEO_RATE_US_URL), "arrow-up-right-from-square", esc_html__("Rate us", "ai-for-seo"), "", "", "_blank"));
+            echo ai4seo_wp_kses(ai4seo_get_button_text_link_tag(esc_url(AI4SEO_OFFICIAL_RATE_US_URL), "arrow-up-right-from-square", esc_html__("Rate us", "ai-for-seo"), "", "", "_blank"));
 
         echo "</div>";
     echo "</div>";

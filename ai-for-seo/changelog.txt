@@ -1,5 +1,28 @@
 == Changelog ==
 
+= 2.1.0 =
+* Added "Generate with AI" buttons in the media section of the Gutenberg editor, allowing users to generate media attributes directly from the editor.
+* Improved context awareness for pages, posts, and products, especially for content with short text. Ensures AI-generated metadata is more relevant and tailored.
+* Added a setting for render-level alt text injection. This checkbox setting (enabled by default) ensures images always have the correct alt text, even if themes or other mechanisms fail to display it.
+* Added a setting for render-level image title injection. Includes a select input to choose what should be injected as the title attribute: Disabled, Inject image title, Inject alt text (default), Inject caption, or Inject image description.
+* Added a setting to the "SEO Autopilot" modal that allows users to customize the reference time used by the "Generate Metadata for" option. This gives more precise control over how new and old entries are distinguished.
+* Added an "Export/Import" button to the plugin settings, enabling users to export their configuration and import it on another website. Useful for SEO and web agencies managing multiple sites.
+* Added a "Restore Default" button to the plugin settings.
+* Added a "Show/Hide Advanced Settings" toggle in the plugin settings. Some advanced settings are now hidden by default to simplify the interface for most users.
+* Made setting descriptions more concise and user-friendly. Rearranged several settings for improved clarity and usability.
+* Private or pending posts, pages, and attachments are now ignored by the plugin, preventing them from being processed.
+* Improved UX: The AI for SEO sidebar is now sticky on desktop, keeping it visible during page scrolling for easier navigation.
+* Changed how plugin notifications are handled. All notifications are now indicated by a red bubble in the admin menu. Detailed notices can be viewed in the AI for SEO dashboard.
+* Added new notifications:
+  - Insufficient credits balance.
+  - Overview of missing entries to generate.
+  - WPML plugin detected.
+  - SEO Autopilot needing attention.
+  - New major plugin updates.
+  - Ongoing promos and discounts.
+  - And others
+* Bug Fixes & Maintenance: Fixed 17 minor bugs, added 6 quality-of-life improvements, implemented 3 performance optimizations, and 2 security updates.
+
 = 2.0.7 =
 * Bug Fixes & Maintenance: Fixed 7 minor bugs, added 3 quality of life improvements, and implemented security updates.
 

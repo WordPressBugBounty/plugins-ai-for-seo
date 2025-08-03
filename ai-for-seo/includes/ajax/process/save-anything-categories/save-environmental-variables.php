@@ -34,6 +34,18 @@ foreach (AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES as $ai4seo_this_environmental_va
     $ai4seo_this_old_environmental_variable_value = ai4seo_read_environmental_variable($ai4seo_this_environmental_variable_name);
     $ai4seo_this_new_environmental_variable_value = $ai4seo_post_parameter[$ai4seo_this_environmental_variable_name];
 
+    // Special handling for datetime-local to timestamp conversion
+    if ($ai4seo_this_environmental_variable_name === AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME) {
+        // Check if the value is in datetime-local format (contains 'T' and dashes)
+        if (is_string($ai4seo_this_new_environmental_variable_value) && 
+            strpos($ai4seo_this_new_environmental_variable_value, 'T') !== false && 
+            strpos($ai4seo_this_new_environmental_variable_value, '-') !== false) {
+
+            // Convert datetime-local to timestamp
+            $ai4seo_this_new_environmental_variable_value = ai4seo_convert_datetime_local_to_timestamp($ai4seo_this_new_environmental_variable_value);
+        }
+    }
+
     // is equal to old value -> ignore it
     if ($ai4seo_this_new_environmental_variable_value == $ai4seo_this_old_environmental_variable_value) {
         continue;

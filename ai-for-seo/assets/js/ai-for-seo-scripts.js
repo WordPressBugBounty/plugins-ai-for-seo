@@ -71,10 +71,22 @@ var ai4seo_seo_inputs = {
     '.post-type-attachment #attachment_alt[name=_wp_attachment_image_alt]': {'attachment_attributes_identifier': 'alt-text', 'key_by_key': false, 'css-class': 'ai4seo-attachment-generate-attributes-button', "processing-context": "attachment-attributes"},
     '.post-type-attachment #attachment_caption[name=excerpt]': {'attachment_attributes_identifier': 'caption', 'key_by_key': false, 'css-class': 'ai4seo-attachment-generate-attributes-button', "processing-context": "attachment-attributes"},
     '.post-type-attachment #attachment_content[name=content]': {'attachment_attributes_identifier': 'description', 'key_by_key': false, 'css-class': 'ai4seo-attachment-generate-attributes-button', "processing-context": "attachment-attributes"},
+
+    // media library
     '.attachment-info .setting #attachment-details-two-column-title': {'attachment_attributes_identifier': 'title', 'key_by_key': false, 'css-class': 'ai4seo-attachment-generate-attributes-button', "processing-context": "attachment-attributes"},
     '.attachment-info .setting #attachment-details-two-column-alt-text': {'attachment_attributes_identifier': 'alt-text', 'key_by_key': false, 'css-class': 'ai4seo-attachment-generate-attributes-button', "processing-context": "attachment-attributes"},
     '.attachment-info .setting #attachment-details-two-column-caption': {'attachment_attributes_identifier': 'caption', 'key_by_key': false, 'css-class': 'ai4seo-attachment-generate-attributes-button', "processing-context": "attachment-attributes"},
     '.attachment-info .setting #attachment-details-two-column-description': {'attachment_attributes_identifier': 'description', 'key_by_key': false, 'css-class': 'ai4seo-attachment-generate-attributes-button', "processing-context": "attachment-attributes"},
+
+    // media upload side bar
+    '.attachment-details .setting #attachment-details-title': {'attachment_attributes_identifier': 'title', 'key_by_key': false, 'css-class': 'ai4seo-attachment-generate-attributes-button', "processing-context": "attachment-attributes"},
+    '.attachment-details .setting #attachment-details-alt-text': {'attachment_attributes_identifier': 'alt-text', 'key_by_key': false, 'css-class': 'ai4seo-attachment-generate-attributes-button', "processing-context": "attachment-attributes"},
+    '.attachment-details .setting #attachment-details-caption': {'attachment_attributes_identifier': 'caption', 'key_by_key': false, 'css-class': 'ai4seo-attachment-generate-attributes-button', "processing-context": "attachment-attributes"},
+    '.attachment-details .setting #attachment-details-description': {'attachment_attributes_identifier': 'description', 'key_by_key': false, 'css-class': 'ai4seo-attachment-generate-attributes-button', "processing-context": "attachment-attributes"},
+
+    // gutenberg side bar
+    '.components-base-control .components-textarea-control__input': {'attachment_attributes_identifier': 'alt-text', 'key_by_key': false, 'css-class': 'ai4seo-attachment-generate-attributes-button', "processing-context": "attachment-attributes"},
+
 };
 
 var ai4seo_content_containers = [
@@ -85,8 +97,15 @@ var ai4seo_content_containers = [
 ];
 
 let ai4seo_generate_all_button_selectors = {
-    "metadata": ["#wpseo-metabox-root", "#ai4seo-generate-all-metadata-button-hook"],
-    "attachment-attributes": [".edit-attachment-frame .media-frame-content .attachment-info .details", ".post-type-attachment .wp_attachment_details.edit-form-section", "#ai4seo-generate-all-attachment-attributes-button-hook"],
+    "metadata": [
+        "#wpseo-metabox-root",
+        "#ai4seo-generate-all-metadata-button-hook"
+    ],
+    "attachment-attributes": [
+        ".media-frame-content .attachment-info .details",
+        ".post-type-attachment .wp_attachment_details.edit-form-section",
+        "#ai4seo-generate-all-attachment-attributes-button-hook"
+    ],
 }
 
 var ai4seo_error_codes_and_messages = {
@@ -167,14 +186,16 @@ var ai4seo_attachment_mime_type_selectors = [".media-frame-content .attachment-i
 // allowed ajax function (also change in ai-for-seo.php file)
 let ai4seo_allowed_ajax_actions = [
     "ai4seo_save_anything",
-    "ai4seo_display_license_information", "ai4seo_dismiss_performance_notice",
+    "ai4seo_display_license_information",
     "ai4seo_show_metadata_editor", "ai4seo_show_attachment_attributes_editor",
     "ai4seo_generate_metadata", "ai4seo_generate_attachment_attributes",
-    "ai4seo_reject_tos", "ai4seo_accept_tos", "ai4seo_show_terms_of_service", "ai4seo_dismiss_one_time_notice",
-    "ai4seo_reset_plugin_data", "ai4seo_stop_bulk_generation",
+    "ai4seo_reject_tos", "ai4seo_accept_tos", "ai4seo_show_terms_of_service",
+    "ai4seo_dismiss_notification", "ai4seo_reset_plugin_data", "ai4seo_stop_bulk_generation",
     "ai4seo_retry_all_failed_attachment_attributes", "ai4seo_retry_all_failed_metadata",
     "ai4seo_disable_payg", "ai4seo_init_purchase",
-    "ai4seo_import_nextgen_gallery_images"
+    "ai4seo_import_nextgen_gallery_images",
+    "ai4seo_export_settings", "ai4seo_show_import_settings_preview", "ai4seo_import_settings",
+    "ai4seo_restore_default_settings"
 ];
 
 
@@ -192,13 +213,34 @@ if (typeof jQuery === 'function') {
             window.ai4seo_page_load_time = Date.now();
         }
 
+        ai4seo_init_html_elements();
+
+        // init html element again after 250 ms
         setTimeout(function() {
-            // init html element
             ai4seo_init_html_elements();
-        }, 100);
+        }, 250);
 
         // Init html elements within the media-modal
-        ai4seo_init_html_elements_for_media_modal()
+        ai4seo_init_html_elements_for_media_modal();
+
+        // Observe global media attachment additions
+        if (typeof wp !== 'undefined' && typeof wp.media !== 'undefined'
+            && typeof wp.media.model !== 'undefined'
+            && typeof wp.media.model.Attachments !== 'undefined'
+            && typeof wp.media.model.Attachments.all !== 'undefined') {
+            wp.media.model.Attachments.all.on('add', function(attachment) {
+                if (attachment && attachment.get('type') === 'image') {
+                    // call ai4seo_init_html_elements for the next 10 seconds, 1 second each
+                    for (let i = 1; i <= 10; i++) {
+                        setTimeout(function () {
+                            // add generate buttons
+                            ai4seo_init_generate_all_button();
+                            ai4seo_init_generate_buttons();
+                        }, 1000 * i);
+                    }
+                }
+            });
+        }
 
         // Add click-functions to parent-window for ai4seo_click_function_containers-elements if they exist
         if (ai4seo_exists(ai4seo_click_function_containers)) {
@@ -347,6 +389,9 @@ function ai4seo_init_html_elements() {
     // Add 'Generate all with AI' buttons
     ai4seo_init_generate_all_button();
 
+    // init copy to clipboard functionality
+    ai4seo_init_copy_to_clipboard();
+
     // Add open-layer-button to edit-page-header
     ai4seo_add_open_edit_metadata_modal_button_to_edit_page_header();
 
@@ -358,6 +403,223 @@ function ai4seo_init_html_elements() {
 
     // Init forms on license page
     ai4seo_init_license_form();
+
+    // init advanced settings
+    ai4seo_init_advanced_settings();
+
+    // init generate buttons on gutenberg editor clicks
+    setTimeout(function() {
+        ai4seo_init_gutenberg_editor_generate_buttons();
+    }, 1000);
+
+    // notifications
+    ai4seo_init_notifications();
+
+    // init plugin version number
+    init_plugin_version_number();
+}
+
+// =========================================================================================== \\
+
+function ai4seo_init_copy_to_clipboard() {
+    // check if we have elements with class ai4seo-copy-to-clipboard and data-clipboard-text attribute
+    if (!ai4seo_exists(".ai4seo-copy-to-clipboard")) {
+        return;
+    }
+
+    // Loop through all elements with class ai4seo-copy-to-clipboard
+    ai4seo_jQuery(".ai4seo-copy-to-clipboard").each(function() {
+        // Get the text to copy from the data-clipboard-text attribute
+        let text_to_copy = ai4seo_jQuery(this).data("clipboard-text");
+
+        // If the text is not defined, skip this element
+        if (typeof text_to_copy === "undefined" || !text_to_copy) {
+            console.warn("Could not copy to clipboard");
+            return;
+        }
+
+        // find closest .ai4seo-copied-to-clipboard to display it for 3 seconds
+        let copied_to_clipboard_element = ai4seo_get_nearest_element(this, ".ai4seo-copied-to-clipboard");
+
+        // Add click event listener to the element
+        ai4seo_jQuery(this).on("click", function(event) {
+            event.preventDefault();
+            ai4seo_copy_to_clipboard(text_to_copy, copied_to_clipboard_element);
+        });
+    });
+}
+
+// =========================================================================================== \\
+
+function init_plugin_version_number() {
+    // set .ai4seo-sidebar-version-number to position absolute and bottom 1rem
+    // in case .ai4seo-sidebar's height is below 100vh - 8rem;
+    if (!ai4seo_exists(".ai4seo-sidebar-version-number")) {
+        return;
+    }
+
+    if (!ai4seo_exists(".ai4seo-sidebar")) {
+        return;
+    }
+
+    let sidebar_element = ai4seo_jQuery(".ai4seo-sidebar");
+    let sidebar_version_number_element = ai4seo_jQuery(".ai4seo-sidebar-version-number");
+
+    // calc height of all sub elements in sidebar
+    let sidebar_spare_height = ai4seo_get_container_spare_height(sidebar_element);
+
+    if (sidebar_spare_height > 0) {
+        // set sidebar_version_number_element to position absolute and bottom 1rem
+        sidebar_version_number_element.css({
+            "position": "absolute",
+            "bottom": "1rem",
+            "left": "0",
+        });
+    }
+}
+
+// =========================================================================================== \\
+
+/**
+ * Searches for an element with the given target selector that is a sibling, child, or closest ancestor of the provided element.
+ * @param element
+ * @param target_selector
+ * @returns {*|null}
+ */
+function ai4seo_get_nearest_element(element, target_selector) {
+    // Check if the element exists
+    if (!ai4seo_exists(element)) {
+        return null;
+    }
+
+    element = ai4seo_jQuery(element);
+
+    // check sibling elements first
+    let sibling_element = element.siblings(target_selector);
+
+    if (ai4seo_exists(sibling_element)) {
+        return sibling_element.first();
+    }
+
+    // check children elements with find
+    let child_element = element.find(target_selector);
+
+    if (ai4seo_exists(child_element)) {
+        // If a child element is found, return the first one
+        return child_element.first();
+    }
+
+    // check closest element with the target selector
+    let closest_element = element.closest(target_selector);
+
+    // If no closest element found, check for the next sibling element
+    if (ai4seo_exists(closest_element)) {
+        return closest_element.first();
+    }
+
+    return null;
+}
+
+
+// =========================================================================================== \\
+
+function ai4seo_get_container_spare_height(container_element) {
+    if (!ai4seo_exists(container_element)) {
+        return;
+    }
+
+    container_element = ai4seo_jQuery(container_element);
+
+    // go through all children and sum their heights
+    let container_element_children_elements_height = 0;
+
+    container_element.children().each(function() {
+        container_element_children_elements_height += ai4seo_jQuery(this).outerHeight(true);
+    });
+
+    let container_height = container_element.outerHeight(true);
+
+    return container_height - container_element_children_elements_height;
+}
+
+// =========================================================================================== \\
+
+let ai4seo_init_gutenberg_editor_loop_timeout = null;
+
+function ai4seo_init_gutenberg_editor_generate_buttons() {
+    // find figure.wp-block-media-text__media in gutenberg editor iframe
+    let wp_block_media_text_media_selector = 'figure';
+    let wp_block_media_text_media_element = ai4seo_get_gutenberg_editor_element(wp_block_media_text_media_selector);
+
+    if (!ai4seo_exists(ai4seo_click_function_containers) || !ai4seo_exists(wp_block_media_text_media_element)) {
+        return;
+    }
+
+    wp_block_media_text_media_element = ai4seo_jQuery(wp_block_media_text_media_element);
+
+    // unbind previous click handlers to avoid multiple bindings
+    wp_block_media_text_media_element.off('click.ai4seo');
+
+    // call ai4seo_init_generate_buttons(); on every click on the wp_block_media_text_media_element
+    wp_block_media_text_media_element.on('click.ai4seo', function() {
+        // Check if the element is visible
+        if (wp_block_media_text_media_element.is(':visible')) {
+            // Call function to init generate buttons
+            ai4seo_init_generate_buttons();
+        }
+    });
+
+    // return if ai4seo_init_gutenberg_editor_loop_timeout is already set
+    if (ai4seo_init_gutenberg_editor_loop_timeout) {
+        // clear the timeout to prevent multiple executions
+        clearTimeout(ai4seo_init_gutenberg_editor_loop_timeout);
+    }
+
+    // retry after a second, in case the user uploaded new media
+    ai4seo_init_gutenberg_editor_loop_timeout = setTimeout(function() {
+        ai4seo_init_gutenberg_editor_generate_buttons();
+    }, 2500);
+}
+
+// =========================================================================================== \\
+
+function ai4seo_get_gutenberg_editor_element(selector) {
+    // Get the Gutenberg editor iframe
+    let gutenberg_editor_iframe = ai4seo_get_gutenberg_editor_iframe();
+
+    // If the iframe does not exist, return null
+    if (!gutenberg_editor_iframe) {
+        return null;
+    }
+
+    // get the document element of the Gutenberg editor iframe
+    let gutenberg_editor_iframe_document = null;
+
+    if (typeof gutenberg_editor_iframe.contentDocument !== 'undefined' && gutenberg_editor_iframe.contentDocument) {
+        gutenberg_editor_iframe_document = gutenberg_editor_iframe.contentDocument;
+    } else if (typeof gutenberg_editor_iframe.contentWindow !== 'undefined' && gutenberg_editor_iframe.contentWindow.document) {
+        gutenberg_editor_iframe_document = gutenberg_editor_iframe.contentWindow.document;
+    } else {
+        return null;
+    }
+
+    // Use jQuery to find the element inside the iframe document
+    return ai4seo_jQuery(gutenberg_editor_iframe_document).find(selector);
+}
+
+// =========================================================================================== \\
+
+function ai4seo_get_gutenberg_editor_iframe() {
+    // Check if the iframe with name 'editor-canvas' exists
+    if (!ai4seo_exists('iframe[name="editor-canvas"]')) {
+        return null;
+    }
+
+    // Get the iframe element
+    let gutenberg_editor_iframe = ai4seo_jQuery('iframe[name="editor-canvas"]');
+
+    // Return the iframe element
+    return gutenberg_editor_iframe[0];
 }
 
 // =========================================================================================== \\
@@ -653,16 +915,21 @@ function ai4seo_init_countdown_elements() {
  * Apply a continuous countdown to the given element
  */
 function ai4seo_init_countdown(element) {
-    if (typeof jQuery !== 'function') {
+    // skip if element is already initialized
+    if (element.data('initialized')) {
         return;
     }
 
-    let time_text = element.text(); // Get time as string hh:mm:ss
-    let total_seconds = ai4seo_parse_time(time_text);
+    // check if element has data-time-left attribute
+    let total_seconds = element.data('time-left');
 
     if (isNaN(total_seconds) || total_seconds <= 0) {
         return;
     }
+
+    // get the time since page load in seconds and subtract it from total_seconds
+    let time_since_page_load = Math.floor((Date.now() - window.ai4seo_page_load_time) / 1000);
+    total_seconds -= time_since_page_load;
 
     let interval = setInterval(function () {
         total_seconds--;
@@ -671,19 +938,54 @@ function ai4seo_init_countdown(element) {
             clearInterval(interval);
             element.text('00:00:00');
 
-            // Check if page has been open for at least 10 seconds
-            let time_since_load = Date.now() - window.ai4seo_page_load_time;
-            if (time_since_load >= 10000) { // 10000 milliseconds = 10 seconds
+            // only trigger the function if we are at least 10 seconds after page load
+            if (time_since_page_load >= 10) {
                 let trigger_function_name = element.data('trigger');
                 if (typeof window[trigger_function_name] === 'function') {
                     window[trigger_function_name]();
                 }
             }
+        } else if (total_seconds > 86400) { // More than 24 hours
+            // format time as "X days and hh:mm:ss"
+            let time_str = ai4seo_format_time_with_days(total_seconds);
+            element.text(time_str);
         } else {
+            // Format time as hh:mm:ss
             let time_str = ai4seo_format_time(total_seconds);
             element.text(time_str);
         }
     }, 1000);
+
+    // mark element as initialized
+    element.data('initialized', true);
+}
+
+// =========================================================================================== \\
+
+/**
+ * Format seconds into "X days and hh:mm:ss"
+ */
+function ai4seo_format_time_with_days(total_seconds) {
+    let days = Math.floor(total_seconds / 86400); // 86400 = 24 * 60 * 60
+    let remaining_seconds = total_seconds % 86400;
+
+    let hours = Math.floor(remaining_seconds / 3600);
+    let minutes = Math.floor((remaining_seconds % 3600) / 60);
+    let seconds = remaining_seconds % 60;
+
+    let time_str =
+        String(hours).padStart(2, '0') + ':' +
+        String(minutes).padStart(2, '0') + ':' +
+        String(seconds).padStart(2, '0');
+
+    if (days > 0) {
+        time_str = wp.i18n.__('%1$d day%2$s and %3$s', 'ai-for-seo')
+            .replace('%1$d', days)
+            .replace('%2$s', days > 1 ? 's' : '')
+            .replace('%3$s', time_str);
+    }
+
+    return time_str;
 }
 
 // =========================================================================================== \\
@@ -784,11 +1086,11 @@ function ai4seo_init_select_all_checkboxes() {
  */
 function ai4seo_refresh_select_all_checkbox_state(select_all_checkbox_element, all_target_checkbox_elements) {
     // set the initial state of the select all checkbox
-    const num_checked_target_checkbox_elements = all_target_checkbox_elements.filter(':checked').length;
-    const num_all_target_checkbox_elements = all_target_checkbox_elements.length;
+    const num_checked_target_checkbox_elements = parseInt(all_target_checkbox_elements.filter(':checked').length);
+    const num_all_target_checkbox_elements = parseInt(all_target_checkbox_elements.length);
 
     // if there are more checked checkboxes, than unchecked checkboxes, then the "select all checkbox" is checked as well
-    select_all_checkbox_element.prop('checked', num_all_target_checkbox_elements - (num_checked_target_checkbox_elements * 2) < 0);
+    select_all_checkbox_element.prop('checked', num_all_target_checkbox_elements === num_checked_target_checkbox_elements);
 }
 
 // =========================================================================================== \\
@@ -1008,7 +1310,6 @@ function ai4seo_exists(selector, context) {
 function ai4seo_get_post_id() {
     // first look for the post id in the ajax modal
     let post_id = ai4seo_context.find("#ai4seo-editor-modal-post-id").val();
-
     if (post_id && !isNaN(post_id)) {
         return parseInt(post_id);
     }
@@ -1020,10 +1321,24 @@ function ai4seo_get_post_id() {
 
         // Read item-parameter from current-url-parameters
         post_id = current_url_parameters.get("item");
-
         // Check if item-id could be found and is valid
         if (post_id && !isNaN(post_id)) {
             return parseInt(post_id);
+        }
+
+        // check for a .attachments-wrapper .attachments .attachment with "selected" class, take its data-id
+        if (ai4seo_exists(".attachments-wrapper .attachments .attachment.selected")) {
+            // Get the first selected attachment
+            var selected_attachment = ai4seo_jQuery(".attachments-wrapper .attachments .attachment.selected").first();
+
+            // Check if the selected attachment has a data-id attribute
+            if (selected_attachment.data("id")) {
+                post_id = selected_attachment.data("id");
+
+                if (post_id && !isNaN(post_id)) {
+                    return parseInt(post_id);
+                }
+            }
         }
 
         // If the post_id could not be read from the url of the page then try to access wp.media.frame
@@ -1034,13 +1349,49 @@ function ai4seo_get_post_id() {
             // Check if the attachment-id exists within model.id
             if (mediaFrame.model && mediaFrame.model.id) {
                 post_id = mediaFrame.model.id;
-
                 if (post_id && !isNaN(post_id)) {
                     return parseInt(post_id);
                 }
             }
         }
     }
+
+    // Gutenberg: selected image in the editor
+    // check if wp.data can be accessed
+    do if (typeof wp !== 'undefined' && typeof wp.data !== 'undefined') {
+        const {select} = wp.data;
+
+        // check if we can call getSelectedBlock()
+        if (typeof select('core/block-editor') === 'undefined' || typeof select('core/block-editor').getSelectedBlock !== 'function') {
+            break;
+        }
+
+        // Get the currently selected block
+        const selected_block = select('core/block-editor').getSelectedBlock();
+
+        // check if we have a selected_block and have access to its attributes
+        if (!selected_block || typeof selected_block.attributes === 'undefined') {
+            break;
+        }
+
+        // check for mediaId
+        if (typeof selected_block.attributes.mediaId !== 'undefined') {
+            post_id = selected_block.attributes.mediaId;
+
+            if (post_id && !isNaN(post_id)) {
+                return parseInt(post_id);
+            }
+        }
+
+        // check for id
+        if (typeof selected_block.attributes.id !== 'undefined') {
+            post_id = selected_block.attributes.id;
+
+            if (post_id && !isNaN(post_id)) {
+                return parseInt(post_id);
+            }
+        }
+    } while (false);
 
     // then look for the post-id in the localized object -> check last as it can sometimes have invalid information
     post_id = ai4seo_get_localization_parameter("ai4seo_current_post_id");
@@ -1057,6 +1408,78 @@ function ai4seo_get_post_id() {
 
 function ai4seo_get_plugin_version_number() {
     return ai4seo_get_localization_parameter("ai4seo_plugin_version_number");
+}
+
+// =========================================================================================== \\
+
+function ai4seo_get_seconds_since_page_load() {
+    // Check if ai4seo_page_load_time is defined
+    if (typeof window.ai4seo_page_load_time === 'undefined') {
+        return 0;
+    }
+
+    // Calculate the difference in seconds
+    const current_time = Date.now();
+    const time_difference = current_time - window.ai4seo_page_load_time;
+
+    // Convert milliseconds to seconds
+    return Math.floor(time_difference / 1000);
+}
+
+// =========================================================================================== \\
+
+function ai4seo_compare_version(v1, v2, operator) {
+    const normalize = (version) =>
+        version
+            .replace(/[^0-9a-z.+-]/gi, '')
+            .split('.')
+            .map((v) => (isNaN(v) ? v : parseInt(v)));
+
+    const compareParts = (a, b) => {
+        const len = Math.max(a.length, b.length);
+        for (let i = 0; i < len; i++) {
+            const partA = a[i] ?? 0;
+            const partB = b[i] ?? 0;
+
+            if (typeof partA === 'string' || typeof partB === 'string') {
+                const sA = String(partA);
+                const sB = String(partB);
+                if (sA > sB) return 1;
+                if (sA < sB) return -1;
+            } else {
+                if (partA > partB) return 1;
+                if (partA < partB) return -1;
+            }
+        }
+        return 0;
+    };
+
+    const result = compareParts(normalize(v1), normalize(v2));
+
+    switch (operator) {
+        case '==':
+        case '=':
+        case 'eq':
+            return result === 0;
+        case '!=':
+        case '<>':
+        case 'ne':
+            return result !== 0;
+        case '>':
+        case 'gt':
+            return result > 0;
+        case '>=':
+        case 'ge':
+            return result >= 0;
+        case '<':
+        case 'lt':
+            return result < 0;
+        case '<=':
+        case 'le':
+            return result <= 0;
+        default:
+            return result;
+    }
 }
 
 
@@ -1191,6 +1614,11 @@ function ai4seo_generate_with_ai(ajax_action, post_id = false, only_this_selecto
     let ajax_data = {
         ai4seo_post_id: post_id,
     };
+
+    // check for Divi Builder placeholder -> dont read from this page
+    if (ai4seo_exists(".wp-block-divi-placeholder")) {
+        try_read_page_content_via_js = false;
+    }
 
     // check if we should try to read the page content via js
     if (try_read_page_content_via_js) {
@@ -1613,6 +2041,55 @@ function ai4seo_set_cursor_at_the_end(element) {
     selection.addRange(range);
 }
 
+// =========================================================================================== \\
+
+function ai4seo_copy_to_clipboard(text_to_copy, copied_to_clipboard_element) {
+    // Method A: Using the Clipboard API if available
+    if (typeof navigator !== "undefined" && typeof navigator.clipboard !== "undefined") {
+        // Use the Clipboard API to copy the text
+        navigator.clipboard.writeText(text_to_copy).then(function() {
+            if (copied_to_clipboard_element) {
+                ai4seo_show_element_for_x_time(copied_to_clipboard_element)
+            }
+        }, function(err) {
+            console.warn("Could not copy to clipboard");
+        });
+    } else {
+        // Method B: Fallback to using a textarea element
+        const temporary_text_area = document.createElement('textarea');
+        temporary_text_area.value = text_to_copy;
+        document.body.appendChild(temporary_text_area);
+        temporary_text_area.select();
+
+        try {
+            document.execCommand('copy');
+            ai4seo_show_element_for_x_time(copied_to_clipboard_element)
+        } catch (err) {
+            console.warn("Could not copy to clipboard");
+        }
+
+        document.body.removeChild(temporary_text_area);
+    }
+}
+
+// =========================================================================================== \\
+
+function ai4seo_show_element_for_x_time(element, milliseconds = 3000) {
+    if (!ai4seo_exists(element)) {
+        return;
+    }
+
+    element = ai4seo_jQuery(element);
+
+    // Show the element
+    element.css("display", "block");
+
+    // Hide the element after 3 seconds
+    setTimeout(function() {
+        element.css("display", "none");
+    }, milliseconds);
+}
+
 
 // ___________________________________________________________________________________________ \\
 // === DASHBOARD ============================================================================= \\
@@ -1626,6 +2103,102 @@ function add_refresh_credits_balance_parameter_and_reload_page() {
 
 function ai4seo_start_bulk_generation(button_element) {
     ai4seo_save_anything(button_element, ai4seo_validate_bulk_generation_inputs, ai4seo_reload_page, ai4seo_reload_page);
+}
+
+// =========================================================================================== \\
+
+// Handle datetime picker visibility and label updates for SEO Autopilot
+function ai4seo_handle_bulk_generation_new_or_existing_filter_change() {
+    ai4seo_jQuery(document).ready(function() {
+        if (!ai4seo_exists('#ai4seo_bulk_generation_new_or_existing_filter')) {
+            return;
+        }
+
+        if (!ai4seo_exists('.ai4seo-datetime-picker-container')) {
+            return;
+        }
+
+        if (!ai4seo_exists('.ai4seo-datetime-picker-label')) {
+            return;
+        }
+
+        if (!ai4seo_exists('#ai4seo_bulk_generation_new_or_existing_filter_reference_time')) {
+            return;
+        }
+
+        // Get elements
+        const filter_select_element = ai4seo_jQuery('#ai4seo_bulk_generation_new_or_existing_filter');
+        const datetime_picker_container_element = ai4seo_jQuery('.ai4seo-datetime-picker-container');
+        const datetime_picker_label_element = ai4seo_jQuery('.ai4seo-datetime-picker-label');
+        const datetime_picker_input_element = ai4seo_jQuery('#ai4seo_bulk_generation_new_or_existing_filter_reference_time');
+
+        // Function to update datetime picker visibility and label
+        function ai4seo_on_bulk_generation_datetime_picker_update() {
+            const selected_value = filter_select_element.val();
+
+            if (selected_value === 'new') {
+                datetime_picker_container_element.show();
+
+                // 'New entries since:'
+                datetime_picker_label_element.text(wp.i18n.__('New entries since:', 'ai-for-seo'));
+
+                // Populate with current timestamp if empty
+                if (!datetime_picker_input_element.val()) {
+                    ai4seo_populate_datetime_picker_with_current_timestamp(datetime_picker_input_element);
+                }
+            } else if (selected_value === 'existing') {
+                datetime_picker_container_element.show();
+
+                // 'Old entries before:'
+                datetime_picker_label_element.text(wp.i18n.__('Old entries before:', 'ai-for-seo'));
+
+                // Populate with current timestamp if empty
+                if (!datetime_picker_input_element.val()) {
+                    ai4seo_populate_datetime_picker_with_current_timestamp(datetime_picker_input_element);
+                }
+            } else {
+                datetime_picker_container_element.hide();
+            }
+        }
+
+        // Initial update
+        ai4seo_on_bulk_generation_datetime_picker_update();
+
+        // Update on change
+        filter_select_element.on('change', ai4seo_on_bulk_generation_datetime_picker_update);
+    });
+}
+
+// =========================================================================================== \\
+
+// Populate datetime picker with current timestamp converted to datetime-local format
+function ai4seo_populate_datetime_picker_with_current_timestamp(datepicker_element) {
+    if (!ai4seo_exists(datepicker_element)) {
+        return;
+    }
+
+    const datetime_picker_element = ai4seo_jQuery(datepicker_element);
+    
+    // Check if there's already a stored timestamp from the server
+    let timestamp = datetime_picker_element.data('stored-timestamp');
+
+    // If no stored timestamp, use current time
+    if (!timestamp) {
+        timestamp = Math.floor(Date.now() / 1000);
+    }
+
+    // Convert timestamp to datetime-local format
+    const date = new Date(timestamp * 1000);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+
+    const datetime_local = `${year}-${month}-${day}T${hours}:${minutes}`;
+
+    // Set the datetime-local value
+    datetime_picker_element.val(datetime_local);
 }
 
 // =========================================================================================== \\
@@ -2197,6 +2770,11 @@ function ai4seo_open_modal_from_schema(modal_schema_identifier, modal_settings =
 
     // add schema identifier to modal
     modal_element.data("ai4seo-modal-schema-identifier", modal_schema_identifier);
+    
+    // Initialize datetime picker functionality for SEO Autopilot modal
+    if (modal_schema_identifier === "seo-autopilot") {
+        ai4seo_handle_bulk_generation_new_or_existing_filter_change();
+    }
 }
 
 // =========================================================================================== \\
@@ -2955,59 +3533,53 @@ function ai4seo_toggle_visibility_on_checkbox(selector_checkbox, selector_target
 
 
 // ___________________________________________________________________________________________ \\
-// === NOTICES =============================================================================== \\
+// === NOTIFICATIONS ========================================================================= \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
-function ai4seo_permanently_dismiss_notice(clicked_element) {
-    if (!ai4seo_exists(clicked_element)) {
-        console.log("AI for SEO: clicked_element does not exist.");
-        return;
-    }
+function ai4seo_init_notifications() {
+    // class "ai4seo-notification > notice-dismiss" (for notifications from notification system)
+    jQuery(document).on("click", ".ai4seo-notification > .notice-dismiss", function() {
+        if (!ai4seo_exists(ai4seo_jQuery(this).closest(".ai4seo-notification"))) {
+            return;
+        }
 
-    clicked_element = ai4seo_jQuery(clicked_element);
+        let closest_notification = ai4seo_jQuery(this).closest(".ai4seo-notification");
 
-    let ai4seo_notice_identifier = clicked_element.closest(".ai4seo-one-time-notice").data("notice-identifier");
+        if (!closest_notification.data("notification-index")) {
+            return;
+        }
 
-    if (!ai4seo_notice_identifier) {
-        return;
-    }
+        let notification_index = closest_notification.data("notification-index");
 
-    // call desired ajax action
-    ai4seo_perform_ajax_call('ai4seo_dismiss_one_time_notice', {ai4seo_notice_identifier: ai4seo_notice_identifier}).catch(error => { /* auto error handler enabled */ });
-}
 
-// add dismiss click action to notice elements
-// class "ai4seo-notice > notice-dismiss"
-jQuery(document).on("click", ".ai4seo-performance-notice > .notice-dismiss", function() {
-    // call desired ajax action
-    ai4seo_perform_ajax_call('ai4seo_dismiss_performance_notice').catch(error => { /* auto error handler enabled */ });
-});
-
-// class "ai4seo-one-time-notice > notice-dismiss"
-jQuery(document).on("click", ".ai4seo-one-time-notice .notice-dismiss", function() {
-    ai4seo_permanently_dismiss_notice(this);
-});
-
-// class .ai4seo-close-notice-button (without .ai4seo-one-time-notice)
-jQuery(document).on('click', '.ai4seo-close-notice-button', function() {
-    var ai4seo_this_notice = jQuery(this).closest('.notice');
-
-    if ( !ai4seo_exists(ai4seo_this_notice) ) {
-        return;
-    }
-
-    ai4seo_this_notice.slideUp(200, function() {
-        ai4seo_this_notice.remove();
+        // call desired ajax action
+        ai4seo_perform_ajax_call('ai4seo_dismiss_notification', {ai4seo_notification_index: notification_index}).catch(error => { /* auto error handler enabled */ });
     });
 
-    // check if $notice got class .ai4seo-one-time-notice
-    if ( ai4seo_this_notice.hasClass('ai4seo-one-time-notice') ) {
-        ai4seo_permanently_dismiss_notice(this);
-    }
-});
+    // class "ai4seo-notification-dismiss-button" (dismiss button in notification footer)
+    jQuery(document).on("click", ".ai4seo-notification-dismiss-button", function() {
+        if (!ai4seo_exists(ai4seo_jQuery(this).closest(".ai4seo-notification"))) {
+            return;
+        }
 
-// move all .ai4seo-notice to .ai4seo-notices-area
-jQuery(document).ready(function() {
+        let closest_notification = ai4seo_jQuery(this).closest(".ai4seo-notification");
+
+        if (!closest_notification.data("notification-index")) {
+            return;
+        }
+
+        let notification_index = closest_notification.data("notification-index");
+
+        // hide the notification with animation
+        closest_notification.slideUp(200, function() {
+            closest_notification.remove();
+        });
+
+        // call desired ajax action
+        ai4seo_perform_ajax_call('ai4seo_dismiss_notification', {ai4seo_notification_index: notification_index}).catch(error => { /* auto error handler enabled */ });
+    });
+
+    // move all .ai4seo-notice to .ai4seo-notices-area
     // check if .ai4seo-notices-area exists
     if (ai4seo_exists(".ai4seo-notices-area")) {
         // move all .ai4seo-notice to .ai4seo-notices-area
@@ -3015,7 +3587,7 @@ jQuery(document).ready(function() {
             jQuery(this).appendTo(".ai4seo-notices-area");
         });
     }
-});
+}
 
 
 // ___________________________________________________________________________________________ \\
@@ -3127,6 +3699,7 @@ function ai4seo_does_user_need_to_accept_tos_toc_and_pp() {
     return ai4seo_get_localization_parameter("ai4seo_does_user_need_to_accepted_tos_toc_and_pp");
 }
 
+
 // ___________________________________________________________________________________________ \\
 // === SETTINGS (PAGE) ======================================================================= \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
@@ -3144,6 +3717,148 @@ function ai4seo_toggle_sync_only_these_metadata_container() {
     } else {
         sync_only_these_metadata_container.hide();
     }
+}
+
+// =========================================================================================== \\
+
+function ai4seo_init_advanced_settings() {
+    // check if element #ai4seo-advanced-setting-state exists, us this to override the current visibility state
+    if (!ai4seo_exists("#ai4seo-advanced-setting-state")) {
+        return;
+    }
+
+    let advanced_setting_state = ai4seo_jQuery("#ai4seo-advanced-setting-state").val();
+
+    if (advanced_setting_state === "show") {
+        // Show advanced settings
+        ai4seo_show_advanced_settings();
+    } else {
+        // Hide advanced settings
+        ai4seo_hide_advanced_settings();
+    }
+}
+
+// =========================================================================================== \\
+
+/**
+ * Let the user show advanced settings
+ */
+function ai4seo_show_advanced_settings(show_fade_animation = false) {
+    if (!ai4seo_exists(".ai4seo-is-advanced-setting")) {
+        return;
+    }
+
+    if (!ai4seo_exists("#ai4seo-show-advanced-settings-container")) {
+        return;
+    }
+
+    if (!ai4seo_exists("#ai4seo-hide-advanced-settings-container")) {
+        return;
+    }
+
+    if (!ai4seo_exists("#ai4seo-advanced-setting-state")) {
+        return;
+    }
+
+    // Show advanced settings and swap buttons
+    ai4seo_jQuery(".ai4seo-is-advanced-setting").show();
+    ai4seo_jQuery("#ai4seo-show-advanced-settings-container").hide();
+    ai4seo_jQuery("#ai4seo-hide-advanced-settings-container").show();
+    ai4seo_jQuery("#ai4seo-advanced-setting-state").val("show");
+
+    if (show_fade_animation) {
+        ai4seo_jQuery(".ai4seo-form-section").fadeOut(0, function () {
+            ai4seo_jQuery(this).fadeIn(300);
+        });
+    }
+}
+
+// =========================================================================================== \\
+
+/**
+ * Let the user hide advanced settings
+ */
+function ai4seo_hide_advanced_settings(show_fade_animation = false) {
+    if (!ai4seo_exists(".ai4seo-is-advanced-setting")) {
+        return;
+    }
+
+    if (!ai4seo_exists("#ai4seo-show-advanced-settings-container")) {
+        return;
+    }
+
+    if (!ai4seo_exists("#ai4seo-hide-advanced-settings-container")) {
+        return;
+    }
+
+    if (!ai4seo_exists("#ai4seo-advanced-setting-state")) {
+        return;
+    }
+
+    // Hide advanced settings and swap buttons
+    ai4seo_jQuery(".ai4seo-is-advanced-setting").hide();
+    ai4seo_jQuery("#ai4seo-show-advanced-settings-container").show();
+    ai4seo_jQuery("#ai4seo-hide-advanced-settings-container").hide();
+    ai4seo_jQuery("#ai4seo-advanced-setting-state").val("hide");
+
+    if (show_fade_animation) {
+        ai4seo_jQuery(".ai4seo-form-section").fadeOut(0, function () {
+            ai4seo_jQuery(this).fadeIn(300);
+        });
+    }
+}
+
+// =========================================================================================== \\
+
+/**
+ * Show confirmation dialog and restore default settings via Ajax
+ */
+function ai4seo_restore_default_settings(button_element) {
+    // Show confirmation dialog
+    let headline = wp.i18n.__("Restore Default Settings", "ai-for-seo");
+    let content = wp.i18n.__("Are you sure you want to restore all settings to their default values?", "ai-for-seo");
+    content += "<br><br>";
+    content += wp.i18n.__("<strong>Note:</strong> This action will reset all settings on this page to their default values. This cannot be undone.", "ai-for-seo");
+
+    let confirm_button = "<button type='button' class='ai4seo-button ai4seo-abort-button ai4seo-lockable' onclick='ai4seo_perform_restore_default_settings();'>" + wp.i18n.__("Yes, restore defaults", "ai-for-seo") + "</button>";
+    let cancel_button = "<button type='button' class='ai4seo-button ai4seo-success-button ai4seo-lockable' onclick='ai4seo_close_modal_by_child(this);'>" + wp.i18n.__("Cancel", "ai-for-seo") + "</button>";
+
+    ai4seo_open_notification_modal(headline, content, confirm_button + cancel_button);
+}
+
+// =========================================================================================== \\
+
+/**
+ * Perform the actual restore default settings Ajax call
+ */
+function ai4seo_perform_restore_default_settings() {
+    // Show loading indicator
+    ai4seo_lock_and_disable_lockable_input_fields();
+    if (ai4seo_exists(".ai4seo-lockable")) {
+        ai4seo_add_loading_html_to_element(ai4seo_jQuery(".ai4seo-lockable"));
+    }
+
+    // Perform Ajax call
+    ai4seo_perform_ajax_call("ai4seo_restore_default_settings")
+        .then(response => {
+            // Show success message
+            let success_message = response.message || wp.i18n.__("Default settings restored successfully.", "ai-for-seo");
+            ai4seo_open_notification_modal(
+                wp.i18n.__("Success", "ai-for-seo"),
+                success_message,
+                "<button type='button' class='ai4seo-button ai4seo-success-button' onclick='ai4seo_reload_page();'>" + wp.i18n.__("OK", "ai-for-seo") + "</button>"
+            );
+        })
+        .catch(error => {
+            // Show error message
+            let error_message = (error && error.message) ? error.message : wp.i18n.__("Failed to restore default settings.", "ai-for-seo");
+            ai4seo_open_generic_error_notification_modal(999, error_message);
+        })
+        .finally(() => {
+            // Remove loading indicator
+            ai4seo_unlock_and_enable_lockable_input_fields();
+            ai4seo_remove_loading_html_from_element(ai4seo_jQuery(".ai4seo-lockable"));
+        });
 }
 
 // =========================================================================================== \\
@@ -3242,6 +3957,10 @@ function ai4seo_hide_loading_icons(element) {
 // =========================================================================================== \\
 
 function ai4seo_lock_and_disable_lockable_input_fields() {
+    if (!ai4seo_exists(".ai4seo-lockable")) {
+        return;
+    }
+
     // Define variable for all input-fields
     var all_input_fields = ai4seo_jQuery(".ai4seo-lockable");
 
@@ -3255,6 +3974,10 @@ function ai4seo_lock_and_disable_lockable_input_fields() {
 // =========================================================================================== \\
 
 function ai4seo_unlock_and_enable_lockable_input_fields() {
+    if (!ai4seo_exists(".ai4seo-temporary-locked")) {
+        return;
+    }
+
     // Define variable for all input-fields
     var all_input_fields = ai4seo_jQuery(".ai4seo-temporary-locked");
 
@@ -3390,12 +4113,13 @@ function ai4seo_reset_plugin_data() {
     ai4seo_close_notification_modal();
 
     let ai4seo_reset_cache = jQuery("#ai4seo-troubleshooting-reset-cache").is(":checked");
+    let ai4seo_reset_notifications = jQuery("#ai4seo-troubleshooting-reset-notifications").is(":checked");
     let ai4seo_reset_environmental_variables = jQuery("#ai4seo-troubleshooting-reset-env").is(":checked");
     let ai4seo_reset_settings = jQuery("#ai4seo-troubleshooting-reset-settings").is(":checked");
     let ai4seo_reset_metadata = jQuery("#ai4seo-troubleshooting-reset-metadata").is(":checked");
 
     // Check if at least one option is selected
-    if (!ai4seo_reset_cache && !ai4seo_reset_environmental_variables && !ai4seo_reset_settings && !ai4seo_reset_metadata) {
+    if (!ai4seo_reset_cache && !ai4seo_reset_notifications && !ai4seo_reset_environmental_variables && !ai4seo_reset_settings && !ai4seo_reset_metadata) {
         ai4seo_open_notification_modal(
             wp.i18n.__("Oops...", "ai-for-seo"),
             wp.i18n.__("Please select at least one option to reset.", "ai-for-seo"),
@@ -3408,7 +4132,15 @@ function ai4seo_reset_plugin_data() {
     ai4seo_lock_and_disable_lockable_input_fields();
     ai4seo_add_loading_html_to_element(jQuery("#ai4seo-troubleshooting-reset-button"));
 
-    ai4seo_perform_ajax_call("ai4seo_reset_plugin_data", {ai4seo_reset_cache: ai4seo_reset_cache, ai4seo_reset_environmental_variables: ai4seo_reset_environmental_variables, ai4seo_reset_settings: ai4seo_reset_settings, ai4seo_reset_metadata: ai4seo_reset_metadata})
+    let ajax_parameter = {
+        ai4seo_reset_cache: ai4seo_reset_cache,
+        ai4seo_reset_notifications: ai4seo_reset_notifications,
+        ai4seo_reset_environmental_variables: ai4seo_reset_environmental_variables,
+        ai4seo_reset_settings: ai4seo_reset_settings,
+        ai4seo_reset_metadata: ai4seo_reset_metadata
+    };
+
+    ai4seo_perform_ajax_call("ai4seo_reset_plugin_data", ajax_parameter)
         .then(response => {
             ai4seo_open_generic_success_notification_modal(
                 wp.i18n.__("The plugin data has been reset successfully.", "ai-for-seo"),
@@ -3634,5 +4366,278 @@ function ai4seo_import_nextgen_gallery_images(submit_element) {
         .catch(error => {
             ai4seo_remove_loading_html_from_element(submit_element);
             ai4seo_unlock_and_enable_lockable_input_fields();
+        });
+}
+
+
+// ___________________________________________________________________________________________ \\
+// === EXPORT/IMPORT SETTINGS ================================================================ \\
+// ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
+
+/**
+ * Export all settings to a JSON file
+ */
+function ai4seo_init_export_settings() {
+    if (!ai4seo_exists('#ai4seo-export-settings-button')) {
+        return;
+    }
+
+    let export_button = ai4seo_jQuery('#ai4seo-export-settings-button');
+    
+    // Add loading animation
+    ai4seo_add_loading_html_to_element(export_button);
+
+    // save any unsaved changes before exporting
+    ai4seo_save_anything(jQuery('#ai4seo-save-settings'), ai4seo_validate_settings_inputs, ai4seo_export_settings);
+}
+
+// =========================================================================================== \\
+
+function ai4seo_export_settings() {
+    if (!ai4seo_exists('#ai4seo-export-settings-button')) {
+        return;
+    }
+
+    let export_button = ai4seo_jQuery('#ai4seo-export-settings-button');
+
+    // Perform AJAX call to export settings
+    ai4seo_perform_ajax_call('ai4seo_export_settings')
+        .then(response => {
+            if (response.settings_data && response.filename) {
+                // Create downloadable file
+                ai4seo_download_json_file(response.settings_data, response.filename);
+
+                // Show success message
+                ai4seo_open_generic_success_notification_modal(
+                    wp.i18n.__("Settings exported successfully! The file can be imported using the same modal.", "ai-for-seo")
+                );
+            } else {
+                ai4seo_open_generic_error_notification_modal(
+                    50176725,
+                    wp.i18n.__("Failed to export settings. Please try again.", "ai-for-seo")
+                );
+            }
+        })
+        .catch(error => {
+            // Error is handled automatically
+        })
+        .finally(() => {
+            // Remove loading animation
+            ai4seo_remove_loading_html_from_element(export_button);
+            ai4seo_close_modal_from_schema('export-import-settings');
+        });
+}
+
+// =========================================================================================== \\
+
+/**
+ * Import settings from uploaded JSON file
+ */
+function ai4seo_init_import_settings() {
+    if (!ai4seo_exists('#ai4seo-import-file')) {
+        return;
+    }
+    
+    if (!ai4seo_exists('#ai4seo-import-settings-button')) {
+        return;
+    }
+    
+    let file_input = ai4seo_jQuery("#ai4seo-import-file")[0];
+    let import_button = ai4seo_jQuery("#ai4seo-import-settings-button");
+    
+    // Validate file selection
+    if (!file_input.files || file_input.files.length === 0) {
+        ai4seo_open_generic_error_notification_modal(
+            29186725,
+            wp.i18n.__("Please select a file to import.", "ai-for-seo")
+        );
+        return;
+    }
+    
+    let file = file_input.files[0];
+    
+    // Validate file type
+    if (!file.name.toLowerCase().endsWith('.json')) {
+        ai4seo_open_generic_error_notification_modal(
+            30186725,
+            wp.i18n.__("Please select a valid JSON file.", "ai-for-seo")
+        );
+        return;
+    }
+    
+    // Get selected categories
+    let categories = [];
+
+    if (ai4seo_jQuery("#ai4seo-import-settings-page-checkbox").is(":checked")) {
+        categories.push("settings");
+    }
+
+    if (ai4seo_jQuery("#ai4seo-import-account-page-checkbox").is(":checked")) {
+        categories.push("account");
+    }
+
+    if (ai4seo_jQuery("#ai4seo-import-seo-autopilot-checkbox").is(":checked")) {
+        categories.push("seo_autopilot");
+    }
+
+    if (ai4seo_jQuery("#ai4seo-import-get-more-credits-checkbox").is(":checked")) {
+        categories.push("get_more_credits");
+    }
+
+    // Validate category selection
+    if (categories.length === 0) {
+        ai4seo_open_generic_error_notification_modal(
+            33186725,
+            wp.i18n.__("Please select at least one category to import.", "ai-for-seo")
+        );
+        return;
+    }
+    
+    // Add loading animation
+    ai4seo_add_loading_html_to_element(import_button);
+    
+    // Read file content
+    let reader = new FileReader();
+
+    reader.onload = function(e) {
+        try {
+            let file_content = JSON.parse(e.target.result);
+
+            // check for "ai4seo_plugin_version" property
+            if (!file_content.hasOwnProperty("ai4seo_plugin_version")) {
+                ai4seo_remove_loading_html_from_element(import_button);
+                ai4seo_open_generic_error_notification_modal(
+                    44186725,
+                    wp.i18n.__("Invalid JSON file format. The file must contain the 'ai4seo_plugin_version' property.", "ai-for-seo")
+                );
+            }
+
+            // check for settings property
+            if (!file_content.hasOwnProperty("settings")) {
+                ai4seo_remove_loading_html_from_element(import_button);
+                ai4seo_open_generic_error_notification_modal(
+                    45186725,
+                    wp.i18n.__("Invalid JSON file format. The file must contain the 'settings' property.", "ai-for-seo")
+                );
+                return;
+            }
+
+            // check if version is lower than the current version
+            let current_version = ai4seo_get_plugin_version_number();
+            let imported_version = file_content.ai4seo_plugin_version;
+            let new_settings = file_content.settings;
+
+            if (imported_version !== current_version) {
+                // show warning modal
+                ai4seo_remove_loading_html_from_element(import_button);
+
+                ai4seo_open_notification_modal(
+                    wp.i18n.__("Version Mismatch", "ai-for-seo"),
+                    wp.i18n.__("The imported settings are from an older or newer version of the plugin. Some settings may not be compatible with the current version.", "ai-for-seo"),
+                    "<button type='button' class='ai4seo-button ai4seo-abort-button' onclick='ai4seo_close_modal_by_child(this);'>" + wp.i18n.__("Abort Import", "ai-for-seo") + "</button>" +
+                    "<button type='button' class='ai4seo-button ai4seo-submit-button' onclick='ai4seo_close_modal_by_child(this);ai4seo_show_import_settings_preview(" + JSON.stringify(new_settings) + ", " + JSON.stringify(categories) + ");'>" + wp.i18n.__("Proceed with Import", "ai-for-seo") + "</button>"
+                );
+            } else {
+                ai4seo_show_import_settings_preview(new_settings, categories);
+            }
+        } catch (error) {
+            ai4seo_remove_loading_html_from_element(import_button);
+            ai4seo_open_generic_error_notification_modal(
+                46186725,
+                wp.i18n.__("Invalid JSON file format. Please check the file content.", "ai-for-seo")
+            );
+        }
+    }
+
+    reader.readAsText(file);
+}
+
+// =========================================================================================== \\
+
+/**
+ * Download JSON data as file
+ */
+function ai4seo_download_json_file(data, filename) {
+    let json_str = JSON.stringify(data, null, 2);
+    let blob = new Blob([json_str], { type: 'application/json' });
+    let url = URL.createObjectURL(blob);
+
+    let download_link = document.createElement('a');
+    download_link.href = url;
+    download_link.download = filename;
+    download_link.style.display = 'none';
+
+    document.body.appendChild(download_link);
+    download_link.click();
+    document.body.removeChild(download_link);
+
+    URL.revokeObjectURL(url);
+}
+
+// =========================================================================================== \\
+
+let ai4seo_import_new_settings = null;
+let ai4seo_import_categories = null;
+
+function ai4seo_show_import_settings_preview(new_settings, categories) {
+    let import_button = ai4seo_jQuery("#ai4seo-import-settings-button");
+
+    let import_settings_data = {
+        ai4seo_new_settings: new_settings,
+        ai4seo_import_categories: categories,
+        ai4seo_import_mode: 'preview'
+    }
+
+    // keep the new settings and categories for later use
+    ai4seo_import_new_settings = new_settings;
+    ai4seo_import_categories = categories;
+
+    ai4seo_open_ajax_modal('ai4seo_show_import_settings_preview', import_settings_data, {modal_size: 'small'});
+
+    ai4seo_remove_loading_html_from_element(import_button);
+}
+
+// =========================================================================================== \\
+
+
+/**
+ * Execute the actual import after user confirmation
+ */
+function ai4seo_execute_import_settings(import_button, new_settings, categories) {
+    import_button = ai4seo_jQuery(import_button);
+
+    // check if ai4seo_import_new_settings and ai4seo_import_categories
+    if (!ai4seo_import_new_settings || !ai4seo_import_categories) {
+        ai4seo_open_generic_error_notification_modal(
+            47186725,
+            wp.i18n.__("No settings to import. Please select a valid JSON file first.", "ai-for-seo")
+        );
+        return;
+    }
+
+    // Add loading animation
+    ai4seo_add_loading_html_to_element(import_button);
+
+    let import_settings_data = {
+        ai4seo_new_settings: ai4seo_import_new_settings,
+        ai4seo_import_categories: ai4seo_import_categories,
+        ai4seo_import_mode: 'execute'
+    }
+
+    // Execute import
+    ai4seo_perform_ajax_call('ai4seo_import_settings', import_settings_data)
+        .then(response => {
+            ai4seo_close_all_modals();
+            ai4seo_open_generic_success_notification_modal(
+                wp.i18n.__("Settings imported successfully! The page will reload.", "ai-for-seo")
+            );
+
+            // Reload page after short delay
+            setTimeout(function() {
+                ai4seo_reload_page();
+            }, 2000);
+        })
+        .catch(error => {
+            ai4seo_remove_loading_html_from_element(import_button);
         });
 }

@@ -19,7 +19,7 @@ if (!ai4seo_can_manage_this_plugin()) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 $ai4seo_dashboard_url = ai4seo_get_admin_url("dashboard");
-$ai4seo_is_dashboard_url = ai4seo_is_tab_open("dashboard");
+$ai4seo_is_dashboard_open = ai4seo_is_tab_open("dashboard");
 $ai4seo_settings_url = ai4seo_get_admin_url("settings");
 $ai4seo_attachment_url = ai4seo_get_admin_url("media");
 $ai4seo_account_url = ai4seo_get_admin_url("account");
@@ -30,93 +30,20 @@ $ai4seo_current_post_type = ai4seo_get_current_post_type();
 
 $ai4seo_supported_post_types = ai4seo_get_supported_post_types();
 
-$ai4seo_client_subscription = ai4seo_init_client_subscription();
+if ($ai4seo_is_dashboard_open) {
+    $ai4seo_unread_notifications_count = 0;
+} else {
+    $ai4seo_unread_notifications_count = (int) ai4seo_get_num_unread_notification();
+}
+
+$ai4seo_group = ai4seo_robhub_api()->get_ab_group();
 
 
 // ___________________________________________________________________________________________ \\
-// === NOTICES =============================================================================== \\
+// === OUTPUT: STYLES ======================================================================== \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
-// === CHECK ROBHUB API COMMUNICATOR ========================================================== \\
-
-if (!ai4seo_robhub_api() instanceof Ai4Seo_RobHubApiCommunicator) {
-    echo "<div class='wrap'>";
-        ai4seo_echo_notice(esc_html__("Could not initialize API communicator. Please contact the plugin developer.", "ai-for-seo") . "#101012523", false);
-    echo "</div>";
-    return;
-}
-
-// === SUBSCRIPTION ERROR ============================================================================ \\
-
-// no subscription data -> echo error
-if (isset($ai4seo_client_subscription["success"]) && !$ai4seo_client_subscription["success"]) {
-    $ai4seo_subscription_error_notice = "";
-
-    if (isset($ai4seo_client_subscription["message"]) && $ai4seo_client_subscription["message"]) {
-        $ai4seo_subscription_error_notice .= "<strong>"  . esc_html($ai4seo_client_subscription["message"]) . "</strong> ";
-    }
-
-    if (isset($ai4seo_client_subscription["code"]) && $ai4seo_client_subscription["code"]) {
-        $ai4seo_subscription_error_notice .= esc_html("(#" . $ai4seo_client_subscription["code"] . ").") . " ";
-    }
-
-    $ai4seo_subscription_error_notice .= sprintf(
-        __("Failed to verify your credentials. Please check your <a href='%s'>license data</a>, or feel free to <a href='%s' target='_blank'>contact us</a> for assistance. We offer support in any language.", "ai-for-seo"),
-        esc_html(sanitize_url(ai4seo_get_admin_url("account"))),
-        esc_html(sanitize_url(AI4SEO_OFFICIAL_CONTACT_URL))
-    );
-
-    ai4seo_echo_notice($ai4seo_subscription_error_notice, false);
-}
-
-
-// === ERROR NOTICE IF THE CRONJOB RUN INEFFICIENT ===================== \\
-
-ai4seo_echo_inefficient_cron_jobs_notice();
-
-
-// === MULTI LANGUAGE PLUGINS NOTICES ================================================================================= \\
-
-if (ai4seo_is_plugin_or_theme_active(AI4SEO_THIRD_PARTY_PLUGIN_WPML)) {
-    $ai4seo_wpml_notice = sprintf(
-    /* translators: 1: Plugin name “WPML”, 2: Your plugin name */
-        esc_html__(
-            'Just a heads-up — this is not a warning. %1$s is active on your website, and %2$s fully supports its functionality. Ideally, metadata and media attributes should be generated for each entry in every language. For this reason, the total number displayed on the dashboard appears higher, as each entry is processed separately for each language.',
-            'ai-for-seo'
-        ),
-        '<strong>WPML</strong>',
-        '<span class="ai4seo-plugin-name">' . AI4SEO_PLUGIN_NAME . '</span>'
-    );
-    $ai4seo_wpml_notice .= "<p>" . esc_html__("For best results, we recommend keeping the language settings at \"automatic\", as this ensures the metadata is generated correctly for each language.", "ai-for-seo") . "</p>";
-
-    ai4seo_echo_notice($ai4seo_wpml_notice, true, "wpml-heads-up", "notice-info", true);
-}
-
-
-// === JUST PURCHASED MODAL ================================================================================= \\
-
-# workaround: amp; is added to the url when the user is redirected from stripe
-if (isset($_GET["ai4seo-just-purchased"]) || isset($_GET["amp;ai4seo-just-purchased"])) {
-    // --- JAVASCRIPT --------------------------------------------------------- \\
-    ?><script type="text/javascript">
-    jQuery(function() {
-        // open modal
-        ai4seo_open_generic_success_notification_modal(
-            "<?=esc_js(esc_html__("Your Credits may take a moment to appear on your dashboard. To update your Credits balance, please click on 'Refresh'.  Important: Don't forget to check the 'Account' tab to retrieve your license key.", "ai-for-seo"));?>",
-            "<a href='#' class='ai4seo-button' onclick='window.location=\"<?=esc_js(ai4seo_get_admin_url("dashboard", array("ai4seo_refresh_credits_balance" => "true")))?>\"' target='_self'><?=esc_js(esc_html__("Refresh", "ai-for-seo"))?></a>");
-    });
-    </script><?php
-    // ------------------------------------------------------------------------ \\
-}
-
-
-// ___________________________________________________________________________________________ \\
-// === OUTPUT ================================================================================ \\
-// ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
-
-?>
-
-<style>
+?><style>
     /* hide wordpress footer */
     #wpfooter {
         display: none;
@@ -125,12 +52,32 @@ if (isset($_GET["ai4seo-just-purchased"]) || isset($_GET["amp;ai4seo-just-purcha
     #wpbody-content {
         padding-bottom: 0;
     }
-</style>
+</style><?php
 
-<?php
 
 // ___________________________________________________________________________________________ \\
-// === TOP BAR / NAVIGATION (MOBILE) ========================================================= \\
+// === OUTPUT: JUST PURCHASED MODAL ========================================================== \\
+// ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
+
+# workaround: amp; is added to the url when the user is redirected from stripe
+if (isset($_GET["ai4seo-just-purchased"]) || isset($_GET["amp;ai4seo-just-purchased"])) {
+    // todo: auto-check via ajax and then reload
+    // todo: check if credits have arrived
+    // --- JAVASCRIPT --------------------------------------------------------- \\
+    ?><script type="text/javascript">
+        jQuery(function() {
+            // open modal
+            ai4seo_open_generic_success_notification_modal(
+                "<?=esc_js(esc_html__("Your Credits may take a moment to appear on your dashboard. To update your Credits balance, please click on 'Refresh'.  Important: Don't forget to check the 'Account' tab to retrieve your license key.", "ai-for-seo"));?>",
+                "<a href='#' class='ai4seo-button' onclick='window.location=\"<?=esc_js(ai4seo_get_admin_url("dashboard", array("ai4seo_refresh_credits_balance" => "true")))?>\"' target='_self'><?=esc_js(esc_html__("Refresh", "ai-for-seo"))?></a>");
+        });
+    </script><?php
+    // ------------------------------------------------------------------------ \\
+}
+
+
+// ___________________________________________________________________________________________ \\
+// === OUTPUT: TOP BAR / NAVIGATION (MOBILE) ================================================= \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 echo "<div class='ai4seo-mobile-top-bar'>";
@@ -155,7 +102,7 @@ echo "<div class='wrap ai4seo-wrap'>";
 
 
     // ___________________________________________________________________________________________ \\
-    // === SIDE BAR / NAVIGATION (DESKTOP) ======================================================= \\
+    // === OUTPUT: SIDE BAR / NAVIGATION (DESKTOP) ======================================================= \\
     // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
     echo "<div class='ai4seo-sidebar'>";
@@ -172,10 +119,16 @@ echo "<div class='wrap ai4seo-wrap'>";
 
         echo "<nav class='nav-tab-wrapper ai4seo-nav-tab-wrapper'>";
             // Dashboard tab
-            echo "<a href='" . esc_url($ai4seo_dashboard_url) . "' class='nav-tab ai4seo-nav-tab" . ($ai4seo_is_dashboard_url ? " nav-tab-active ai4seo-nav-tab-active" : "") . "'>";
+            echo "<a href='" . esc_url($ai4seo_dashboard_url) . "' class='nav-tab ai4seo-nav-tab" . ($ai4seo_is_dashboard_open ? " nav-tab-active ai4seo-nav-tab-active" : "") . "'>";
                 echo '<i class="dashicons dashicons-dashboard ai4seo-nav-tab-icon"></i>';
                 echo "<span>";
                     echo esc_html__("Dashboard", "ai-for-seo");
+
+                    // unread notifications count
+                    if ($ai4seo_unread_notifications_count > 0) {
+                        echo "<span class='ai4seo-menu-counter'>" . esc_html($ai4seo_unread_notifications_count) . "</span>";
+                    }
+
                 echo "</span>";
             echo "</a>";
 
@@ -204,20 +157,10 @@ echo "<div class='wrap ai4seo-wrap'>";
             echo "</a>";
 
             // Account tab
-            # todo: show only when user purchased something
-            # todo: add blinking icon when user just purchased something
             echo "<a href='" . esc_url($ai4seo_account_url) . "' class='nav-tab ai4seo-nav-tab" . ($ai4seo_current_content_tab == "account" ? " nav-tab-active ai4seo-nav-tab-active" : "") . "'>";
                 echo ai4seo_wp_kses(ai4seo_get_svg_tag("key", "", "ai4seo-nav-tab-icon"));
                 echo "<span>";
                     echo esc_html__("Account", "ai-for-seo");
-                echo "</span>";
-            echo "</a>";
-
-            // Help tab
-            echo "<a href='" . esc_url($ai4seo_help_url) . "' class='nav-tab ai4seo-nav-tab" . ($ai4seo_current_content_tab == "help" ? " nav-tab-active ai4seo-nav-tab-active" : "") . "'>";
-                echo '<i class="dashicons dashicons-editor-help ai4seo-nav-tab-icon"></i>';
-                echo "<span>";
-                    echo esc_html__("Help", "ai-for-seo");
                 echo "</span>";
             echo "</a>";
 
@@ -226,6 +169,14 @@ echo "<div class='wrap ai4seo-wrap'>";
                 echo '<i class="dashicons dashicons-admin-generic ai4seo-nav-tab-icon"></i>';
                 echo "<span>";
                     echo esc_html__("Settings", "ai-for-seo");
+                echo "</span>";
+            echo "</a>";
+
+            // Help tab
+            echo "<a href='" . esc_url($ai4seo_help_url) . "' class='nav-tab ai4seo-nav-tab" . ($ai4seo_current_content_tab == "help" ? " nav-tab-active ai4seo-nav-tab-active" : "") . "'>";
+                echo '<i class="dashicons dashicons-editor-help ai4seo-nav-tab-icon"></i>';
+                echo "<span>";
+                    echo esc_html__("Help", "ai-for-seo");
                 echo "</span>";
             echo "</a>";
 
@@ -244,22 +195,23 @@ echo "<div class='wrap ai4seo-wrap'>";
             echo "</div>";
         echo "</div>";*/
 
-        //echo "<div class='ai4seo-sidebar-version-number'>v" . esc_html(AI4SEO_PLUGIN_VERSION_NUMBER) . "</div>";
+        echo "<div class='ai4seo-sidebar-version-number'>" . ($ai4seo_group == 'a' ? "v" : "") . esc_html(AI4SEO_PLUGIN_VERSION_NUMBER) . "</div>";
 
     echo "</div>";
 
+
     // ___________________________________________________________________________________________ \\
-    // === CONTENT AREA ========================================================================== \\
+    // === OUTPUT: CONTENT AREA ================================================================== \\
     // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
     echo "<div class='tab-content ai4seo-tab-content'>";
 
-        // NOTICES
+        // AI for SEO NOTICES
         echo "<div class='ai4seo-notices-area'>";
-            // AI for SEO errors are added here dynamically
+            // AI for SEO notices are pushed here
         echo "</div>";
 
-        // hide all other errors
+        // hide all other notices
         echo "<div class='ai4seo-hidden-notices-area'>";
             echo "<h1 style='display: none;'>" . esc_html(AI4SEO_PLUGIN_NAME) . "</h1>";
         echo "</div>";
@@ -282,6 +234,7 @@ echo "<div class='wrap ai4seo-wrap'>";
 
         // === DEBUG OPERATIONS ================================================================================= \\
 
+        // GENERATE
         if (isset($_GET["ai4seo_debug_generate_cronjob"]) && $_GET["ai4seo_debug_generate_cronjob"]) {
             $ai4seo_cron_job_status = ai4seo_get_cron_job_status(AI4SEO_BULK_GENERATION_CRON_JOB_NAME);
             $ai4seo_cron_job_status_update_time = ai4seo_get_cron_job_status_update_time(AI4SEO_BULK_GENERATION_CRON_JOB_NAME);
@@ -290,10 +243,12 @@ echo "<div class='wrap ai4seo-wrap'>";
             ai4seo_automated_generation_cron_job(true);
         }
 
+        // ANALYZE
         if (isset($_GET["ai4seo_debug_analyze_cronjob"]) && $_GET["ai4seo_debug_analyze_cronjob"]) {
             ai4seo_analyze_plugin_performance(true);
         }
 
+        // TIDY UP
         if (isset($_GET["ai4seo_tidyup"]) && $_GET["ai4seo_tidyup"]) {
             ai4seo_tidy_up();
 
@@ -307,6 +262,17 @@ echo "<div class='wrap ai4seo-wrap'>";
             echo "</script>";
 
             return;
+        }
+
+        // DEBUG POST CONTENT
+        if (isset($_GET["ai4seo_debug_post_content"]) && $_GET["ai4seo_debug_post_content"] && is_numeric($_GET["ai4seo_debug_post_content"])) {
+            $ai4seo_debug_post_id = absint($_GET["ai4seo_debug_post_content"]);
+            $ai4seo_debug_post_content = ai4seo_get_condensed_post_content_from_database($ai4seo_debug_post_id, true);
+
+            ai4seo_add_post_context($ai4seo_debug_post_id, $ai4seo_debug_post_content);
+
+            echo "<pre>FINAL WITH CONTEXT >" . print_r(htmlspecialchars($ai4seo_debug_post_content), true) . "<</pre>";
+            unset($ai4seo_debug_post_content, $ai4seo_debug_post_id);
         }
 
 
@@ -344,7 +310,7 @@ echo "</div>";
 
 
 // ___________________________________________________________________________________________ \\
-// === MODAL SCHEMAS ========================================================================= \\
+// === OUTPUT: MODAL SCHEMAS ================================================================= \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 // if wp_footer is not called, we need to include the modal schemas file here

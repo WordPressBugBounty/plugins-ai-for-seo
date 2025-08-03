@@ -73,7 +73,7 @@ $ai4seo_is_bulk_generation_checked_phrase = ($ai4seo_is_bulk_generation_activate
 
 // Prepare arguments for the wp-query
 $ai4seo_posts_query_arguments = array(
-    "post_status" => array('publish', 'future', 'private', 'pending'),
+    "post_status" => array('publish', 'future'),
     "post_type" => $ai4seo_post_type,
     "posts_per_page" => 20,
     "orderby" => "ID",

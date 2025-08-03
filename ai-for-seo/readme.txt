@@ -3,8 +3,8 @@ Contributors: spacecodes
 Donate link: https://spa.ce.codes
 Tags: AI, SEO, Metadata, Alt text, Bulk
 Requires at least: 4.7
-Tested up to: 6.8.1
-Stable tag: 2.0.7
+Tested up to: 6.8.2
+Stable tag: 2.1.0
 Requires PHP: 7.4
 License: GPLv2 or later (or compatible)
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -61,7 +61,7 @@ Additionally, when viewing or editing any content, you can click on the *AI for 
 = 🎯 Key Features =
 ✅ **Automated Metadata Generation:** Easily generate and fine-tune SEO metadata for any content on your website.
 ✅ **Automatic Updates:** Automatically generate metadata for new content as it’s created, keeping your SEO up-to-date.
-✅ **Alt Text Generation**: Generate alt text, titles, captions, and descriptions for all images on your website, either directly in the media library or automatically.
+✅ **Alt Text Generation**: Generate alt text, titles, captions, and descriptions for all images on your website (jpg, png, gif, webp or avif), either directly in the media library or automatically.
 ✅ **Progress Tracking**: Monitor the progress of your SEO optimization directly from the plugin's dashboard.
 ✅ **WooCommerce Compatibility:** Effortlessly optimize your WooCommerce product pages to attract more valuable buyers from search engines.
 ✅ **Free Plan Available**: Get started with no credit card required. In addition, we provide you with free daily Credits.
@@ -174,10 +174,10 @@ We currently support Elementor, BeTheme (Muffin-Builder / Be-Builder) and the st
 The free plan renews on a daily basis. You will receive 5 free Credits every day if your balance falls below 100 Credits, allowing you to continue using the basic features of the plugin at no cost.
 
 = What do I need to do to receive the free daily Credits? =
-You don't need to do anything—they'll be automatically added to your account every day. Just make sure the plugin remains active on your website.
+You don't need to do anything—they'll be automatically added to your account every day if your balance falls below 100 Credits. Just make sure the plugin remains active on your website.
 
 = Will I still receive the free daily Credits if I'm on a paid subscription? =
-Yes, you'll continue to receive the free daily Credits even if you're on a paid subscription. These Credits are in addition to those included in your subscription.
+Yes, you'll continue to receive the free daily Credits even if you're on a paid subscription if your balance falls below 100 Credits. These Credits are in addition to those included in your subscription.
 
 = How are Credits consumed in the *AI for SEO* plugin? =
 Credits are consumed when the AI generates metadata or media attributes for your content entries. Each generation costs 5 Credits, regardless of the content's word count or image size.
@@ -217,7 +217,7 @@ Our team will respond as soon as possible to help you retrieve your license key.
 Yes, *AI for SEO* fully supports Multi-Site installations. Simply purchase a subscription on your primary website and use the same license owner and license key across all your sub-sites.
 
 = Can I use my already purchased subscription or Credits Packs on another website? =
-Yes, you can use your existing subscription and Credits Packs on another website. Simply enter the same license holder and the license key on the new website under AI for SEO > Account. You can link any number of websites together. All linked websites share the same pool of Credits and various settings.
+Yes, you can use your existing subscription and Credits Packs on another website. Simply enter the same license holder and the license key on the new website under AI for SEO > Account. You can link any number of websites together. All linked websites share the same pool of Credits and various settings. You can even export and import settings between linked websites using the 'Export/Import Settings' button in the plugin settings.
 
 = Do unused Credits expire at the end of the month? =
 No, any unused Credits will roll over to the next month, allowing you to fully utilize your Credits without losing them at the end of each billing cycle.
@@ -265,6 +265,12 @@ Enable "Include Complete Entries When Overwriting (SEO Autopilot Only)" in the M
 Enable "Include Complete Entries When Overwriting (SEO Autopilot Only)" in the Media Attributes section.
 You can find these options in the plugin settings. This will force the SEO Autopilot to overwrite all existing metadata and media attributes, even if they are already set.
 
+= What can I do if alt text is missing on images? =
+If you notice that alt text is missing on images, it may be due to your theme or other plugins not properly outputting the alt text stored in the database. In such cases, you can enable the 'Render-Level Alt Text Injection' setting in the plugin settings. This feature injects alt text directly at the render level, ensuring that images display the correct alt text and improving accessibility and SEO compliance.
+
+= What is the 'Render-Level Alt Text Injection' setting and why should I use it? =
+The 'Render-Level Alt Text Injection' setting ensures that images on your website always display the correct alt text, even when your theme or other plugins fail to properly output the alt text stored in the database. When enabled, *AI for SEO* will inject alt text directly at the render level, helping to improve accessibility and SEO compliance. This setting is particularly useful if you experience issues with missing alt text on images due to theme or plugin limitations. It is enabled by default and can be found in the plugin settings.
+
 = I see old data in the plugin while generating metadata or media attributes. What can I do? =
 If you notice outdated data appearing while generating metadata or media attributes, try the following steps:
 
@@ -301,6 +307,29 @@ These settings will allow the plugin to regenerate and overwrite metadata and me
 To import all images from the NextGen Gallery into AI for SEO, click the Import button in the Media section. Once imported, you can generate alt text, titles, captions, and descriptions for these images using the plugin. All changes will automatically sync with the NextGen Gallery plugin.
 
 == Changelog ==
+
+= 2.1.0 =
+* Added "Generate with AI" buttons in the media section of the Gutenberg editor, allowing users to generate media attributes directly from the editor.
+* Improved context awareness for pages, posts, and products, especially for content with short text. Ensures AI-generated metadata is more relevant and tailored.
+* Added a setting for render-level alt text injection. This checkbox setting (enabled by default) ensures images always have the correct alt text, even if themes or other mechanisms fail to display it.
+* Added a setting for render-level image title injection. Includes a select input to choose what should be injected as the title attribute: Disabled, Inject image title, Inject alt text (default), Inject caption, or Inject image description.
+* Added a setting to the "SEO Autopilot" modal that allows users to customize the reference time used by the "Generate Metadata for" option. This gives more precise control over how new and old entries are distinguished.
+* Added an "Export/Import" button to the plugin settings, enabling users to export their configuration and import it on another website. Useful for SEO and web agencies managing multiple sites.
+* Added a "Restore Default" button to the plugin settings.
+* Added a "Show/Hide Advanced Settings" toggle in the plugin settings. Some advanced settings are now hidden by default to simplify the interface for most users.
+* Made setting descriptions more concise and user-friendly. Rearranged several settings for improved clarity and usability.
+* Private or pending posts, pages, and attachments are now ignored by the plugin, preventing them from being processed.
+* Improved UX: The AI for SEO sidebar is now sticky on desktop, keeping it visible during page scrolling for easier navigation.
+* Changed how plugin notifications are handled. All notifications are now indicated by a red bubble in the admin menu. Detailed notices can be viewed in the AI for SEO dashboard.
+* Added new notifications:
+  - Insufficient credits balance.
+  - Overview of missing entries to generate.
+  - WPML plugin detected.
+  - SEO Autopilot needing attention.
+  - New major plugin updates.
+  - Ongoing promos and discounts.
+  - And others
+* Bug Fixes & Maintenance: Fixed 17 minor bugs, added 6 quality-of-life improvements, implemented 3 performance optimizations, and 2 security updates.
 
 = 2.0.7 =
 * Bug Fixes & Maintenance: Fixed 7 minor bugs, added 3 quality of life improvements, and implemented security updates.
