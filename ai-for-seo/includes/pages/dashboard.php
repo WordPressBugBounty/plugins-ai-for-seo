@@ -39,11 +39,6 @@ $ai4seo_execute_sooner_button = ai4seo_get_small_button_tag($ai4seo_execute_soon
 
 // === CREDITS BALANCE ======================================================================= \\
 
-// reset credits balance check
-if (isset($_GET["ai4seo_refresh_credits_balance"])) {
-    ai4seo_robhub_api()->reset_last_credit_balance_check();
-}
-
 $ai4seo_current_credits_balance = ai4seo_robhub_api()->get_credits_balance();
 $ai4seo_insufficient_credits_balance = ($ai4seo_current_credits_balance < AI4SEO_MIN_CREDITS_BALANCE);
 
@@ -87,7 +82,7 @@ ai4seo_mark_all_displayable_notifications_as_read();
 // === OUTPUT ================================================================================ \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
-echo "<div class='ai4seo-cards-container'>";
+echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
 
     // === NOTIFICATIONS ================================================================================= \\
 
@@ -109,6 +104,12 @@ echo "<div class='ai4seo-cards-container'>";
 
     echo "<div class='card ai4seo-card ai4seo-fully-centered-card ai4seo-three-column-card' style='padding-bottom: 0;'>";
 
+        // refresh performance analysis button
+        # todo: replace with ajax based reload
+        echo "<div class='ai4seo-top-right-refresh-button-wrapper'>";
+            echo ai4seo_wp_kses(ai4seo_get_small_button_tag("#", "rotate", __("Refresh", "ai-for-seo"), "", "add_force_performance_analysis_parameter_and_reload_page();"));
+        echo "</div>";
+
         // default values
         $ai4seo_chart_values = [
             'done' => ['value' => 0, 'color' => '#00aa00'], // Green
@@ -117,12 +118,12 @@ echo "<div class='ai4seo-cards-container'>";
             'failed' => ['value' => 0, 'color' => '#dc3545'], // Red
         ];
 
-        foreach ($ai4seo_all_supported_post_types AS $ai4seo_supported_post_type) {
-            $ai4seo_this_num_finished_post_ids = $ai4seo_num_finished_posts_by_post_type[$ai4seo_supported_post_type] ?? 0;
-            $ai4seo_this_num_failed_post_ids = $ai4seo_num_failed_posts_by_post_type[$ai4seo_supported_post_type] ?? 0;
-            $ai4seo_this_num_pending_post_ids = $ai4seo_num_pending_posts_by_post_type[$ai4seo_supported_post_type] ?? 0;
-            $ai4seo_this_num_processing_post_ids = $ai4seo_num_processing_posts_by_post_type[$ai4seo_supported_post_type] ?? 0;
-            $ai4seo_this_num_missing_post_ids = $ai4seo_num_missing_posts_by_post_type[$ai4seo_supported_post_type] ?? 0;
+        foreach ($ai4seo_all_supported_post_types AS $ai4seo_this_post_type) {
+            $ai4seo_this_num_finished_post_ids = $ai4seo_num_finished_posts_by_post_type[$ai4seo_this_post_type] ?? 0;
+            $ai4seo_this_num_failed_post_ids = $ai4seo_num_failed_posts_by_post_type[$ai4seo_this_post_type] ?? 0;
+            $ai4seo_this_num_pending_post_ids = $ai4seo_num_pending_posts_by_post_type[$ai4seo_this_post_type] ?? 0;
+            $ai4seo_this_num_processing_post_ids = $ai4seo_num_processing_posts_by_post_type[$ai4seo_this_post_type] ?? 0;
+            $ai4seo_this_num_missing_post_ids = $ai4seo_num_missing_posts_by_post_type[$ai4seo_this_post_type] ?? 0;
 
             //workaround when cron job is not processing -> set pending and processing to 0
             if ($ai4seo_bulk_generation_status != "processing") {
@@ -139,7 +140,7 @@ echo "<div class='ai4seo-cards-container'>";
                 $ai4seo_this_num_missing_post_ids = 0;
             }
 
-            if (in_array($ai4seo_supported_post_type, $ai4seo_active_bulk_generation_post_types)) {
+            if (in_array($ai4seo_this_post_type, $ai4seo_active_bulk_generation_post_types)) {
                 $ai4seo_total_num_pending_posts += $ai4seo_this_num_missing_post_ids;
                 $ai4seo_total_num_pending_posts += $ai4seo_this_num_pending_post_ids;
                 $ai4seo_total_num_pending_posts += $ai4seo_this_num_processing_post_ids;
@@ -165,12 +166,12 @@ echo "<div class='ai4seo-cards-container'>";
             }
 
             // attachment -> media workaround
-            if ($ai4seo_supported_post_type == "attachment") {
-                $ai4seo_supported_post_type = "media files";
+            if ($ai4seo_this_post_type == "attachment") {
+                $ai4seo_this_post_type = "media";
             }
 
-            $ai4seo_supported_post_type_label = ai4seo_get_post_type_translation($ai4seo_supported_post_type, true);
-            $ai4seo_supported_post_type_label = ucfirst($ai4seo_supported_post_type_label);
+            $ai4seo_supported_post_type_label = ai4seo_get_dashicon_tag_for_navigation($ai4seo_this_post_type);
+            $ai4seo_supported_post_type_label .= ucfirst(ai4seo_get_post_type_translation($ai4seo_this_post_type, true));
 
             ai4seo_echo_half_donut_chart_with_headline_and_percentage($ai4seo_supported_post_type_label, $ai4seo_chart_values, $ai4seo_this_num_finished_post_ids, $ai4seo_total_value);
         }
@@ -202,8 +203,8 @@ echo "<div class='ai4seo-cards-container'>";
 
         // refresh credits balance button
         # todo: replace with ajax based reload
-        echo "<div class='ai4seo-refresh-credits-balance-button-wrapper'>";
-            echo ai4seo_wp_kses(ai4seo_get_small_button_tag("#", "rotate", __("Refresh", "ai-for-seo"), "ai4seo-show-credits-used-info", "add_refresh_credits_balance_parameter_and_reload_page();"));
+        echo "<div class='ai4seo-top-right-refresh-button-wrapper'>";
+            echo ai4seo_wp_kses(ai4seo_get_small_button_tag("#", "rotate", __("Refresh", "ai-for-seo"), "", "add_force_sync_account_parameter_and_reload_page();"));
         echo "</div>";
 
         // credits balance
@@ -372,7 +373,7 @@ echo "<div class='ai4seo-cards-container'>";
                 echo "</div>";
 
                 echo "<div class='ai4seo-bulk-generation-status-subtext'>";
-                    echo esc_html__("SEO Autopilot is active and looking for new entries to process. If this status persists for more than five minutes, please review your settings.", "ai-for-seo");
+                    echo esc_html__("SEO Autopilot is active and looking for new entries to process.", "ai-for-seo");
 
                 if ($ai4seo_additional_sub_status_text) {
                     echo " " . ai4seo_wp_kses($ai4seo_additional_sub_status_text);
@@ -444,7 +445,7 @@ echo "<div class='ai4seo-cards-container'>";
         } else {
             echo "<div class='ai4seo-latest-activity-container'>";
             foreach ($ai4seo_latest_activity AS $ai4seo_this_latest_activity_entry) {
-                $ai4seo_this_tab_icon = AI4SEO_TAB_ICONS_BY_POST_TYPE[$ai4seo_this_latest_activity_entry["post_type"] ?? ""] ?? AI4SEO_TAB_ICONS_BY_POST_TYPE['default'];
+                $ai4seo_this_tab_icon = ai4seo_get_dashicon_tag_for_navigation($ai4seo_this_latest_activity_entry["post_type"] ?? "");
 
                 echo "<div class='ai4seo-latest-activity-item'>";
                     echo "<div class='ai4seo-latest-activity-item-icon'>";

@@ -21,6 +21,7 @@ if (!ai4seo_can_manage_this_plugin()) {
 #$ai4seo_preferred_currency = ai4seo_deep_sanitize(ai4seo_get_setting(AI4SEO_SETTING_PREFERRED_CURRENCY));
 $ai4seo_preferred_currency = "USD"; # todo: implement proper currency selection
 $ai4seo_recommended_credits_pack_size = (int) ai4seo_get_recommended_credits_pack_size_by_num_missing_entries();
+$ai4seo_credits_packs = ai4seo_get_credits_packs();
 
 
 // === DISCOUNT ============================================================================= \\
@@ -66,7 +67,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
         $ai4seo_entry_counter = 0;
         $ai4seo_pre_selected_credits_pack_entry = array();
 
-        foreach (AI4SEO_CREDITS_PACKS AS $ai4seo_this_payg_stripe_price_id => $ai4seo_credits_pack_entry) {
+        foreach ($ai4seo_credits_packs AS $ai4seo_this_payg_stripe_price_id => $ai4seo_credits_pack_entry) {
             $ai4seo_entry_counter++;
             $ai4seo_this_credits_amount = (int) $ai4seo_credits_pack_entry["credits_amount"];
             $ai4seo_this_price_usd = $ai4seo_credits_pack_entry["price_usd"];

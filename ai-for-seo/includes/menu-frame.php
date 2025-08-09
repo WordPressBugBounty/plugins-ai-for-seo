@@ -69,7 +69,7 @@ if (isset($_GET["ai4seo-just-purchased"]) || isset($_GET["amp;ai4seo-just-purcha
             // open modal
             ai4seo_open_generic_success_notification_modal(
                 "<?=esc_js(esc_html__("Your Credits may take a moment to appear on your dashboard. To update your Credits balance, please click on 'Refresh'.  Important: Don't forget to check the 'Account' tab to retrieve your license key.", "ai-for-seo"));?>",
-                "<a href='#' class='ai4seo-button' onclick='window.location=\"<?=esc_js(ai4seo_get_admin_url("dashboard", array("ai4seo_refresh_credits_balance" => "true")))?>\"' target='_self'><?=esc_js(esc_html__("Refresh", "ai-for-seo"))?></a>");
+                "<a href='#' class='ai4seo-button' onclick='window.location=\"<?=esc_js(ai4seo_get_admin_url("dashboard", array("ai4seo_force_sync_account" => "true")))?>\"' target='_self'><?=esc_js(esc_html__("Refresh", "ai-for-seo"))?></a>");
         });
     </script><?php
     // ------------------------------------------------------------------------ \\
@@ -136,7 +136,7 @@ echo "<div class='wrap ai4seo-wrap'>";
             foreach ($ai4seo_supported_post_types AS $ai4seo_post_type) {
                 $ai4seo_this_tab_label = ai4seo_get_post_type_translation($ai4seo_post_type, true);
                 $ai4seo_this_tab_label = ai4seo_get_nice_label($ai4seo_this_tab_label);
-                $ai4seo_this_tab_icon = AI4SEO_TAB_ICONS_BY_POST_TYPE[$ai4seo_post_type] ?? AI4SEO_TAB_ICONS_BY_POST_TYPE['default'];
+                $ai4seo_this_tab_icon = ai4seo_get_dashicon_tag_for_navigation($ai4seo_post_type);
                 $ai4seo_is_current_tab = ($ai4seo_current_post_type == $ai4seo_post_type);
                 $ai4seo_this_tab_url = ai4seo_get_post_type_url($ai4seo_post_type);
 
@@ -150,7 +150,7 @@ echo "<div class='wrap ai4seo-wrap'>";
 
             // Media tab
             echo "<a href='" . esc_url($ai4seo_attachment_url) . "' class='nav-tab ai4seo-nav-tab" . ($ai4seo_current_content_tab == "media" ? " nav-tab-active ai4seo-nav-tab-active" : "") . "'>";
-                echo ai4seo_wp_kses(AI4SEO_TAB_ICONS_BY_POST_TYPE["attachment"]);
+                echo ai4seo_wp_kses(ai4seo_get_dashicon_tag_for_navigation("attachment"));
                 echo "<span>";
                     echo esc_html(_n("Media", "Media", 2, "ai-for-seo"));
                 echo "</span>";
@@ -205,11 +205,6 @@ echo "<div class='wrap ai4seo-wrap'>";
     // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
     echo "<div class='tab-content ai4seo-tab-content'>";
-
-        // AI for SEO NOTICES
-        echo "<div class='ai4seo-notices-area'>";
-            // AI for SEO notices are pushed here
-        echo "</div>";
 
         // hide all other notices
         echo "<div class='ai4seo-hidden-notices-area'>";

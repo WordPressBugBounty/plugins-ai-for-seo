@@ -91,10 +91,11 @@ var ai4seo_seo_inputs = {
 
 var ai4seo_content_containers = [
     ".wp-block-post-title", ".editor-post-excerpt__textarea textarea", ".wp-block-paragraph", ".wp-block-post-content", // Gutenberg
-    "header h1.title", ".elementor-widget-container", ".item-preview-content", // Elementor
-    ".mce-content-body", ".mcb-wrap-inner", ".the_content_wrapper", // Be-Builder
     "#titlediv > #titlewrap > input", ".wp-editor-area", ".woocommerce-Tabs-panel", // WooCommerce products
+    "header h1.title", ".item-preview-content", ".elementor-widget-container", // Elementor
+    ".mce-content-body", ".mcb-wrap-inner", ".the_content_wrapper", // Be-Builder
 ];
+
 
 let ai4seo_generate_all_button_selectors = {
     "metadata": [
@@ -937,6 +938,7 @@ function ai4seo_init_countdown(element) {
         if (total_seconds <= 0) {
             clearInterval(interval);
             element.text('00:00:00');
+            time_since_page_load = Math.floor((Date.now() - window.ai4seo_page_load_time) / 1000);
 
             // only trigger the function if we are at least 10 seconds after page load
             if (time_since_page_load >= 10) {
@@ -1576,6 +1578,13 @@ function ai4seo_reload_page_with_parameter(parameter_name, parameter_value) {
 
 // =========================================================================================== \\
 
+function ai4seo_reload_page() {
+    // Reload the page with the current URL
+    window.location.reload();
+}
+
+// =========================================================================================== \\
+
 function ai4seo_is_yoast_element(element_selector) {
     // Check if element is found
     if (!ai4seo_exists(element_selector)) {
@@ -2095,8 +2104,14 @@ function ai4seo_show_element_for_x_time(element, milliseconds = 3000) {
 // === DASHBOARD ============================================================================= \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
-function add_refresh_credits_balance_parameter_and_reload_page() {
-    ai4seo_reload_page_with_parameter("ai4seo_refresh_credits_balance", "true");
+function add_force_sync_account_parameter_and_reload_page() {
+    ai4seo_reload_page_with_parameter("ai4seo_force_sync_account", "true");
+}
+
+// =========================================================================================== \\
+
+function add_force_performance_analysis_parameter_and_reload_page() {
+    ai4seo_reload_page_with_parameter("ai4seo_force_performance_analysis", "true");
 }
 
 // =========================================================================================== \\
@@ -3579,12 +3594,16 @@ function ai4seo_init_notifications() {
         ai4seo_perform_ajax_call('ai4seo_dismiss_notification', {ai4seo_notification_index: notification_index}).catch(error => { /* auto error handler enabled */ });
     });
 
-    // move all .ai4seo-notice to .ai4seo-notices-area
-    // check if .ai4seo-notices-area exists
-    if (ai4seo_exists(".ai4seo-notices-area")) {
-        // move all .ai4seo-notice to .ai4seo-notices-area
+    // move all .ai4seo-notice to beginning of .ai4seo-dashboard, if not already done
+    if (ai4seo_exists(".ai4seo-dashboard")) {
+        // move all .ai4seo-notice to .ai4seo-dashboard
         jQuery(".ai4seo-notice").each(function() {
-            jQuery(this).appendTo(".ai4seo-notices-area");
+            // check if .ai4seo-notice is already inside .ai4seo-dashboard
+            if (ai4seo_exists(jQuery(this).closest(".ai4seo-dashboard"))) {
+                return; // already inside .ai4seo-dashboard, skip
+            }
+
+            jQuery(this).prependTo(".ai4seo-dashboard");
         });
     }
 }
@@ -3891,43 +3910,264 @@ function ai4seo_validate_settings_inputs(input_values) {
 // === AJAX ================================================================================== \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
-function ai4seo_perform_ajax_call(action, data = {}, auto_check_response = true, additional_error_list = {}, show_generic_error = true, add_contact_us_link = true) {
-    // Check action
-    if (!ai4seo_allowed_ajax_actions.includes(action)) {
-        ai4seo_open_generic_error_notification_modal(4317101224);
-        return Promise.reject({
-            error: "Invalid action",
-            code: 4317101224,
-            message: wp.i18n.__("Action not allowed", "ai-for-seo"),
-        });
+/**
+ * Perform a WP-admin AJAX call with robust JSON handling and recoverability.
+ *
+ * @param {string}  action
+ * @param {Object}  data
+ * @param {boolean} auto_check_response
+ * @param {Object}  additional_error_list
+ * @param {boolean} show_generic_error
+ * @param {boolean} add_contact_us_link
+ * @returns {Promise<any>}
+ */
+function ai4seo_perform_ajax_call(
+    action,
+    data = {},
+    auto_check_response = true,
+    additional_error_list = {},
+    show_generic_error = true,
+    add_contact_us_link = true
+) {
+    // 1) Validate the action early
+    const invalid = ai4seo_validate_ajax_action(action);
+
+    if (invalid) {
+        ai4seo_open_generic_error_notification_modal(invalid.code);
+        return Promise.reject(invalid);
     }
 
-    // Ensure data is an object and merge additional fields
-    data = {
+    // 2) Build payload
+    const payload = ai4seo_build_ajax_payload(action, data);
+
+    // 3) Execute request
+    return ai4seo_execute_ajax_request(payload)
+        .then((response) => {
+            // 4) Unified success handling
+            return ai4seo_handle_ajax_success({
+                response,
+                auto_check_response,
+                additional_error_list,
+                show_generic_error,
+                add_contact_us_link,
+            });
+        })
+        .catch((failCtx) => {
+            // 5) Try to recover JSON from non-JSON response
+            const recovered = ai4seo_attempt_recover_json_from_ajax_error(failCtx?.jqXHR);
+
+            if (recovered) {
+                return ai4seo_handle_ajax_success({
+                    response: recovered,
+                    auto_check_response,
+                    additional_error_list,
+                    show_generic_error,
+                    add_contact_us_link,
+                });
+            }
+
+            // 6) If special WP "0" case, log a hint
+            ai4seo_log_special_zero_ajax_error(failCtx?.jqXHR);
+
+            // 7) Standardized error object
+            throw ai4seo_build_standard_ajax_error(failCtx);
+        });
+}
+
+// =========================================================================================== \\
+
+/**
+ * Validate the action against the allowlist.
+ * @param {string} action
+ * @returns {null|{error:string, code:number, message:string}}
+ */
+function ai4seo_validate_ajax_action(action) {
+    if (!Array.isArray(ai4seo_allowed_ajax_actions) || !ai4seo_allowed_ajax_actions.includes(action)) {
+        return {
+            error: "Invalid action",
+            code: 4317101224,
+            message: wp.i18n.__("AJAX action not allowed", "ai-for-seo") + `: ${action}`,
+        };
+    }
+    return null;
+}
+
+// =========================================================================================== \\
+
+/**
+ * Build the AJAX payload including nonce & action.
+ * @param {string} action
+ * @param {Object} data
+ * @returns {Object}
+ */
+function ai4seo_build_ajax_payload(action, data) {
+    return {
         ...(data || {}),
         ai4seo_ajax_nonce: ai4seo_get_ajax_nonce(),
         action: action,
     };
+}
 
-    // Return a Promise for better async handling
+// =========================================================================================== \\
+
+/**
+ * Execute the actual AJAX request (POST JSON to admin-ajax).
+ * Isolated for testability and reuse.
+ * @param {Object} payload
+ * @returns {Promise<any>}
+ */
+function ai4seo_execute_ajax_request(payload) {
     return new Promise((resolve, reject) => {
-        jQuery.post(ai4seo_admin_ajax_url, data)
-            .done(function(response) {
-                if (auto_check_response) {
-                    if (ai4seo_check_response(response, additional_error_list, show_generic_error, add_contact_us_link)) {
-                        resolve(response.data || response);
-                    } else {
-                        reject(response.data || response);
-                    }
-                } else {
-                    resolve(response.data || response);
-                }
+        jQuery
+            .ajax({
+                url: ai4seo_admin_ajax_url,
+                method: "POST",
+                data: payload,
+                dataType: "json", // Force JSON; fail fast if it isn't
+                cache: false,
             })
-            .fail(function(jq_xhr, text_status, error_thrown) {
-                console.error("AJAX Error:", text_status, error_thrown);
-                reject({ error: text_status, code: 4217101224, details: error_thrown });
-            });
+            .done((response) => resolve(response))
+            .fail((jqXHR, textStatus, errorThrown) =>
+                reject({ jqXHR, textStatus, errorThrown })
+            );
     });
+}
+
+// =========================================================================================== \\
+
+/**
+ * Centralized success path (also used by recovered JSON).
+ * Applies optional response checking and normalizes the resolved data.
+ * @param {Object} opts
+ * @param {any}    opts.response
+ * @param {boolean}opts.auto_check_response
+ * @param {Object} opts.additional_error_list
+ * @param {boolean}opts.show_generic_error
+ * @param {boolean}opts.add_contact_us_link
+ * @returns {any|Promise<any>}
+ */
+function ai4seo_handle_ajax_success({
+                                   response,
+                                   auto_check_response,
+                                   additional_error_list,
+                                   show_generic_error,
+                                   add_contact_us_link,
+                               }) {
+    // If auto-checking is disabled, resolve raw (but normalized) data
+    if (!auto_check_response) {
+        return ai4seo_get_normalized_ajax_response_data(response);
+    }
+
+    // Use the existing checker; if it returns true, resolve; else reject
+    if (ai4seo_check_response(response, additional_error_list, show_generic_error, add_contact_us_link)) {
+        return ai4seo_get_normalized_ajax_response_data(response);
+    }
+
+    // Make sure to reject with something useful if check failed
+    const normalized = ai4seo_get_normalized_ajax_response_data(response);
+    const error_object = {
+        error: "invalid_response",
+        code: 4217101225,
+        details: normalized,
+    };
+    return Promise.reject(error_object);
+}
+
+// =========================================================================================== \\
+
+/**
+ * Normalize how we resolve data (WP style `{ success, data }` vs raw).
+ * @param {any} response
+ * @returns {any}
+ */
+function ai4seo_get_normalized_ajax_response_data(response) {
+    if (response && typeof response === "object" && "data" in response) {
+        return response.data;
+    }
+    return response;
+}
+
+// =========================================================================================== \\
+
+/**
+ * Attempt to recover a JSON object from a failed jqXHR responseText.
+ * Trims noise before/after the first/last brace and tries to parse.
+ * @param {jqXHR} jqXHR
+ * @returns {null|Object}
+ */
+function ai4seo_attempt_recover_json_from_ajax_error(jqXHR) {
+    try {
+        const raw =
+            jqXHR && typeof jqXHR.responseText === "string"
+                ? jqXHR.responseText
+                : "";
+
+        if (!raw) return null;
+
+        const first_brace = raw.indexOf("{");
+        const last_brace = raw.lastIndexOf("}");
+        if (first_brace === -1 || last_brace === -1 || last_brace <= first_brace) {
+            return null;
+        }
+
+        const sliced = raw.slice(first_brace, last_brace + 1);
+        const parsed = JSON.parse(sliced);
+
+        // Must be an object to be considered valid recovery
+        if (parsed && typeof parsed === "object") {
+            return parsed;
+        }
+
+        return null;
+    } catch (_) {
+        return null;
+    }
+}
+
+// =========================================================================================== \\
+
+/**
+ * Log special WP "0" case (nonce/auth problem) for easier debugging.
+ * @param {jqXHR} jqXHR
+ */
+function ai4seo_log_special_zero_ajax_error(jqXHR) {
+    const raw =
+        jqXHR && typeof jqXHR.responseText === "string"
+            ? jqXHR.responseText.trim()
+            : "";
+
+    if (raw === "0") {
+        console.warn('AI for SEO: Server responded with "0" (possible nonce/auth issue).');
+    }
+}
+
+// =========================================================================================== \\
+
+/**
+ * Build a consistent, compact error object for callers.
+ * @param {{jqXHR:any, textStatus:string, errorThrown:any}} failCtx
+ * @returns {{error:string, code:number, details:any}}
+ */
+function ai4seo_build_standard_ajax_error(failCtx) {
+    const { jqXHR, textStatus, errorThrown } = failCtx || {};
+    const raw =
+        jqXHR && typeof jqXHR.responseText === "string"
+            ? jqXHR.responseText
+            : "";
+
+    // Helpful console diagnostics, but keep the thrown object concise
+    console.groupCollapsed("[AI4SEO] AJAX Error");
+    console.error("AI for SEO: AJAX Error:", textStatus, errorThrown);
+    if (raw) {
+        console.warn("AI for SEO: Raw response (first 800 chars):\n", raw.slice(0, 800));
+    }
+    console.groupEnd();
+
+    return {
+        error: textStatus || "parsererror",
+        code: 4217101224,
+        details: errorThrown,
+    };
 }
 
 // =========================================================================================== \\

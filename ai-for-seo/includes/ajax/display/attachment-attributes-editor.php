@@ -25,7 +25,7 @@ global $ai4seo_allowed_image_mime_types;
 
 // Make sure that input-fields exist
 if (!defined('AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS')) {
-    ai4seo_return_error_as_json("An error occurred! Please check your settings or contact the plugin developer.", 221920824);
+    ai4seo_send_json_error(esc_html__("An error occurred! Please check your settings or contact the plugin developer.", "ai-for-seo"), 221920824);
 }
 
 // Get sanitized post id parameter
@@ -33,14 +33,14 @@ $ai4seo_this_attachment_post_id = absint($_REQUEST["post_id"] ?? 0);
 
 // validate post id
 if ($ai4seo_this_attachment_post_id <= 0) {
-    ai4seo_return_error_as_json("Post id is invalid.", 291920824);
+    ai4seo_send_json_error(esc_html__("Post id is invalid.", "ai-for-seo"), 291920824);
 }
 
 // get post object
 $ai4seo_this_attachment_post = get_post($ai4seo_this_attachment_post_id);
 
 if (!$ai4seo_this_attachment_post) {
-    ai4seo_return_error_as_json("Attachment Post not found.", 57177525);
+    ai4seo_send_json_error(esc_html__("Attachment Post not found.", "ai-for-seo"), 57177525);
 }
 
 

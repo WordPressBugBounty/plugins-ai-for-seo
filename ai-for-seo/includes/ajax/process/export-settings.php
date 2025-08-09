@@ -28,7 +28,7 @@ $ai4seo_export_data['settings'] = ai4seo_get_all_settings();
 $ai4seo_filename = "ai4seo-settings-" . AI4SEO_PLUGIN_VERSION_NUMBER . ".json";
 
 // Return data for download
-wp_send_json_success(array(
+ai4seo_send_json_success(array(
     'settings_data' => $ai4seo_export_data,
     'filename' => $ai4seo_filename
 ));

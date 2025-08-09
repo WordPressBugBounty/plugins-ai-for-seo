@@ -30,14 +30,14 @@ $ai4seo_import_mode = isset($_REQUEST['ai4seo_import_mode']) && $_REQUEST['ai4se
 $ai4seo_import_categories = isset($_REQUEST['ai4seo_import_categories']) ? ai4seo_deep_sanitize((array) $_REQUEST['ai4seo_import_categories']) : array();
 
 if (!$ai4seo_import_categories) {
-    ai4seo_return_error_as_json("No categories selected for import.", 4196725);
+    ai4seo_send_json_error(esc_html__("No categories selected for import.", "ai-for-seo"), 4196725);
 }
 
 // get new settings to import
 $ai4seo_new_settings_raw = isset($_REQUEST['ai4seo_new_settings']) ? ai4seo_deep_sanitize((array) $_REQUEST['ai4seo_new_settings']) : array();
 
 if (!$ai4seo_new_settings_raw) {
-    ai4seo_return_error_as_json("No settings data provided for import.", 4296725);
+    ai4seo_send_json_error(esc_html__("No settings data provided for import.", "ai-for-seo"), 4296725);
 }
 
 
@@ -100,6 +100,11 @@ $ai4seo_categorized_new_settings = array();
 $ai4seo_got_unknown_category_entries = false;
 
 foreach ($ai4seo_new_settings_raw as $ai4seo_this_setting_name => $ai4seo_this_setting_new_value) {
+    // can't import these settings ->
+    if (in_array($ai4seo_this_setting_name, AI4SEO_NOT_IMPORTABLE_SETTINGS)) {
+        continue;
+    }
+
     $ai4seo_this_setting_category = ai4seo_get_setting_category($ai4seo_this_setting_name);
 
     if (in_array($ai4seo_this_setting_category, $ai4seo_import_categories)) {
@@ -321,11 +326,11 @@ if ($ai4seo_import_mode === 'preview') {
 
 if ($ai4seo_import_mode === 'execute') {
     if (!$ai4seo_we_got_valid_settings) {
-        ai4seo_return_error_as_json("No valid settings found for import.", 8137725);
+        ai4seo_send_json_error(esc_html__("No valid settings found for import.", "ai-for-seo"), 8137725);
     }
 
     if (!$ai4seo_we_got_valid_changes || !$ai4seo_new_and_validated_changes || !is_array($ai4seo_new_and_validated_changes)) {
-        ai4seo_return_error_as_json("No changes detected in the selected settings.", 9137725);
+        ai4seo_send_json_error(esc_html__("No changes detected in the selected settings.", "ai-for-seo"), 9137725);
     }
 
     // prepare $_POST to be used by save-anything function

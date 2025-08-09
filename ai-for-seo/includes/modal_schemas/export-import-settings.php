@@ -59,8 +59,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
         // File
         echo "<div class='ai4seo-form-item'>";
             echo "<label for='ai4seo-import-file'>";
-                echo esc_html__("Select Settings File", "ai-for-seo");
-                echo " (ai4seo-settings-" . esc_html(AI4SEO_PLUGIN_VERSION_NUMBER) . ".json)";
+                echo esc_html__("Select Settings File (e.g. ai4seo-settings-XXX.json)", "ai-for-seo");
             echo "</label>";
             echo "<div class='ai4seo-form-item-input-wrapper'>";
 

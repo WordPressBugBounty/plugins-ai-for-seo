@@ -70,7 +70,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
             $ai4seo_this_supported_post_type_label = ai4seo_get_post_type_translation($ai4seo_this_supported_post_type_label, true);
             $ai4seo_this_supported_post_type_label = ucfirst($ai4seo_this_supported_post_type_label);
             $ai4seo_this_num_missing_posts = $ai4seo_num_missing_posts_by_post_type[$ai4seo_this_supported_post_type] ?? 0;
-            $ai4seo_this_post_type_icon = AI4SEO_TAB_ICONS_BY_POST_TYPE[$ai4seo_this_supported_post_type] ?? AI4SEO_TAB_ICONS_BY_POST_TYPE['default'];
+            $ai4seo_this_post_type_icon = ai4seo_get_dashicon_tag_for_navigation($ai4seo_this_supported_post_type);
             $ai4seo_this_post_type_is_checked = !$ai4seo_is_any_bulk_generation_enabled || in_array($ai4seo_this_supported_post_type, $ai4seo_active_bulk_generation_post_types);
 
             echo "<div class='ai4seo-bulk-generation-modal-checkbox-container ai4seo-checkbox-container'>";

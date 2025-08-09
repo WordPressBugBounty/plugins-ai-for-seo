@@ -28,13 +28,14 @@ $ai4seo_payg_stripe_price_id = ai4seo_deep_sanitize(ai4seo_get_setting(AI4SEO_SE
 $ai4seo_payg_credits_threshold = (int) ai4seo_get_setting(AI4SEO_SETTING_PAYG_CREDITS_THRESHOLD);
 $ai4seo_payg_daily_budget = (float) ai4seo_get_setting(AI4SEO_SETTING_PAYG_DAILY_BUDGET);
 $ai4seo_payg_monthly_budget = (float) ai4seo_get_setting(AI4SEO_SETTING_PAYG_MONTHLY_BUDGET);
+$ai4seo_credits_packs = ai4seo_get_credits_packs();
 
 // default to first entry if not found
-if (!isset(AI4SEO_CREDITS_PACKS[$ai4seo_payg_stripe_price_id])) {
-    $ai4seo_payg_stripe_price_id = array_keys(AI4SEO_CREDITS_PACKS)[0];
+if (!isset($ai4seo_credits_packs[$ai4seo_payg_stripe_price_id])) {
+    $ai4seo_payg_stripe_price_id = array_keys($ai4seo_credits_packs)[0];
 }
 
-$ai4seo_selected_credits_pack_entry = AI4SEO_CREDITS_PACKS[$ai4seo_payg_stripe_price_id];
+$ai4seo_selected_credits_pack_entry = $ai4seo_credits_packs[$ai4seo_payg_stripe_price_id];
 
 $ai4seo_credits_pack_discounted_price = $ai4seo_selected_credits_pack_entry["price_usd"] * (1 - AI4SEO_PAY_AS_YOU_GO_DISCOUNT / 100);
 
@@ -87,7 +88,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
                 echo "<div class='ai4seo-form-item-input-wrapper'>";
                     echo "<select name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' id='" . esc_attr($ai4seo_this_prefixed_input_id) . "' onchange='ai4seo_handle_payg_form_change();'/>";
 
-                    foreach (AI4SEO_CREDITS_PACKS AS $ai4seo_this_payg_stripe_price_id => $ai4seo_this_credits_pack_entry) {
+                    foreach ($ai4seo_credits_packs AS $ai4seo_this_payg_stripe_price_id => $ai4seo_this_credits_pack_entry) {
                         $ai4seo_this_price_usd = $ai4seo_this_credits_pack_entry["price_usd"];
                         $ai4seo_this_discount_price_usd = $ai4seo_this_price_usd * (1 - AI4SEO_PAY_AS_YOU_GO_DISCOUNT / 100);
                         $ai4seo_this_entry_is_pre_selected = $ai4seo_payg_stripe_price_id === $ai4seo_this_payg_stripe_price_id;
@@ -188,7 +189,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
                 echo "<li>";
                     echo sprintf(
                         esc_html__("I will automatically purchase %s Credits for %s whenever my Credits balance falls below %s Credits.", "ai-for-seo"),
-                        "<strong><span id='ai4seo-payg-summary-credits-amount'>" . esc_html(AI4SEO_CREDITS_PACKS[$ai4seo_payg_stripe_price_id]["credits_amount"] ?? 0) . "</span></strong>",
+                        "<strong><span id='ai4seo-payg-summary-credits-amount'>" . esc_html($ai4seo_credits_packs[$ai4seo_payg_stripe_price_id]["credits_amount"] ?? 0) . "</span></strong>",
                         "<span style='text-decoration: line-through; color: #555;'>" . esc_html($ai4seo_preferred_currency) . " <span id='ai4seo-payg-summary-reference-price'>" . esc_html(number_format_i18n($ai4seo_selected_credits_pack_entry["price_usd"], 2)) . "</span></span> " .
                         "<strong>" . esc_html($ai4seo_preferred_currency) . " <span id='ai4seo-payg-summary-price'>" . esc_html(number_format_i18n($ai4seo_credits_pack_discounted_price, 2)) . "</span></strong>",
                         "<strong><span id='ai4seo-payg-summary-threshold'>" . esc_html($ai4seo_payg_credits_threshold) . "</span></strong>",

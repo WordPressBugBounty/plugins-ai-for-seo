@@ -1,5 +1,12 @@
 == Changelog ==
 
+= 2.1.2 =
+* Bug Fixes & Maintenance: Fixed 2 minor bugs, and 2 security updates.
+
+= 2.1.1 =
+* Fixed AJAX requests (Thanks Marcus!)
+* Bug Fixes & Maintenance: Fixed 9 minor bugs, implemented 6 performance optimizations, and 1 security update.
+
 = 2.1.0 =
 * Added "Generate with AI" buttons in the media section of the Gutenberg editor, allowing users to generate media attributes directly from the editor.
 * Improved context awareness for pages, posts, and products, especially for content with short text. Ensures AI-generated metadata is more relevant and tailored.

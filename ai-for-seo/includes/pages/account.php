@@ -9,7 +9,7 @@ if (!defined("ABSPATH")) {
     exit;
 }
 
-global $ai4seo_synced_robhub_client_data;
+$ai4seo_robhub_subscription = ai4seo_robhub_api()->read_environmental_variable(ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION);
 
 // Define boolean to determine whether to read license-data
 $ai4seo_show_license_details = (bool) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_HAS_PURCHASED_SOMETHING);
@@ -44,11 +44,11 @@ $ai4seo_setting_source_code_notes_content_end = stripslashes($ai4seo_setting_sou
 
 $ai4seo_current_credits_balance = ai4seo_robhub_api()->get_credits_balance();
 
-$ai4seo_current_subscription_plan = $ai4seo_synced_robhub_client_data["plan"] ?? "free";
-$ai4seo_current_subscription_end_date_and_time = $ai4seo_synced_robhub_client_data["subscription_end"] ?? false;
-$ai4seo_current_subscription_end_timestamp = $ai4seo_current_subscription_end_date_and_time
-    ? strtotime($ai4seo_current_subscription_end_date_and_time) : 0;
-$ai4seo_user_is_on_free_plan = ($ai4seo_current_subscription_plan == "free") || $ai4seo_current_subscription_end_timestamp < time();
+$ai4seo_robhub_subscription_plan = $ai4seo_robhub_subscription["plan"] ?? "free";
+$ai4seo_robhub_subscription_end_date_and_time = $ai4seo_robhub_subscription["subscription_end"] ?? false;
+$ai4seo_robhub_subscription_end_timestamp = $ai4seo_robhub_subscription_end_date_and_time
+    ? strtotime($ai4seo_robhub_subscription_end_date_and_time) : 0;
+$ai4seo_user_is_on_free_plan = ($ai4seo_robhub_subscription_plan == "free") || $ai4seo_robhub_subscription_end_timestamp < time();
 $ai4seo_has_purchased_something = (bool) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_HAS_PURCHASED_SOMETHING);
 
 

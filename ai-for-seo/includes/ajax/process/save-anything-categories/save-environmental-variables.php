@@ -53,7 +53,10 @@ foreach (AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES as $ai4seo_this_environmental_va
 
     // validate the value value
     if (!ai4seo_validate_environmental_variable_value($ai4seo_this_environmental_variable_name, $ai4seo_this_new_environmental_variable_value)) {
-        ai4seo_return_error_as_json("Invalid environmental variable value for " . $ai4seo_this_environmental_variable_name, 461219225);
+        ai4seo_send_json_error(sprintf(
+            esc_html__("Invalid environmental variable value for %s", "ai-for-seo"),
+            $ai4seo_this_environmental_variable_name
+        ), 461219225);
         wp_die();
     }
 

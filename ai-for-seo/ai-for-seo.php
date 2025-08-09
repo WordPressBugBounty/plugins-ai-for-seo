@@ -3,7 +3,7 @@
 Plugin Name: AI for SEO
 Plugin URI: https://aiforseo.ai
 Description: One-Click SEO solution. "AI for SEO" helps your website to rank higher in Web Search results.
-Version: 2.1.0
+Version: 2.1.2
 Author: spacecodes
 Author URI: https://spa.ce.codes
 Text Domain: ai-for-seo
@@ -15,7 +15,7 @@ if (!defined("ABSPATH")) {
     exit;
 }
 
-const AI4SEO_PLUGIN_VERSION_NUMBER = "2.1.0";
+const AI4SEO_PLUGIN_VERSION_NUMBER = "2.1.2";
 const AI4SEO_PLUGIN_NAME = "AI for SEO";
 const AI4SEO_PLUGIN_DESCRIPTION = 'One-Click SEO solution. "AI for SEO" helps your website to rank higher in Web Search results.';
 const AI4SEO_PLUGIN_IDENTIFIER = "ai-for-seo";
@@ -57,6 +57,7 @@ const AI4SEO_MAX_LATEST_ACTIVITY_LOGS = 10;
 const AI4SEO_BLUE_GET_MORE_CREDITS_BUTTON_THRESHOLD = 250;
 const AI4SEO_NEXTGEN_GALLERY_POST_TYPE = "ai4seo_ngg";
 const AI4SEO_MAX_DISPLAYABLE_ALREADY_READ_NOTIFICATIONS = 2;
+const AI4SEO_ANALYZE_PERFORMANCE_INTERVAL = 7200; // 2h
 const AI4SEO_CRON_JOBS_ENABLED = true; # set to true to enable cron jobs, false to disable them
 
 /**
@@ -65,6 +66,23 @@ const AI4SEO_CRON_JOBS_ENABLED = true; # set to true to enable cron jobs, false 
  */
 function ai4seo_get_change_log(): array {
     return [
+        [
+            'date' => 'August 9th, 2025',
+            'version' => '2.1.2',
+            'important' => false,
+            'updates' => [
+                'Bug Fixes & Maintenance: Fixed 2 minor bugs, and 2 security updates.'
+            ]
+        ],
+        [
+            'date' => 'August 8th, 2025',
+            'version' => '2.1.1',
+            'important' => false,
+            'updates' => [
+                'Fixed AJAX requests (Thanks Marcus!)',
+                'Bug Fixes & Maintenance: Fixed 9 minor bugs, implemented 6 performance optimizations, and 1 security update.'
+            ]
+        ],
         [
             'date' => 'August 3rd, 2025',
             'version' => '2.1.0',
@@ -141,7 +159,7 @@ function ai4seo_get_change_log(): array {
             ]
         ],
         [
-            'date' => '08th April 2025',
+            'date' => '08th April, 2025',
             'version' => '2.0.2',
             'important' => false,
             'updates' => [
@@ -153,7 +171,7 @@ function ai4seo_get_change_log(): array {
             ]
         ],
         [
-            'date' => '20th March 2025',
+            'date' => 'March 20th, 2025',
             'version' => '2.0.0',
             'important' => true,
             'updates' => [
@@ -183,116 +201,115 @@ function ai4seo_get_change_log(): array {
     ];
 }
 
-const AI4SEO_CREDITS_PACKS = array(
-    "price_1QKhvmHNyvfVK0r9Qz70F98V" => array(
-        "credits_amount" => 500,
-        "price_usd" => 9.99,
-        "reference_price_usd" => 9.99,
-        "stripe_product_id" => "prod_RD8C2kl2gPqozh",
-        "stripe_payment_link" => "https://buy.stripe.com/5kA00X7yF5Rc3BK8ww",
-    ),
-    "price_1QKi2RHNyvfVK0r9H6MM8hK4" => array(
-        "credits_amount" => 1500,
-        "price_usd" => 23.99,
-        "reference_price_usd" => 29.97,
-        "stripe_product_id" => "prod_RD8JI7ELrXPSWg",
-        "stripe_payment_link" => "",
-    ),
-    "price_1R4N44HNyvfVK0r9sYtU3g8Y" => array(
-        "credits_amount" => 5000,
-        "price_usd" => 69.99,
-        "reference_price_usd" => 99.90,
-        "stripe_product_id" => "prod_RD8KgysYBIyi2Z",
-        "stripe_payment_link" => "",
-    ),
-    "price_1R4N2vHNyvfVK0r9s3WhZxCl" => array(
-        "credits_amount" => 15000,
-        "price_usd" => 179.00,
-        "reference_price_usd" => 299.70,
-        "stripe_product_id" => "prod_RD8LcGkIHN7O0K",
-        "stripe_payment_link" => "",
-    ),
-    "price_1R4MwkHNyvfVK0r9sgPn4ppM" => array(
-        "credits_amount" => 50000,
-        "price_usd" => 499.00,
-        "reference_price_usd" => 999.00,
-        "stripe_product_id" => "prod_RD8LWAmW1fQ32n",
-        "stripe_payment_link" => "",
-    ),
-);
+/**
+ * Function to return the credits packs available for purchase
+ * @return array[]
+ */
+function ai4seo_get_credits_packs(): array {
+    return array(
+        "price_1QKhvmHNyvfVK0r9Qz70F98V" => array(
+            "credits_amount" => 500,
+            "price_usd" => 9.99,
+            "reference_price_usd" => 9.99,
+            "stripe_product_id" => "prod_RD8C2kl2gPqozh",
+            "stripe_payment_link" => "https://buy.stripe.com/5kA00X7yF5Rc3BK8ww",
+        ),
+        "price_1QKi2RHNyvfVK0r9H6MM8hK4" => array(
+            "credits_amount" => 1500,
+            "price_usd" => 23.99,
+            "reference_price_usd" => 29.97,
+            "stripe_product_id" => "prod_RD8JI7ELrXPSWg",
+            "stripe_payment_link" => "",
+        ),
+        "price_1R4N44HNyvfVK0r9sYtU3g8Y" => array(
+            "credits_amount" => 5000,
+            "price_usd" => 69.99,
+            "reference_price_usd" => 99.90,
+            "stripe_product_id" => "prod_RD8KgysYBIyi2Z",
+            "stripe_payment_link" => "",
+        ),
+        "price_1R4N2vHNyvfVK0r9s3WhZxCl" => array(
+            "credits_amount" => 15000,
+            "price_usd" => 179.00,
+            "reference_price_usd" => 299.70,
+            "stripe_product_id" => "prod_RD8LcGkIHN7O0K",
+            "stripe_payment_link" => "",
+        ),
+        "price_1R4MwkHNyvfVK0r9sgPn4ppM" => array(
+            "credits_amount" => 50000,
+            "price_usd" => 499.00,
+            "reference_price_usd" => 999.00,
+            "stripe_product_id" => "prod_RD8LWAmW1fQ32n",
+            "stripe_payment_link" => "",
+        ),
+    );
+}
 
-const AI4SEO_SVG_ICONS = array(
-    "ai-for-seo-main-menu-icon" => '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 500.000000 500.000000"><g transform="translate(0.000000,500.000000) scale(0.100000,-0.100000)" fill="#000000" stroke="none"><path d="M2145 4755 l7 -245 -843 -2 -844 -3 -3 -827 -2 -828 -230 0 -230 0 0 -345 0 -345 230 0 230 0 2 -22 c1 -13 2 -387 3 -833 l0 -810 838 -3 837 -2 0 -245 0 -245 350 0 350 0 0 245 0 245 840 0 840 0 2 308 c1 169 1 539 0 822 -1 283 1 522 3 530 4 13 38 15 240 12 l235 -3 0 345 0 346 -237 2 -238 3 -3 828 -2 827 -840 0 -840 0 0 245 0 245 -351 0 -351 0 7 -245z m344 -1143 c5 -10 21 -63 35 -118 36 -142 104 -375 110 -382 10 -10 18 6 31 60 8 29 32 125 55 213 24 88 45 174 47 190 3 17 10 36 15 43 8 9 124 12 519 12 401 0 509 -3 509 -12 -1 -7 1 -168 4 -358 4 -251 8 -1595 6 -1902 0 -17 -43 -18 -754 -18 l-754 0 -97 145 c-54 80 -101 145 -104 145 -4 0 -25 -24 -46 -52 -47 -63 -150 -196 -170 -220 -14 -17 -48 -18 -463 -18 -247 0 -451 3 -455 6 -3 3 2 29 13 58 10 28 34 103 55 166 124 393 661 2012 677 2043 8 16 37 17 383 17 351 0 375 -1 384 -18z"/><path d="M1907 3088 c-102 -299 -189 -553 -247 -718 -63 -179 -195 -563 -210 -613 l-9 -28 141 3 141 3 41 125 41 125 296 3 296 2 39 -130 38 -130 143 0 c79 0 143 2 143 4 0 6 -80 240 -115 336 -14 41 -51 143 -80 225 -29 83 -70 195 -90 250 -37 102 -235 667 -235 672 0 2 -65 3 -144 3 l-143 0 -46 -132z m203 -241 c0 -8 43 -143 95 -302 52 -158 95 -294 95 -301 0 -11 -38 -14 -205 -14 -136 0 -205 4 -205 10 0 25 202 620 211 620 5 0 9 -6 9 -13z"/><path d="M3126 2484 c-3 -404 -4 -740 -1 -745 4 -5 67 -9 141 -9 l134 0 0 745 0 745 -133 0 -134 0 -7 -736z"/></g></svg> ',
-    "all-in-one-seo" => '<svg viewBox="0 0 20 20" width="16" height="16" fill="#a7aaad" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M9.98542 19.9708C15.5002 19.9708 19.9708 15.5002 19.9708 9.98542C19.9708 4.47063 15.5002 0 9.98542 0C4.47063 0 0 4.47063 0 9.98542C0 15.5002 4.47063 19.9708 9.98542 19.9708ZM8.39541 3.65464C8.26016 3.4485 8.0096 3.35211 7.77985 3.43327C7.51816 3.52572 7.26218 3.63445 7.01349 3.7588C6.79519 3.86796 6.68566 4.11731 6.73372 4.36049L6.90493 5.22694C6.949 5.44996 6.858 5.6763 6.68522 5.82009C6.41216 6.04734 6.16007 6.30426 5.93421 6.58864C5.79383 6.76539 5.57233 6.85907 5.35361 6.81489L4.50424 6.6433C4.26564 6.5951 4.02157 6.70788 3.91544 6.93121C3.85549 7.05738 3.79889 7.1862 3.74583 7.31758C3.69276 7.44896 3.64397 7.58105 3.59938 7.71369C3.52048 7.94847 3.61579 8.20398 3.81839 8.34133L4.53958 8.83027C4.72529 8.95617 4.81778 9.1819 4.79534 9.40826C4.75925 9.77244 4.76072 10.136 4.79756 10.4936C4.82087 10.7198 4.72915 10.9459 4.54388 11.0724L3.82408 11.5642C3.62205 11.7022 3.52759 11.9579 3.60713 12.1923C3.69774 12.4593 3.8043 12.7205 3.92615 12.9743C4.03313 13.1971 4.27749 13.3088 4.51581 13.2598L5.36495 13.0851C5.5835 13.0401 5.80533 13.133 5.94623 13.3093C6.16893 13.5879 6.42071 13.8451 6.6994 14.0756C6.87261 14.2188 6.96442 14.4448 6.92112 14.668L6.75296 15.5348C6.70572 15.7782 6.81625 16.0273 7.03511 16.1356C7.15876 16.1967 7.285 16.2545 7.41375 16.3086C7.54251 16.3628 7.67196 16.4126 7.80195 16.4581C8.18224 16.5912 8.71449 16.1147 9.108 15.7625C9.30205 15.5888 9.42174 15.343 9.42301 15.0798C9.42301 15.0784 9.42302 15.077 9.42302 15.0756L9.42301 13.6263C9.42301 13.6109 9.4236 13.5957 9.42476 13.5806C8.26248 13.2971 7.39838 12.2301 7.39838 10.9572V9.41823C7.39838 9.30125 7.49131 9.20642 7.60596 9.20642H8.32584V7.6922C8.32584 7.48312 8.49193 7.31364 8.69683 7.31364C8.90171 7.31364 9.06781 7.48312 9.06781 7.6922V9.20642H11.0155V7.6922C11.0155 7.48312 11.1816 7.31364 11.3865 7.31364C11.5914 7.31364 11.7575 7.48312 11.7575 7.6922V9.20642H12.4773C12.592 9.20642 12.6849 9.30125 12.6849 9.41823V10.9572C12.6849 12.2704 11.7653 13.3643 10.5474 13.6051C10.5477 13.6121 10.5478 13.6192 10.5478 13.6263L10.5478 15.0694C10.5478 15.3377 10.6711 15.5879 10.871 15.7622C11.2715 16.1115 11.8129 16.5837 12.191 16.4502C12.4527 16.3577 12.7086 16.249 12.9573 16.1246C13.1756 16.0155 13.2852 15.7661 13.2371 15.5229L13.0659 14.6565C13.0218 14.4334 13.1128 14.2071 13.2856 14.0633C13.5587 13.8361 13.8107 13.5792 14.0366 13.2948C14.177 13.118 14.3985 13.0244 14.6172 13.0685L15.4666 13.2401C15.7052 13.2883 15.9493 13.1756 16.0554 12.9522C16.1153 12.8261 16.1719 12.6972 16.225 12.5659C16.2781 12.4345 16.3269 12.3024 16.3714 12.1698C16.4503 11.935 16.355 11.6795 16.1524 11.5421L15.4312 11.0532C15.2455 10.9273 15.153 10.7015 15.1755 10.4752C15.2116 10.111 15.2101 9.74744 15.1733 9.38986C15.1499 9.16361 15.2417 8.93757 15.4269 8.811L16.1467 8.31927C16.3488 8.18126 16.4432 7.92558 16.3637 7.69115C16.2731 7.42411 16.1665 7.16292 16.0447 6.90915C15.9377 6.68638 15.6933 6.57462 15.455 6.62366L14.6059 6.79837C14.3873 6.84334 14.1655 6.75048 14.0246 6.57418C13.8019 6.29554 13.5501 6.03832 13.2714 5.80784C13.0982 5.6646 13.0064 5.43858 13.0497 5.2154L13.2179 4.34868C13.2651 4.10521 13.1546 3.85616 12.9357 3.74787C12.8121 3.68669 12.6858 3.62895 12.5571 3.5748C12.4283 3.52065 12.2989 3.47086 12.1689 3.42537C11.9388 3.34485 11.6884 3.44211 11.5538 3.64884L11.0746 4.38475C10.9513 4.57425 10.73 4.66862 10.5082 4.64573C10.1513 4.6089 9.79502 4.61039 9.44459 4.64799C9.22286 4.67177 9.00134 4.57818 8.87731 4.38913L8.39541 3.65464Z" fill="#a7aaad" /></svg>',
-    "angle-down" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M201.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L224 306.7 86.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/></svg>',
-    "arrow-right" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M438.6 278.6c12.5-12.5 12.5-32.8 0-45.3l-160-160c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L338.8 224 32 224c-17.7 0-32 14.3-32 32s14.3 32 32 32l306.7 0L233.4 393.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0l160-160z"/></svg>',
-    "arrow-up-right-from-square" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M320 0c-17.7 0-32 14.3-32 32s14.3 32 32 32h82.7L201.4 265.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L448 109.3V192c0 17.7 14.3 32 32 32s32-14.3 32-32V32c0-17.7-14.3-32-32-32H320zM80 32C35.8 32 0 67.8 0 112V432c0 44.2 35.8 80 80 80H400c44.2 0 80-35.8 80-80V320c0-17.7-14.3-32-32-32s-32 14.3-32 32V432c0 8.8-7.2 16-16 16H80c-8.8 0-16-7.2-16-16V112c0-8.8 7.2-16 16-16H192c17.7 0 32-14.3 32-32s-14.3-32-32-32H80z"/></svg>',
-    "bars-sort" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!-- Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64l384 0c17.7 0 32 14.3 32 32s-14.3 32-32 32L32 128C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32l253.44 0c17.7 0 32 14.3 32 32s-14.3 32-32 32L32 288c-17.7 0-32-14.3-32-32zM0 416c0 17.7 14.3 32 32 32l126.72 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L32 384c-17.7 0-32 14.3-32 32z"/></svg>',
-    "betheme" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50"><text x="5" y="40" font-size="60" font-family="Arial Black" font-weight="bold">Be</text></svg>',
-    "bolt" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--!Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M349.4 44.6c5.9-13.7 1.5-29.7-10.6-38.5s-28.6-8-39.9 1.8l-256 224c-10 8.8-13.6 22.9-8.9 35.3S50.7 288 64 288H175.5L98.6 467.4c-5.9 13.7-1.5 29.7 10.6 38.5s28.6 8 39.9-1.8l256-224c10-8.8 13.6-22.9 8.9-35.3s-16.6-20.7-30-20.7H272.5L349.4 44.6z"/></svg>',
-    "caret-down" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--!Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M160 352L0 192h320z"/></svg>',
-    "caret-up" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--!Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M160 160L0 320h320z"/></svg>',
-    "check" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M438.6 105.4c12.5 12.5 12.5 32.8 0 45.3l-256 256c-12.5 12.5-32.8 12.5-45.3 0l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0L160 338.7 393.4 105.4c12.5-12.5 32.8-12.5 45.3 0z"/></svg>',
-    'circle-check' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM369 209L241 337c-9.4 9.4-24.6 9.4-33.9 0l-64-64c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l47 47L335 175c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9z"/></svg>',
-    "circle-plus" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM232 344V280H168c-13.3 0-24-10.7-24-24s10.7-24 24-24h64V168c0-13.3 10.7-24 24-24s24 10.7 24 24v64h64c13.3 0 24 10.7 24 24s-10.7 24-24 24H280v64c0 13.3-10.7 24-24 24s-24-10.7-24-24z"/></svg>',
-    "circle-question" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM169.8 165.3c7.9-22.3 29.1-37.3 52.8-37.3l58.3 0c34.9 0 63.1 28.3 63.1 63.1c0 22.6-12.1 43.5-31.7 54.8L280 264.4c-.2 13-10.9 23.6-24 23.6c-13.3 0-24-10.7-24-24l0-13.5c0-8.6 4.6-16.5 12.1-20.8l44.3-25.4c4.7-2.7 7.6-7.7 7.6-13.1c0-8.4-6.8-15.1-15.1-15.1l-58.3 0c-3.4 0-6.4 2.1-7.5 5.3l-.4 1.2c-4.4 12.5-18.2 19-30.6 14.6s-19-18.2-14.6-30.6l.4-1.2zM224 352a32 32 0 1 1 64 0 32 32 0 1 1 -64 0z"/></svg>',
-    "circle-up" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM135.1 217.4l107.1-99.9c3.8-3.5 8.7-5.5 13.8-5.5s10.1 2 13.8 5.5l107.1 99.9c4.5 4.2 7.1 10.1 7.1 16.3c0 12.3-10 22.3-22.3 22.3H304v96c0 17.7-14.3 32-32 32H240c-17.7 0-32-14.3-32-32V256H150.3C138 256 128 246 128 233.7c0-6.2 2.6-12.1 7.1-16.3z"/></svg>',
-    "circle-xmark" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM175 175c9.4-9.4 24.6-9.4 33.9 0l47 47 47-47c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9l-47 47 47 47c9.4 9.4 9.4 24.6 0 33.9s-24.6 9.4-33.9 0l-47-47-47 47c-9.4 9.4-24.6 9.4-33.9 0s-9.4-24.6 0-33.9l47-47-47-47c-9.4-9.4-9.4-24.6 0-33.9z"/></svg>',
-    "code" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M392.8 1.2c-17-4.9-34.7 5-39.6 22l-128 448c-4.9 17 5 34.7 22 39.6s34.7-5 39.6-22l128-448c4.9-17-5-34.7-22-39.6zm80.6 120.1c-12.5 12.5-12.5 32.8 0 45.3L562.7 256l-89.4 89.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0l112-112c12.5-12.5 12.5-32.8 0-45.3l-112-112c-12.5-12.5-32.8-12.5-45.3 0zm-306.7 0c-12.5-12.5-32.8-12.5-45.3 0l-112 112c-12.5 12.5-12.5 32.8 0 45.3l112 112c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L77.3 256l89.4-89.4c12.5-12.5 12.5-32.8 0-45.3z"/></svg>',
-    "copy" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><!--!Font Awesome Free v7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M288 64C252.7 64 224 92.7 224 128L224 384C224 419.3 252.7 448 288 448L480 448C515.3 448 544 419.3 544 384L544 183.4C544 166 536.9 149.3 524.3 137.2L466.6 81.8C454.7 70.4 438.8 64 422.3 64L288 64zM160 192C124.7 192 96 220.7 96 256L96 512C96 547.3 124.7 576 160 576L352 576C387.3 576 416 547.3 416 512L416 496L352 496L352 512L160 512L160 256L176 256L176 192L160 192z"/></svg>',
-    "download" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M288 32c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 242.7-73.4-73.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l128 128c12.5 12.5 32.8 12.5 45.3 0l128-128c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L288 274.7 288 32zM64 352c-35.3 0-64 28.7-64 64l0 32c0 35.3 28.7 64 64 64l384 0c35.3 0 64-28.7 64-64l0-32c0-35.3-28.7-64-64-64l-101.5 0-45.3 45.3c-25 25-65.5 25-90.5 0L165.5 352 64 352zm368 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48z"/></svg>',
-    "envelope" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M48 64C21.5 64 0 85.5 0 112c0 15.1 7.1 29.3 19.2 38.4L236.8 313.6c11.4 8.5 27 8.5 38.4 0L492.8 150.4c12.1-9.1 19.2-23.3 19.2-38.4c0-26.5-21.5-48-48-48L48 64zM0 176L0 384c0 35.3 28.7 64 64 64l384 0c35.3 0 64-28.7 64-64l0-208L294.4 339.2c-22.8 17.1-54 17.1-76.8 0L0 176z"/></svg>',
-    "eye" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM144 256a144 144 0 1 1 288 0 144 144 0 1 1 -288 0zm144-64c0 35.3-28.7 64-64 64c-7.1 0-13.9-1.2-20.3-3.3c-5.5-1.8-11.9 1.6-11.7 7.4c.3 6.9 1.3 13.8 3.2 20.7c13.7 51.2 66.4 81.6 117.6 67.9s81.6-66.4 67.9-117.6c-11.1-41.5-47.8-69.4-88.6-71.1c-5.8-.2-9.2 6.1-7.4 11.7c2.1 6.4 3.3 13.2 3.3 20.3z"/></svg>',
-    "eye-slash" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c8.4-19.3 10.6-41.4 4.8-63.3c-11.1-41.5-47.8-69.4-88.6-71.1c-5.8-.2-9.2 6.1-7.4 11.7c2.1 6.4 3.3 13.2 3.3 20.3c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zM373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5L373 389.9z"/></svg>',
-    "file-arrow-down" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-288-128 0c-17.7 0-32-14.3-32-32L224 0 64 0zM256 0l0 128 128 0L256 0zM216 232l0 102.1 31-31c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9l-72 72c-9.4 9.4-24.6 9.4-33.9 0l-72-72c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l31 31L168 232c0-13.3 10.7-24 24-24s24 10.7 24 24z"/></svg>',
-    "file-arrow-up" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-288-128 0c-17.7 0-32-14.3-32-32L224 0 64 0zM256 0l0 128 128 0L256 0zM216 408c0 13.3-10.7 24-24 24s-24-10.7-24-24l0-102.1-31 31c-9.4 9.4-24.6 9.4-33.9 0s-9.4-24.6 0-33.9l72-72c9.4-9.4 24.6-9.4 33.9 0l72 72c9.4 9.4 9.4 24.6 0 33.9s-24.6 9.4-33.9 0l-31-31L216 408z"/></svg>',
-    "file-export" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M0 64C0 28.7 28.7 0 64 0L224 0l0 128c0 17.7 14.3 32 32 32l128 0 0 128-168 0c-13.3 0-24 10.7-24 24s10.7 24 24 24l168 0 0 112c0 35.3-28.7 64-64 64L64 512c-35.3 0-64-28.7-64-64L0 64zM384 336l0-48 110.1 0-39-39c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l80 80c9.4 9.4 9.4 24.6 0 33.9l-80 80c-9.4 9.4-24.6 9.4-33.9 0s-9.4-24.6 0-33.9l39-39L384 336zm0-208l-128 0L256 0 384 128z"/></svg>',
-    "gear" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><!--!Font Awesome Free v7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M259.1 73.5C262.1 58.7 275.2 48 290.4 48L350.2 48C365.4 48 378.5 58.7 381.5 73.5L396 143.5C410.1 149.5 423.3 157.2 435.3 166.3L503.1 143.8C517.5 139 533.3 145 540.9 158.2L570.8 210C578.4 223.2 575.7 239.8 564.3 249.9L511 297.3C511.9 304.7 512.3 312.3 512.3 320C512.3 327.7 511.8 335.3 511 342.7L564.4 390.2C575.8 400.3 578.4 417 570.9 430.1L541 481.9C533.4 495 517.6 501.1 503.2 496.3L435.4 473.8C423.3 482.9 410.1 490.5 396.1 496.6L381.7 566.5C378.6 581.4 365.5 592 350.4 592L290.6 592C275.4 592 262.3 581.3 259.3 566.5L244.9 496.6C230.8 490.6 217.7 482.9 205.6 473.8L137.5 496.3C123.1 501.1 107.3 495.1 99.7 481.9L69.8 430.1C62.2 416.9 64.9 400.3 76.3 390.2L129.7 342.7C128.8 335.3 128.4 327.7 128.4 320C128.4 312.3 128.9 304.7 129.7 297.3L76.3 249.8C64.9 239.7 62.3 223 69.8 209.9L99.7 158.1C107.3 144.9 123.1 138.9 137.5 143.7L205.3 166.2C217.4 157.1 230.6 149.5 244.6 143.4L259.1 73.5zM320.3 400C364.5 399.8 400.2 363.9 400 319.7C399.8 275.5 363.9 239.8 319.7 240C275.5 240.2 239.8 276.1 240 320.3C240.2 364.5 276.1 400.2 320.3 400z"/></svg>',
-    "gift" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><!--!Font Awesome Free v7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M385.5 132.8C393.1 119.9 406.9 112 421.8 112L424 112C446.1 112 464 129.9 464 152C464 174.1 446.1 192 424 192L350.7 192L385.5 132.8zM254.5 132.8L289.3 192L216 192C193.9 192 176 174.1 176 152C176 129.9 193.9 112 216 112L218.2 112C233.1 112 247 119.9 254.5 132.8zM344.1 108.5L320 149.5L295.9 108.5C279.7 80.9 250.1 64 218.2 64L216 64C167.4 64 128 103.4 128 152C128 166.4 131.5 180 137.6 192L96 192C78.3 192 64 206.3 64 224L64 256C64 273.7 78.3 288 96 288L544 288C561.7 288 576 273.7 576 256L576 224C576 206.3 561.7 192 544 192L502.4 192C508.5 180 512 166.4 512 152C512 103.4 472.6 64 424 64L421.8 64C389.9 64 360.3 80.9 344.1 108.4zM544 336L344 336L344 544L480 544C515.3 544 544 515.3 544 480L544 336zM296 336L96 336L96 480C96 515.3 124.7 544 160 544L296 544L296 336z"/></svg>',
-    "globe" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M352 256c0 22.2-1.2 43.6-3.3 64l-185.3 0c-2.2-20.4-3.3-41.8-3.3-64s1.2-43.6 3.3-64l185.3 0c2.2 20.4 3.3 41.8 3.3 64zm28.8-64l123.1 0c5.3 20.5 8.1 41.9 8.1 64s-2.8 43.5-8.1 64l-123.1 0c2.1-20.6 3.2-42 3.2-64s-1.1-43.4-3.2-64zm112.6-32l-116.7 0c-10-63.9-29.8-117.4-55.3-151.6c78.3 20.7 142 77.5 171.9 151.6zm-149.1 0l-176.6 0c6.1-36.4 15.5-68.6 27-94.7c10.5-23.6 22.2-40.7 33.5-51.5C239.4 3.2 248.7 0 256 0s16.6 3.2 27.8 13.8c11.3 10.8 23 27.9 33.5 51.5c11.6 26 20.9 58.2 27 94.7zm-209 0L18.6 160C48.6 85.9 112.2 29.1 190.6 8.4C165.1 42.6 145.3 96.1 135.3 160zM8.1 192l123.1 0c-2.1 20.6-3.2 42-3.2 64s1.1 43.4 3.2 64L8.1 320C2.8 299.5 0 278.1 0 256s2.8-43.5 8.1-64zM194.7 446.6c-11.6-26-20.9-58.2-27-94.6l176.6 0c-6.1 36.4-15.5 68.6-27 94.6c-10.5 23.6-22.2 40.7-33.5 51.5C272.6 508.8 263.3 512 256 512s-16.6-3.2-27.8-13.8c-11.3-10.8-23-27.9-33.5-51.5zM135.3 352c10 63.9 29.8 117.4 55.3 151.6C112.2 482.9 48.6 426.1 18.6 352l116.7 0zm358.1 0c-30 74.1-93.6 130.9-171.9 151.6c25.5-34.2 45.2-87.7 55.3-151.6l116.7 0z"/></svg>',
-    "handshake" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M323.4 85.2l-96.8 78.4c-16.1 13-19.2 36.4-7 53.1c12.9 17.8 38 21.3 55.3 7.8l99.3-77.2c7-5.4 17-4.2 22.5 2.8s4.2 17-2.8 22.5l-20.9 16.2L512 316.8 512 128l-.7 0-3.9-2.5L434.8 79c-15.3-9.8-33.2-15-51.4-15c-21.8 0-43 7.5-60 21.2zm22.8 124.4l-51.7 40.2C263 274.4 217.3 268 193.7 235.6c-22.2-30.5-16.6-73.1 12.7-96.8l83.2-67.3c-11.6-4.9-24.1-7.4-36.8-7.4C234 64 215.7 69.6 200 80l-72 48 0 224 28.2 0 91.4 83.4c19.6 17.9 49.9 16.5 67.8-3.1c5.5-6.1 9.2-13.2 11.1-20.6l17 15.6c19.5 17.9 49.9 16.6 67.8-2.9c4.5-4.9 7.8-10.6 9.9-16.5c19.4 13 45.8 10.3 62.1-7.5c17.9-19.5 16.6-49.9-2.9-67.8l-134.2-123zM16 128c-8.8 0-16 7.2-16 16L0 352c0 17.7 14.3 32 32 32l32 0c17.7 0 32-14.3 32-32l0-224-80 0zM48 320a16 16 0 1 1 0 32 16 16 0 1 1 0-32zM544 128l0 224c0 17.7 14.3 32 32 32l32 0c17.7 0 32-14.3 32-32l0-208c0-8.8-7.2-16-16-16l-80 0zm32 208a16 16 0 1 1 32 0 16 16 0 1 1 -32 0z"/></svg>',
-    "headline" => '<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" rx="15" ry="15"/><rect x="15" y="20" width="40" height="10" rx="5" ry="5" fill="#ffffff"/><rect x="60" y="20" width="20" height="10" rx="5" ry="5" fill="#ffffff"/></svg>',
-    'image' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M0 96C0 60.7 28.7 32 64 32l384 0c35.3 0 64 28.7 64 64l0 320c0 35.3-28.7 64-64 64L64 480c-35.3 0-64-28.7-64-64L0 96zM323.8 202.5c-4.5-6.6-11.9-10.5-19.8-10.5s-15.4 3.9-19.8 10.5l-87 127.6L170.7 297c-4.6-5.7-11.5-9-18.7-9s-14.2 3.3-18.7 9l-64 80c-5.8 7.2-6.9 17.1-2.9 25.4s12.4 13.6 21.6 13.6l96 0 32 0 208 0c8.9 0 17.1-4.9 21.2-12.8s3.6-17.4-1.4-24.7l-120-176zM112 192a48 48 0 1 0 0-96 48 48 0 1 0 0 96z"/></svg>',
-    'image-slash' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M0 96C0 60.7 28.7 32 64 32l384 0c35.3 0 64 28.7 64 64l0 320c0 35.3-28.7 64-64 64L64 480c-35.3 0-64-28.7-64-64L0 96zM323.8 202.5c-4.5-6.6-11.9-10.5-19.8-10.5s-15.4 3.9-19.8 10.5l-87 127.6L170.7 297c-4.6-5.7-11.5-9-18.7-9s-14.2 3.3-18.7 9l-64 80c-5.8 7.2-6.9 17.1-2.9 25.4s12.4 13.6 21.6 13.6l96 0 32 0 208 0c8.9 0 17.1-4.9 21.2-12.8s3.6-17.4-1.4-24.7l-120-176zM112 192a48 48 0 1 0 0-96 48 48 0 1 0 0 96z"/><line x1="0" y1="0" x2="512" y2="512" stroke="black" stroke-width="32" /></svg>',
-    'key' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M336 352c97.2 0 176-78.8 176-176S433.2 0 336 0S160 78.8 160 176c0 18.7 2.9 36.8 8.3 53.7L7 391c-4.5 4.5-7 10.6-7 17l0 80c0 13.3 10.7 24 24 24l80 0c13.3 0 24-10.7 24-24l0-40 40 0c13.3 0 24-10.7 24-24l0-40 40 0c6.4 0 12.5-2.5 17-7l33.3-33.3c16.9 5.4 35 8.3 53.7 8.3zM376 96a40 40 0 1 1 0 80 40 40 0 1 1 0-80z"/></svg>',
-    'list' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M40 48C26.7 48 16 58.7 16 72l0 48c0 13.3 10.7 24 24 24l48 0c13.3 0 24-10.7 24-24l0-48c0-13.3-10.7-24-24-24L40 48zM192 64c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L192 64zm0 160c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-288 0zm0 160c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-288 0zM16 232l0 48c0 13.3 10.7 24 24 24l48 0c13.3 0 24-10.7 24-24l0-48c0-13.3-10.7-24-24-24l-48 0c-13.3 0-24 10.7-24 24zM40 368c-13.3 0-24 10.7-24 24l0 48c0 13.3 10.7 24 24 24l48 0c13.3 0 24-10.7 24-24l0-48c0-13.3-10.7-24-24-24l-48 0z"/></svg>',
-    "magnifying-glass" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"/></svg> ',
-    "rank-math" => '<svg viewBox="0 0 462.03 462.03" xmlns="http://www.w3.org/2000/svg" width="20"><g fill="#a7aaad"><path d="m462 234.84-76.17 3.43 13.43 21-127 81.18-126-52.93-146.26 60.97 10.14 24.34 136.1-56.71 128.57 54 138.69-88.61 13.43 21z"/><path d="m54.1 312.78 92.18-38.41 4.49 1.89v-54.58h-96.67zm210.9-223.57v235.05l7.26 3 89.43-57.05v-181zm-105.44 190.79 96.67 40.62v-165.19h-96.67z"/></g></svg>',
-    "robot" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M320 0c17.7 0 32 14.3 32 32l0 64 120 0c39.8 0 72 32.2 72 72l0 272c0 39.8-32.2 72-72 72l-304 0c-39.8 0-72-32.2-72-72l0-272c0-39.8 32.2-72 72-72l120 0 0-64c0-17.7 14.3-32 32-32zM208 384c-8.8 0-16 7.2-16 16s7.2 16 16 16l32 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-32 0zm96 0c-8.8 0-16 7.2-16 16s7.2 16 16 16l32 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-32 0zm96 0c-8.8 0-16 7.2-16 16s7.2 16 16 16l32 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-32 0zM264 256a40 40 0 1 0 -80 0 40 40 0 1 0 80 0zm152 40a40 40 0 1 0 0-80 40 40 0 1 0 0 80zM48 224l16 0 0 192-16 0c-26.5 0-48-21.5-48-48l0-96c0-26.5 21.5-48 48-48zm544 0c26.5 0 48 21.5 48 48l0 96c0 26.5-21.5 48-48 48l-16 0 0-192 16 0z"/></svg>',
-    "rotate" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M142.9 142.9c-17.5 17.5-30.1 38-37.8 59.8c-5.9 16.7-24.2 25.4-40.8 19.5s-25.4-24.2-19.5-40.8C55.6 150.7 73.2 122 97.6 97.6c87.2-87.2 228.3-87.5 315.8-1L455 55c6.9-6.9 17.2-8.9 26.2-5.2s14.8 12.5 14.8 22.2l0 128c0 13.3-10.7 24-24 24l-8.4 0c0 0 0 0 0 0L344 224c-9.7 0-18.5-5.8-22.2-14.8s-1.7-19.3 5.2-26.2l41.1-41.1c-62.6-61.5-163.1-61.2-225.3 1zM16 312c0-13.3 10.7-24 24-24l7.6 0 .7 0L168 288c9.7 0 18.5 5.8 22.2 14.8s1.7 19.3-5.2 26.2l-41.1 41.1c62.6 61.5 163.1 61.2 225.3-1c17.5-17.5 30.1-38 37.8-59.8c5.9-16.7 24.2-25.4 40.8-19.5s25.4 24.2 19.5 40.8c-10.8 30.6-28.4 59.3-52.9 83.8c-87.2 87.2-228.3 87.5-315.8 1L57 457c-6.9 6.9-17.2 8.9-26.2 5.2S16 449.7 16 440l0-119.6 0-.7 0-7.6z"/></svg>',
-    "pen-to-square" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Pro 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2023 Fonticons, Inc. --><defs><style>.fa-secondary{opacity:.4}</style></defs><path class="fa-primary" d="M392.4 21.7L362.3 51.7l97.9 97.9 30.1-30.1c21.9-21.9 21.9-57.3 0-79.2L471.6 21.7c-21.9-21.9-57.3-21.9-79.2 0zM339.7 74.3L172.4 241.7c-6.1 6.1-10.8 13.6-13.5 21.9l-29.6 88.8c-2.9 8.6-.6 18.1 5.8 24.6s15.9 8.7 24.6 5.8l88.8-29.6c8.2-2.7 15.7-7.4 21.9-13.5L437.7 172.3 339.7 74.3z"/><path class="fa-secondary" d="M0 160c0-53 43-96 96-96h96c17.7 0 32 14.3 32 32s-14.3 32-32 32H96c-17.7 0-32 14.3-32 32V416c0 17.7 14.3 32 32 32H352c17.7 0 32-14.3 32-32V320c0-17.7 14.3-32 32-32s32 14.3 32 32v96c0 53-43 96-96 96H96c-53 0-96-43-96-96V160z"/></svg>',
-    "rocket" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M156.6 384.9L125.7 354c-8.5-8.5-11.5-20.8-7.7-32.2c3-8.9 7-20.5 11.8-33.8L24 288c-8.6 0-16.6-4.6-20.9-12.1s-4.2-16.7 .2-24.1l52.5-88.5c13-21.9 36.5-35.3 61.9-35.3l82.3 0c2.4-4 4.8-7.7 7.2-11.3C289.1-4.1 411.1-8.1 483.9 5.3c11.6 2.1 20.6 11.2 22.8 22.8c13.4 72.9 9.3 194.8-111.4 276.7c-3.5 2.4-7.3 4.8-11.3 7.2l0 82.3c0 25.4-13.4 49-35.3 61.9l-88.5 52.5c-7.4 4.4-16.6 4.5-24.1 .2s-12.1-12.2-12.1-20.9l0-107.2c-14.1 4.9-26.4 8.9-35.7 11.9c-11.2 3.6-23.4 .5-31.8-7.8zM384 168a40 40 0 1 0 0-80 40 40 0 1 0 0 80z"/></svg>',
-    "rocket-chat" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M284 224.8a34.1 34.1 0 1 0 34.3 34.1A34.2 34.2 0 0 0 284 224.8zm-110.5 0a34.1 34.1 0 1 0 34.3 34.1A34.2 34.2 0 0 0 173.6 224.8zm220.9 0a34.1 34.1 0 1 0 34.3 34.1A34.2 34.2 0 0 0 394.5 224.8zm153.8-55.3c-15.5-24.2-37.3-45.6-64.7-63.6-52.9-34.8-122.4-54-195.7-54a406 406 0 0 0 -72 6.4 238.5 238.5 0 0 0 -49.5-36.6C99.7-11.7 40.9 .7 11.1 11.4A14.3 14.3 0 0 0 5.6 34.8C26.5 56.5 61.2 99.3 52.7 138.3c-33.1 33.9-51.1 74.8-51.1 117.3 0 43.4 18 84.2 51.1 118.1 8.5 39-26.2 81.8-47.1 103.5a14.3 14.3 0 0 0 5.6 23.3c29.7 10.7 88.5 23.1 155.3-10.2a238.7 238.7 0 0 0 49.5-36.6A406 406 0 0 0 288 460.1c73.3 0 142.8-19.2 195.7-54 27.4-18 49.1-39.4 64.7-63.6 17.3-26.9 26.1-55.9 26.1-86.1C574.4 225.4 565.6 196.4 548.3 169.5zM285 409.9a345.7 345.7 0 0 1 -89.4-11.5l-20.1 19.4a184.4 184.4 0 0 1 -37.1 27.6 145.8 145.8 0 0 1 -52.5 14.9c1-1.8 1.9-3.6 2.8-5.4q30.3-55.7 16.3-100.1c-33-26-52.8-59.2-52.8-95.4 0-83.1 104.3-150.5 232.8-150.5s232.9 67.4 232.9 150.5C517.9 342.5 413.6 409.9 285 409.9z"/></svg>',
-    "seopress" => '<svg id="uuid-4f6a8a41-18e3-4f77-b5a9-4b1b38aa2dc9" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 899.655 494.3094"><path id="uuid-a155c1ca-d868-4653-8477-8dd87240a765" d="M327.3849,435.128l-299.9999-.2497c-16.2735,1.1937-28.4981,15.3538-27.3044,31.6273,1.0719,14.6128,12.6916,26.2325,27.3044,27.3044l299.9999,.2497c16.2735-1.1937,28.4981-15.3538,27.3044-31.6273-1.0718-14.6128-12.6916-26.2325-27.3044-27.3044Z" style="fill:#fff"/><path id="uuid-e30ba4c6-4769-466b-a03a-e644c5198e56" d="M27.3849,58.9317l299.9999,.2497c16.2735-1.1937,28.4981-15.3537,27.3044-31.6273-1.0718-14.6128-12.6916-26.2325-27.3044-27.3044L27.3849,0C11.1114,1.1937-1.1132,15.3537,.0805,31.6273c1.0719,14.6128,12.6916,26.2325,27.3044,27.3044Z" style="fill:#fff"/><path id="uuid-2bbd52d6-aec1-4689-9d4c-23c35d4f22b8" d="M652.485,.2849c-124.9388,.064-230.1554,93.4132-245.1001,217.455H27.3849c-16.2735,1.1937-28.4981,15.3537-27.3044,31.6272,1.0719,14.6128,12.6916,26.2325,27.3044,27.3044H407.3849c16.2298,135.4454,139.187,232.0888,274.6323,215.8589,135.4455-16.2298,232.0888-139.1869,215.8589-274.6324C882.9921,93.6834,777.5884,.2112,652.485,.2849Zm0,433.4217c-102.9754,0-186.4533-83.478-186.4533-186.4533,0-102.9753,83.4781-186.4533,186.4533-186.4533,102.9754,0,186.4533,83.478,186.4533,186.4533,.0524,102.9753-83.383,186.4959-186.3583,186.5483-.0316,0-.0634,0-.0951,0v-.095Z" style="fill:#fff"/></svg>',
-    "shopping-cart" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M0 24C0 10.7 10.7 0 24 0L69.5 0c22 0 41.5 12.8 50.6 32l411 0c26.3 0 45.5 25 38.6 50.4l-41 152.3c-8.5 31.4-37 53.3-69.5 53.3l-288.5 0 5.4 28.5c2.2 11.3 12.1 19.5 23.6 19.5L488 336c13.3 0 24 10.7 24 24s-10.7 24-24 24l-288.3 0c-34.6 0-64.3-24.6-70.7-58.5L77.4 54.5c-.7-3.8-4-6.5-7.9-6.5L24 48C10.7 48 0 37.3 0 24zM128 464a48 48 0 1 1 96 0 48 48 0 1 1 -96 0zm336-48a48 48 0 1 1 0 96 48 48 0 1 1 0-96z"/></svg>',
-    "square-check" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-320c0-35.3-28.7-64-64-64L64 32zM337 209L209 337c-9.4 9.4-24.6 9.4-33.9 0l-64-64c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l47 47L303 175c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9z"/></svg>',
-    "square-facebook" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M64 32C28.7 32 0 60.7 0 96V416c0 35.3 28.7 64 64 64h98.2V334.2H109.4V256h52.8V222.3c0-87.1 39.4-127.5 125-127.5c16.2 0 44.2 3.2 55.7 6.4V172c-6-.6-16.5-1-29.6-1c-42 0-58.2 15.9-58.2 57.2V256h83.6l-14.4 78.2H255V480H384c35.3 0 64-28.7 64-64V96c0-35.3-28.7-64-64-64H64z"/></svg>',
-    "square-twitter-x" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M64 32C28.7 32 0 60.7 0 96V416c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V96c0-35.3-28.7-64-64-64H64zm297.1 84L257.3 234.6 379.4 396H283.8L209 298.1 123.3 396H75.8l111-126.9L69.7 116h98l67.7 89.5L313.6 116h47.5zM323.3 367.6L153.4 142.9H125.1L296.9 367.6h26.3z"/></svg>',
-    "square-xmark" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--!Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M64 32C28.7 32 0 60.7 0 96V416c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V96c0-35.3-28.7-64-64-64H64zm79 143c9.4-9.4 24.6-9.4 33.9 0l47 47 47-47c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9l-47 47 47 47c9.4 9.4 9.4 24.6 0 33.9s-24.6 9.4-33.9 0l-47-47-47 47c-9.4 9.4-24.6 9.4-33.9 0s-9.4-24.6 0-33.9l47-47-47-47c-9.4-9.4-9.4-24.6 0-33.9z"/></svg>',
-    "star" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M316.9 18C311.6 7 300.4 0 288.1 0s-23.4 7-28.8 18L195 150.3 51.4 171.5c-12 1.8-22 10.2-25.7 21.7s-.7 24.2 7.9 32.7L137.8 329 113.2 474.7c-2 12 3 24.2 12.9 31.3s23 8 33.8 2.3l128.3-68.5 128.3 68.5c10.8 5.7 23.9 4.9 33.8-2.3s14.9-19.3 12.9-31.3L438.5 329 542.7 225.9c8.6-8.5 11.7-21.2 7.9-32.7s-13.7-19.9-25.7-21.7L381.2 150.3 316.9 18z"/></svg>',
-    "stripe" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M492.4 220.8c-8.9 0-18.7 6.7-18.7 22.7h36.7c0-16-9.3-22.7-18-22.7zM375 223.4c-8.2 0-13.3 2.9-17 7l.2 52.8c3.5 3.7 8.5 6.7 16.8 6.7 13.1 0 21.9-14.3 21.9-33.4 0-18.6-9-33.2-21.9-33.1zM528 32H48C21.5 32 0 53.5 0 80v352c0 26.5 21.5 48 48 48h480c26.5 0 48-21.5 48-48V80c0-26.5-21.5-48-48-48zM122.2 281.1c0 25.6-20.3 40.1-49.9 40.3-12.2 0-25.6-2.4-38.8-8.1v-33.9c12 6.4 27.1 11.3 38.9 11.3 7.9 0 13.6-2.1 13.6-8.7 0-17-54-10.6-54-49.9 0-25.2 19.2-40.2 48-40.2 11.8 0 23.5 1.8 35.3 6.5v33.4c-10.8-5.8-24.5-9.1-35.3-9.1-7.5 0-12.1 2.2-12.1 7.7 0 16 54.3 8.4 54.3 50.7zm68.8-56.6h-27V275c0 20.9 22.5 14.4 27 12.6v28.9c-4.7 2.6-13.3 4.7-24.9 4.7-21.1 0-36.9-15.5-36.9-36.5l.2-113.9 34.7-7.4v30.8H191zm74 2.4c-4.5-1.5-18.7-3.6-27.1 7.4v84.4h-35.5V194.2h30.7l2.2 10.5c8.3-15.3 24.9-12.2 29.6-10.5h.1zm44.1 91.8h-35.7V194.2h35.7zm0-142.9l-35.7 7.6v-28.9l35.7-7.6zm74.1 145.5c-12.4 0-20-5.3-25.1-9l-.1 40.2-35.5 7.5V194.2h31.3l1.8 8.8c4.9-4.5 13.9-11.1 27.8-11.1 24.9 0 48.4 22.5 48.4 63.8 0 45.1-23.2 65.5-48.6 65.6zm160.4-51.5h-69.5c1.6 16.6 13.8 21.5 27.6 21.5 14.1 0 25.2-3 34.9-7.9V312c-9.7 5.3-22.4 9.2-39.4 9.2-34.6 0-58.8-21.7-58.8-64.5 0-36.2 20.5-64.9 54.3-64.9 33.7 0 51.3 28.7 51.3 65.1 0 3.5-.3 10.9-.4 12.9z"/></svg>',
-    "subtitle" => '<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" rx="15" ry="15"/><rect x="15" y="70" width="40" height="10" rx="5" ry="5" fill="#ffffff"/><rect x="60" y="70" width="20" height="10" rx="5" ry="5" fill="#ffffff"/></svg>',
-    "subtitles" => '<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" rx="15" ry="15"/><rect x="15" y="50" width="30" height="10" rx="5" ry="5" fill="#ffffff"/><rect x="55" y="50" width="30" height="10" rx="5" ry="5" fill="#ffffff"/><rect x="15" y="70" width="40" height="10" rx="5" ry="5" fill="#ffffff"/><rect x="60" y="70" width="20" height="10" rx="5" ry="5" fill="#ffffff"/></svg>',
-    "triangle-exclamation" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M256 32c14.2 0 27.3 7.5 34.5 19.8l216 368c7.3 12.4 7.3 27.7 .2 40.1S486.3 480 472 480H40c-14.3 0-27.6-7.7-34.7-20.1s-7-27.8 .2-40.1l216-368C228.7 39.5 241.8 32 256 32zm0 128c-13.3 0-24 10.7-24 24V296c0 13.3 10.7 24 24 24s24-10.7 24-24V184c0-13.3-10.7-24-24-24zm32 224a32 32 0 1 0 -64 0 32 32 0 1 0 64 0z"/></svg>',
-    "xmark" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Pro 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2023 Fonticons, Inc. --><defs><style>.fa-secondary{opacity:.4}</style></defs><path class="fa-secondary" d="M297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6z"/></svg>',
-    "yoast" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M91.3 76h186l-7 18.9h-179c-39.7 0-71.9 31.6-71.9 70.3v205.4c0 35.4 24.9 70.3 84 70.3V460H91.3C41.2 460 0 419.8 0 370.5V165.2C0 115.9 40.7 76 91.3 76zm229.1-56h66.5C243.1 398.1 241.2 418.9 202.2 459.3c-20.8 21.6-49.3 31.7-78.3 32.7v-51.1c49.2-7.7 64.6-49.9 64.6-75.3 0-20.1 .6-12.6-82.1-223.2h61.4L218.2 299 320.4 20zM448 161.5V460H234c6.6-9.6 10.7-16.3 12.1-19.4h182.5V161.5c0-32.5-17.1-51.9-48.2-62.9l6.7-17.6c41.7 13.6 60.9 43.1 60.9 80.5z"/></svg>',
-);
+/**
+ * function to get the SVG icons used in the plugin
+ * @return string[] associative array with icon names as keys and SVG strings as values
+ */
+function ai4seo_get_svg_tags(): array {
+    return array(
+        "ai-for-seo-main-menu-icon" => '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 500.000000 500.000000"><g transform="translate(0.000000,500.000000) scale(0.100000,-0.100000)" fill="#000000" stroke="none"><path d="M2145 4755 l7 -245 -843 -2 -844 -3 -3 -827 -2 -828 -230 0 -230 0 0 -345 0 -345 230 0 230 0 2 -22 c1 -13 2 -387 3 -833 l0 -810 838 -3 837 -2 0 -245 0 -245 350 0 350 0 0 245 0 245 840 0 840 0 2 308 c1 169 1 539 0 822 -1 283 1 522 3 530 4 13 38 15 240 12 l235 -3 0 345 0 346 -237 2 -238 3 -3 828 -2 827 -840 0 -840 0 0 245 0 245 -351 0 -351 0 7 -245z m344 -1143 c5 -10 21 -63 35 -118 36 -142 104 -375 110 -382 10 -10 18 6 31 60 8 29 32 125 55 213 24 88 45 174 47 190 3 17 10 36 15 43 8 9 124 12 519 12 401 0 509 -3 509 -12 -1 -7 1 -168 4 -358 4 -251 8 -1595 6 -1902 0 -17 -43 -18 -754 -18 l-754 0 -97 145 c-54 80 -101 145 -104 145 -4 0 -25 -24 -46 -52 -47 -63 -150 -196 -170 -220 -14 -17 -48 -18 -463 -18 -247 0 -451 3 -455 6 -3 3 2 29 13 58 10 28 34 103 55 166 124 393 661 2012 677 2043 8 16 37 17 383 17 351 0 375 -1 384 -18z"/><path d="M1907 3088 c-102 -299 -189 -553 -247 -718 -63 -179 -195 -563 -210 -613 l-9 -28 141 3 141 3 41 125 41 125 296 3 296 2 39 -130 38 -130 143 0 c79 0 143 2 143 4 0 6 -80 240 -115 336 -14 41 -51 143 -80 225 -29 83 -70 195 -90 250 -37 102 -235 667 -235 672 0 2 -65 3 -144 3 l-143 0 -46 -132z m203 -241 c0 -8 43 -143 95 -302 52 -158 95 -294 95 -301 0 -11 -38 -14 -205 -14 -136 0 -205 4 -205 10 0 25 202 620 211 620 5 0 9 -6 9 -13z"/><path d="M3126 2484 c-3 -404 -4 -740 -1 -745 4 -5 67 -9 141 -9 l134 0 0 745 0 745 -133 0 -134 0 -7 -736z"/></g></svg> ',
+        "all-in-one-seo" => '<svg viewBox="0 0 20 20" width="16" height="16" fill="#a7aaad" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M9.98542 19.9708C15.5002 19.9708 19.9708 15.5002 19.9708 9.98542C19.9708 4.47063 15.5002 0 9.98542 0C4.47063 0 0 4.47063 0 9.98542C0 15.5002 4.47063 19.9708 9.98542 19.9708ZM8.39541 3.65464C8.26016 3.4485 8.0096 3.35211 7.77985 3.43327C7.51816 3.52572 7.26218 3.63445 7.01349 3.7588C6.79519 3.86796 6.68566 4.11731 6.73372 4.36049L6.90493 5.22694C6.949 5.44996 6.858 5.6763 6.68522 5.82009C6.41216 6.04734 6.16007 6.30426 5.93421 6.58864C5.79383 6.76539 5.57233 6.85907 5.35361 6.81489L4.50424 6.6433C4.26564 6.5951 4.02157 6.70788 3.91544 6.93121C3.85549 7.05738 3.79889 7.1862 3.74583 7.31758C3.69276 7.44896 3.64397 7.58105 3.59938 7.71369C3.52048 7.94847 3.61579 8.20398 3.81839 8.34133L4.53958 8.83027C4.72529 8.95617 4.81778 9.1819 4.79534 9.40826C4.75925 9.77244 4.76072 10.136 4.79756 10.4936C4.82087 10.7198 4.72915 10.9459 4.54388 11.0724L3.82408 11.5642C3.62205 11.7022 3.52759 11.9579 3.60713 12.1923C3.69774 12.4593 3.8043 12.7205 3.92615 12.9743C4.03313 13.1971 4.27749 13.3088 4.51581 13.2598L5.36495 13.0851C5.5835 13.0401 5.80533 13.133 5.94623 13.3093C6.16893 13.5879 6.42071 13.8451 6.6994 14.0756C6.87261 14.2188 6.96442 14.4448 6.92112 14.668L6.75296 15.5348C6.70572 15.7782 6.81625 16.0273 7.03511 16.1356C7.15876 16.1967 7.285 16.2545 7.41375 16.3086C7.54251 16.3628 7.67196 16.4126 7.80195 16.4581C8.18224 16.5912 8.71449 16.1147 9.108 15.7625C9.30205 15.5888 9.42174 15.343 9.42301 15.0798C9.42301 15.0784 9.42302 15.077 9.42302 15.0756L9.42301 13.6263C9.42301 13.6109 9.4236 13.5957 9.42476 13.5806C8.26248 13.2971 7.39838 12.2301 7.39838 10.9572V9.41823C7.39838 9.30125 7.49131 9.20642 7.60596 9.20642H8.32584V7.6922C8.32584 7.48312 8.49193 7.31364 8.69683 7.31364C8.90171 7.31364 9.06781 7.48312 9.06781 7.6922V9.20642H11.0155V7.6922C11.0155 7.48312 11.1816 7.31364 11.3865 7.31364C11.5914 7.31364 11.7575 7.48312 11.7575 7.6922V9.20642H12.4773C12.592 9.20642 12.6849 9.30125 12.6849 9.41823V10.9572C12.6849 12.2704 11.7653 13.3643 10.5474 13.6051C10.5477 13.6121 10.5478 13.6192 10.5478 13.6263L10.5478 15.0694C10.5478 15.3377 10.6711 15.5879 10.871 15.7622C11.2715 16.1115 11.8129 16.5837 12.191 16.4502C12.4527 16.3577 12.7086 16.249 12.9573 16.1246C13.1756 16.0155 13.2852 15.7661 13.2371 15.5229L13.0659 14.6565C13.0218 14.4334 13.1128 14.2071 13.2856 14.0633C13.5587 13.8361 13.8107 13.5792 14.0366 13.2948C14.177 13.118 14.3985 13.0244 14.6172 13.0685L15.4666 13.2401C15.7052 13.2883 15.9493 13.1756 16.0554 12.9522C16.1153 12.8261 16.1719 12.6972 16.225 12.5659C16.2781 12.4345 16.3269 12.3024 16.3714 12.1698C16.4503 11.935 16.355 11.6795 16.1524 11.5421L15.4312 11.0532C15.2455 10.9273 15.153 10.7015 15.1755 10.4752C15.2116 10.111 15.2101 9.74744 15.1733 9.38986C15.1499 9.16361 15.2417 8.93757 15.4269 8.811L16.1467 8.31927C16.3488 8.18126 16.4432 7.92558 16.3637 7.69115C16.2731 7.42411 16.1665 7.16292 16.0447 6.90915C15.9377 6.68638 15.6933 6.57462 15.455 6.62366L14.6059 6.79837C14.3873 6.84334 14.1655 6.75048 14.0246 6.57418C13.8019 6.29554 13.5501 6.03832 13.2714 5.80784C13.0982 5.6646 13.0064 5.43858 13.0497 5.2154L13.2179 4.34868C13.2651 4.10521 13.1546 3.85616 12.9357 3.74787C12.8121 3.68669 12.6858 3.62895 12.5571 3.5748C12.4283 3.52065 12.2989 3.47086 12.1689 3.42537C11.9388 3.34485 11.6884 3.44211 11.5538 3.64884L11.0746 4.38475C10.9513 4.57425 10.73 4.66862 10.5082 4.64573C10.1513 4.6089 9.79502 4.61039 9.44459 4.64799C9.22286 4.67177 9.00134 4.57818 8.87731 4.38913L8.39541 3.65464Z" fill="#a7aaad" /></svg>',
+        "angle-down" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M201.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L224 306.7 86.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/></svg>',
+        "arrow-right" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M438.6 278.6c12.5-12.5 12.5-32.8 0-45.3l-160-160c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L338.8 224 32 224c-17.7 0-32 14.3-32 32s14.3 32 32 32l306.7 0L233.4 393.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0l160-160z"/></svg>',
+        "arrow-up-right-from-square" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M320 0c-17.7 0-32 14.3-32 32s14.3 32 32 32h82.7L201.4 265.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L448 109.3V192c0 17.7 14.3 32 32 32s32-14.3 32-32V32c0-17.7-14.3-32-32-32H320zM80 32C35.8 32 0 67.8 0 112V432c0 44.2 35.8 80 80 80H400c44.2 0 80-35.8 80-80V320c0-17.7-14.3-32-32-32s-32 14.3-32 32V432c0 8.8-7.2 16-16 16H80c-8.8 0-16-7.2-16-16V112c0-8.8 7.2-16 16-16H192c17.7 0 32-14.3 32-32s-14.3-32-32-32H80z"/></svg>',
+        "bars-sort" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!-- Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64l384 0c17.7 0 32 14.3 32 32s-14.3 32-32 32L32 128C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32l253.44 0c17.7 0 32 14.3 32 32s-14.3 32-32 32L32 288c-17.7 0-32-14.3-32-32zM0 416c0 17.7 14.3 32 32 32l126.72 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L32 384c-17.7 0-32 14.3-32 32z"/></svg>',
+        "betheme" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50"><text x="5" y="40" font-size="60" font-family="Arial Black" font-weight="bold">Be</text></svg>',
+        "bolt" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--!Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M349.4 44.6c5.9-13.7 1.5-29.7-10.6-38.5s-28.6-8-39.9 1.8l-256 224c-10 8.8-13.6 22.9-8.9 35.3S50.7 288 64 288H175.5L98.6 467.4c-5.9 13.7-1.5 29.7 10.6 38.5s28.6 8 39.9-1.8l256-224c10-8.8 13.6-22.9 8.9-35.3s-16.6-20.7-30-20.7H272.5L349.4 44.6z"/></svg>',
+        "caret-down" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--!Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M160 352L0 192h320z"/></svg>',
+        "caret-up" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--!Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M160 160L0 320h320z"/></svg>',
+        "check" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M438.6 105.4c12.5 12.5 12.5 32.8 0 45.3l-256 256c-12.5 12.5-32.8 12.5-45.3 0l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0L160 338.7 393.4 105.4c12.5-12.5 32.8-12.5 45.3 0z"/></svg>',
+        'circle-check' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM369 209L241 337c-9.4 9.4-24.6 9.4-33.9 0l-64-64c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l47 47L335 175c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9z"/></svg>',
+        "circle-plus" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM232 344V280H168c-13.3 0-24-10.7-24-24s10.7-24 24-24h64V168c0-13.3 10.7-24 24-24s24 10.7 24 24v64h64c13.3 0 24 10.7 24 24s-10.7 24-24 24H280v64c0 13.3-10.7 24-24 24s-24-10.7-24-24z"/></svg>',
+        "circle-question" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM169.8 165.3c7.9-22.3 29.1-37.3 52.8-37.3l58.3 0c34.9 0 63.1 28.3 63.1 63.1c0 22.6-12.1 43.5-31.7 54.8L280 264.4c-.2 13-10.9 23.6-24 23.6c-13.3 0-24-10.7-24-24l0-13.5c0-8.6 4.6-16.5 12.1-20.8l44.3-25.4c4.7-2.7 7.6-7.7 7.6-13.1c0-8.4-6.8-15.1-15.1-15.1l-58.3 0c-3.4 0-6.4 2.1-7.5 5.3l-.4 1.2c-4.4 12.5-18.2 19-30.6 14.6s-19-18.2-14.6-30.6l.4-1.2zM224 352a32 32 0 1 1 64 0 32 32 0 1 1 -64 0z"/></svg>',
+        "circle-up" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM135.1 217.4l107.1-99.9c3.8-3.5 8.7-5.5 13.8-5.5s10.1 2 13.8 5.5l107.1 99.9c4.5 4.2 7.1 10.1 7.1 16.3c0 12.3-10 22.3-22.3 22.3H304v96c0 17.7-14.3 32-32 32H240c-17.7 0-32-14.3-32-32V256H150.3C138 256 128 246 128 233.7c0-6.2 2.6-12.1 7.1-16.3z"/></svg>',
+        "circle-xmark" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM175 175c9.4-9.4 24.6-9.4 33.9 0l47 47 47-47c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9l-47 47 47 47c9.4 9.4 9.4 24.6 0 33.9s-24.6 9.4-33.9 0l-47-47-47 47c-9.4 9.4-24.6 9.4-33.9 0s-9.4-24.6 0-33.9l47-47-47-47c-9.4-9.4-9.4-24.6 0-33.9z"/></svg>',
+        "code" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M392.8 1.2c-17-4.9-34.7 5-39.6 22l-128 448c-4.9 17 5 34.7 22 39.6s34.7-5 39.6-22l128-448c4.9-17-5-34.7-22-39.6zm80.6 120.1c-12.5 12.5-12.5 32.8 0 45.3L562.7 256l-89.4 89.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0l112-112c12.5-12.5 12.5-32.8 0-45.3l-112-112c-12.5-12.5-32.8-12.5-45.3 0zm-306.7 0c-12.5-12.5-32.8-12.5-45.3 0l-112 112c-12.5 12.5-12.5 32.8 0 45.3l112 112c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L77.3 256l89.4-89.4c12.5-12.5 12.5-32.8 0-45.3z"/></svg>',
+        "copy" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><!--!Font Awesome Free v7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M288 64C252.7 64 224 92.7 224 128L224 384C224 419.3 252.7 448 288 448L480 448C515.3 448 544 419.3 544 384L544 183.4C544 166 536.9 149.3 524.3 137.2L466.6 81.8C454.7 70.4 438.8 64 422.3 64L288 64zM160 192C124.7 192 96 220.7 96 256L96 512C96 547.3 124.7 576 160 576L352 576C387.3 576 416 547.3 416 512L416 496L352 496L352 512L160 512L160 256L176 256L176 192L160 192z"/></svg>',
+        "download" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M288 32c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 242.7-73.4-73.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l128 128c12.5 12.5 32.8 12.5 45.3 0l128-128c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L288 274.7 288 32zM64 352c-35.3 0-64 28.7-64 64l0 32c0 35.3 28.7 64 64 64l384 0c35.3 0 64-28.7 64-64l0-32c0-35.3-28.7-64-64-64l-101.5 0-45.3 45.3c-25 25-65.5 25-90.5 0L165.5 352 64 352zm368 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48z"/></svg>',
+        "envelope" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M48 64C21.5 64 0 85.5 0 112c0 15.1 7.1 29.3 19.2 38.4L236.8 313.6c11.4 8.5 27 8.5 38.4 0L492.8 150.4c12.1-9.1 19.2-23.3 19.2-38.4c0-26.5-21.5-48-48-48L48 64zM0 176L0 384c0 35.3 28.7 64 64 64l384 0c35.3 0 64-28.7 64-64l0-208L294.4 339.2c-22.8 17.1-54 17.1-76.8 0L0 176z"/></svg>',
+        "eye" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM144 256a144 144 0 1 1 288 0 144 144 0 1 1 -288 0zm144-64c0 35.3-28.7 64-64 64c-7.1 0-13.9-1.2-20.3-3.3c-5.5-1.8-11.9 1.6-11.7 7.4c.3 6.9 1.3 13.8 3.2 20.7c13.7 51.2 66.4 81.6 117.6 67.9s81.6-66.4 67.9-117.6c-11.1-41.5-47.8-69.4-88.6-71.1c-5.8-.2-9.2 6.1-7.4 11.7c2.1 6.4 3.3 13.2 3.3 20.3z"/></svg>',
+        "eye-slash" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c8.4-19.3 10.6-41.4 4.8-63.3c-11.1-41.5-47.8-69.4-88.6-71.1c-5.8-.2-9.2 6.1-7.4 11.7c2.1 6.4 3.3 13.2 3.3 20.3c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zM373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5L373 389.9z"/></svg>',
+        "file-arrow-down" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-288-128 0c-17.7 0-32-14.3-32-32L224 0 64 0zM256 0l0 128 128 0L256 0zM216 232l0 102.1 31-31c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9l-72 72c-9.4 9.4-24.6 9.4-33.9 0l-72-72c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l31 31L168 232c0-13.3 10.7-24 24-24s24 10.7 24 24z"/></svg>',
+        "file-arrow-up" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-288-128 0c-17.7 0-32-14.3-32-32L224 0 64 0zM256 0l0 128 128 0L256 0zM216 408c0 13.3-10.7 24-24 24s-24-10.7-24-24l0-102.1-31 31c-9.4 9.4-24.6 9.4-33.9 0s-9.4-24.6 0-33.9l72-72c9.4-9.4 24.6-9.4 33.9 0l72 72c9.4 9.4 9.4 24.6 0 33.9s-24.6 9.4-33.9 0l-31-31L216 408z"/></svg>',
+        "file-export" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M0 64C0 28.7 28.7 0 64 0L224 0l0 128c0 17.7 14.3 32 32 32l128 0 0 128-168 0c-13.3 0-24 10.7-24 24s10.7 24 24 24l168 0 0 112c0 35.3-28.7 64-64 64L64 512c-35.3 0-64-28.7-64-64L0 64zM384 336l0-48 110.1 0-39-39c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l80 80c9.4 9.4 9.4 24.6 0 33.9l-80 80c-9.4 9.4-24.6 9.4-33.9 0s-9.4-24.6 0-33.9l39-39L384 336zm0-208l-128 0L256 0 384 128z"/></svg>',
+        "gear" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><!--!Font Awesome Free v7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M259.1 73.5C262.1 58.7 275.2 48 290.4 48L350.2 48C365.4 48 378.5 58.7 381.5 73.5L396 143.5C410.1 149.5 423.3 157.2 435.3 166.3L503.1 143.8C517.5 139 533.3 145 540.9 158.2L570.8 210C578.4 223.2 575.7 239.8 564.3 249.9L511 297.3C511.9 304.7 512.3 312.3 512.3 320C512.3 327.7 511.8 335.3 511 342.7L564.4 390.2C575.8 400.3 578.4 417 570.9 430.1L541 481.9C533.4 495 517.6 501.1 503.2 496.3L435.4 473.8C423.3 482.9 410.1 490.5 396.1 496.6L381.7 566.5C378.6 581.4 365.5 592 350.4 592L290.6 592C275.4 592 262.3 581.3 259.3 566.5L244.9 496.6C230.8 490.6 217.7 482.9 205.6 473.8L137.5 496.3C123.1 501.1 107.3 495.1 99.7 481.9L69.8 430.1C62.2 416.9 64.9 400.3 76.3 390.2L129.7 342.7C128.8 335.3 128.4 327.7 128.4 320C128.4 312.3 128.9 304.7 129.7 297.3L76.3 249.8C64.9 239.7 62.3 223 69.8 209.9L99.7 158.1C107.3 144.9 123.1 138.9 137.5 143.7L205.3 166.2C217.4 157.1 230.6 149.5 244.6 143.4L259.1 73.5zM320.3 400C364.5 399.8 400.2 363.9 400 319.7C399.8 275.5 363.9 239.8 319.7 240C275.5 240.2 239.8 276.1 240 320.3C240.2 364.5 276.1 400.2 320.3 400z"/></svg>',
+        "gift" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><!--!Font Awesome Free v7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M385.5 132.8C393.1 119.9 406.9 112 421.8 112L424 112C446.1 112 464 129.9 464 152C464 174.1 446.1 192 424 192L350.7 192L385.5 132.8zM254.5 132.8L289.3 192L216 192C193.9 192 176 174.1 176 152C176 129.9 193.9 112 216 112L218.2 112C233.1 112 247 119.9 254.5 132.8zM344.1 108.5L320 149.5L295.9 108.5C279.7 80.9 250.1 64 218.2 64L216 64C167.4 64 128 103.4 128 152C128 166.4 131.5 180 137.6 192L96 192C78.3 192 64 206.3 64 224L64 256C64 273.7 78.3 288 96 288L544 288C561.7 288 576 273.7 576 256L576 224C576 206.3 561.7 192 544 192L502.4 192C508.5 180 512 166.4 512 152C512 103.4 472.6 64 424 64L421.8 64C389.9 64 360.3 80.9 344.1 108.4zM544 336L344 336L344 544L480 544C515.3 544 544 515.3 544 480L544 336zM296 336L96 336L96 480C96 515.3 124.7 544 160 544L296 544L296 336z"/></svg>',
+        "globe" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M352 256c0 22.2-1.2 43.6-3.3 64l-185.3 0c-2.2-20.4-3.3-41.8-3.3-64s1.2-43.6 3.3-64l185.3 0c2.2 20.4 3.3 41.8 3.3 64zm28.8-64l123.1 0c5.3 20.5 8.1 41.9 8.1 64s-2.8 43.5-8.1 64l-123.1 0c2.1-20.6 3.2-42 3.2-64s-1.1-43.4-3.2-64zm112.6-32l-116.7 0c-10-63.9-29.8-117.4-55.3-151.6c78.3 20.7 142 77.5 171.9 151.6zm-149.1 0l-176.6 0c6.1-36.4 15.5-68.6 27-94.7c10.5-23.6 22.2-40.7 33.5-51.5C239.4 3.2 248.7 0 256 0s16.6 3.2 27.8 13.8c11.3 10.8 23 27.9 33.5 51.5c11.6 26 20.9 58.2 27 94.7zm-209 0L18.6 160C48.6 85.9 112.2 29.1 190.6 8.4C165.1 42.6 145.3 96.1 135.3 160zM8.1 192l123.1 0c-2.1 20.6-3.2 42-3.2 64s1.1 43.4 3.2 64L8.1 320C2.8 299.5 0 278.1 0 256s2.8-43.5 8.1-64zM194.7 446.6c-11.6-26-20.9-58.2-27-94.6l176.6 0c-6.1 36.4-15.5 68.6-27 94.6c-10.5 23.6-22.2 40.7-33.5 51.5C272.6 508.8 263.3 512 256 512s-16.6-3.2-27.8-13.8c-11.3-10.8-23-27.9-33.5-51.5zM135.3 352c10 63.9 29.8 117.4 55.3 151.6C112.2 482.9 48.6 426.1 18.6 352l116.7 0zm358.1 0c-30 74.1-93.6 130.9-171.9 151.6c25.5-34.2 45.2-87.7 55.3-151.6l116.7 0z"/></svg>',
+        "handshake" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M323.4 85.2l-96.8 78.4c-16.1 13-19.2 36.4-7 53.1c12.9 17.8 38 21.3 55.3 7.8l99.3-77.2c7-5.4 17-4.2 22.5 2.8s4.2 17-2.8 22.5l-20.9 16.2L512 316.8 512 128l-.7 0-3.9-2.5L434.8 79c-15.3-9.8-33.2-15-51.4-15c-21.8 0-43 7.5-60 21.2zm22.8 124.4l-51.7 40.2C263 274.4 217.3 268 193.7 235.6c-22.2-30.5-16.6-73.1 12.7-96.8l83.2-67.3c-11.6-4.9-24.1-7.4-36.8-7.4C234 64 215.7 69.6 200 80l-72 48 0 224 28.2 0 91.4 83.4c19.6 17.9 49.9 16.5 67.8-3.1c5.5-6.1 9.2-13.2 11.1-20.6l17 15.6c19.5 17.9 49.9 16.6 67.8-2.9c4.5-4.9 7.8-10.6 9.9-16.5c19.4 13 45.8 10.3 62.1-7.5c17.9-19.5 16.6-49.9-2.9-67.8l-134.2-123zM16 128c-8.8 0-16 7.2-16 16L0 352c0 17.7 14.3 32 32 32l32 0c17.7 0 32-14.3 32-32l0-224-80 0zM48 320a16 16 0 1 1 0 32 16 16 0 1 1 0-32zM544 128l0 224c0 17.7 14.3 32 32 32l32 0c17.7 0 32-14.3 32-32l0-208c0-8.8-7.2-16-16-16l-80 0zm32 208a16 16 0 1 1 32 0 16 16 0 1 1 -32 0z"/></svg>',
+        "headline" => '<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" rx="15" ry="15"/><rect x="15" y="20" width="40" height="10" rx="5" ry="5" fill="#ffffff"/><rect x="60" y="20" width="20" height="10" rx="5" ry="5" fill="#ffffff"/></svg>',
+        'image' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M0 96C0 60.7 28.7 32 64 32l384 0c35.3 0 64 28.7 64 64l0 320c0 35.3-28.7 64-64 64L64 480c-35.3 0-64-28.7-64-64L0 96zM323.8 202.5c-4.5-6.6-11.9-10.5-19.8-10.5s-15.4 3.9-19.8 10.5l-87 127.6L170.7 297c-4.6-5.7-11.5-9-18.7-9s-14.2 3.3-18.7 9l-64 80c-5.8 7.2-6.9 17.1-2.9 25.4s12.4 13.6 21.6 13.6l96 0 32 0 208 0c8.9 0 17.1-4.9 21.2-12.8s3.6-17.4-1.4-24.7l-120-176zM112 192a48 48 0 1 0 0-96 48 48 0 1 0 0 96z"/></svg>',
+        'image-slash' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M0 96C0 60.7 28.7 32 64 32l384 0c35.3 0 64 28.7 64 64l0 320c0 35.3-28.7 64-64 64L64 480c-35.3 0-64-28.7-64-64L0 96zM323.8 202.5c-4.5-6.6-11.9-10.5-19.8-10.5s-15.4 3.9-19.8 10.5l-87 127.6L170.7 297c-4.6-5.7-11.5-9-18.7-9s-14.2 3.3-18.7 9l-64 80c-5.8 7.2-6.9 17.1-2.9 25.4s12.4 13.6 21.6 13.6l96 0 32 0 208 0c8.9 0 17.1-4.9 21.2-12.8s3.6-17.4-1.4-24.7l-120-176zM112 192a48 48 0 1 0 0-96 48 48 0 1 0 0 96z"/><line x1="0" y1="0" x2="512" y2="512" stroke="black" stroke-width="32" /></svg>',
+        'key' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M336 352c97.2 0 176-78.8 176-176S433.2 0 336 0S160 78.8 160 176c0 18.7 2.9 36.8 8.3 53.7L7 391c-4.5 4.5-7 10.6-7 17l0 80c0 13.3 10.7 24 24 24l80 0c13.3 0 24-10.7 24-24l0-40 40 0c13.3 0 24-10.7 24-24l0-40 40 0c6.4 0 12.5-2.5 17-7l33.3-33.3c16.9 5.4 35 8.3 53.7 8.3zM376 96a40 40 0 1 1 0 80 40 40 0 1 1 0-80z"/></svg>',
+        'list' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M40 48C26.7 48 16 58.7 16 72l0 48c0 13.3 10.7 24 24 24l48 0c13.3 0 24-10.7 24-24l0-48c0-13.3-10.7-24-24-24L40 48zM192 64c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L192 64zm0 160c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-288 0zm0 160c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-288 0zM16 232l0 48c0 13.3 10.7 24 24 24l48 0c13.3 0 24-10.7 24-24l0-48c0-13.3-10.7-24-24-24l-48 0c-13.3 0-24 10.7-24 24zM40 368c-13.3 0-24 10.7-24 24l0 48c0 13.3 10.7 24 24 24l48 0c13.3 0 24-10.7 24-24l0-48c0-13.3-10.7-24-24-24l-48 0z"/></svg>',
+        "magnifying-glass" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"/></svg> ',
+        "rank-math" => '<svg viewBox="0 0 462.03 462.03" xmlns="http://www.w3.org/2000/svg" width="20"><g fill="#a7aaad"><path d="m462 234.84-76.17 3.43 13.43 21-127 81.18-126-52.93-146.26 60.97 10.14 24.34 136.1-56.71 128.57 54 138.69-88.61 13.43 21z"/><path d="m54.1 312.78 92.18-38.41 4.49 1.89v-54.58h-96.67zm210.9-223.57v235.05l7.26 3 89.43-57.05v-181zm-105.44 190.79 96.67 40.62v-165.19h-96.67z"/></g></svg>',
+        "robot" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M320 0c17.7 0 32 14.3 32 32l0 64 120 0c39.8 0 72 32.2 72 72l0 272c0 39.8-32.2 72-72 72l-304 0c-39.8 0-72-32.2-72-72l0-272c0-39.8 32.2-72 72-72l120 0 0-64c0-17.7 14.3-32 32-32zM208 384c-8.8 0-16 7.2-16 16s7.2 16 16 16l32 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-32 0zm96 0c-8.8 0-16 7.2-16 16s7.2 16 16 16l32 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-32 0zm96 0c-8.8 0-16 7.2-16 16s7.2 16 16 16l32 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-32 0zM264 256a40 40 0 1 0 -80 0 40 40 0 1 0 80 0zm152 40a40 40 0 1 0 0-80 40 40 0 1 0 0 80zM48 224l16 0 0 192-16 0c-26.5 0-48-21.5-48-48l0-96c0-26.5 21.5-48 48-48zm544 0c26.5 0 48 21.5 48 48l0 96c0 26.5-21.5 48-48 48l-16 0 0-192 16 0z"/></svg>',
+        "rotate" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M142.9 142.9c-17.5 17.5-30.1 38-37.8 59.8c-5.9 16.7-24.2 25.4-40.8 19.5s-25.4-24.2-19.5-40.8C55.6 150.7 73.2 122 97.6 97.6c87.2-87.2 228.3-87.5 315.8-1L455 55c6.9-6.9 17.2-8.9 26.2-5.2s14.8 12.5 14.8 22.2l0 128c0 13.3-10.7 24-24 24l-8.4 0c0 0 0 0 0 0L344 224c-9.7 0-18.5-5.8-22.2-14.8s-1.7-19.3 5.2-26.2l41.1-41.1c-62.6-61.5-163.1-61.2-225.3 1zM16 312c0-13.3 10.7-24 24-24l7.6 0 .7 0L168 288c9.7 0 18.5 5.8 22.2 14.8s1.7 19.3-5.2 26.2l-41.1 41.1c62.6 61.5 163.1 61.2 225.3-1c17.5-17.5 30.1-38 37.8-59.8c5.9-16.7 24.2-25.4 40.8-19.5s25.4 24.2 19.5 40.8c-10.8 30.6-28.4 59.3-52.9 83.8c-87.2 87.2-228.3 87.5-315.8 1L57 457c-6.9 6.9-17.2 8.9-26.2 5.2S16 449.7 16 440l0-119.6 0-.7 0-7.6z"/></svg>',
+        "pen-to-square" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Pro 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2023 Fonticons, Inc. --><defs><style>.fa-secondary{opacity:.4}</style></defs><path class="fa-primary" d="M392.4 21.7L362.3 51.7l97.9 97.9 30.1-30.1c21.9-21.9 21.9-57.3 0-79.2L471.6 21.7c-21.9-21.9-57.3-21.9-79.2 0zM339.7 74.3L172.4 241.7c-6.1 6.1-10.8 13.6-13.5 21.9l-29.6 88.8c-2.9 8.6-.6 18.1 5.8 24.6s15.9 8.7 24.6 5.8l88.8-29.6c8.2-2.7 15.7-7.4 21.9-13.5L437.7 172.3 339.7 74.3z"/><path class="fa-secondary" d="M0 160c0-53 43-96 96-96h96c17.7 0 32 14.3 32 32s-14.3 32-32 32H96c-17.7 0-32 14.3-32 32V416c0 17.7 14.3 32 32 32H352c17.7 0 32-14.3 32-32V320c0-17.7 14.3-32 32-32s32 14.3 32 32v96c0 53-43 96-96 96H96c-53 0-96-43-96-96V160z"/></svg>',
+        "rocket" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M156.6 384.9L125.7 354c-8.5-8.5-11.5-20.8-7.7-32.2c3-8.9 7-20.5 11.8-33.8L24 288c-8.6 0-16.6-4.6-20.9-12.1s-4.2-16.7 .2-24.1l52.5-88.5c13-21.9 36.5-35.3 61.9-35.3l82.3 0c2.4-4 4.8-7.7 7.2-11.3C289.1-4.1 411.1-8.1 483.9 5.3c11.6 2.1 20.6 11.2 22.8 22.8c13.4 72.9 9.3 194.8-111.4 276.7c-3.5 2.4-7.3 4.8-11.3 7.2l0 82.3c0 25.4-13.4 49-35.3 61.9l-88.5 52.5c-7.4 4.4-16.6 4.5-24.1 .2s-12.1-12.2-12.1-20.9l0-107.2c-14.1 4.9-26.4 8.9-35.7 11.9c-11.2 3.6-23.4 .5-31.8-7.8zM384 168a40 40 0 1 0 0-80 40 40 0 1 0 0 80z"/></svg>',
+        "rocket-chat" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M284 224.8a34.1 34.1 0 1 0 34.3 34.1A34.2 34.2 0 0 0 284 224.8zm-110.5 0a34.1 34.1 0 1 0 34.3 34.1A34.2 34.2 0 0 0 173.6 224.8zm220.9 0a34.1 34.1 0 1 0 34.3 34.1A34.2 34.2 0 0 0 394.5 224.8zm153.8-55.3c-15.5-24.2-37.3-45.6-64.7-63.6-52.9-34.8-122.4-54-195.7-54a406 406 0 0 0 -72 6.4 238.5 238.5 0 0 0 -49.5-36.6C99.7-11.7 40.9 .7 11.1 11.4A14.3 14.3 0 0 0 5.6 34.8C26.5 56.5 61.2 99.3 52.7 138.3c-33.1 33.9-51.1 74.8-51.1 117.3 0 43.4 18 84.2 51.1 118.1 8.5 39-26.2 81.8-47.1 103.5a14.3 14.3 0 0 0 5.6 23.3c29.7 10.7 88.5 23.1 155.3-10.2a238.7 238.7 0 0 0 49.5-36.6A406 406 0 0 0 288 460.1c73.3 0 142.8-19.2 195.7-54 27.4-18 49.1-39.4 64.7-63.6 17.3-26.9 26.1-55.9 26.1-86.1C574.4 225.4 565.6 196.4 548.3 169.5zM285 409.9a345.7 345.7 0 0 1 -89.4-11.5l-20.1 19.4a184.4 184.4 0 0 1 -37.1 27.6 145.8 145.8 0 0 1 -52.5 14.9c1-1.8 1.9-3.6 2.8-5.4q30.3-55.7 16.3-100.1c-33-26-52.8-59.2-52.8-95.4 0-83.1 104.3-150.5 232.8-150.5s232.9 67.4 232.9 150.5C517.9 342.5 413.6 409.9 285 409.9z"/></svg>',
+        "seopress" => '<svg id="uuid-4f6a8a41-18e3-4f77-b5a9-4b1b38aa2dc9" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 899.655 494.3094"><path id="uuid-a155c1ca-d868-4653-8477-8dd87240a765" d="M327.3849,435.128l-299.9999-.2497c-16.2735,1.1937-28.4981,15.3538-27.3044,31.6273,1.0719,14.6128,12.6916,26.2325,27.3044,27.3044l299.9999,.2497c16.2735-1.1937,28.4981-15.3538,27.3044-31.6273-1.0718-14.6128-12.6916-26.2325-27.3044-27.3044Z" style="fill:#fff"/><path id="uuid-e30ba4c6-4769-466b-a03a-e644c5198e56" d="M27.3849,58.9317l299.9999,.2497c16.2735-1.1937,28.4981-15.3537,27.3044-31.6273-1.0718-14.6128-12.6916-26.2325-27.3044-27.3044L27.3849,0C11.1114,1.1937-1.1132,15.3537,.0805,31.6273c1.0719,14.6128,12.6916,26.2325,27.3044,27.3044Z" style="fill:#fff"/><path id="uuid-2bbd52d6-aec1-4689-9d4c-23c35d4f22b8" d="M652.485,.2849c-124.9388,.064-230.1554,93.4132-245.1001,217.455H27.3849c-16.2735,1.1937-28.4981,15.3537-27.3044,31.6272,1.0719,14.6128,12.6916,26.2325,27.3044,27.3044H407.3849c16.2298,135.4454,139.187,232.0888,274.6323,215.8589,135.4455-16.2298,232.0888-139.1869,215.8589-274.6324C882.9921,93.6834,777.5884,.2112,652.485,.2849Zm0,433.4217c-102.9754,0-186.4533-83.478-186.4533-186.4533,0-102.9753,83.4781-186.4533,186.4533-186.4533,102.9754,0,186.4533,83.478,186.4533,186.4533,.0524,102.9753-83.383,186.4959-186.3583,186.5483-.0316,0-.0634,0-.0951,0v-.095Z" style="fill:#fff"/></svg>',
+        "shopping-cart" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M0 24C0 10.7 10.7 0 24 0L69.5 0c22 0 41.5 12.8 50.6 32l411 0c26.3 0 45.5 25 38.6 50.4l-41 152.3c-8.5 31.4-37 53.3-69.5 53.3l-288.5 0 5.4 28.5c2.2 11.3 12.1 19.5 23.6 19.5L488 336c13.3 0 24 10.7 24 24s-10.7 24-24 24l-288.3 0c-34.6 0-64.3-24.6-70.7-58.5L77.4 54.5c-.7-3.8-4-6.5-7.9-6.5L24 48C10.7 48 0 37.3 0 24zM128 464a48 48 0 1 1 96 0 48 48 0 1 1 -96 0zm336-48a48 48 0 1 1 0 96 48 48 0 1 1 0-96z"/></svg>',
+        "square-check" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-320c0-35.3-28.7-64-64-64L64 32zM337 209L209 337c-9.4 9.4-24.6 9.4-33.9 0l-64-64c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l47 47L303 175c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9z"/></svg>',
+        "square-facebook" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M64 32C28.7 32 0 60.7 0 96V416c0 35.3 28.7 64 64 64h98.2V334.2H109.4V256h52.8V222.3c0-87.1 39.4-127.5 125-127.5c16.2 0 44.2 3.2 55.7 6.4V172c-6-.6-16.5-1-29.6-1c-42 0-58.2 15.9-58.2 57.2V256h83.6l-14.4 78.2H255V480H384c35.3 0 64-28.7 64-64V96c0-35.3-28.7-64-64-64H64z"/></svg>',
+        "square-twitter-x" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M64 32C28.7 32 0 60.7 0 96V416c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V96c0-35.3-28.7-64-64-64H64zm297.1 84L257.3 234.6 379.4 396H283.8L209 298.1 123.3 396H75.8l111-126.9L69.7 116h98l67.7 89.5L313.6 116h47.5zM323.3 367.6L153.4 142.9H125.1L296.9 367.6h26.3z"/></svg>',
+        "square-xmark" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--!Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M64 32C28.7 32 0 60.7 0 96V416c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V96c0-35.3-28.7-64-64-64H64zm79 143c9.4-9.4 24.6-9.4 33.9 0l47 47 47-47c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9l-47 47 47 47c9.4 9.4 9.4 24.6 0 33.9s-24.6 9.4-33.9 0l-47-47-47 47c-9.4 9.4-24.6 9.4-33.9 0s-9.4-24.6 0-33.9l47-47-47-47c-9.4-9.4-9.4-24.6 0-33.9z"/></svg>',
+        "star" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M316.9 18C311.6 7 300.4 0 288.1 0s-23.4 7-28.8 18L195 150.3 51.4 171.5c-12 1.8-22 10.2-25.7 21.7s-.7 24.2 7.9 32.7L137.8 329 113.2 474.7c-2 12 3 24.2 12.9 31.3s23 8 33.8 2.3l128.3-68.5 128.3 68.5c10.8 5.7 23.9 4.9 33.8-2.3s14.9-19.3 12.9-31.3L438.5 329 542.7 225.9c8.6-8.5 11.7-21.2 7.9-32.7s-13.7-19.9-25.7-21.7L381.2 150.3 316.9 18z"/></svg>',
+        "stripe" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M492.4 220.8c-8.9 0-18.7 6.7-18.7 22.7h36.7c0-16-9.3-22.7-18-22.7zM375 223.4c-8.2 0-13.3 2.9-17 7l.2 52.8c3.5 3.7 8.5 6.7 16.8 6.7 13.1 0 21.9-14.3 21.9-33.4 0-18.6-9-33.2-21.9-33.1zM528 32H48C21.5 32 0 53.5 0 80v352c0 26.5 21.5 48 48 48h480c26.5 0 48-21.5 48-48V80c0-26.5-21.5-48-48-48zM122.2 281.1c0 25.6-20.3 40.1-49.9 40.3-12.2 0-25.6-2.4-38.8-8.1v-33.9c12 6.4 27.1 11.3 38.9 11.3 7.9 0 13.6-2.1 13.6-8.7 0-17-54-10.6-54-49.9 0-25.2 19.2-40.2 48-40.2 11.8 0 23.5 1.8 35.3 6.5v33.4c-10.8-5.8-24.5-9.1-35.3-9.1-7.5 0-12.1 2.2-12.1 7.7 0 16 54.3 8.4 54.3 50.7zm68.8-56.6h-27V275c0 20.9 22.5 14.4 27 12.6v28.9c-4.7 2.6-13.3 4.7-24.9 4.7-21.1 0-36.9-15.5-36.9-36.5l.2-113.9 34.7-7.4v30.8H191zm74 2.4c-4.5-1.5-18.7-3.6-27.1 7.4v84.4h-35.5V194.2h30.7l2.2 10.5c8.3-15.3 24.9-12.2 29.6-10.5h.1zm44.1 91.8h-35.7V194.2h35.7zm0-142.9l-35.7 7.6v-28.9l35.7-7.6zm74.1 145.5c-12.4 0-20-5.3-25.1-9l-.1 40.2-35.5 7.5V194.2h31.3l1.8 8.8c4.9-4.5 13.9-11.1 27.8-11.1 24.9 0 48.4 22.5 48.4 63.8 0 45.1-23.2 65.5-48.6 65.6zm160.4-51.5h-69.5c1.6 16.6 13.8 21.5 27.6 21.5 14.1 0 25.2-3 34.9-7.9V312c-9.7 5.3-22.4 9.2-39.4 9.2-34.6 0-58.8-21.7-58.8-64.5 0-36.2 20.5-64.9 54.3-64.9 33.7 0 51.3 28.7 51.3 65.1 0 3.5-.3 10.9-.4 12.9z"/></svg>',
+        "subtitle" => '<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" rx="15" ry="15"/><rect x="15" y="70" width="40" height="10" rx="5" ry="5" fill="#ffffff"/><rect x="60" y="70" width="20" height="10" rx="5" ry="5" fill="#ffffff"/></svg>',
+        "subtitles" => '<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" rx="15" ry="15"/><rect x="15" y="50" width="30" height="10" rx="5" ry="5" fill="#ffffff"/><rect x="55" y="50" width="30" height="10" rx="5" ry="5" fill="#ffffff"/><rect x="15" y="70" width="40" height="10" rx="5" ry="5" fill="#ffffff"/><rect x="60" y="70" width="20" height="10" rx="5" ry="5" fill="#ffffff"/></svg>',
+        "triangle-exclamation" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M256 32c14.2 0 27.3 7.5 34.5 19.8l216 368c7.3 12.4 7.3 27.7 .2 40.1S486.3 480 472 480H40c-14.3 0-27.6-7.7-34.7-20.1s-7-27.8 .2-40.1l216-368C228.7 39.5 241.8 32 256 32zm0 128c-13.3 0-24 10.7-24 24V296c0 13.3 10.7 24 24 24s24-10.7 24-24V184c0-13.3-10.7-24-24-24zm32 224a32 32 0 1 0 -64 0 32 32 0 1 0 64 0z"/></svg>',
+        "xmark" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Pro 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2023 Fonticons, Inc. --><defs><style>.fa-secondary{opacity:.4}</style></defs><path class="fa-secondary" d="M297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6z"/></svg>',
+        "yoast" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M91.3 76h186l-7 18.9h-179c-39.7 0-71.9 31.6-71.9 70.3v205.4c0 35.4 24.9 70.3 84 70.3V460H91.3C41.2 460 0 419.8 0 370.5V165.2C0 115.9 40.7 76 91.3 76zm229.1-56h66.5C243.1 398.1 241.2 418.9 202.2 459.3c-20.8 21.6-49.3 31.7-78.3 32.7v-51.1c49.2-7.7 64.6-49.9 64.6-75.3 0-20.1 .6-12.6-82.1-223.2h61.4L218.2 299 320.4 20zM448 161.5V460H234c6.6-9.6 10.7-16.3 12.1-19.4h182.5V161.5c0-32.5-17.1-51.9-48.2-62.9l6.7-17.6c41.7 13.6 60.9 43.1 60.9 80.5z"/></svg>',
+    );
+}
+
 const AI4SEO_STRIPE_BILLING_URL = "https://aiforseo.ai/manage-plan";
 const AI4SEO_POST_TYPES_TAB_NAME = "post";
-
-const AI4SEO_TAB_ICONS_BY_POST_TYPE = array(
-    "default" => '<i class="dashicons dashicons-text-page ai4seo-nav-tab-icon"></i>',
-    "page" => '<i class="dashicons dashicons-admin-page ai4seo-nav-tab-icon"></i>',
-    "post" => '<i class="dashicons dashicons-admin-post ai4seo-nav-tab-icon"></i>',
-    "category" => '<i class="dashicons dashicons-admin-category ai4seo-nav-tab-icon"></i>',
-    "product" => '<i class="dashicons dashicons-products ai4seo-nav-tab-icon"></i>',
-    "product-category" => '<i class="dashicons dashicons-products ai4seo-nav-tab-icon"></i>',
-    "portfolio" => '<i class="dashicons dashicons-portfolio ai4seo-nav-tab-icon"></i>',
-    "attachment" => '<i class="dashicons dashicons-admin-media ai4seo-nav-tab-icon"></i>',
-    "rss" => '<i class="dashicons dashicons-rss ai4seo-nav-tab-icon"></i>',
-    "rss-feed" => '<i class="dashicons dashicons-rss ai4seo-nav-tab-icon"></i>',
-    "rss_feed" => '<i class="dashicons dashicons-rss ai4seo-nav-tab-icon"></i>',
-);
 
 // Constants for the wp_options entries
 const AI4SEO_FULLY_COVERED_METADATA_POST_IDS_OPTION_NAME = "ai4seo_fully_covered_metadata_post_ids";
@@ -393,139 +410,143 @@ const AI4SEO_THIRD_PARTY_PLUGIN_WPML = "wpml";
 const AI4SEO_THIRD_PARTY_PLUGIN_NEXTGEN_GALLERY = "nextgen-gallery";
 
 // details for the third party seo plugins
-const AI4SEO_THIRD_PARTY_SEO_PLUGIN_DETAILS = array(
-    AI4SEO_THIRD_PARTY_PLUGIN_YOAST_SEO => array(
-        'name' => 'Yoast SEO',
-        'icon' => 'yoast',
-        'icon-css-class' => 'ai4seo-purple-icon',
-        'keyphrase-postmeta-key' => '_yoast_wpseo_focuskw',
-        'metadata-postmeta-keys' => array(
-            'meta-title' => '_yoast_wpseo_title',
-            'meta-description' => '_yoast_wpseo_metadesc',
-            'facebook-title' => '_yoast_wpseo_opengraph-title',
-            'facebook-description' => '_yoast_wpseo_opengraph-description',
-            'twitter-title' => '_yoast_wpseo_twitter-title',
-            'twitter-description' => '_yoast_wpseo_twitter-description',
+function ai4seo_get_third_party_seo_plugin_details(): array {
+    return array(
+        AI4SEO_THIRD_PARTY_PLUGIN_YOAST_SEO => array(
+            'name' => 'Yoast SEO',
+            'icon' => 'yoast',
+            'icon-css-class' => 'ai4seo-purple-icon',
+            'keyphrase-postmeta-key' => '_yoast_wpseo_focuskw',
+            'metadata-postmeta-keys' => array(
+                'meta-title' => '_yoast_wpseo_title',
+                'meta-description' => '_yoast_wpseo_metadesc',
+                'facebook-title' => '_yoast_wpseo_opengraph-title',
+                'facebook-description' => '_yoast_wpseo_opengraph-description',
+                'twitter-title' => '_yoast_wpseo_twitter-title',
+                'twitter-description' => '_yoast_wpseo_twitter-description',
+            ),
         ),
-    ),
-    AI4SEO_THIRD_PARTY_PLUGIN_BETHEME => array(
-        'name' => 'BeTheme',
-        'icon' => 'betheme',
-        'icon-css-class' => 'ai4seo-blue-icon',
-        'metadata-postmeta-keys' => array(
-            'meta-title' => 'mfn-meta-seo-title',
-            'meta-description' => 'mfn-meta-seo-description',
+        AI4SEO_THIRD_PARTY_PLUGIN_BETHEME => array(
+            'name' => 'BeTheme',
+            'icon' => 'betheme',
+            'icon-css-class' => 'ai4seo-blue-icon',
+            'metadata-postmeta-keys' => array(
+                'meta-title' => 'mfn-meta-seo-title',
+                'meta-description' => 'mfn-meta-seo-description',
+            ),
         ),
-    ),
-    AI4SEO_THIRD_PARTY_PLUGIN_ALL_IN_ONE_SEO => array(
-        'name' => 'All in One SEO',
-        'icon' => 'all-in-one-seo',
-        'metadata-postmeta-keys' => array( # workaround: in addition, this plugin saves its data into wp_ai4seo_posts
-            'meta-title' => '_aioseo_title',
-            'meta-description' => '_aioseo_description',
-            'facebook-title' => '_aioseo_og_title',
-            'facebook-description' => '_aioseo_og_description',
-            'twitter-title' => '_aioseo_twitter_title',
-            'twitter-description' => '_aioseo_twitter_description',
+        AI4SEO_THIRD_PARTY_PLUGIN_ALL_IN_ONE_SEO => array(
+            'name' => 'All in One SEO',
+            'icon' => 'all-in-one-seo',
+            'metadata-postmeta-keys' => array( # workaround: in addition, this plugin saves its data into wp_ai4seo_posts
+                'meta-title' => '_aioseo_title',
+                'meta-description' => '_aioseo_description',
+                'facebook-title' => '_aioseo_og_title',
+                'facebook-description' => '_aioseo_og_description',
+                'twitter-title' => '_aioseo_twitter_title',
+                'twitter-description' => '_aioseo_twitter_description',
+            ),
         ),
-    ),
-    AI4SEO_THIRD_PARTY_PLUGIN_RANK_MATH => array(
-        'name' => 'Rank Math',
-        'icon' => 'rank-math',
-        'icon-css-class' => 'ai4seo-purple-icon',
-        'seo-score-postmeta-key' => 'rank_math_seo_score', # todo: make this dynamic
-        'keyphrase-postmeta-key' => 'rank_math_focus_keyword',
-        'metadata-postmeta-keys' => array(
-            'meta-title' => 'rank_math_title',
-            'meta-description' => 'rank_math_description',
-            'facebook-title' => 'rank_math_facebook_title',
-            'facebook-description' => 'rank_math_facebook_description',
-            'twitter-title' => 'rank_math_twitter_title',
-            'twitter-description' => 'rank_math_twitter_description',
+        AI4SEO_THIRD_PARTY_PLUGIN_RANK_MATH => array(
+            'name' => 'Rank Math',
+            'icon' => 'rank-math',
+            'icon-css-class' => 'ai4seo-purple-icon',
+            'seo-score-postmeta-key' => 'rank_math_seo_score', # todo: make this dynamic
+            'keyphrase-postmeta-key' => 'rank_math_focus_keyword',
+            'metadata-postmeta-keys' => array(
+                'meta-title' => 'rank_math_title',
+                'meta-description' => 'rank_math_description',
+                'facebook-title' => 'rank_math_facebook_title',
+                'facebook-description' => 'rank_math_facebook_description',
+                'twitter-title' => 'rank_math_twitter_title',
+                'twitter-description' => 'rank_math_twitter_description',
+            ),
         ),
-    ),
-    AI4SEO_THIRD_PARTY_PLUGIN_SEO_SIMPLE_PACK => array(
-        'name' => 'SEO Simple Pack',
-        'metadata-postmeta-keys' => array(
-            'meta-title' => 'ssp_meta_title',
-            'meta-description' => 'ssp_meta_description',
-            'facebook-title' => 'ssp_meta_title',
-            'facebook-description' => 'ssp_meta_description',
-            'twitter-title' => 'ssp_meta_title',
-            'twitter-description' => 'ssp_meta_description',
+        AI4SEO_THIRD_PARTY_PLUGIN_SEO_SIMPLE_PACK => array(
+            'name' => 'SEO Simple Pack',
+            'metadata-postmeta-keys' => array(
+                'meta-title' => 'ssp_meta_title',
+                'meta-description' => 'ssp_meta_description',
+                'facebook-title' => 'ssp_meta_title',
+                'facebook-description' => 'ssp_meta_description',
+                'twitter-title' => 'ssp_meta_title',
+                'twitter-description' => 'ssp_meta_description',
+            ),
         ),
-    ),
-    AI4SEO_THIRD_PARTY_PLUGIN_SEOPRESS => array(
-        'name' => 'SEOPress',
-        'icon' => 'seopress',
-        'metadata-postmeta-keys' => array(
-            'meta-title' => '_seopress_titles_title',
-            'meta-description' => '_seopress_titles_desc',
-            'facebook-title' => '_seopress_social_fb_title',
-            'facebook-description' => '_seopress_social_fb_desc',
-            'twitter-title' => '_seopress_social_twitter_title',
-            'twitter-description' => '_seopress_social_twitter_desc',
+        AI4SEO_THIRD_PARTY_PLUGIN_SEOPRESS => array(
+            'name' => 'SEOPress',
+            'icon' => 'seopress',
+            'metadata-postmeta-keys' => array(
+                'meta-title' => '_seopress_titles_title',
+                'meta-description' => '_seopress_titles_desc',
+                'facebook-title' => '_seopress_social_fb_title',
+                'facebook-description' => '_seopress_social_fb_desc',
+                'twitter-title' => '_seopress_social_twitter_title',
+                'twitter-description' => '_seopress_social_twitter_desc',
+            ),
         ),
-    ),
-    AI4SEO_THIRD_PARTY_PLUGIN_SLIM_SEO => array(
-        'name' => 'Slim SEO',
-        'metadata-postmeta-keys' => array(
-            'meta-title' => '_ai4seo_workaround',
-            'meta-description' => '_ai4seo_workaround',
+        AI4SEO_THIRD_PARTY_PLUGIN_SLIM_SEO => array(
+            'name' => 'Slim SEO',
+            'metadata-postmeta-keys' => array(
+                'meta-title' => '_ai4seo_workaround',
+                'meta-description' => '_ai4seo_workaround',
+            ),
         ),
-    ),
-    AI4SEO_THIRD_PARTY_PLUGIN_SQUIRRLY_SEO => array(
-        'name' => 'Squirrly SEO',
-        'metadata-postmeta-keys' => array(
-            'meta-title' => '_ai4seo_workaround',
-            'meta-description' => '_ai4seo_workaround',
-            'facebook-title' => '_ai4seo_workaround',
-            'facebook-description' => '_ai4seo_workaround',
-            'twitter-title' => '_ai4seo_workaround',
-            'twitter-description' => '_ai4seo_workaround',
+        AI4SEO_THIRD_PARTY_PLUGIN_SQUIRRLY_SEO => array(
+            'name' => 'Squirrly SEO',
+            'metadata-postmeta-keys' => array(
+                'meta-title' => '_ai4seo_workaround',
+                'meta-description' => '_ai4seo_workaround',
+                'facebook-title' => '_ai4seo_workaround',
+                'facebook-description' => '_ai4seo_workaround',
+                'twitter-title' => '_ai4seo_workaround',
+                'twitter-description' => '_ai4seo_workaround',
+            ),
         ),
-    ),
-    AI4SEO_THIRD_PARTY_PLUGIN_THE_SEO_FRAMEWORK => array(
-        'name' => 'The SEO Framework',
-        'metadata-postmeta-keys' => array(
-            'meta-title' => '_genesis_title',
-            'meta-description' => '_genesis_description',
-            'facebook-title' => '_open_graph_title',
-            'facebook-description' => '_open_graph_description',
-            'twitter-title' => '_twitter_title',
-            'twitter-description' => '_twitter_description',
+        AI4SEO_THIRD_PARTY_PLUGIN_THE_SEO_FRAMEWORK => array(
+            'name' => 'The SEO Framework',
+            'metadata-postmeta-keys' => array(
+                'meta-title' => '_genesis_title',
+                'meta-description' => '_genesis_description',
+                'facebook-title' => '_open_graph_title',
+                'facebook-description' => '_open_graph_description',
+                'twitter-title' => '_twitter_title',
+                'twitter-description' => '_twitter_description',
+            ),
         ),
-    ),
-    AI4SEO_THIRD_PARTY_PLUGIN_BLOG2SOCIAL => array(
-        'name' => 'Blog2Social',
-        'metadata-postmeta-keys' => array(
-            'facebook-title' => '_ai4seo_workaround',
-            'facebook-description' => '_ai4seo_workaround',
-            'twitter-title' => '_ai4seo_workaround',
-            'twitter-description' => '_ai4seo_workaround',
+        AI4SEO_THIRD_PARTY_PLUGIN_BLOG2SOCIAL => array(
+            'name' => 'Blog2Social',
+            'metadata-postmeta-keys' => array(
+                'facebook-title' => '_ai4seo_workaround',
+                'facebook-description' => '_ai4seo_workaround',
+                'twitter-title' => '_ai4seo_workaround',
+                'twitter-description' => '_ai4seo_workaround',
+            ),
         ),
-    ),
-);
+    );
+}
 
-const AI4SEO_ALLOWED_CURRENCIES = array(
-    "AED", "AFN", "ALL", "AMD", "ANG", "AOA", "ARS", "AUD", "AWG", "AZN",
-    "BAM", "BBD", "BDT", "BGN", "BHD", "BIF", "BMD", "BND", "BOB", "BRL",
-    "BSD", "BTC", "BTN", "BWP", "BYN", "BZD", "CAD", "CDF", "CHF", "CLF",
-    "CLP", "CNH", "CNY", "COP", "CRC", "CUC", "CUP", "CVE", "CZK", "DJF",
-    "DKK", "DOP", "DZD", "EGP", "ERN", "ETB", "EUR", "FJD", "FKP", "GBP",
-    "GEL", "GGP", "GHS", "GIP", "GMD", "GNF", "GTQ", "GYD", "HKD", "HNL",
-    "HRK", "HTG", "HUF", "IDR", "ILS", "IMP", "INR", "IQD", "IRR", "ISK",
-    "JEP", "JMD", "JOD", "JPY", "KES", "KGS", "KHR", "KMF", "KPW", "KRW",
-    "KWD", "KYD", "KZT", "LAK", "LBP", "LKR", "LRD", "LSL", "LYD", "MAD",
-    "MDL", "MGA", "MKD", "MMK", "MNT", "MOP", "MRU", "MUR", "MVR", "MWK",
-    "MXN", "MYR", "MZN", "NAD", "NGN", "NIO", "NOK", "NPR", "NZD", "OMR",
-    "PAB", "PEN", "PGK", "PHP", "PKR", "PLN", "PYG", "QAR", "RON", "RSD",
-    "RUB", "RWF", "SAR", "SBD", "SCR", "SDG", "SEK", "SGD", "SHP", "SLL",
-    "SOS", "SRD", "SSP", "STD", "STN", "SVC", "SYP", "SZL", "THB", "TJS",
-    "TMT", "TND", "TOP", "TRY", "TTD", "TWD", "TZS", "UAH", "UGX", "USD",
-    "UYU", "UZS", "VES", "VND", "VUV", "WST", "XAF", "XAG", "XAU", "XCD",
-    "XDR", "XOF", "XPD", "XPF", "XPT", "YER", "ZAR", "ZMW", "ZWL"
-);
+function ai4seo_get_allowed_currencies(): array {
+    return array(
+        "AED", "AFN", "ALL", "AMD", "ANG", "AOA", "ARS", "AUD", "AWG", "AZN",
+        "BAM", "BBD", "BDT", "BGN", "BHD", "BIF", "BMD", "BND", "BOB", "BRL",
+        "BSD", "BTC", "BTN", "BWP", "BYN", "BZD", "CAD", "CDF", "CHF", "CLF",
+        "CLP", "CNH", "CNY", "COP", "CRC", "CUC", "CUP", "CVE", "CZK", "DJF",
+        "DKK", "DOP", "DZD", "EGP", "ERN", "ETB", "EUR", "FJD", "FKP", "GBP",
+        "GEL", "GGP", "GHS", "GIP", "GMD", "GNF", "GTQ", "GYD", "HKD", "HNL",
+        "HRK", "HTG", "HUF", "IDR", "ILS", "IMP", "INR", "IQD", "IRR", "ISK",
+        "JEP", "JMD", "JOD", "JPY", "KES", "KGS", "KHR", "KMF", "KPW", "KRW",
+        "KWD", "KYD", "KZT", "LAK", "LBP", "LKR", "LRD", "LSL", "LYD", "MAD",
+        "MDL", "MGA", "MKD", "MMK", "MNT", "MOP", "MRU", "MUR", "MVR", "MWK",
+        "MXN", "MYR", "MZN", "NAD", "NGN", "NIO", "NOK", "NPR", "NZD", "OMR",
+        "PAB", "PEN", "PGK", "PHP", "PKR", "PLN", "PYG", "QAR", "RON", "RSD",
+        "RUB", "RWF", "SAR", "SBD", "SCR", "SDG", "SEK", "SGD", "SHP", "SLL",
+        "SOS", "SRD", "SSP", "STD", "STN", "SVC", "SYP", "SZL", "THB", "TJS",
+        "TMT", "TND", "TOP", "TRY", "TTD", "TWD", "TZS", "UAH", "UGX", "USD",
+        "UYU", "UZS", "VES", "VND", "VUV", "WST", "XAF", "XAG", "XAU", "XCD",
+        "XDR", "XOF", "XPD", "XPF", "XPT", "YER", "ZAR", "ZMW", "ZWL"
+    );
+}
 
 
 // === Plugin's Settings ================================================================================= \\
@@ -637,6 +658,11 @@ const AI4SEO_ALL_GET_MORE_CREDITS_MODAL_SETTINGS = array(
     AI4SEO_SETTING_PAYG_MONTHLY_BUDGET,
 );
 
+// NOT IMPORTABLE SETTINGS
+const AI4SEO_NOT_IMPORTABLE_SETTINGS = array(
+    AI4SEO_SETTING_INCOGNITO_MODE_USER_ID
+);
+
 // DEFAULT SETTINGS
 const AI4SEO_DEFAULT_SETTINGS = array(
     AI4SEO_SETTING_SHOW_ADVANCED_SETTINGS => "hide",
@@ -709,8 +735,6 @@ $ai4seo_fallback_allowed_user_roles = array("administrator" => "Administrator");
 $ai4seo_forbidden_allowed_user_roles = array("subscriber", "customer");
 $ai4seo_can_manage_this_plugin = null; # cache variable
 
-$ai4seo_synced_robhub_client_data = array();
-
 const AI4SEO_AVAILABLE_BULK_GENERATION_ORDER_OPTIONS = array("random", "oldest", "newest");
 const AI4SEO_AVAILABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_OPTIONS = array("both", "new", "existing");
 
@@ -755,6 +779,7 @@ const AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_POST_ENTRIES = "num_post_entries";
 const AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_ATTACHMENT_POST_ENTRIES = "num_attachment_post_entries";
 const AI4SEO_ENVIRONMENTAL_VARIABLE_CURRENT_DISCOUNT = "current_discount";
 const AI4SEO_ENVIRONMENTAL_VARIABLE_PLUGIN_ACTIVATION_TIME = "plugin_activation_time";
+const AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_PERFORMANCE_ANALYSIS_TIME = "last_performance_analysis_time";
 
 const AI4SEO_NOTIFICATION_AUTO_DISMISS_DAYS = 7;
 
@@ -780,6 +805,7 @@ const AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES = array(
     AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_ATTACHMENT_POST_ENTRIES => 0,
     AI4SEO_ENVIRONMENTAL_VARIABLE_CURRENT_DISCOUNT => array(),
     AI4SEO_ENVIRONMENTAL_VARIABLE_PLUGIN_ACTIVATION_TIME => 0,
+    AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_PERFORMANCE_ANALYSIS_TIME => 0,
 );
 
 $ai4seo_environmental_variables = AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES;
@@ -925,180 +951,186 @@ add_action('init', function() {
     ));
 }, 9);
 
-$ai4seo_allowed_html_tags_and_attributes = array(
-    "div" => array(
-        "id" => array(),
-        "class" => array(),
-        "onclick" => array(),
-        "style" => array(),
-        "title" => array(),
-    ),
-    "img" => array(
-        "class" => array(),
-        "src" => array(),
-        "alt" => array(),
-        "onclick" => array(),
-        "style" => array(),
-    ),
-    'meta' => array(
-        'name' => array(),
-        'content' => array(),
-        'property' => array(),
-    ),
-    'title' => array(),
-    'svg' => array(
-        'viewbox' => array(),
-        'aria-label' => array(),
-        'class' => array(),
-        'xmlns' => array(),
-    ),
-    'rect' => array(
-        'width' => array(),
-        'height' => array(),
-        'rx' => array(),
-        'ry' => array(),
-        'x' => array(),
-        'y' => array(),
-        'fill' => array(),
-    ),
-    'line' => array(
-        'x1' => array(),
-        'y1' => array(),
-        'x2' => array(),
-        'y2' => array(),
-        'stroke' => array(),
-        'stroke-width' => array(),
-    ),
-    'defs' => array(),
-    'style' => array(),
-    'path' => array(
-        'class' => array(),
-        'd' => array(),
-        'fill-rule' => array(),
-        'fill' => array(),
-        'clip-rule' => array(),
-    ),
-    'g' => array(
-        'class' => array(),
-    ),
-    'circle' => array(
-        'cx' => array(),
-        'cy' => array(),
-        'r' => array(),
-        'fill' => array(),
-    ),
-    'polygon' => array(
-        'points' => array(),
-        'fill' => array(),
-    ),
-    'text' => array(
-        'x' => array(),
-        'y' => array(),
-        'font-size' => array(),
-        'font-family' => array(),
-        'font-weight' => array(),
-        'fill' => array(),
-    ),
-    "button" => array(
-        "type" => array(),
-        "onclick" => array(),
-        "class" => array(),
-        "id" => array(),
-        "disabled" => array(),
-        "style" => array(),
-        "data-clipboard-text" => array(),
-    ),
-    "span" => array(
-        "id" => array(),
-        "class" => array(),
-        "style" => array(),
-        "data-trigger" => array(),
-        "data-time-left" => array(),
-    ),
-    "h1" => array(
-        "class" => array(),
-        "style" => array(),
-    ),
-    "h2" => array(
-        "class" => array(),
-        "style" => array(),
-    ),
-    "p" => array(
-        "class" => array(),
-        "style" => array(),
-    ),
-    "b" => array(),
-    "u" => array(),
-    "a" => array(
-        "href" => array(),
-        "target" => array(),
-        "rel" => array(),
-        "title" => array(),
-        "class" => array(),
-        "onclick" => array(),
-    ),
-    "i" => array(
-        "onclick" => array(),
-        "class" => array(),
-        "id" => array(),
-        "style" => array(),
-    ),
-    "select" => array(
-        "id" => array(),
-        "class" => array(),
-        "style" => array(),
-        "onchange" => array(),
-    ),
-    "option" => array(
-        "value" => array(),
-        "selected" => array(),
-    ),
-    "br" => array(),
-    "strong" => array(),
-    "input" => array(
-        "type" => array(),
-        "id" => array(),
-        "class" => array(),
-        "style" => array(),
-        "value" => array(),
-        "name" => array(),
-        "placeholder" => array(),
-        "onchange" => array(),
-        "onclick" => array(),
-        "disabled" => array(),
-        "data-target" => array(),
-    ),
-    "textarea" => array(
-        "id" => array(),
-        "class" => array(),
-        "style" => array(),
-        "onchange" => array(),
-        "onclick" => array(),
-        "disabled" => array(),
-    ),
-    "label" => array(
-        "for" => array(),
-        "class" => array(),
-        "style" => array(),
-    ),
-    "center" => array(),
-    "ol" => array(
-        "class" => array(),
-        "style" => array(),
-    ),
-    "ul" => array(
-        "class" => array(),
-        "style" => array(),
-    ),
-    "li" => array(
-        "class" => array(),
-        "style" => array(),
-    ),
-    "em" => array(),
-);
+function ai4seo_get_allowed_html_tags_and_attributes(): array {
+    static $ai4seo_allowed_html_tags_and_attributes = array(
+        "div" => array(
+            "id" => array(),
+            "class" => array(),
+            "onclick" => array(),
+            "style" => array(),
+            "title" => array(),
+        ),
+        "img" => array(
+            "class" => array(),
+            "src" => array(),
+            "alt" => array(),
+            "onclick" => array(),
+            "style" => array(),
+        ),
+        'meta' => array(
+            'name' => array(),
+            'content' => array(),
+            'property' => array(),
+        ),
+        'title' => array(),
+        'svg' => array(
+            'viewbox' => array(),
+            'aria-label' => array(),
+            'class' => array(),
+            'xmlns' => array(),
+        ),
+        'rect' => array(
+            'width' => array(),
+            'height' => array(),
+            'rx' => array(),
+            'ry' => array(),
+            'x' => array(),
+            'y' => array(),
+            'fill' => array(),
+        ),
+        'line' => array(
+            'x1' => array(),
+            'y1' => array(),
+            'x2' => array(),
+            'y2' => array(),
+            'stroke' => array(),
+            'stroke-width' => array(),
+        ),
+        'defs' => array(),
+        'style' => array(),
+        'path' => array(
+            'class' => array(),
+            'd' => array(),
+            'fill-rule' => array(),
+            'fill' => array(),
+            'clip-rule' => array(),
+        ),
+        'g' => array(
+            'class' => array(),
+        ),
+        'circle' => array(
+            'cx' => array(),
+            'cy' => array(),
+            'r' => array(),
+            'fill' => array(),
+        ),
+        'polygon' => array(
+            'points' => array(),
+            'fill' => array(),
+        ),
+        'text' => array(
+            'x' => array(),
+            'y' => array(),
+            'font-size' => array(),
+            'font-family' => array(),
+            'font-weight' => array(),
+            'fill' => array(),
+        ),
+        "button" => array(
+            "type" => array(),
+            "onclick" => array(),
+            "class" => array(),
+            "id" => array(),
+            "disabled" => array(),
+            "style" => array(),
+            "data-clipboard-text" => array(),
+        ),
+        "span" => array(
+            "id" => array(),
+            "class" => array(),
+            "style" => array(),
+            "data-trigger" => array(),
+            "data-time-left" => array(),
+        ),
+        "h1" => array(
+            "class" => array(),
+            "style" => array(),
+        ),
+        "h2" => array(
+            "class" => array(),
+            "style" => array(),
+        ),
+        "p" => array(
+            "class" => array(),
+            "style" => array(),
+        ),
+        "b" => array(),
+        "u" => array(),
+        "a" => array(
+            "href" => array(),
+            "target" => array(),
+            "rel" => array(),
+            "title" => array(),
+            "class" => array(),
+            "onclick" => array(),
+        ),
+        "i" => array(
+            "onclick" => array(),
+            "class" => array(),
+            "id" => array(),
+            "style" => array(),
+        ),
+        "select" => array(
+            "id" => array(),
+            "class" => array(),
+            "style" => array(),
+            "onchange" => array(),
+        ),
+        "option" => array(
+            "value" => array(),
+            "selected" => array(),
+        ),
+        "br" => array(),
+        "strong" => array(),
+        "input" => array(
+            "type" => array(),
+            "id" => array(),
+            "class" => array(),
+            "style" => array(),
+            "value" => array(),
+            "name" => array(),
+            "placeholder" => array(),
+            "onchange" => array(),
+            "onclick" => array(),
+            "disabled" => array(),
+            "data-target" => array(),
+        ),
+        "textarea" => array(
+            "id" => array(),
+            "class" => array(),
+            "style" => array(),
+            "onchange" => array(),
+            "onclick" => array(),
+            "disabled" => array(),
+        ),
+        "label" => array(
+            "for" => array(),
+            "class" => array(),
+            "style" => array(),
+        ),
+        "center" => array(),
+        "ol" => array(
+            "class" => array(),
+            "style" => array(),
+        ),
+        "ul" => array(
+            "class" => array(),
+            "style" => array(),
+        ),
+        "li" => array(
+            "class" => array(),
+            "style" => array(),
+        ),
+        "em" => array(),
+    );
+
+    return $ai4seo_allowed_html_tags_and_attributes;
+}
+
 
 $ai4seo_cached_active_plugins_and_themes = array();
 $ai4seo_cached_supported_post_types = array();
+$ai4seo_checked_supported_post_types = array();
 $ai4seo_allowed_attachment_mime_types = array("image/jpeg", "image/png", "image/gif", "image/webp", "image/avif"); # IMPORTANT! Also apply changes to the api-service AND to ai4seo_supported_mime_types-variable in JS-file
 $ai4seo_allowed_image_mime_types = array("image/jpeg", "image/png", "image/gif", "image/webp", "image/avif");
 $ai4seo_allowed_image_file_type_names = array("jpg", "jpeg", "png", "gif", "webp", "avif");
@@ -1218,7 +1250,7 @@ add_action("init", "ai4seo_init_frontend_injections");
 add_action("init", "ai4seo_init_user_essentials");
 
 // perform ajax nonce check
-add_action('init', 'ai4seo_ajax_nonce_check');
+add_action('plugins_loaded', 'ai4seo_ajax_nonce_check', 0);
 
 // not admin area -> exit here
 if (!ai4seo_is_function_usable("is_admin") || !is_admin()) {
@@ -1247,9 +1279,6 @@ register_deactivation_hook(__FILE__, "ai4seo_on_deactivation");
 if (ai4seo_does_user_need_to_accept_tos_toc_and_pp()) {
     return;
 }
-
-// init robhub account
-add_action("init", "ai4seo_init_robhub_account");
 
 // init cron jobs
 add_action("init", "ai4seo_init_cron_jobs");
@@ -1447,18 +1476,10 @@ function ai4seo_init_admin_area_essentials() {
     add_action("manage_page_posts_custom_column", "ai4seo_add_metadata_editor_button_to_posts_table", 10, 2);
     #add_action("manage_product_posts_custom_column", "ai4seo_add_metadata_editor_button_to_posts_table", 10, 2);
 
-    // if we are on the dashboard -> reset credits balance check cache and analyze plugin performance
-    // so we have fresh data on the dashboard
+    // if we are on the dashboard -> sync account eventually
     if ($is_dashboard_page_visible) {
-        ai4seo_robhub_api()->reset_last_credit_balance_check();
-
-        // only analyze plugin performance if the number of posts is below 50000
-        $num_posts = (int) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_POST_ENTRIES);
-        $num_attachment_posts = (int) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_ATTACHMENT_POST_ENTRIES);
-
-        if ($num_posts + $num_attachment_posts < 50000) {
-            ai4seo_analyze_plugin_performance();
-        }
+        ai4seo_check_for_robhub_account_sync();
+        ai4seo_check_for_performance_analysis();
     }
 }
 
@@ -1558,7 +1579,7 @@ function ai4seo_on_deactivation() {
  * @return void
  */
 function ai4seo_check_and_handle_plugin_update() {
-    $last_known_plugin_version = ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_KNOWN_PLUGIN_VERSION);
+    $last_known_plugin_version = strval(ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_KNOWN_PLUGIN_VERSION));
 
     // same plugin version as last known version? -> skip
     if ($last_known_plugin_version == AI4SEO_PLUGIN_VERSION_NUMBER) {
@@ -1598,7 +1619,7 @@ function ai4seo_check_and_handle_plugin_update() {
  * @param $last_known_plugin_version string The last known plugin version, used to determine which cleanup actions to perform
  * @return void
  */
-function ai4seo_tidy_up($last_known_plugin_version = AI4SEO_PLUGIN_VERSION_NUMBER) {
+function ai4seo_tidy_up(string $last_known_plugin_version = AI4SEO_PLUGIN_VERSION_NUMBER) {
     // reestablish cron jobs
     ai4seo_un_schedule_cron_jobs();
     ai4seo_init_cron_jobs();
@@ -1608,7 +1629,7 @@ function ai4seo_tidy_up($last_known_plugin_version = AI4SEO_PLUGIN_VERSION_NUMBE
     ai4seo_inject_additional_cronjob_call(AI4SEO_ANALYSE_PLUGIN_PERFORMANCE_CRON_JOB_NAME, 10);
 
     // unset temporary environmental variables
-    ai4seo_robhub_api()->reset_last_credit_balance_check();
+    ai4seo_robhub_api()->reset_last_account_sync();
     ai4seo_robhub_api()->tidy_up_api_locks();
     ai4seo_update_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_CRON_JOB_CALL, time() - 300);
     ai4seo_update_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_SPECIFIC_CRON_JOB_CALLS, array());
@@ -1739,7 +1760,6 @@ function ai4seo_tidy_up($last_known_plugin_version = AI4SEO_PLUGIN_VERSION_NUMBE
     // V1.2.6: Save various options into the new environmental variables option
     if ($last_known_plugin_version && version_compare($last_known_plugin_version, '1.2.6', '<')) {
         if (get_option("_ai4seo_robhub_last_credit_balance_check") !== false) {
-            ai4seo_robhub_api()->update_environmental_variable(ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_LAST_CREDIT_BALANCE_CHECK, (int) get_option("_ai4seo_robhub_last_credit_balance_check"));
             delete_option("_ai4seo_robhub_last_credit_balance_check");
         }
 
@@ -1859,6 +1879,9 @@ function ai4seo_tidy_up($last_known_plugin_version = AI4SEO_PLUGIN_VERSION_NUMBE
         }
     }
 
+
+    // === 2.1.X ================================================================================= \\
+
     // V2.1.0:
     if ($last_known_plugin_version && version_compare($last_known_plugin_version, '2.1.0', '<')) {
         // Remove old environmental variable "performance_notice_dismissed_time" and dismissed_one_time_notices, feature was removed in V2.1.0
@@ -1871,6 +1894,12 @@ function ai4seo_tidy_up($last_known_plugin_version = AI4SEO_PLUGIN_VERSION_NUMBE
         if (get_option("_ai4seo_plugin_activation_time") !== false) {
             delete_option("_ai4seo_plugin_activation_time");
         }
+    }
+
+    // V2.1.1:
+    if ($last_known_plugin_version && version_compare($last_known_plugin_version, '2.1.1', '<')) {
+        // delete old robhub environmental variable last_credit_balance_check
+        ai4seo_robhub_api()->delete_environmental_variable("last_credit_balance_check");
     }
 
     // to finish the tidy up, we re-analyze the plugin performance and by adding notifications
@@ -1976,7 +2005,13 @@ function ai4seo_init_robhub_api(): bool {
  * @return void
 */
 function ai4seo_add_menu_entries(){
-    $encoded_svg = 'data:image/svg+xml;base64,' . base64_encode(AI4SEO_SVG_ICONS["ai-for-seo-main-menu-icon"]);
+    $svg_tags = ai4seo_get_svg_tags();
+
+    if (!isset($svg_tags["ai-for-seo-main-menu-icon"])) {
+        return;
+    }
+
+    $encoded_svg = 'data:image/svg+xml;base64,' . base64_encode($svg_tags["ai-for-seo-main-menu-icon"]);
 
     $notification_count = (int) ai4seo_get_num_unread_notification();
 
@@ -2987,30 +3022,78 @@ function ai4seo_handle_posts_to_be_analyzed() {
 
 // =========================================================================================== \\
 
+/**
+ * Function to check the AJAX nonce
+ * This function is used to verify the nonce for AJAX requests made by the plugin.
+ * It ensures that the request is valid and comes from a user who has permission to use the plugin.
+ * If the nonce is invalid or the user does not have permission, it returns an error as JSON.
+ * In addition to checking the nonce, it also starts output buffering to capture any early echoes
+ * and sets the display_errors directive to false to prevent errors from being printed into the response.
+ * @return void
+ */
 function ai4seo_ajax_nonce_check() {
-    // make sure this is an AJAX request
-    if (!wp_doing_ajax()) {
+    // Make sure this is an AJAX request
+    if ( ! wp_doing_ajax() ) {
         return;
     }
 
-    // Make sure that the user is allowed to use this plugin
-    if (!ai4seo_can_manage_this_plugin()) {
-        ai4seo_return_error_as_json("Invalid ajax request.", 11420725);
+    $action = isset( $_REQUEST['action'] ) ? sanitize_text_field( $_REQUEST['action'] ) : '';
+
+    // Only handle our own actions
+    if ( ! $action || strpos( $action, 'ai4seo_' ) === false ) {
         return;
     }
 
-    $action = isset($_REQUEST['action']) ? sanitize_text_field($_REQUEST['action']) : '';
-
-    // Check if the action belongs to our plugin
-    if (!$action || !strstr($action, 'ai4seo_')) {
+    // Check permission
+    if ( ! ai4seo_can_manage_this_plugin() ) {
+        ai4seo_send_json_error( esc_html__( 'Invalid ajax request.', 'ai-for-seo' ), 11420725 );
         return;
     }
 
-    $ajax_nonce = isset($_REQUEST['ai4seo_ajax_nonce']) ? sanitize_text_field($_REQUEST['ai4seo_ajax_nonce']) : '';
+    // Verify nonce
+    $ajax_nonce = isset( $_REQUEST['ai4seo_ajax_nonce'] ) ? sanitize_text_field( $_REQUEST['ai4seo_ajax_nonce'] ) : '';
+    if ( ! $ajax_nonce || ! wp_verify_nonce( $ajax_nonce, 'ai4seo_ajax_nonce' ) ) {
+        ai4seo_send_json_error( esc_html__( 'Invalid ajax nonce.', 'ai-for-seo' ), 401271224 );
+    }
 
-    // Verify the nonce
-    if (!$ajax_nonce || !wp_verify_nonce($ajax_nonce, 'ai4seo_ajax_nonce')) {
-        ai4seo_return_error_as_json("Invalid ajax nonce.", 401271224);
+    // Begin buffering ASAP so any early echoes are captured
+    if ( ! ob_get_level() ) {
+        ob_start();
+    }
+
+    // Ensure errors don't print into the response
+    if ( ! defined( 'WP_DEBUG_DISPLAY' ) ) {
+        define( 'WP_DEBUG_DISPLAY', false );
+    }
+    @ini_set( 'display_errors', '0' );
+}
+
+// =========================================================================================== \\
+
+/**
+ * Checks if the plugin performance analysis should be run
+ */
+function ai4seo_check_for_performance_analysis() {
+    // when using ai4seo_force_performance_analysis parameter -> reset the last account sync timestamp
+    if (isset($_GET["ai4seo_force_performance_analysis"])) {
+        ai4seo_analyze_plugin_performance();
+        return;
+    }
+
+    // if we only have 5000 or fewer posts, we can do a performance analysis anytime
+    $num_posts = (int) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_POST_ENTRIES);
+    $num_attachment_posts = (int) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_ATTACHMENT_POST_ENTRIES);
+
+    if ($num_posts + $num_attachment_posts < 5000) {
+        ai4seo_analyze_plugin_performance();
+        return;
+    }
+
+    $last_performance_analysis_time = (int) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_PERFORMANCE_ANALYSIS_TIME);
+
+    // mainly useful if cron job didn't run for a while or on first plugin activation
+    if ($last_performance_analysis_time <= time() - AI4SEO_ANALYZE_PERFORMANCE_INTERVAL) {
+        ai4seo_analyze_plugin_performance();
     }
 }
 
@@ -3019,16 +3102,30 @@ function ai4seo_ajax_nonce_check() {
 /**
  * Function to init the RobHub Account by syncing it eventually
  */
-function ai4seo_init_robhub_account(): void {
-    // only run this function on the dashboard of our plugin
-    $is_our_dashboard_open = ai4seo_is_tab_open("dashboard");
-
-    if (!$is_our_dashboard_open) {
+function ai4seo_check_for_robhub_account_sync(): void {
+    // when using ai4seo_force_sync_account parameter -> reset the last account sync timestamp
+    if (isset($_GET["ai4seo_force_sync_account"])) {
+        ai4seo_sync_robhub_account();
         return;
     }
 
-    // we sync the robhub account every time the user is inside our plugin admin pages
-    ai4seo_sync_robhub_account();
+    // check last sync timestamp
+    $last_account_sync = ai4seo_robhub_api()->read_environmental_variable(ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC);
+
+    if ($last_account_sync < time() - ai4seo_robhub_api()::ACCOUNT_SYNC_INTERVAL) {
+        // sync the RobHub account
+        ai4seo_sync_robhub_account();
+        return;
+    }
+
+    // if next free credits timestamp is set and in the past, we need to sync the account again
+    $next_free_credits_timestamp = ai4seo_robhub_api()->read_environmental_variable(ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_NEXT_FREE_CREDITS_TIMESTAMP);
+
+    if ($next_free_credits_timestamp && $next_free_credits_timestamp < time()) {
+        // sync the RobHub account
+        ai4seo_sync_robhub_account();
+        return;
+    }
 }
 
 // =========================================================================================== \\
@@ -3039,31 +3136,29 @@ function ai4seo_init_robhub_account(): void {
  * @return bool - true if the RobHub Account was synced, false on error
  */
 function ai4seo_sync_robhub_account(bool $allow_notification_force = false): bool {
-    global $ai4seo_synced_robhub_client_data;
-
-    // we already have a RobHub account, so we do not need to sync it again this run
-    if ($ai4seo_synced_robhub_client_data) {
-        return true;
+    // use singleton to only call this function once
+    if (!ai4seo_singleton(__FUNCTION__)) {
+        return false;
     }
 
-    $sync_response = ai4seo_robhub_api()->call("client/sync");
+    $sync_account_response = ai4seo_robhub_api()->call("client/sync");
 
     // in case we have an error, we try to push a notification
-    ai4seo_check_for_robhub_account_error_notification($sync_response, true);
+    ai4seo_check_for_robhub_account_error_notification($sync_account_response, true);
 
     // Interpret response
-    if (!ai4seo_robhub_api()->was_call_successful($sync_response)) {
+    if (!ai4seo_robhub_api()->was_call_successful($sync_account_response)) {
         return false;
     }
 
     // check data payload
-    if (!isset($sync_response["data"]) || !is_array($sync_response["data"]) || !$sync_response["data"]) {
+    if (!isset($sync_account_response["data"]) || !is_array($sync_account_response["data"]) || !$sync_account_response["data"]) {
         return false;
     }
 
-    $ai4seo_synced_robhub_client_data = $sync_response["data"];
+    $synced_account_data = $sync_account_response["data"];
 
-    $ai4seo_last_website_toc_and_pp_update_time = (int) ($ai4seo_synced_robhub_client_data["last_terms_update_time"] ?? false);
+    $ai4seo_last_website_toc_and_pp_update_time = (int) ($synced_account_data["last_terms_update_time"] ?? false);
 
     // update the last website's ToC and PP update time if it is not set
     if ($ai4seo_last_website_toc_and_pp_update_time && $ai4seo_last_website_toc_and_pp_update_time != ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_WEBSITE_TOC_AND_PP_UPDATE_TIME)) {
@@ -3071,37 +3166,59 @@ function ai4seo_sync_robhub_account(bool $allow_notification_force = false): boo
     }
 
     // compare settings and environmental variables
-    ai4seo_update_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_HAS_PURCHASED_SOMETHING, (bool) ($ai4seo_synced_robhub_client_data["has_purchased_something"] ?? false));
+    ai4seo_update_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_HAS_PURCHASED_SOMETHING, (bool) ($synced_account_data["has_purchased_something"] ?? false));
 
-    if (isset($ai4seo_synced_robhub_client_data["is_payg_enabled"])) {
-        ai4seo_update_setting(AI4SEO_SETTING_PAYG_ENABLED, (bool) $ai4seo_synced_robhub_client_data["is_payg_enabled"]);
+    // next free credits
+    $next_free_credits_countdown = (int) ($synced_account_data["next_free_credits_countdown"] ?? 0);
+    ai4seo_robhub_api()->update_environmental_variable(ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_NEXT_FREE_CREDITS_TIMESTAMP, time() + $next_free_credits_countdown);
+
+    // subscription
+    if (isset($synced_account_data["plan"]) && $synced_account_data["plan"] != "free") {
+        // build subscription array, base on
+        $subscription = array(
+            "plan" => $synced_account_data["plan"],
+            "subscription_start" => $synced_account_data["subscription_start"] ?? "",
+            "subscription_end" => $synced_account_data["subscription_end"] ?? "",
+            "next_credits_refresh" => $synced_account_data["next_credits_refresh"] ?? "",
+            "do_renew" => (bool) ($synced_account_data["do_renew"] ?? false),
+            "renew_frequency" => $synced_account_data["renew_frequency"] ?? "monthly",
+        );
+
+        ai4seo_robhub_api()->update_environmental_variable(ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION, $subscription);
+    } else {
+        ai4seo_robhub_api()->delete_environmental_variable(ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION);
     }
 
-    if (isset($ai4seo_synced_robhub_client_data["stripe_price_id"]) && $ai4seo_synced_robhub_client_data["stripe_price_id"]) {
-        ai4seo_update_setting(AI4SEO_SETTING_PAYG_STRIPE_PRICE_ID, $ai4seo_synced_robhub_client_data["stripe_price_id"]);
+    // Sync Pay-As-You-Go settings
+    if (isset($synced_account_data["is_payg_enabled"])) {
+        ai4seo_update_setting(AI4SEO_SETTING_PAYG_ENABLED, (bool) $synced_account_data["is_payg_enabled"]);
     }
 
-    if (isset($ai4seo_synced_robhub_client_data["payg_threshold"]) && is_numeric($ai4seo_synced_robhub_client_data["payg_threshold"])) {
-        ai4seo_update_setting(AI4SEO_SETTING_PAYG_CREDITS_THRESHOLD, (int) $ai4seo_synced_robhub_client_data["payg_threshold"]);
+    if (isset($synced_account_data["stripe_price_id"]) && $synced_account_data["stripe_price_id"]) {
+        ai4seo_update_setting(AI4SEO_SETTING_PAYG_STRIPE_PRICE_ID, $synced_account_data["stripe_price_id"]);
     }
 
-    if (isset($ai4seo_synced_robhub_client_data["payg_daily_budget"]) && is_numeric($ai4seo_synced_robhub_client_data["payg_daily_budget"])) {
-        ai4seo_update_setting(AI4SEO_SETTING_PAYG_DAILY_BUDGET, (int) $ai4seo_synced_robhub_client_data["payg_daily_budget"]);
+    if (isset($synced_account_data["payg_threshold"]) && is_numeric($synced_account_data["payg_threshold"])) {
+        ai4seo_update_setting(AI4SEO_SETTING_PAYG_CREDITS_THRESHOLD, (int) $synced_account_data["payg_threshold"]);
     }
 
-    if (isset($ai4seo_synced_robhub_client_data["payg_monthly_budget"]) && is_numeric($ai4seo_synced_robhub_client_data["payg_monthly_budget"])) {
-        ai4seo_update_setting(AI4SEO_SETTING_PAYG_MONTHLY_BUDGET, (int) $ai4seo_synced_robhub_client_data["payg_monthly_budget"]);
+    if (isset($synced_account_data["payg_daily_budget"]) && is_numeric($synced_account_data["payg_daily_budget"])) {
+        ai4seo_update_setting(AI4SEO_SETTING_PAYG_DAILY_BUDGET, (int) $synced_account_data["payg_daily_budget"]);
+    }
+
+    if (isset($synced_account_data["payg_monthly_budget"]) && is_numeric($synced_account_data["payg_monthly_budget"])) {
+        ai4seo_update_setting(AI4SEO_SETTING_PAYG_MONTHLY_BUDGET, (int) $synced_account_data["payg_monthly_budget"]);
     }
 
     // stripe_last_customer_currency
-    if (isset($ai4seo_synced_robhub_client_data["stripe_last_customer_currency"]) && $ai4seo_synced_robhub_client_data["stripe_last_customer_currency"]) {
-        $ai4seo_synced_robhub_client_data["stripe_last_customer_currency"] = strtoupper($ai4seo_synced_robhub_client_data["stripe_last_customer_currency"]);
-        ai4seo_update_setting(AI4SEO_SETTING_PREFERRED_CURRENCY, $ai4seo_synced_robhub_client_data["stripe_last_customer_currency"]);
+    if (isset($synced_account_data["stripe_last_customer_currency"]) && $synced_account_data["stripe_last_customer_currency"]) {
+        $synced_account_data["stripe_last_customer_currency"] = strtoupper($synced_account_data["stripe_last_customer_currency"]);
+        ai4seo_update_setting(AI4SEO_SETTING_PREFERRED_CURRENCY, $synced_account_data["stripe_last_customer_currency"]);
     }
 
     // discount
-    if (isset($ai4seo_synced_robhub_client_data["discount"]) && is_array($ai4seo_synced_robhub_client_data["discount"])) {
-        $discount = $ai4seo_synced_robhub_client_data["discount"];
+    if (isset($synced_account_data["discount"]) && is_array($synced_account_data["discount"])) {
+        $discount = $synced_account_data["discount"];
 
         if (isset($discount["name"]) && $discount["name"] && isset($discount["percentage"]) && is_numeric($discount["percentage"])) {
             // sanitize integers
@@ -3120,8 +3237,8 @@ function ai4seo_sync_robhub_account(bool $allow_notification_force = false): boo
     }
 
     // notifications
-    if (isset($ai4seo_synced_robhub_client_data["notifications"]) && is_array($ai4seo_synced_robhub_client_data["notifications"])) {
-        $notifications = $ai4seo_synced_robhub_client_data["notifications"];
+    if (isset($synced_account_data["notifications"]) && is_array($synced_account_data["notifications"])) {
+        $notifications = $synced_account_data["notifications"];
 
         foreach ($notifications AS $notification_index => $notification) {
             if (!isset($notification["message"]) || !$notification["message"]) {
@@ -3145,6 +3262,9 @@ function ai4seo_sync_robhub_account(bool $allow_notification_force = false): boo
             ai4seo_push_notification($notification_index, $message, $force, $notification);
         }
     }
+
+    // set the last account sync time
+    ai4seo_robhub_api()->update_environmental_variable(ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC, time());
 
     return true;
 }
@@ -3281,7 +3401,6 @@ function ai4seo_robhub_api(): Ai4Seo_RobHubApiCommunicator {
     global $ai4seo_robhub_api;
 
     if (!$ai4seo_robhub_api instanceof Ai4Seo_RobHubApiCommunicator) {
-        error_log("AI4SEO: Unintentional initialization of the RobHub API communicator. #351320725");
         ai4seo_init_robhub_api();
     }
 
@@ -3477,12 +3596,14 @@ function ai4seo_is_json($string): bool {
  * @return string The icon SVG tag
  */
 function ai4seo_get_svg_tag(string $icon_name, string $alt_text = "", string $icon_css_class = ""): string {
+    $svg_tags = ai4seo_get_svg_tags();
+
     // Make sure that the icon-name is allowed
-    if (!isset(AI4SEO_SVG_ICONS[$icon_name])) {
+    if (!isset($svg_tags[$icon_name])) {
         return "";
     }
 
-    $svg_tag = AI4SEO_SVG_ICONS[$icon_name];
+    $svg_tag = $svg_tags[$icon_name];
 
     // add css class to svg tag
     if ($icon_css_class) {
@@ -3928,8 +4049,9 @@ function ai4seo_get_purchase_plan_url(string $ai4seo_client_id): string {
  * @return string The sanitized content
  */
 function ai4seo_wp_kses(string $content): string {
-    global $ai4seo_allowed_html_tags_and_attributes;
-    return wp_kses($content, $ai4seo_allowed_html_tags_and_attributes);
+    $allowed_html_tags_and_attributes = ai4seo_get_allowed_html_tags_and_attributes();
+
+    return wp_kses($content, $allowed_html_tags_and_attributes);
 }
 
 // =========================================================================================== \\
@@ -4414,6 +4536,7 @@ function ai4seo_get_backtrace_debug_message( $separator = '<br>' ): string {
 
 function ai4seo_get_recommended_credits_pack_size_by_num_missing_entries() {
     $ai4seo_num_missing_posts_by_post_type = ai4seo_get_num_missing_posts_by_post_type();
+    $ai4seo_credits_packs = ai4seo_get_credits_packs();
 
     if ($ai4seo_num_missing_posts_by_post_type) {
         $ai4seo_num_missing_posts_total = array_sum($ai4seo_num_missing_posts_by_post_type);
@@ -4426,7 +4549,7 @@ function ai4seo_get_recommended_credits_pack_size_by_num_missing_entries() {
     // find the smallest credit pack size that is larger than the approximate credits needed
     // only consider first three entries
     $n = 0;
-    foreach (AI4SEO_CREDITS_PACKS AS $ai4seo_this_payg_stripe_price_id => $ai4seo_credits_pack_entry) {
+    foreach ($ai4seo_credits_packs AS $ai4seo_this_payg_stripe_price_id => $ai4seo_credits_pack_entry) {
         $ai4seo_this_credits_amount = (int) $ai4seo_credits_pack_entry["credits_amount"];
         $n++;
 
@@ -4603,30 +4726,45 @@ function ai4seo_get_remote_body(string $url) {
  */
 function ai4seo_get_supported_post_types(): array {
     global $ai4seo_cached_supported_post_types;
+    global $ai4seo_checked_supported_post_types;
     global $wpdb;
-
-    if ($ai4seo_cached_supported_post_types) {
-        return $ai4seo_cached_supported_post_types;
-    }
 
     $publicly_accessible_post_types = ai4seo_get_publicly_accessible_post_types();
 
-    $supported_post_types = array_keys($publicly_accessible_post_types);
-    $supported_post_types = ai4seo_deep_sanitize($supported_post_types, "sanitize_key");
+    $check_this_post_types = array_keys($publicly_accessible_post_types);
+    $check_this_post_types = ai4seo_deep_sanitize($check_this_post_types, "sanitize_key");
 
-    // check in database for at least one post of each post type
-    if ($supported_post_types) {
-        $supported_post_types_from_database = $wpdb->get_col("SELECT DISTINCT post_type FROM {$wpdb->posts} WHERE post_type IN ('" . implode("', '", $supported_post_types) . "') AND post_status IN ('publish', 'future') LIMIT 100");
-
-        if ($supported_post_types_from_database) {
-            $supported_post_types = $supported_post_types_from_database;
-        }
+    // go through supported_post_types and remove those we already found in $ai4seo_checked_supported_post_types
+    if (is_array($ai4seo_checked_supported_post_types) && !empty($ai4seo_checked_supported_post_types)) {
+        $check_this_post_types = array_diff($check_this_post_types, $ai4seo_checked_supported_post_types);
     }
 
-    // order the post types
-    sort($supported_post_types);
+    // no new post types found, return cached post types
+    if (!$check_this_post_types) {
+        return $ai4seo_cached_supported_post_types;
+    }
 
-    return $supported_post_types;
+    // add entries to checked supported post types
+    $ai4seo_checked_supported_post_types = array_merge($ai4seo_checked_supported_post_types, $check_this_post_types);
+
+    // check in database for at least one post of each post type
+    $supported_post_types_from_database = $wpdb->get_col("SELECT DISTINCT post_type FROM {$wpdb->posts} WHERE post_type IN ('" . implode("', '", $check_this_post_types) . "') AND post_status IN ('publish', 'future') LIMIT 100");
+
+    // nothing found -> return cached post types
+    if (!$supported_post_types_from_database) {
+        return $ai4seo_cached_supported_post_types;
+    }
+
+    // sanitize the supported post types from database
+    $supported_post_types_from_database = ai4seo_deep_sanitize($supported_post_types_from_database, "sanitize_key");
+
+    // add $ai4seo_cached_supported_post_types to supported post types
+    $ai4seo_cached_supported_post_types = array_merge ($ai4seo_cached_supported_post_types, $supported_post_types_from_database);
+
+    // order the post types
+    sort($ai4seo_cached_supported_post_types);
+
+    return $ai4seo_cached_supported_post_types;
 }
 
 // =========================================================================================== \\
@@ -5179,7 +5317,7 @@ function ai4seo_analyze_post(int $post_id) {
  * @param int $error_code The error code to return
  * @return void
  */
-function ai4seo_return_error_as_json(string $error_message = "Unknown Error", int $error_code = 999, $error_headline = "", $add_contact_us_link = true) {
+function ai4seo_send_json_error(string $error_message = "Unknown Error", int $error_code = 999, $error_headline = "", $add_contact_us_link = true) {
     $clear_buffer = apply_filters('ai4seo_clear_buffer_on_error', true);
 
     // Clean output buffer if active
@@ -5189,9 +5327,9 @@ function ai4seo_return_error_as_json(string $error_message = "Unknown Error", in
     }
 
     wp_send_json_error(array(
-        "error" => wp_kses_post($error_message),
+        "error" => ai4seo_wp_kses($error_message),
         "code" => $error_code,
-        "headline" => wp_kses_post($error_headline),
+        "headline" => ai4seo_wp_kses($error_headline),
         "add_contact_us_link" => $add_contact_us_link
     ));
 }
@@ -5292,7 +5430,7 @@ function ai4seo_echo_half_donut_chart_with_headline_and_percentage($headline, $a
     }
 
     echo "<div class='ai4seo-chart-container'>";
-        echo "<h4>" . esc_html($headline) . "</h4>";
+        echo "<h4>" . ai4seo_wp_kses($headline) . "</h4>";
 
         echo "<div class='ai4seo-half-donut-chart-container'>";
             ai4seo_echo_half_donut_chart($ai4seo_chart_values);
@@ -5854,7 +5992,7 @@ function ai4seo_echo_current_discount() {
             echo sprintf(
                 esc_html__("%s%% discount available (time left: %s)", "ai-for-seo"),
                 (int) $ai4seo_current_discount["percentage"],
-                "<span class='ai4seo-countdown' data-time-left='" . esc_attr($ai4seo_current_discount["expire_in"]) . "' data-trigger='add_refresh_credits_balance_parameter_and_reload_page'>" . esc_html(ai4seo_format_seconds_to_hhmmss_or_days_hhmmss($ai4seo_current_discount["expire_in"])) . "</span>"
+                "<span class='ai4seo-countdown' data-time-left='" . esc_attr($ai4seo_current_discount["expire_in"]) . "' data-trigger='add_force_sync_account_parameter_and_reload_page'>" . esc_html(ai4seo_format_seconds_to_hhmmss_or_days_hhmmss($ai4seo_current_discount["expire_in"])) . "</span>"
             );
             // without countdown
         } else {
@@ -5880,6 +6018,48 @@ function ai4seo_get_voucher_code_output($voucher_code): string {
     return $voucher_code_output;
 }
 
+// =========================================================================================== \\
+
+/**
+ * Function to return the HTML for a dashicon tag
+ * @param $icon_name string The name of the dashicon
+ * @param $css_class string The CSS class to add to the icon (optional)
+ * @return string The HTML for the dashicon tag
+ */
+function ai4seo_get_dashicon_tag(string $icon_name, string $css_class = ""): string {
+
+
+    return '<i class="dashicons dashicons-' . esc_attr($icon_name) . ' ' . esc_attr($css_class) . '"></i>';
+}
+
+// =========================================================================================== \\
+
+/**
+ * Function to return the HTML for a dashicon tag for the navigation tabs
+ * @param $tab_name string The name of the tab (e.g., "page", "post", "category", etc.)
+ * @return string The HTML for the dashicon tag for the navigation tabs
+ */
+function ai4seo_get_dashicon_tag_for_navigation($tab_name): string {
+    $icon_name_mapping = array(
+        "default" => 'text-page',
+        "page" => 'admin-page',
+        "post" => 'admin-post',
+        "category" => 'admin-category',
+        "product" => 'products',
+        "product-category" => 'products',
+        "portfolio" => 'portfolio',
+        "attachment" => 'admin-media',
+        "media files" => 'admin-media',
+        "media" => 'admin-media',
+        "rss" => 'rss',
+        "rss-feed" => 'rss',
+        "rss_feed" => 'rss',
+    );
+
+    $icon_name = $icon_name_mapping[$tab_name] ?? $icon_name_mapping['default'];
+
+    return ai4seo_get_dashicon_tag($icon_name, "ai4seo-nav-tab-icon");
+}
 
 // ___________________________________________________________________________________________ \\
 // === THIRD PARTY SEO PLUGINS =============================================================== \\
@@ -5892,9 +6072,11 @@ function ai4seo_get_voucher_code_output($voucher_code): string {
 function ai4seo_get_active_third_party_seo_plugin_details(): array {
     $active_supported_third_party_seo_plugin_details = array();
 
-    foreach (AI4SEO_THIRD_PARTY_SEO_PLUGIN_DETAILS AS $third_party_seo_plugin_identifier => $third_party_seo_plugin_details) {
-        if (ai4seo_is_plugin_or_theme_active($third_party_seo_plugin_identifier)) {
-            $active_supported_third_party_seo_plugin_details[$third_party_seo_plugin_identifier] = $third_party_seo_plugin_details;
+    $third_party_seo_plugin_details = ai4seo_get_third_party_seo_plugin_details();
+
+    foreach ($third_party_seo_plugin_details AS $this_third_party_seo_plugin_identifier => $this_third_party_seo_plugin_details) {
+        if (ai4seo_is_plugin_or_theme_active($this_third_party_seo_plugin_identifier)) {
+            $active_supported_third_party_seo_plugin_details[$this_third_party_seo_plugin_identifier] = $this_third_party_seo_plugin_details;
         }
     }
 
@@ -6753,6 +6935,7 @@ function ai4seo_automated_metadata_generation($debug = false, $only_this_post_id
 
         $results = ai4seo_robhub_api()->call($robhub_api_endpoint, $api_call_parameters, "POST");
 
+
         // === CHECK RESULTS ========================================================================== \\
 
         if (!ai4seo_robhub_api()->was_call_successful($results)) {
@@ -7530,6 +7713,9 @@ function ai4seo_analyze_plugin_performance(bool $debug = false): bool {
     // perform a full re-generation of all posts generation status
     ai4seo_refresh_all_posts_generation_status_summary($debug);
 
+    // update the last performance analysis time
+    ai4seo_update_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_PERFORMANCE_ANALYSIS_TIME, time());;
+
     ai4seo_set_cron_job_status(AI4SEO_ANALYSE_PLUGIN_PERFORMANCE_CRON_JOB_NAME, "finished");
     return true;
 }
@@ -7557,7 +7743,7 @@ function ai4seo_refresh_all_posts_seo_coverage(bool $debug = false) {
 
     // === GENERATED POST IDS ================================================================================= \\
 
-    $query = "SELECT post_id FROM " . esc_sql($wpdb->postmeta) . " WHERE meta_key = 'ai4seo_generated_data'";
+    $query = "SELECT post_id FROM " . esc_sql($wpdb->postmeta) . " WHERE meta_key = '" . esc_sql(AI4SEO_POST_META_GENERATED_DATA_META_KEY) .  "'";
     $generated_data_post_ids = $wpdb->get_col($query);
 
     if ($debug) {
@@ -7710,83 +7896,108 @@ function ai4seo_refresh_all_posts_seo_coverage(bool $debug = false) {
  * @param $debug bool if true, debug information will be printed
  * @return void
  */
-function ai4seo_refresh_all_posts_generation_status_summary(bool $debug = false) {
+function ai4seo_refresh_all_posts_generation_status_summary( bool $debug = false ) {
     global $wpdb;
 
-    // === PREPARE ================================================================================= \\
+    // simple in-request cache to skip duplicate ID sets
+    static $query_cache = array();
+
+
+    // === PREPARE ========================================================================= \\
 
     $all_posts_generation_status_summary = array();
 
-    foreach (AI4SEO_ALL_POST_ID_OPTIONS AS $this_option_name) {
-        $all_posts_generation_status_summary[$this_option_name] = array();
+    foreach ( AI4SEO_ALL_POST_ID_OPTIONS as $this_option_name ) {
+        $all_posts_generation_status_summary[ $this_option_name ] = array();
     }
 
-    // POST TYPES
-    $supported_post_types = ai4seo_get_supported_post_types();
+    // post types
+    $supported_post_types            = ai4seo_get_supported_post_types();
     $supported_attachment_post_types = ai4seo_get_supported_attachment_post_types();
+    $supported_all_post_types        = array_merge( $supported_post_types, $supported_attachment_post_types );
 
-    // add attachment to the supported post types
-    $supported_all_post_types = array_merge($supported_post_types, $supported_attachment_post_types);
-
-    // generate IN-term for query for the post_type based on the automation settings
-    // escape each element
-    $post_type_sql_terms = array();
-    foreach ($supported_all_post_types AS $this_supported_post_type) {
-        $post_type_sql_terms[] = esc_sql($this_supported_post_type);
-    }
-
-    $escaped_post_type_term_string = implode("', '", $post_type_sql_terms);
+    // build IN-clause for post_type
+    $post_type_sql_terms = array_map( 'esc_sql', $supported_all_post_types );
+    $escaped_post_type_term_string = implode( "','", $post_type_sql_terms );
 
 
-    // === GO THROUGH EACH OPTION ================================================================================= \\
+    // === PROCESS EACH OPTION ============================================================== \\
 
-    foreach ($all_posts_generation_status_summary AS $this_option_name => &$this_summary_entry) {
-        $this_option_post_ids = ai4seo_get_post_ids_from_option($this_option_name);
+    foreach ( $all_posts_generation_status_summary as $this_option_name => &$this_summary_entry ) {
+        $this_option_post_ids = ai4seo_get_post_ids_from_option( $this_option_name );
 
-        if(!$this_option_post_ids) {
-            if ($debug) {
-                echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("No post ids found for option: " . esc_html($this_option_name), true)) . "<</pre>";
+        if ( ! $this_option_post_ids ) {
+            if ( $debug ) {
+                echo '<pre>' . esc_html( __FUNCTION__ . ' > No post ids for option: ' . $this_option_name ) . "</pre>";
             }
             continue;
         }
 
-        $this_only_this_post_ids_term_string = implode(", ", $this_option_post_ids);
-
-        // build query
-        $this_query = "SELECT COUNT(*) AS 'num', post_type FROM " . esc_sql($wpdb->prefix) . "posts WHERE post_type IN ('$escaped_post_type_term_string') AND ID IN (" . esc_sql($this_only_this_post_ids_term_string) . ") GROUP BY post_type";
-        $this_num_posts_by_post_type = $wpdb->get_results($this_query, ARRAY_A);
-
-        if (!$this_num_posts_by_post_type) {
-            if ($debug) {
-                echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("No posts found for option: " . esc_html($this_option_name), true)) . "<</pre>";
+        // checksum for caching
+        $this_option_post_ids_checksum = md5( serialize( $this_option_post_ids ) );
+        if ( isset( $query_cache[ $this_option_post_ids_checksum ] ) ) {
+            $this_summary_entry = $query_cache[ $this_option_post_ids_checksum ];
+            if ( $debug ) {
+                echo '<pre>' . esc_html( __FUNCTION__ . ' > Cached summary for ' . $this_option_name ) . "</pre>";
             }
             continue;
         }
 
-        foreach ($this_num_posts_by_post_type as $this_row) {
-            $this_post_type = $this_row["post_type"];
+        // chunk IDs to avoid huge IN-clause
+        $this_chunks = array_chunk( $this_option_post_ids, 10000 );
+        $is_first_chunk = true;
 
-            // merge attachment post types to "attachment"
-            if (in_array($this_post_type, $supported_attachment_post_types)) {
-                $this_post_type = "attachment";
+        foreach ( $this_chunks as $this_chunk ) {
+            $this_sanitized_post_ids         = array_map( 'absint', $this_chunk );
+            $this_only_this_post_ids_term_string = implode( ', ', $this_sanitized_post_ids );
+
+            // sleep for some microseconds to avoid database lock issues
+            if (!$is_first_chunk) {
+                usleep( 100000 ); // sleep for 0.1 seconds
             }
 
-            if (!isset($this_summary_entry[$this_post_type])) {
-                $this_summary_entry[$this_post_type] = 0;
+            $this_query = "
+				SELECT COUNT(*) AS num, post_type
+				FROM {$wpdb->prefix}posts
+				WHERE post_type IN ('{$escaped_post_type_term_string}')
+				  AND ID IN ({$this_only_this_post_ids_term_string})
+				GROUP BY post_type
+			";
+
+            $this_rows = $wpdb->get_results( $this_query, ARRAY_A );
+            if ( ! $this_rows ) {
+                continue;
             }
 
-            $this_summary_entry[$this_post_type] += $this_row["num"];
+            foreach ( $this_rows as $this_row ) {
+                $this_post_type = $this_row['post_type'];
+
+                // merge any attachment types under "attachment"
+                if ( in_array( $this_post_type, $supported_attachment_post_types, true ) ) {
+                    $this_post_type = 'attachment';
+                }
+
+                if ( ! isset( $this_summary_entry[ $this_post_type ] ) ) {
+                    $this_summary_entry[ $this_post_type ] = 0;
+                }
+
+                $this_summary_entry[ $this_post_type ] += intval( $this_row['num'] );
+            }
+
+            $is_first_chunk = false;
         }
 
-        if ($debug) {
-            echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("Summary for option: " . esc_html($this_option_name) . ": " . esc_html(print_r($this_summary_entry, true)), true)) . "<</pre>";
+        // store in cache
+        $query_cache[ $this_option_post_ids_checksum ] = $this_summary_entry;
+
+        if ( $debug ) {
+            echo '<pre>' . esc_html( __FUNCTION__ . ' > Summary for ' . $this_option_name . ': ' . print_r( $this_summary_entry, true ) ) . "</pre>";
         }
     }
 
+    // === SAVE ============================================================================= \\
 
-    // === SAVE ================================================================================= \\
-
-    update_option("_ai4seo_generation_status_summary", wp_json_encode($all_posts_generation_status_summary));
+    update_option( '_ai4seo_generation_status_summary', wp_json_encode( $all_posts_generation_status_summary ) );
 }
 
 
@@ -7982,45 +8193,67 @@ function ai4seo_get_metadata_identifier_by_postmeta_key(string $metadata_postmet
  * @param $post_ids array of post ids (all int)
  * @return array
  */
-function ai4seo_read_our_plugins_metadata_by_post_ids(array $post_ids): array {
+function ai4seo_read_our_plugins_metadata_by_post_ids( array $post_ids ): array {
     global $wpdb;
 
-    // make sure all entries of post_ids are numeric
-    foreach ($post_ids as $key => $post_id) {
-        if (!is_numeric($post_id)) {
+    // make sure all entries are numeric
+    foreach ( $post_ids as $post_id ) {
+        if ( ! is_numeric( $post_id ) ) {
             return array();
         }
     }
 
-    // Make sure that all parameters are not empty
-    if (empty($post_ids)) {
+    // bail early on empty
+    if ( empty( $post_ids ) ) {
         return array();
     }
 
-    // Make sure that all parameters are of the correct type
-    $regexp = "^_ai4seo_[0-9]+_.*$";
-    $post_ids_string = implode(",", $post_ids);
-    $post_ids_string = sanitize_text_field($post_ids_string);
-    $postmeta_table = $wpdb->postmeta;
-    $postmeta_table = sanitize_text_field($postmeta_table);
-    $query = "SELECT * FROM " . esc_sql($postmeta_table) . " WHERE meta_key REGEXP '" . esc_sql($regexp) . "' AND post_id IN (" . esc_sql($post_ids_string) . ")";
+    // sanitize IDs
+    $post_ids = array_map( 'absint', $post_ids );
 
-    // read directly from database by searching for entries in the postmeta table
-    $query_results = $wpdb->get_results( $query, ARRAY_A );
+    // table and pattern
+    $postmeta_table = esc_sql( $wpdb->postmeta );
+    $regexp         = '^_ai4seo_[0-9]+_.*$';
 
-    // rearrange the array to have post_id as 2d key and meta_key as 1d key and meta_value as the value
-    // also remove entries with emtpy meta_value
     $reordered_results = array();
 
-    foreach ($query_results as $query_result) {
-        $this_post_id = $query_result["post_id"];
-        $this_metadata_identifier = ai4seo_get_metadata_identifier_by_postmeta_key($query_result["meta_key"]);
+    // split into 10000-item chunks
+    $chunks = array_chunk( $post_ids, 10000 );
+    $first_chunk = true;
 
-        if (!$this_metadata_identifier) {
+    foreach ( $chunks as $this_chunk ) {
+        $this_post_ids = implode( ',', $this_chunk );
+        $this_post_ids = esc_sql( $this_post_ids );
+
+        if (!$first_chunk) {
+            // sleep for some microseconds to avoid database lock issues
+            usleep( 100000 ); // sleep for 0.1 seconds
+        }
+
+        $first_chunk = false;
+
+        $query = "
+			SELECT *
+			FROM {$postmeta_table}
+			WHERE meta_key REGEXP '" . esc_sql( $regexp ) . "'
+			  AND post_id IN ( {$this_post_ids} )
+		";
+
+        $this_rows = $wpdb->get_results( $query, ARRAY_A );
+        if ( ! $this_rows ) {
             continue;
         }
 
-        $reordered_results[$this_post_id][$this_metadata_identifier] = strval($query_result["meta_value"]);
+        foreach ( $this_rows as $this_row ) {
+            $this_post_id            = absint( $this_row['post_id'] );
+            $this_metadata_identifier = ai4seo_get_metadata_identifier_by_postmeta_key( $this_row['meta_key'] );
+
+            if ( ! $this_metadata_identifier ) {
+                continue;
+            }
+
+            $reordered_results[ $this_post_id ][ $this_metadata_identifier ] = strval( $this_row['meta_value'] );
+        }
     }
 
     return $reordered_results;
@@ -8068,8 +8301,10 @@ function ai4seo_read_third_party_seo_plugin_metadata_by_post_ids($third_party_pl
         return ai4seo_read_all_in_one_seo_metadata_by_post_ids($post_ids);
     }
 
+    $third_party_seo_plugin_details = ai4seo_get_third_party_seo_plugin_details();
+
     // Make sure that all parameters are of the correct type
-    $metadata_postmeta_keys = AI4SEO_THIRD_PARTY_SEO_PLUGIN_DETAILS[$third_party_plugin_name]["metadata-postmeta-keys"] ?? array();
+    $metadata_postmeta_keys = $third_party_seo_plugin_details[$third_party_plugin_name]["metadata-postmeta-keys"] ?? array();
 
     if (!$metadata_postmeta_keys) {
         return array();
@@ -9158,88 +9393,118 @@ function ai4seo_get_posts_language(int $post_id): string {
  * @param int|array $attachment_post_ids The post ids of the attachments we want to analyse
  * @return array
  */
-function ai4seo_read_and_analyse_attachment_attributes_coverage($attachment_post_ids): array {
+function ai4seo_read_and_analyse_attachment_attributes_coverage( $attachment_post_ids ): array {
     global $wpdb;
 
-    // to allow single post ids as parameter
-    if (!is_array($attachment_post_ids)) {
-        $attachment_post_ids = array($attachment_post_ids);
+    // allow single ID
+    if ( ! is_array( $attachment_post_ids ) ) {
+        $attachment_post_ids = array( $attachment_post_ids );
     }
 
-    // build an array that holds track of which attachment attributes are covered by the given posts
-    $attachment_attributes_coverage = ai4seo_create_empty_attachment_attributes_coverage_array($attachment_post_ids);
+    // initial coverage structure
+    $attachment_attributes_coverage = ai4seo_create_empty_attachment_attributes_coverage_array( $attachment_post_ids );
 
-    // make sure $attachment_ids is not empty
-    if (!$attachment_post_ids) {
+    // bail on empty or invalid IDs
+    if ( empty( $attachment_post_ids ) ) {
         return $attachment_attributes_coverage;
     }
-
-    // make sure all entries of post_ids are numeric
-    foreach ($attachment_post_ids as $key => $attachment_post_id) {
-        if (!is_numeric($attachment_post_id)) {
+    foreach ( $attachment_post_ids as $attachment_post_id ) {
+        if ( ! is_numeric( $attachment_post_id ) ) {
             return $attachment_attributes_coverage;
         }
     }
 
-    // Make sure that all parameters are not empty
-    if (empty($attachment_post_ids)) {
+    // normalize IDs
+    $attachment_post_ids = array_map( 'absint', $attachment_post_ids );
+
+    // active attributes
+    $active_attachment_attributes = ai4seo_get_active_attachment_attributes();
+
+    if ( ! $active_attachment_attributes ) {
         return $attachment_attributes_coverage;
     }
 
-    $attachment_post_ids_string = implode(",", $attachment_post_ids);
-    $attachment_post_ids_string = sanitize_text_field($attachment_post_ids_string);
+    // chunk IDs to avoid huge IN-lists
+    $chunks = array_chunk( $attachment_post_ids, 10000 );
+    $first_chunk = true;
 
-    $ai4seo_active_attachment_attributes = ai4seo_get_active_attachment_attributes();
+    // --- TITLE / CAPTION / DESCRIPTION / GUID ----------------------------------------- \\
 
-    if (!$ai4seo_active_attachment_attributes) {
-        return $attachment_attributes_coverage;
-    }
+    if ( array_intersect( array( 'title', 'caption', 'description' ), $active_attachment_attributes ) ) {
+        $posts_table = esc_sql( $wpdb->posts );
 
-    if (in_array("title", $ai4seo_active_attachment_attributes) || in_array("caption", $ai4seo_active_attachment_attributes) || in_array("description", $ai4seo_active_attachment_attributes)) {
-        // TITLE (post_title), CAPTION (post_excerpt), DESCRIPTION (post_content) AND FILE_NAME (guid) @ WP_POSTS TABLE
-        $query = "SELECT ID, post_title, post_excerpt, post_content, guid FROM " . esc_sql($wpdb->posts) . " WHERE ID IN (" . esc_sql($attachment_post_ids_string) . ")";
+        foreach ( $chunks as $this_chunk ) {
+            $this_attachment_post_ids_string_list = implode( ',', $this_chunk );
+            $this_attachment_post_ids_string_list = esc_sql( $this_attachment_post_ids_string_list );
 
-        $attachment_posts = $wpdb->get_results($query, ARRAY_A);
+            if (!$first_chunk) {
+                usleep(100000); // 0.1 seconds delay to avoid hitting DB limits
+            }
 
-        // go through them results and add the "title", "caption" and "description" attribute to the $attachment_attributes_coverage array
-        foreach ($attachment_posts as $attachment_post) {
-            if (empty($attachment_post["ID"])) {
+            $first_chunk = false;
+
+            $query = "
+				SELECT ID, post_title, post_excerpt, post_content, guid
+				FROM {$posts_table}
+				WHERE ID IN ( {$this_attachment_post_ids_string_list} )
+			";
+
+            $attachment_posts = $wpdb->get_results( $query, ARRAY_A );
+
+            if ( ! $attachment_posts ) {
                 continue;
             }
 
-            if (in_array("title", $ai4seo_active_attachment_attributes)) {
-                $attachment_attributes_coverage[$attachment_post["ID"]]["title"] = $attachment_post["post_title"];
-            }
+            foreach ( $attachment_posts as $this_attachment_post ) {
+                $this_attachment_post_id = absint( $this_attachment_post['ID'] );
 
-            if (in_array("caption", $ai4seo_active_attachment_attributes)) {
-                $attachment_attributes_coverage[$attachment_post["ID"]]["caption"] = $attachment_post["post_excerpt"];
+                if ( in_array( 'title', $active_attachment_attributes, true ) ) {
+                    $attachment_attributes_coverage[ $this_attachment_post_id ]['title'] = $this_attachment_post['post_title'];
+                }
+                if ( in_array( 'caption', $active_attachment_attributes, true ) ) {
+                    $attachment_attributes_coverage[ $this_attachment_post_id ]['caption'] = $this_attachment_post['post_excerpt'];
+                }
+                if ( in_array( 'description', $active_attachment_attributes, true ) ) {
+                    $attachment_attributes_coverage[ $this_attachment_post_id ]['description'] = $this_attachment_post['post_content'];
+                }
+                // file-name if needed in future:
+                // $file_name = substr( $attachment_post['guid'], strrpos( $attachment_post['guid'], '/' ) + 1 );
+                // $attachment_attributes_coverage[ $this_id ]['file-name'] = $file_name;
             }
-
-            if (in_array("description", $ai4seo_active_attachment_attributes)) {
-                $attachment_attributes_coverage[$attachment_post["ID"]]["description"] = $attachment_post["post_content"];
-            }
-
-            // file name: only consider everything after the last slash
-            #$this_attachment_post_file_name = $attachment_post["guid"];
-            #$attachment_attributes_coverage[$attachment_post["ID"]]["file-name"] = substr($this_attachment_post_file_name, strrpos($this_attachment_post_file_name, "/") + 1);
         }
     }
 
-    if (in_array("alt-text", $ai4seo_active_attachment_attributes)) {
-        // ALT TEXT (_wp_attachment_image_alt) WP_POSTMETA TABLE
-        $query = "SELECT * FROM " . esc_sql($wpdb->postmeta) . " WHERE meta_key = '_wp_attachment_image_alt' AND post_id IN (" . esc_sql($attachment_post_ids_string) . ")";
+    // --- ALT TEXT --------------------------------------------------------------------- \\
+    if ( in_array( 'alt-text', $active_attachment_attributes, true ) ) {
+        $postmeta_table = esc_sql( $wpdb->postmeta );
+        $first_chunk = true;
 
-        $attachment_postmeta_entries = $wpdb->get_results($query, ARRAY_A);
+        foreach ( $chunks as $this_chunk ) {
+            $this_attachment_post_ids_string_list = implode( ',', $this_chunk );
+            $this_attachment_post_ids_string_list = esc_sql( $this_attachment_post_ids_string_list );
 
-        // go through the results and add the "alt-text" to the $attachment_attributes_coverage array
-        foreach ($attachment_postmeta_entries as $attachment_postmeta_entry) {
-            if (empty($attachment_postmeta_entry["post_id"])) {
+            if (!$first_chunk) {
+                usleep(100000); // 0.1 seconds delay to avoid hitting DB limits
+            }
+
+            $first_chunk = false;
+
+            $query = "
+				SELECT post_id, meta_value
+				FROM {$postmeta_table}
+				WHERE meta_key = '_wp_attachment_image_alt'
+				  AND post_id IN ( {$this_attachment_post_ids_string_list} )
+			";
+
+            $this_attachment_postmetas = $wpdb->get_results( $query, ARRAY_A );
+
+            if ( ! $this_attachment_postmetas ) {
                 continue;
             }
 
-            // we go through like this, in case we need to add more attributes in the future
-            if ($attachment_postmeta_entry["meta_key"] == "_wp_attachment_image_alt") {
-                $attachment_attributes_coverage[$attachment_postmeta_entry["post_id"]]["alt-text"] = $attachment_postmeta_entry["meta_value"];
+            foreach ( $this_attachment_postmetas as $this_attachment_postmeta ) {
+                $this_attachment_post_id = absint( $this_attachment_postmeta['post_id'] );
+                $attachment_attributes_coverage[ $this_attachment_post_id ]['alt-text'] = strval( $this_attachment_postmeta['meta_value'] );
             }
         }
     }
@@ -10001,6 +10266,31 @@ function ai4seo_remove_post_ids_from_all_generation_status_options($post_ids) {
  * - To see how to call the AJAX function from JavaScript, refer to the `ai4seo_import_nextgen_gallery_images()` function in `ai-for-seo-scripts.js`.
  */
 
+// =========================================================================================== \\
+
+/**
+ * Helper: send clean JSON and log any noise safely.
+ */
+function ai4seo_send_json_success($data = [], $status_code = null) {
+    $noise = '';
+
+    while (ob_get_level()) {
+        $noise .= (string) @ob_get_clean();
+    }
+
+    if ($noise !== '') {
+        // Log the first part so we can find the culprit later
+        if (defined('WP_DEBUG_LOG') && WP_DEBUG_LOG) {
+            error_log('[AI4SEO][AJAX noise stripped] ' . substr($noise, 0, 500));
+        }
+    }
+
+    // JSON header + exit
+    wp_send_json_success($data, $status_code);
+}
+
+// =========================================================================================== \\
+
 /**
  * Called via AJAX - saves various kind of data
  * @return void
@@ -10043,7 +10333,7 @@ function ai4seo_save_anything() {
     require_once( ai4seo_get_includes_ajax_process_path('save-anything-categories/save-attachment-attributes-editor-values.php') );
 
     // we can send success if none of the above code sent an error
-    wp_send_json_success();
+    ai4seo_send_json_success();
 }
 
 // =========================================================================================== \\
@@ -10062,7 +10352,7 @@ function ai4seo_stop_bulk_generation() {
     ai4seo_update_setting(AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES, AI4SEO_DEFAULT_SETTINGS[AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES]);
 
     // send success
-    wp_send_json_success();
+    ai4seo_send_json_success();
 }
 
 // =========================================================================================== \\
@@ -10084,7 +10374,7 @@ function ai4seo_retry_all_failed_attachment_attributes() {
     ai4seo_refresh_all_posts_generation_status_summary();
 
     // send success
-    wp_send_json_success();
+    ai4seo_send_json_success();
 }
 
 // =========================================================================================== \\
@@ -10103,7 +10393,7 @@ function ai4seo_retry_all_failed_metadata() {
     $post_type = sanitize_text_field($_POST['post_type'] ?? '');
     
     if (empty($post_type)) {
-        wp_send_json_error('Post type is required');
+        ai4seo_send_json_error(esc_html__('Post type is required', 'ai-for-seo'), 12109825);
         return;
     }
 
@@ -10114,7 +10404,7 @@ function ai4seo_retry_all_failed_metadata() {
     ai4seo_refresh_all_posts_generation_status_summary();
 
     // send success
-    wp_send_json_success();
+    ai4seo_send_json_success();
 }
 
 
@@ -10137,17 +10427,15 @@ function ai4seo_disable_payg() {
     $sent_pay_as_you_go_settings_response = ai4seo_send_pay_as_you_go_settings();
 
     if ($sent_pay_as_you_go_settings_response === false) {
-        ai4seo_return_error_as_json("Could not send pay-as-you-go settings to RobHub", 421217325);
+        ai4seo_send_json_error(esc_html__("Could not send pay-as-you-go settings to RobHub", "ai-for-seo"), 421217325);
         wp_die();
-    }
-
-    if (is_string($sent_pay_as_you_go_settings_response)) {
-        ai4seo_return_error_as_json($sent_pay_as_you_go_settings_response, 431217325);
+    } else if (is_string($sent_pay_as_you_go_settings_response)) {
+        ai4seo_send_json_error($sent_pay_as_you_go_settings_response, 431217325);
         wp_die();
     }
 
     // send success
-    wp_send_json_success();
+    ai4seo_send_json_success();
 }
 
 // =========================================================================================== \\
@@ -10160,7 +10448,7 @@ function ai4seo_init_purchase() {
 
     // check stripe_price_id
     if (!isset($_POST["stripe_price_id"]) || !is_string($_POST["stripe_price_id"])) {
-        ai4seo_return_error_as_json("Invalid stripe_price_id", 551818325);
+        ai4seo_send_json_error(esc_html__("Invalid stripe_price_id", "ai-for-seo"), 551818325);
         wp_die();
     }
 
@@ -10181,12 +10469,12 @@ function ai4seo_init_purchase() {
     // check response
     if (!ai4seo_robhub_api()->was_call_successful($response)) {
         error_log("AI4SEO: Invalid response from RobHub API. #561818325");
-        ai4seo_return_error_as_json("Invalid response from RobHub API", 561818325);
+        ai4seo_send_json_error(esc_html__("Invalid response from RobHub API", "ai-for-seo"), 561818325);
     }
 
     if (!isset($response["data"]["purchase_url"]) || !$response["data"]["purchase_url"]) {
         error_log("AI4SEO: Invalid response from RobHub API. #581818325");
-        ai4seo_return_error_as_json("Invalid response from RobHub API", 581818325);
+        ai4seo_send_json_error(esc_html__("Invalid response from RobHub API", "ai-for-seo"), 581818325);
     }
 
     // url decode
@@ -10198,10 +10486,10 @@ function ai4seo_init_purchase() {
     // validate
     if (!filter_var($purchase_url, FILTER_VALIDATE_URL)) {
         error_log("AI4SEO: Invalid response from RobHub API. #591818325");
-        ai4seo_return_error_as_json("Invalid response from RobHub API", 591818325);
+        ai4seo_send_json_error(esc_html__("Invalid response from RobHub API", "ai-for-seo"), 591818325);
     }
 
-    wp_send_json_success(array("purchase_url" => $purchase_url));
+    ai4seo_send_json_success(array("purchase_url" => $purchase_url));
 }
 
 // =========================================================================================== \\
@@ -10269,10 +10557,10 @@ function ai4seo_reset_plugin_data() {
         $wpdb->query("DELETE FROM $wpdb->postmeta WHERE meta_key REGEXP '^_ai4seo_[0-9]+_.*$'");
 
         // remove all postmeta entries with meta_key AI4SEO_POST_META_GENERATED_DATA_META_KEY
-        $wpdb->query("DELETE FROM $wpdb->postmeta WHERE meta_key = '" . AI4SEO_POST_META_GENERATED_DATA_META_KEY . "'");
+        $wpdb->query("DELETE FROM $wpdb->postmeta WHERE meta_key = '" . esc_sql(AI4SEO_POST_META_GENERATED_DATA_META_KEY) . "'");
 
         // remove all postmeta entries with meta_key AI4SEO_POST_META_POST_CONTENT_SUMMARY_META_KEY
-        $wpdb->query("DELETE FROM $wpdb->postmeta WHERE meta_key = '" . AI4SEO_POST_META_POST_CONTENT_SUMMARY_META_KEY . "'");
+        $wpdb->query("DELETE FROM $wpdb->postmeta WHERE meta_key = '" . esc_sql(AI4SEO_POST_META_POST_CONTENT_SUMMARY_META_KEY) . "'");
 
         // remove very wp_options named inside AI4SEO_ALL_POST_ID_OPTIONS-Array
         foreach (AI4SEO_ALL_POST_ID_OPTIONS as $ai4seo_option) {
@@ -10289,7 +10577,7 @@ function ai4seo_reset_plugin_data() {
     // tidy up
     ai4seo_tidy_up();
 
-    wp_send_json_success();
+    ai4seo_send_json_success();
 }
 
 /**
@@ -10317,8 +10605,9 @@ function ai4seo_show_import_settings_preview() {
 
     ob_start();
     require_once(ai4seo_get_includes_ajax_display_path("import-settings-preview.php"));
-    $content = ob_get_clean(); // only your output
-    wp_send_json_success($content);
+    $content = ob_get_clean();
+
+    ai4seo_send_json_success($content);
 }
 
 // =========================================================================================== \\
@@ -10350,7 +10639,7 @@ function ai4seo_restore_default_settings() {
 
     // Check if user has permission to manage this plugin
     if (!ai4seo_can_manage_this_plugin()) {
-        wp_send_json_error(__("You do not have permission to perform this action.", "ai-for-seo"));
+        ai4seo_send_json_error(esc_html__("You do not have permission to perform this action.", "ai-for-seo"), 13109825);
         return;
     }
 
@@ -10367,19 +10656,19 @@ function ai4seo_restore_default_settings() {
 
         // Update settings using the bulk update function
         if (!ai4seo_bulk_update_settings($ai4seo_settings_to_restore)) {
-            wp_send_json_error(__("Failed to restore default settings.", "ai-for-seo"));
+            ai4seo_send_json_error(esc_html__("Failed to restore default settings.", "ai-for-seo"), 14109825);
             return;
         }
 
         // Success response
-        wp_send_json_success(array(
+        ai4seo_send_json_success(array(
             'message' => __("Default settings restored successfully.", "ai-for-seo"),
             'restored_count' => count($ai4seo_settings_to_restore)
         ));
 
     } catch (Exception $e) {
         error_log("AI4SEO: Error restoring default settings: " . $e->getMessage());
-        wp_send_json_error(__("An error occurred while restoring default settings.", "ai-for-seo"));
+        ai4seo_send_json_error(esc_html__("An error occurred while restoring default settings. Please check your PHP error log for more details.", "ai-for-seo"), 15109825);
     }
 }
 
@@ -10398,7 +10687,7 @@ function ai4seo_show_metadata_editor() {
     ob_start();
     require_once(ai4seo_get_includes_ajax_display_path("metadata-editor.php"));
     $content = ob_get_clean(); // only your output
-    wp_send_json_success($content);
+    ai4seo_send_json_success($content);
 }
 
 
@@ -10417,7 +10706,7 @@ function ai4seo_show_attachment_attributes_editor() {
     ob_start();
     require_once(ai4seo_get_includes_ajax_display_path("attachment-attributes-editor.php"));
     $content = ob_get_clean(); // only your output
-    wp_send_json_success($content);
+    ai4seo_send_json_success($content);
 }
 
 
@@ -10464,7 +10753,7 @@ function ai4seo_display_license_information() {
     }
 
     ai4seo_update_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_LICENSE_KEY_SHOWN, false);
-    wp_send_json_success();
+    ai4seo_send_json_success();
 }
 
 // =========================================================================================== \\
@@ -10483,7 +10772,7 @@ function ai4seo_dismiss_notification() {
     $notification_index = sanitize_key($_POST["ai4seo_notification_index"] ?? '');
 
     if (empty($notification_index)) {
-        wp_send_json_error(__("Invalid notification index.", "ai-for-seo"));
+        ai4seo_send_json_error(esc_html__("Invalid notification index.", "ai-for-seo"), 16109825);
         return;
     }
 
@@ -10491,9 +10780,9 @@ function ai4seo_dismiss_notification() {
     $result = ai4seo_mark_notification_as_dismissed($notification_index);
 
     if ($result) {
-        wp_send_json_success();
+        ai4seo_send_json_success();
     } else {
-        wp_send_json_error(__("Failed to dismiss notification.", "ai-for-seo"));
+        ai4seo_send_json_error(esc_html__("Failed to dismiss notification.", "ai-for-seo"), 17109825);
     }
 }
 
@@ -10536,14 +10825,14 @@ function ai4seo_import_nextgen_gallery_images() {
     $nextgen_gallery_images = $wpdb->get_results("SELECT `pid`, `image_slug`, `galleryid`, `filename`, `description`, `alttext`, `imagedate`, `updated_at` FROM " . esc_sql($wpdb->prefix) . "ngg_pictures WHERE `pid` > 0", ARRAY_A);
 
     if (!$nextgen_gallery_images) {
-        ai4seo_return_error_as_json("No NextGen Gallery Images found", 18147525);
+        ai4seo_send_json_error(esc_html__("No NextGen Gallery Images found", "ai-for-seo"), 18147525);
     }
 
     // find all distinct galleryid's
     $nextgen_gallery_image_gallery_ids = array_column($nextgen_gallery_images, "galleryid");
 
     if (!$nextgen_gallery_image_gallery_ids) {
-        ai4seo_return_error_as_json("No NextGen Gallery galleries found", 19147525);
+        ai4seo_send_json_error(esc_html__("No NextGen Gallery galleries found", "ai-for-seo"), 19147525);
     }
 
     $nextgen_gallery_image_gallery_ids = array_unique($nextgen_gallery_image_gallery_ids);
@@ -10553,7 +10842,7 @@ function ai4seo_import_nextgen_gallery_images() {
     $nextgen_gallery_galleries_temp = $wpdb->get_results("SELECT `gid`, `path` FROM " . esc_sql($wpdb->prefix) . "ngg_gallery WHERE `gid` IN (" . esc_sql(implode(",", $nextgen_gallery_image_gallery_ids)) . ")", ARRAY_A);
 
     if (!$nextgen_gallery_galleries_temp) {
-        ai4seo_return_error_as_json("No NextGen Gallery gallery paths found", 20147525);
+        ai4seo_send_json_error(esc_html__("No NextGen Gallery gallery paths found", "ai-for-seo"), 20147525);
     }
 
     // reformat $ai4seo_nextgen_gallery_image_gallery_paths to array(galleryid => path)
@@ -10622,7 +10911,11 @@ function ai4seo_import_nextgen_gallery_images() {
 
         // check for errors
         if ($wpdb->last_error) {
-            ai4seo_return_error_as_json("Could not import NextGen Gallery image with pid " . $this_nextgen_gallery_image_pid . ": " . $wpdb->last_error, 21147525);
+            ai4seo_send_json_error(sprintf(
+                esc_html__("Could not import NextGen Gallery image with pid %s: %s", "ai-for-seo"),
+                $this_nextgen_gallery_image_pid,
+                $wpdb->last_error
+            ), 21147525);
         }
 
         // get added post id
@@ -10638,12 +10931,16 @@ function ai4seo_import_nextgen_gallery_images() {
 
             // check for errors
             if ($wpdb->last_error) {
-                ai4seo_return_error_as_json("Could not import NextGen Gallery image with pid " . $this_nextgen_gallery_image_pid . ": " . $wpdb->last_error, 22147525);
+                ai4seo_send_json_error(sprintf(
+                    esc_html__("Could not import NextGen Gallery image with pid %s: %s", "ai-for-seo"),
+                    $this_nextgen_gallery_image_pid,
+                    $wpdb->last_error
+                ), 22147525);
             }
         }
     }
 
-    wp_send_json_success();
+    ai4seo_send_json_success();
 }
 
 
@@ -10774,8 +11071,9 @@ function ai4seo_bulk_update_settings(array $setting_changes): bool {
  * @return bool True if the value is valid, false if not
  */
 function ai4seo_validate_setting_value(string $setting_name, $setting_value): bool {
-    switch ($setting_name) {
+    $ai4seo_credits_packs = ai4seo_get_credits_packs();
 
+    switch ($setting_name) {
         case AI4SEO_SETTING_BULK_GENERATION_DURATION:
             // cast to int
             $setting_value = (int) $setting_value;
@@ -10852,7 +11150,9 @@ function ai4seo_validate_setting_value(string $setting_name, $setting_value): bo
                 return false;
             }
 
-            $allowed_third_party_seo_plugin_identifier = array_keys(AI4SEO_THIRD_PARTY_SEO_PLUGIN_DETAILS);
+            $third_party_seo_plugin_details = ai4seo_get_third_party_seo_plugin_details();
+
+            $allowed_third_party_seo_plugin_identifier = array_keys($third_party_seo_plugin_details);
 
             foreach ($setting_value as $key => $value) {
                 if (!is_string($value) || !preg_match("/^[a-zA-Z0-9_-]+$/", $value)) {
@@ -11075,7 +11375,9 @@ function ai4seo_validate_setting_value(string $setting_name, $setting_value): bo
             return true;
 
         case AI4SEO_SETTING_PREFERRED_CURRENCY:
-            if (!in_array($setting_value, AI4SEO_ALLOWED_CURRENCIES)) {
+            $allowed_currencies = ai4seo_get_allowed_currencies();
+
+            if (!in_array($setting_value, $allowed_currencies)) {
                 error_log("AI4SEO: Invalid currency for setting '" . $setting_name . "'. #341016325");
                 return false;
             }
@@ -11091,7 +11393,7 @@ function ai4seo_validate_setting_value(string $setting_name, $setting_value): bo
                 return true;
             }
 
-            if (!isset(AI4SEO_CREDITS_PACKS[$setting_value])) {
+            if (!isset($ai4seo_credits_packs[$setting_value])) {
                 error_log("AI4SEO: Not a valid Credits Pack stripe price id for setting '" . $setting_name . "'. #241016325");
                 return false;
             }
@@ -11215,11 +11517,6 @@ function ai4seo_read_all_environmental_variables(): array {
 
     // go through each environmental variable and check if it is valid
     foreach ($ai4seo_environmental_variables as $environmental_variable_name => $environmental_variable_value) {
-        // if this environmental variable is not known, remove it
-        if (!isset(AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES[$environmental_variable_name])) {
-            continue;
-        }
-
         // set default if not set
         if (!isset($current_environmental_variables[$environmental_variable_name])) {
             $current_environmental_variables[$environmental_variable_name] = AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES[$environmental_variable_name];
@@ -11249,23 +11546,23 @@ function ai4seo_read_environmental_variable(string $environmental_variable_name)
     // Make sure that $environmental_variable_name-parameter has content
     if (!$environmental_variable_name) {
         error_log("AI4SEO: Environmental variable name is empty. #515181024");
-        return "";
+        return null;
+    }
+
+    // check for the default value
+    if (!isset(AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES[$environmental_variable_name])) {
+        error_log("AI4SEO: Unknown environmental variable name: " . $environmental_variable_name . ". #56187825");
+        return null;
     }
 
     $current_environmental_variables = ai4seo_read_all_environmental_variables();
 
     // Check if the $environmental_variable_name-parameter exists in environmental variables-array
-    if (!isset($current_environmental_variables[$environmental_variable_name])) {
-        // check for a default value
-        if (isset(AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES[$environmental_variable_name])) {
-            return AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES[$environmental_variable_name];
-        } else {
-            error_log("AI4SEO: Unknown environmental variable name: " . $environmental_variable_name . ". #525181024");
-        }
-        return "";
+    if (isset($current_environmental_variables[$environmental_variable_name])) {
+        return $current_environmental_variables[$environmental_variable_name];
+    } else {
+        return AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES[$environmental_variable_name];
     }
-
-    return $current_environmental_variables[$environmental_variable_name];
 }
 
 // =========================================================================================== \\
@@ -11279,6 +11576,11 @@ function ai4seo_read_environmental_variable(string $environmental_variable_name)
 function ai4seo_update_environmental_variable(string $environmental_variable_name, $new_environmental_variable_value): bool {
     global $ai4seo_environmental_variables;
 
+    if (!isset(AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES[$environmental_variable_name])) {
+        error_log("AI4SEO: Unknown environmental variable name: " . $environmental_variable_name . ". #51187825");
+        return false;
+    }
+
     // Make sure that the new value of the environmental variable is valid
     if (!ai4seo_validate_environmental_variable_value($environmental_variable_name, $new_environmental_variable_value)) {
         error_log("AI4SEO: Invalid value for environmental variable '" . $environmental_variable_name . "'. #535181024");
@@ -11291,20 +11593,22 @@ function ai4seo_update_environmental_variable(string $environmental_variable_nam
     // overwrite entry in $current_environmental_variables-array
     $current_environmental_variables = ai4seo_read_all_environmental_variables();
 
-    if (!isset($current_environmental_variables[$environmental_variable_name])) {
-        $current_environmental_variables[$environmental_variable_name] = AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES[$environmental_variable_name];
-    }
-
     // is same as default value? delete it
     if ($new_environmental_variable_value == AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES[$environmental_variable_name]) {
         unset($current_environmental_variables[$environmental_variable_name]);
     } else {
         // no change at all?
-        if ($current_environmental_variables[$environmental_variable_name] == $new_environmental_variable_value) {
+        if (isset($current_environmental_variables[$environmental_variable_name])
+            && $current_environmental_variables[$environmental_variable_name] == $new_environmental_variable_value) {
             return true;
         }
 
         $current_environmental_variables[$environmental_variable_name] = $new_environmental_variable_value;
+    }
+
+    // no changes made
+    if ($ai4seo_environmental_variables == $current_environmental_variables) {
+        return true;
     }
 
     // update the global parameter as well
@@ -11334,8 +11638,7 @@ function ai4seo_delete_environmental_variable(string $environmental_variable_nam
     $current_environmental_variables = ai4seo_read_all_environmental_variables();
 
     if (!isset($current_environmental_variables[$environmental_variable_name])) {
-        error_log("AI4SEO: Environmental variable '" . $environmental_variable_name . "' does not exist. #501226225");
-        return false;
+        return true;
     }
 
     // delete the entry
@@ -11385,6 +11688,7 @@ function ai4seo_validate_environmental_variable_value(string $environmental_vari
         case AI4SEO_ENVIRONMENTAL_VARIABLE_UNREAD_NOTIFICATIONS_COUNT:
         case AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_POST_ENTRIES:
         case AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_ATTACHMENT_POST_ENTRIES:
+        case AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_PERFORMANCE_ANALYSIS_TIME:
         case AI4SEO_ENVIRONMENTAL_VARIABLE_PLUGIN_ACTIVATION_TIME:
             // contains only of numbers
             return is_numeric($environmental_variable_value) && $environmental_variable_value >= 0;
@@ -11538,11 +11842,7 @@ function ai4seo_push_notification(string $notification_index, string $message, b
     // empty message -> remove notification
     if (empty($message)) {
         ai4seo_remove_notification($notification_index);
-    }
-
-    // check conditions
-    if (!ai4seo_check_notification_conditions($notification_index, $additional_fields)) {
-        ai4seo_remove_notification($notification_index);
+        return false;
     }
 
     // prepare parameters
@@ -11620,7 +11920,7 @@ function ai4seo_push_notification(string $notification_index, string $message, b
         return true;
     }
 
-    update_option(AI4SEO_NOTIFICATIONS_OPTION_NAME, $notifications);
+    update_option(AI4SEO_NOTIFICATIONS_OPTION_NAME, $notifications, true);
     ai4seo_refresh_unread_notifications_count();
 
     return true;
@@ -11753,7 +12053,7 @@ function ai4seo_filter_notification_message($message, string $notification_index
     // replace placeholders in the message
     if (strstr($message, "{{EXPIRE_COUNTDOWN}}") && isset($notification["expire_at"]) && is_numeric($notification["expire_at"]) && $notification["expire_at"] > time()) {
         $message_expires_in = $notification["expire_at"] - time();
-        $expire_in_countdown = "<span class='ai4seo-countdown' data-time-left='" . esc_attr($message_expires_in) . "' data-trigger='add_refresh_credits_balance_parameter_and_reload_page'>" . esc_html(ai4seo_format_seconds_to_hhmmss_or_days_hhmmss($message_expires_in)) . "</span>";
+        $expire_in_countdown = "<span class='ai4seo-countdown' data-time-left='" . esc_attr($message_expires_in) . "' data-trigger='add_force_sync_account_parameter_and_reload_page'>" . esc_html(ai4seo_format_seconds_to_hhmmss_or_days_hhmmss($message_expires_in)) . "</span>";
         $message = str_replace("{{EXPIRE_COUNTDOWN}}", $expire_in_countdown, $message);
     }
 
@@ -11763,18 +12063,16 @@ function ai4seo_filter_notification_message($message, string $notification_index
         $users_first_name = ai4seo_is_function_usable('get_current_user_id') && get_current_user_id() ? get_user_meta(get_current_user_id(), 'first_name', true) : '';
 
         if ($users_first_name) {
-            $greetings = sprintf(esc_html__("Hi %s", "ai-for-seo"), esc_html($users_first_name)) . ",";
+            $greetings = "<strong>" .  sprintf(esc_html__("Hi %s", "ai-for-seo"), esc_html($users_first_name)) . ",</strong>";
         } else {
-            $greetings = esc_html__("Hi", "ai-for-seo") . ",";
+            $greetings = "<strong>" .  esc_html__("Hi", "ai-for-seo") . ",</strong>";
         }
 
-        $greetings .= "<br>";
-        $greetings .= esc_html__("This is Andre from the AI for SEO team.", "ai-for-seo");
-        $greetings .= "<br>";
+        $greetings .= "<br><br>";
+        $greetings .= esc_html__("This is Andre from the AI for SEO team. Thanks for joining our SEO community of 1,600+ happy users – we appreciate having you on board!", "ai-for-seo");
+        $greetings .= "<br><br>";
 
-        if ($avatar) {
-            $message = $avatar . $greetings . $message;
-        }
+        $message = $avatar . $greetings . $message;
     }
 
     // add voucher_code if the notification has 'voucher_code' set
@@ -11886,7 +12184,6 @@ function ai4seo_get_notification_buttons(string $notification_index, array $noti
 }
 
 // =========================================================================================== \\
-
 
 function ai4seo_check_notification_conditions(string $notification_index, array $additional_fields = array(), bool $skip_num_displayable_notification_condition = false): bool {
     $conditions = array();
@@ -12038,6 +12335,23 @@ function ai4seo_refresh_unread_notifications_count() {
 // =========================================================================================== \\
 
 /**
+ * Function to check if an notification is defined in the $notifications array
+ * @param string $notification_index The notification identifier
+ * @return bool True if the notification is defined, false otherwise
+ */
+function ai4seo_is_notification_defined(string $notification_index): bool {
+    if (empty($notification_index)) {
+        return false;
+    }
+
+    $notifications = get_option(AI4SEO_NOTIFICATIONS_OPTION_NAME, array());
+
+    return $notifications && is_array($notifications) && isset($notifications[$notification_index]) && is_array($notifications[$notification_index]);
+}
+
+// =========================================================================================== \\
+
+/**
  * Function to get the amount of unread notifications
  * @return int The number of unread notifications
  */
@@ -12101,9 +12415,9 @@ function ai4seo_mark_notification_as_read(string $notification_index): bool {
     if (empty($notification_index)) {
         return false;
     }
-    
+
     $notifications = get_option(AI4SEO_NOTIFICATIONS_OPTION_NAME, array());
-    
+
     if (!is_array($notifications) || !isset($notifications[$notification_index])) {
         return false;
     }
@@ -12112,7 +12426,7 @@ function ai4seo_mark_notification_as_read(string $notification_index): bool {
     if (isset($notifications[$notification_index]['read']) && $notifications[$notification_index]['read']) {
         return true;
     }
-    
+
     $notifications[$notification_index]['read'] = true;
 
     if (!isset($notifications[$notification_index]['is_permanent']) || !$notifications[$notification_index]['is_permanent']) {
@@ -12123,7 +12437,7 @@ function ai4seo_mark_notification_as_read(string $notification_index): bool {
 
     update_option(AI4SEO_NOTIFICATIONS_OPTION_NAME, $notifications);
     ai4seo_refresh_unread_notifications_count();
-    
+
     return true;
 }
 
@@ -12138,20 +12452,20 @@ function ai4seo_mark_notification_as_dismissed(string $index): bool {
     if (empty($index)) {
         return false;
     }
-    
+
     $notifications = get_option(AI4SEO_NOTIFICATIONS_OPTION_NAME, array());
-    
+
     if (!is_array($notifications) || !isset($notifications[$index])) {
         return false;
     }
-    
+
     $notifications[$index]['dismissed'] = true;
     $notifications[$index]['time_dismissed'] = time();
     $notifications[$index]['message'] = ''; // clear message to clean up the database
-    
+
     update_option(AI4SEO_NOTIFICATIONS_OPTION_NAME, $notifications);
     ai4seo_refresh_unread_notifications_count();
-    
+
     return true;
 }
 
@@ -12193,7 +12507,7 @@ function ai4seo_remove_notification(string $notification_index): bool {
 
     unset($notifications[$notification_index]);
 
-    update_option(AI4SEO_NOTIFICATIONS_OPTION_NAME, $notifications);
+    update_option(AI4SEO_NOTIFICATIONS_OPTION_NAME, $notifications, true);
     ai4seo_refresh_unread_notifications_count();
 
     return true;
@@ -12376,13 +12690,14 @@ function ai4seo_check_for_rate_us_notification($force = false) {
     $message .= "<br><br>" . esc_html__("On behalf of the entire AI for SEO team, thank you for your support!", "ai-for-seo");
     $message .= " ❤️";
 
-        ai4seo_push_notification($notification_index, $message, $force,
+    ai4seo_push_notification($notification_index, $message, $force,
         array(
             "notice_type" => "notice-success",
             "show_avatar" => true,
             "rate_us_button" => true,
             "max_num_visible_notifications_condition" => 0, # prevent spam, catch a focused moment
-        ));
+        )
+    );
 }
 
 // =========================================================================================== \\
@@ -12846,23 +13161,40 @@ function ai4seo_check_discount_notification($discount, $allow_notification_force
 
     // build generic description
     if (!$discount_description) {
-        $discount_description = sprintf(
-            esc_html__("We are excited to offer you a special discount of %s%% off!", "ai-for-seo"),
-            "<strong>" . esc_html($discount_percentage) . "</strong>"
-        );
-
         if ($discount_first_purchase_only) {
-            $discount_description .= " " . sprintf(
-                    esc_html__("This discount is valid only for your first purchase within the next %s", "ai-for-seo"),
+            $discount_description = sprintf(
+                    esc_html__("As a welcome gift, we're offering you a %s discount on your first purchase.", "ai-for-seo"),
+                    "<strong>" . esc_html($discount_percentage) . "%</strong>",
+                );
+            $discount_description .= "<br>👉 ";
+            $discount_description .= sprintf(
+                    esc_html__("This offer is only valid for the next %s, so make sure to claim it before it expires.", "ai-for-seo"),
                     "<strong>{{EXPIRE_COUNTDOWN}}</strong>",
                 );
         } else {
+            $discount_description = sprintf(
+                esc_html__("We're happily offering you a %s discount.", "ai-for-seo"),
+                "<strong>" . esc_html($discount_percentage) . "%</strong>",
+            );
+            $discount_description .= "<br>👉 ";
             $discount_description .= " " . sprintf(
-                    esc_html__("You can use this discount for ALL your purchases within the next %s.", "ai-for-seo"),
-                    "<strong>{{EXPIRE_COUNTDOWN}}</strong>",
-                );
+                esc_html__("You can use this discount for ALL your purchases within the next %s.", "ai-for-seo"),
+                "<strong>" . esc_html($discount_percentage) . "%</strong>",
+                "<strong>{{EXPIRE_COUNTDOWN}}</strong>",
+            );
         }
     }
+
+    // save hours and boost rankings
+    $discount_description .= "<br>🚀 ";
+    $discount_description .= esc_html__("Save hours of manual work and boost your rankings – effortlessly.", "ai-for-seo");
+    $discount_description .= "<br><br>";
+
+    // take your chance
+    $discount_description .= " " . sprintf(
+        esc_html__("Click %s below to apply the discount now.", "ai-for-seo"),
+        "<strong>\"" . esc_html__("Grab Deal", "ai-for-seo") . "\"</strong>"
+    );
 
     // build notification
     $message = $discount_description;
@@ -12964,7 +13296,7 @@ function ai4seo_show_terms_of_service_modal() {
     if (!ai4seo_singleton(__FUNCTION__)) {
         return;
     }
-    
+
     // check if we are in the admin area of WordPress
     if (!is_admin()) {
         return;
@@ -13069,7 +13401,7 @@ function ai4seo_reject_tos() {
     // uninstall the plugin
     ai4seo_deactivate_plugin();
 
-    wp_send_json_success();
+    ai4seo_send_json_success();
 }
 
 // =========================================================================================== \\
@@ -13112,7 +13444,7 @@ function ai4seo_accept_tos() {
     // set tos accept details to database to share it with the maker of the plugin
     ai4seo_set_tos_accept_details($enhanced_reporting_accepted, "accepted tos, toc and pp");
 
-    wp_send_json_success();
+    ai4seo_send_json_success();
 }
 
 // =========================================================================================== \\

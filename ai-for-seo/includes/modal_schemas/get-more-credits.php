@@ -18,40 +18,42 @@ if (!ai4seo_can_manage_this_plugin()) {
 // === PREPARE =============================================================================== \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
-global $ai4seo_synced_robhub_client_data;
+$ai4seo_robhub_subscription = ai4seo_robhub_api()->read_environmental_variable(ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION);
 
-$ai4seo_current_subscription_plan = $ai4seo_synced_robhub_client_data["plan"] ?? "free";
-$ai4seo_current_subscription_plan_name = ai4seo_get_plan_name($ai4seo_current_subscription_plan);
+$ai4seo_robhub_subscription_plan = $ai4seo_robhub_subscription["plan"] ?? "free";
+$ai4seo_robhub_subscription_plan_name = ai4seo_get_plan_name($ai4seo_robhub_subscription_plan);
 
-$ai4seo_current_subscription_next_credits_refresh_date_and_time = $ai4seo_synced_robhub_client_data["next_credits_refresh"] ?? false;
-$ai4seo_current_subscription_next_credits_refresh_timestamp = $ai4seo_current_subscription_next_credits_refresh_date_and_time
-    ? strtotime($ai4seo_current_subscription_next_credits_refresh_date_and_time) : 0;
-$ai4seo_current_subscription_next_credits_refresh_formatted_text = ai4seo_format_unix_timestamp($ai4seo_current_subscription_next_credits_refresh_timestamp);
+$ai4seo_robhub_subscription_next_credits_refresh_date_and_time = $ai4seo_robhub_subscription["next_credits_refresh"] ?? false;
+$ai4seo_robhub_subscription_next_credits_refresh_timestamp = $ai4seo_robhub_subscription_next_credits_refresh_date_and_time
+    ? strtotime($ai4seo_robhub_subscription_next_credits_refresh_date_and_time) : 0;
+$ai4seo_robhub_subscription_next_credits_refresh_formatted_text = ai4seo_format_unix_timestamp($ai4seo_robhub_subscription_next_credits_refresh_timestamp);
 
-$ai4seo_current_subscription_end_date_and_time = $ai4seo_synced_robhub_client_data["subscription_end"] ?? false;
-$ai4seo_current_subscription_end_timestamp = $ai4seo_current_subscription_end_date_and_time
-    ? strtotime($ai4seo_current_subscription_end_date_and_time) : 0;
-$ai4seo_current_subscription_end_formatted_text = ai4seo_format_unix_timestamp($ai4seo_current_subscription_end_timestamp);
+$ai4seo_robhub_subscription_end_date_and_time = $ai4seo_robhub_subscription["subscription_end"] ?? false;
+$ai4seo_robhub_subscription_end_timestamp = $ai4seo_robhub_subscription_end_date_and_time
+    ? strtotime($ai4seo_robhub_subscription_end_date_and_time) : 0;
+$ai4seo_current_subscription_end_formatted_text = ai4seo_format_unix_timestamp($ai4seo_robhub_subscription_end_timestamp);
 
-$ai4seo_user_is_on_free_plan = ($ai4seo_current_subscription_plan == "free") || $ai4seo_current_subscription_end_timestamp < time();
-$ai4seo_current_subscription_plan_css_class = ($ai4seo_user_is_on_free_plan ? "ai4seo-black-message" : "ai4seo-green-message");
+$ai4seo_user_is_on_free_plan = ($ai4seo_robhub_subscription_plan == "free") || $ai4seo_robhub_subscription_end_timestamp < time();
+$ai4seo_robhub_subscription_plan_css_class = ($ai4seo_user_is_on_free_plan ? "ai4seo-black-message" : "ai4seo-green-message");
 
 // double check if subscription should be renewed
-$ai4seo_current_subscription_do_renew = $ai4seo_synced_robhub_client_data["do_renew"] ?? false;
-$ai4seo_current_subscription_do_renew = !$ai4seo_user_is_on_free_plan
-    && $ai4seo_current_subscription_end_timestamp
-    && $ai4seo_current_subscription_do_renew == "1";
+$ai4seo_robhub_subscription_do_renew = $ai4seo_robhub_subscription["do_renew"] ?? false;
+$ai4seo_robhub_subscription_do_renew = !$ai4seo_user_is_on_free_plan
+    && $ai4seo_robhub_subscription_end_timestamp
+    && $ai4seo_robhub_subscription_do_renew == "1";
 
-$ai4seo_current_subscription_renew_frequency = $ai4seo_synced_robhub_client_data["renew_frequency"] ?? false;
-$ai4seo_current_subscription_renew_frequency = $ai4seo_current_subscription_do_renew
-    ? $ai4seo_current_subscription_renew_frequency : false;
+$ai4seo_robhub_subscription_renew_frequency = $ai4seo_robhub_subscription["renew_frequency"] ?? false;
+$ai4seo_robhub_subscription_renew_frequency = $ai4seo_robhub_subscription_do_renew
+    ? $ai4seo_robhub_subscription_renew_frequency : false;
 
-$ai4seo_next_free_credits_timestamp = $ai4seo_synced_robhub_client_data["next_free_credits"] ?? 0;
-$ai4seo_current_credits_balance = ai4seo_robhub_api()->get_credits_balance();
+$ai4seo_next_free_credits_timestamp = ai4seo_robhub_api()->read_environmental_variable(ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_NEXT_FREE_CREDITS_TIMESTAMP);
+$ai4seo_robhub_credits_balance = ai4seo_robhub_api()->get_credits_balance();
 
 $ai4seo_is_payg_enabled = (bool) ai4seo_get_setting(AI4SEO_SETTING_PAYG_ENABLED);
 $ai4seo_has_purchased_something = (bool) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_HAS_PURCHASED_SOMETHING);
 $ai4seo_payg_credits_threshold = (int) ai4seo_get_setting(AI4SEO_SETTING_PAYG_CREDITS_THRESHOLD);
+
+$ai4seo_api_username = ai4seo_robhub_api()->get_api_username();
 
 
 // ___________________________________________________________________________________________ \\
@@ -113,17 +115,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
 
             // FREE PLAN
             if ($ai4seo_user_is_on_free_plan) {
-                $ai4seo_client_id = "";
-
-                if (ai4seo_robhub_api()->has_credentials()) {
-                    $ai4seo_client_id = ai4seo_robhub_api()->get_api_username();
-                }
-
-                if (!$ai4seo_client_id) {
-                    return;
-                }
-
-                $ai4seo_purchase_plan_url = ai4seo_get_purchase_plan_url($ai4seo_client_id);
+                $ai4seo_purchase_plan_url = ai4seo_get_purchase_plan_url($ai4seo_api_username);
 
                 echo esc_html__("Do you need Credits on a regular basis over a long period? With our annual subscriptions, you’ll receive a set amount of Credits each month at the best possible price.", "ai-for-seo");
 
@@ -144,7 +136,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
                     echo ai4seo_get_svg_tag("circle-check", "", "ai4seo-dark-green-icon") . " ";
                     echo sprintf(
                         esc_html__("Subscribed to the %s subscription.", "ai-for-seo"),
-                        "<strong>" . esc_html($ai4seo_current_subscription_plan_name) . "</strong>",
+                        "<strong>" . esc_html($ai4seo_robhub_subscription_plan_name) . "</strong>",
                     );
                 echo "</div>";
 
@@ -153,19 +145,19 @@ echo "<div class='ai4seo-modal-schema-content'>";
                     echo "<li>";
                         echo sprintf(
                             esc_html__("The %s subscription grants you %s Credits per month.", "ai-for-seo"),
-                            "<strong>" . esc_html($ai4seo_current_subscription_plan_name) . "</strong>",
-                            "<strong>" . esc_html(ai4seo_get_plan_credits($ai4seo_current_subscription_plan)) . "</strong>",
+                            "<strong>" . esc_html($ai4seo_robhub_subscription_plan_name) . "</strong>",
+                            "<strong>" . esc_html(ai4seo_get_plan_credits($ai4seo_robhub_subscription_plan)) . "</strong>",
                         );
                     echo "</li>";
 
-                    if ($ai4seo_current_subscription_next_credits_refresh_formatted_text && $ai4seo_current_subscription_next_credits_refresh_timestamp > time()) {
+                    if ($ai4seo_robhub_subscription_next_credits_refresh_formatted_text && $ai4seo_robhub_subscription_next_credits_refresh_timestamp > time()) {
                         // subscription-end is more than one month in the future or we are going to renew the plan anyway (e.g. we are on a monthly renew frequency)
-                        if ($ai4seo_current_subscription_end_timestamp > strtotime("+1 month") || $ai4seo_current_subscription_do_renew) {
+                        if ($ai4seo_robhub_subscription_end_timestamp > strtotime("+1 month") || $ai4seo_robhub_subscription_do_renew) {
                             echo "<li>";
                                 echo ai4seo_wp_kses(sprintf(
                                     __("Next %s Credits on: %s.", "ai-for-seo"),
-                                    "<strong>" . esc_html(ai4seo_get_plan_credits($ai4seo_current_subscription_plan)) . "</strong>",
-                                    "<strong>" . esc_html($ai4seo_current_subscription_next_credits_refresh_formatted_text) . "</strong>",
+                                    "<strong>" . esc_html(ai4seo_get_plan_credits($ai4seo_robhub_subscription_plan)) . "</strong>",
+                                    "<strong>" . esc_html($ai4seo_robhub_subscription_next_credits_refresh_formatted_text) . "</strong>",
                                 ));
                             echo "</li>";
                         }
@@ -173,15 +165,15 @@ echo "<div class='ai4seo-modal-schema-content'>";
 
                     echo "<li>";
                         // infos about renewing the plan
-                        if ($ai4seo_current_subscription_do_renew) {
+                        if ($ai4seo_robhub_subscription_do_renew) {
                                 echo ai4seo_wp_kses(sprintf(
                                     __("Your subscription renews on: %s (%s).", "ai-for-seo"),
                                     "<strong>" . esc_html($ai4seo_current_subscription_end_formatted_text) . "</strong>",
-                                    "<strong>" . esc_html($ai4seo_current_subscription_renew_frequency) . "</strong>",
+                                    "<strong>" . esc_html($ai4seo_robhub_subscription_renew_frequency) . "</strong>",
                                 ));
-                        } else if ($ai4seo_current_subscription_end_timestamp) {
+                        } else if ($ai4seo_robhub_subscription_end_timestamp) {
                             // Check if subscription-end is in the past (should never be the case, as the user will fall back to the free plan)
-                            if ($ai4seo_current_subscription_end_timestamp < time()) {
+                            if ($ai4seo_robhub_subscription_end_timestamp < time()) {
                                 echo "<span class='ai4seo-red-message'>";
                                     echo sprintf(esc_html__("Your subscription was cancelled as of %s", "ai-for-seo"), esc_html($ai4seo_current_subscription_end_formatted_text));
                                 echo "</span>";
@@ -237,7 +229,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
             if ($ai4seo_is_payg_enabled) {
                 echo ". ";
 
-                if ($ai4seo_current_credits_balance >= $ai4seo_payg_credits_threshold) {
+                if ($ai4seo_robhub_credits_balance >= $ai4seo_payg_credits_threshold) {
                     echo sprintf(
                         esc_html__("Waiting for your Credits balance to drop below or are equal to %s Credits before refilling.", "ai-for-seo"),
                         "<strong>" . esc_html($ai4seo_payg_credits_threshold) . "</strong>"
@@ -298,7 +290,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
                 echo ai4seo_wp_kses(sprintf(
                     __('Next <span class="ai4seo-green-bubble">+%1$s Credits</span> in <strong>%2$s</strong> if your balance falls below %3$s Credits.', 'ai-for-seo'),
                     esc_html(AI4SEO_DAILY_FREE_CREDITS_AMOUNT),
-                    "<span class='ai4seo-countdown' data-time-left='" . esc_attr($ai4seo_next_free_credits_seconds_left) . "' data-trigger='add_refresh_credits_balance_parameter_and_reload_page'>" . esc_html(ai4seo_format_seconds_to_hhmmss_or_days_hhmmss($ai4seo_next_free_credits_seconds_left)) . "</span>",
+                    "<span class='ai4seo-countdown' data-time-left='" . esc_attr($ai4seo_next_free_credits_seconds_left) . "' data-trigger='ai4seo_reload_page'>" . esc_html(ai4seo_format_seconds_to_hhmmss_or_days_hhmmss($ai4seo_next_free_credits_seconds_left)) . "</span>",
                     esc_html($ai4seo_free_plan_credits_amount)
                 ));
             echo "</div>";

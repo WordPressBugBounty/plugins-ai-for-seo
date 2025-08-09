@@ -1798,6 +1798,10 @@ div.ai4seo-notice {
     margin-bottom: 1.5rem !important;
 }
 
+div.ai4seo-cards-container > div.ai4seo-notice {
+    margin: 0 !important;
+}
+
 div.ai4seo-notice li {
     list-style-type: disc;
     padding-left: .5rem;
@@ -1931,17 +1935,17 @@ img.ai4seo-notice-icon {
     background-color: #FF0000! important;
 }
 
-.ai4seo-refresh-credits-balance-button-wrapper {
+.ai4seo-top-right-refresh-button-wrapper {
     position: absolute;
     top: 2rem;
     right: 2rem;
+    z-index: 999;
 }
 
 div.ai4seo-credits-container {
     text-align: center;
     width: 100%;
-    margin-bottom: 3rem;
-    height: 100px;
+    height: 120px;
 }
 
 div.ai4seo-credits-number {
@@ -1955,6 +1959,9 @@ div.ai4seo-credits-generation-costs-info {
     width: 100%;
     color: #666;
     text-align: center;
+    min-height: 100px;
+    display: flex;
+    flex-flow: column;
 }
 
 div.ai4seo-credits-generation-costs-info h4 {
@@ -1968,8 +1975,8 @@ div.ai4seo-credits-generation-costs-info li {
 div.ai4seo-how-to-get-credits-container {
     width: 100%;
     text-align: center;
-    margin-top: 1rem;
-    height: 5rem;
+    position: relative;
+    height: 100px;
 }
 
 div.ai4seo-how-to-get-credits-container h4 {
@@ -2137,9 +2144,9 @@ div.ai4seo-bulk-generation-status-subtext {
 }
 
 div.ai4seo-bulk-generation-button-container, div.ai4seo-buy-credits-button-container {
-    margin-top: 1.5rem;
     width: 100%;
     text-align: center;
+    margin-top: 1rem;
 }
 
 div.ai4seo-bulk-generation-button-container > div.ai4seo-buttons-wrapper, div.ai4seo-buy-credits-button-container > div.ai4seo-buttons-wrapper {
@@ -2252,9 +2259,9 @@ div.ai4seo-latest-activity-item-buttons a {
 .ai4seo-icon-only-button {
     width: 2.5rem;
     height: 2.5rem;
-    padding: 0 !important;
+    padding: 10px !important;
     text-align: center !important;
-    line-height: 2.3rem !important;
+    line-height: 1rem !important;
     box-shadow: 1px 1px 0 rgba(0, 0, 0, .5) !important;
 }
 

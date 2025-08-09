@@ -41,7 +41,7 @@ if (!$ai4seo_debug) {
 $ai4seo_this_attachment_post_id = absint($_REQUEST["ai4seo_post_id"] ?? 0);
 
 if ($ai4seo_this_attachment_post_id <= 0) {
-    ai4seo_return_error_as_json("Media post id is invalid.", 211823824);
+    ai4seo_send_json_error(esc_html__("Media post id is invalid.", "ai-for-seo"), 211823824);
 }
 
 
@@ -64,7 +64,7 @@ if (count($ai4seo_generation_input_values) == 1) {
     $ai4seo_active_attachment_attributes = ai4seo_get_active_attachment_attributes();
 
     if (!$ai4seo_active_attachment_attributes) {
-        ai4seo_return_error_as_json("No active attachment attributes found.", 36124125);
+        ai4seo_send_json_error(esc_html__("No active attachment attributes found.", "ai-for-seo"), 36124125);
     }
 }
 
@@ -75,7 +75,7 @@ if (count($ai4seo_generation_input_values) == 1) {
 $ai4seo_attachment_post = get_post($ai4seo_this_attachment_post_id);
 
 if (!$ai4seo_attachment_post) {
-    ai4seo_return_error_as_json("Media post not found.", 501013325);
+    ai4seo_send_json_error(esc_html__("Media post not found.", "ai-for-seo"), 501013325);
 }
 
 // check if it's an attachment
@@ -87,7 +87,7 @@ if ($ai4seo_attachment_post->post_type === "attachment") {
 }
 
 if (!$ai4seo_attachment_url) {
-    ai4seo_return_error_as_json("Media url not found.", 241823824);
+    ai4seo_send_json_error(esc_html__("Media url not found.", "ai-for-seo"), 241823824);
 }
 
 $ai4seo_mime_type = $ai4seo_attachment_post->post_mime_type ?? "";
@@ -99,7 +99,11 @@ if (!$ai4seo_mime_type || !in_array($ai4seo_mime_type, $ai4seo_allowed_attachmen
 
 // check if it's one of the allowed mime types
 if (!$ai4seo_mime_type || !in_array($ai4seo_mime_type, $ai4seo_allowed_attachment_mime_types)) {
-    ai4seo_return_error_as_json("Media mime type is not allowed: " . $ai4seo_mime_type . " for " . $ai4seo_attachment_url, 251823824);
+    ai4seo_send_json_error(sprintf(
+        esc_html__("Media mime type is not allowed: %s for %s", "ai-for-seo"),
+        $ai4seo_mime_type,
+        $ai4seo_attachment_url
+    ), 251823824);
 }
 
 // Determine whether to use base64 or URL based on user setting
@@ -141,13 +145,16 @@ if ($ai4seo_use_base64_image) {
 }
 
 if (!ai4seo_robhub_api()->was_call_successful($ai4seo_results ?? false)) {
-    ai4seo_return_error_as_json("Could not generate media attributes: " . ($ai4seo_results["message"] ?? "Unknown error!"), 421024824);
+    ai4seo_send_json_error(sprintf(
+        esc_html__("Could not generate media attributes: %s", "ai-for-seo"),
+        ($ai4seo_results["message"] ?? "Unknown error!")
+    ), 421024824);
 }
 
 $ai4seo_generated_data = $ai4seo_results["data"] ?? array();
 
 if (!$ai4seo_generated_data || !is_array($ai4seo_generated_data)) {
-    ai4seo_return_error_as_json("API call did not return valid data.", 431024824);
+    ai4seo_send_json_error(esc_html__("API call did not return valid data.", "ai-for-seo"), 431024824);
 }
 
 if (!isset($ai4seo_results["credits-consumed"])) {
@@ -213,4 +220,4 @@ $ai4seo_response = array(
     "new_credits_balance" => (int) $ai4seo_results["new-credits-balance"],
 );
 
-wp_send_json_success($ai4seo_response);
+ai4seo_send_json_success($ai4seo_response);

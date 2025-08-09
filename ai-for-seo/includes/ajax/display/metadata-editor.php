@@ -22,7 +22,7 @@ if (!ai4seo_can_manage_this_plugin()) {
 
 // Make sure that input-fields exist
 if (!defined('AI4SEO_METADATA_DETAILS')) {
-    ai4seo_return_error_as_json("An error occurred! Please check your settings or contact the plugin developer.", 2306230642);
+    ai4seo_send_json_error(esc_html__("An error occurred! Please check your settings or contact the plugin developer.", "ai-for-seo"), 2306230642);
 }
 
 $ai4seo_read_page_content_via_js = isset($_REQUEST["read_page_content_via_js"]) && $_REQUEST["read_page_content_via_js"] == "true" ? "true" : "false";
@@ -32,7 +32,7 @@ $ai4seo_post_id = absint($_REQUEST["post_id"] ?? 0);
 
 // validate post id
 if ($ai4seo_post_id <= 0) {
-    ai4seo_return_error_as_json("Post id is invalid.", 2306230638);
+    ai4seo_send_json_error(esc_html__("Post id is invalid.", "ai-for-seo"), 2306230638);
 }
 
 

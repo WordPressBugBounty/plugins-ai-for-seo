@@ -44,7 +44,10 @@ foreach (AI4SEO_DEFAULT_SETTINGS as $ai4seo_this_setting_name => $ai4seo_this_de
 
     // validate the setting value
     if (!ai4seo_validate_setting_value($ai4seo_this_setting_name, $ai4seo_this_new_setting_value)) {
-        ai4seo_return_error_as_json("Invalid setting value for " . $ai4seo_this_setting_name, 261219225);
+        ai4seo_send_json_error(sprintf(
+            esc_html__("Invalid setting value for %s", "ai-for-seo"),
+            $ai4seo_this_setting_name
+        ), 261219225);
         #ai4seo_return_error_as_json("Invalid setting value '" . print_r($ai4seo_this_new_setting_value, true) . "' for " . $ai4seo_this_setting_name, 261219225);
         wp_die();
     }
@@ -169,12 +172,10 @@ if (isset($ai4seo_post_parameter[AI4SEO_SETTING_PAYG_ENABLED]) && $ai4seo_post_p
     $ai4seo_sent_pay_as_you_go_settings_response = ai4seo_send_pay_as_you_go_settings();
 
     if ($ai4seo_sent_pay_as_you_go_settings_response === false) {
-        ai4seo_return_error_as_json("Could not send pay-as-you-go settings to RobHub", 401217325);
+        ai4seo_send_json_error(esc_html__("Could not send pay-as-you-go settings to RobHub", "ai-for-seo"), 401217325);
         wp_die();
-    }
-
-    if (is_string($ai4seo_sent_pay_as_you_go_settings_response)) {
-        ai4seo_return_error_as_json($ai4seo_sent_pay_as_you_go_settings_response, 411217325);
+    } else if (is_string($ai4seo_sent_pay_as_you_go_settings_response)) {
+        ai4seo_send_json_error($ai4seo_sent_pay_as_you_go_settings_response, 411217325);
         wp_die();
     }
 }

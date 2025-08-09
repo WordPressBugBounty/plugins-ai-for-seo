@@ -24,6 +24,7 @@ class Ai4Seo_RobHubApiCommunicator {
     private bool $is_local_api_enabled = false;
     private string $local_api_url = "http://localhost";
     public int $product_activation_time = 0;
+    public const ACCOUNT_SYNC_INTERVAL = 3600; // 1 hour in seconds
 
     private const ENDPOINT_LOCK_DURATIONS = array( # in seconds
         "ai4seo/generate-all-metadata" => 1,
@@ -40,18 +41,24 @@ class Ai4Seo_RobHubApiCommunicator {
 
     private array $recent_endpoint_responses = array();
 
+    public string $environmental_variables_option_name = "robhub_environmental_variables";
+
     public const ENVIRONMENTAL_VARIABLE_DEPRECATED_API_AUTH_DATA = "auth_data";
     public const ENVIRONMENTAL_VARIABLE_API_USERNAME = "api_username";
     public const ENVIRONMENTAL_VARIABLE_API_PASSWORD = "api_password";
     public const ENVIRONMENTAL_VARIABLE_CREDITS_BALANCE = "credits_balance";
-    public const ENVIRONMENTAL_VARIABLE_LAST_CREDIT_BALANCE_CHECK = "last_credit_balance_check";
-    public string $environmental_variables_option_name = "robhub_environmental_variables";
+    public const ENVIRONMENTAL_VARIABLE_NEXT_FREE_CREDITS_TIMESTAMP = "next_free_credits";
+    public const ENVIRONMENTAL_VARIABLE_SUBSCRIPTION = "subscription";
+    public const ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC = "last_account_sync";
+
     public const DEFAULT_ENVIRONMENTAL_VARIABLES = array(
         self::ENVIRONMENTAL_VARIABLE_DEPRECATED_API_AUTH_DATA => array(),
         self::ENVIRONMENTAL_VARIABLE_API_USERNAME => "",
         self::ENVIRONMENTAL_VARIABLE_API_PASSWORD => "",
         self::ENVIRONMENTAL_VARIABLE_CREDITS_BALANCE => 0,
-        self::ENVIRONMENTAL_VARIABLE_LAST_CREDIT_BALANCE_CHECK => 0,
+        self::ENVIRONMENTAL_VARIABLE_NEXT_FREE_CREDITS_TIMESTAMP => 0,
+        self::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION => array(),
+        self::ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC => 0,
     );
     private array $environmental_variables = self::DEFAULT_ENVIRONMENTAL_VARIABLES;
 
@@ -407,7 +414,8 @@ class Ai4Seo_RobHubApiCommunicator {
         if (isset($response["code"]) && is_numeric($response["code"])) {
             # insufficient credits -> discard cache
             if ($response["code"] == 371816823) {
-                $this->reset_last_credit_balance_check();
+                // fetch the current credits balance by syncing the account
+                $this->reset_last_account_sync();
             }
         }
     }
@@ -480,9 +488,10 @@ class Ai4Seo_RobHubApiCommunicator {
      */
     function init_free_account(): bool {
         // build pseudo api username and password first
-        $api_username = $this->build_api_username();
+        $new_api_username = $this->build_api_username();
 
-        if (!$this->use_this_credentials($api_username, $this->public_get_free_account_api_password)) {
+        if (!$this->use_this_credentials($new_api_username, $this->public_get_free_account_api_password)) {
+            error_log("AI for SEO: Could not build api for free account creation.");
             return false;
         }
 
@@ -495,9 +504,10 @@ class Ai4Seo_RobHubApiCommunicator {
         $response = $this->call("client/get-free-account", $parameters);
 
         // check response
-        if (!ai4seo_robhub_api()->was_call_successful($response) || !isset($response["data"]["api_username"]) || !isset($response["data"]["api_password"])) {
+        if (!$this->was_call_successful($response) || !isset($response["data"]["api_username"]) || !isset($response["data"]["api_password"])) {
             $this->api_username = "";
             $this->api_password = "";
+            error_log("AI for SEO: Could not create free account. Response: " . print_r($response, true));
             return false;
         }
 
@@ -505,6 +515,7 @@ class Ai4Seo_RobHubApiCommunicator {
         if (!$this->use_this_credentials($response["data"]["api_username"], $response["data"]["api_password"], true)) {
             $this->api_username = "";
             $this->api_password = "";
+            error_log("AI for SEO: Could not save free account credentials.");
             return false;
         }
 
@@ -792,16 +803,11 @@ class Ai4Seo_RobHubApiCommunicator {
      */
     function get_api_username(): string {
         // Make sure that credentials are initialized
-        if (!$this->init_credentials()) {
-            return "";
+        if ($this->init_credentials() && $this->api_username) {
+            return $this->api_username;
         }
 
-        // Make sure that api username is not empty
-        if (!$this->api_username) {
-            return "";
-        }
-
-        return $this->api_username;
+        return $this->build_api_username(); // return a pseudo api username if not initialized
     }
 
     // =========================================================================================== \\
@@ -831,33 +837,16 @@ class Ai4Seo_RobHubApiCommunicator {
      * @return int The credits balance of the client.
      */
     function get_credits_balance(): int {
-        global $ai4seo_synced_robhub_client_data;
-
-        // check _ai4seo_last_credit_balance_check option, if it's empty or older than 24 hours, call the robhub api to get the credits balance
-        $last_credits_balance_check_timestamp = (int) $this->read_environmental_variable(self::ENVIRONMENTAL_VARIABLE_LAST_CREDIT_BALANCE_CHECK);
-
-        // if the last credit balance check is older than $creditsBalanceCacheLifetime hours,
-        // call the robhub api to get the credits balance
-        do if ($last_credits_balance_check_timestamp < time() - $this->credits_balance_cache_lifetime) {
-            // not synced robhub account yet?
-            if (!$ai4seo_synced_robhub_client_data) {
-                ai4seo_sync_robhub_account(true);
-            }
-
-            // update ENVIRONMENTAL_VARIABLE_LAST_CREDIT_BALANCE_CHECK
-            $this->update_environmental_variable(self::ENVIRONMENTAL_VARIABLE_LAST_CREDIT_BALANCE_CHECK, time());
-        } while (false);
-
         return (int) $this->read_environmental_variable(self::ENVIRONMENTAL_VARIABLE_CREDITS_BALANCE);
     }
 
     // =========================================================================================== \\
 
     /**
-     * Function to unset the last credit balance check option.
+     * Function to unset the last account sync timer to effectively to force sync again
      */
-    function reset_last_credit_balance_check(): void {
-        $this->update_environmental_variable(self::ENVIRONMENTAL_VARIABLE_LAST_CREDIT_BALANCE_CHECK, 0);
+    function reset_last_account_sync(): void {
+        $this->update_environmental_variable(self::ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC, 0);
     }
 
     // =========================================================================================== \\
@@ -941,11 +930,6 @@ class Ai4Seo_RobHubApiCommunicator {
 
         // go through each environmental variable and check if it is valid
         foreach ($this->environmental_variables as $environmental_variable_name => $default_environmental_variable_value) {
-            // if this environmental variable is not known, remove it
-            if (!isset(self::DEFAULT_ENVIRONMENTAL_VARIABLES[$environmental_variable_name])) {
-                continue;
-            }
-
             // set default if not set
             if (!isset($current_environmental_variables[$environmental_variable_name])) {
                 $current_environmental_variables[$environmental_variable_name] = self::DEFAULT_ENVIRONMENTAL_VARIABLES[$environmental_variable_name];
@@ -974,23 +958,23 @@ class Ai4Seo_RobHubApiCommunicator {
         // Make sure that $environmental_variable_name-parameter has content
         if (!$environmental_variable_name) {
             error_log("ROBHUB: Environmental variable name is empty. #3515181024");
-            return "";
+            return null;
+        }
+
+        // check for a default value
+        if (!isset(self::DEFAULT_ENVIRONMENTAL_VARIABLES[$environmental_variable_name])) {
+            error_log("ROBHUB: Environmental variable '" . $environmental_variable_name . "' does not exist. #197825");
+            return null;
         }
 
         $current_environmental_variables = $this->read_all_environmental_variables();
 
         // Check if the $environmental_variable_name-parameter exists in environmental variables-array
-        if (!isset($current_environmental_variables[$environmental_variable_name])) {
-            // check for a default value
-            if (isset(self::DEFAULT_ENVIRONMENTAL_VARIABLES[$environmental_variable_name])) {
-                return self::DEFAULT_ENVIRONMENTAL_VARIABLES[$environmental_variable_name];
-            } else {
-                error_log("ROBHUB: Unknown environmental variable name: " . $environmental_variable_name . ". #3615181024");
-            }
-            return "";
+        if (isset($current_environmental_variables[$environmental_variable_name])) {
+            return $current_environmental_variables[$environmental_variable_name];
+        } else {
+            return self::DEFAULT_ENVIRONMENTAL_VARIABLES[$environmental_variable_name];
         }
-
-        return $current_environmental_variables[$environmental_variable_name];
     }
 
     // =========================================================================================== \\
@@ -1002,6 +986,11 @@ class Ai4Seo_RobHubApiCommunicator {
      * @return bool True if the robhub environmental variable was updated successfully, false if not
      */
     function update_environmental_variable(string $environmental_variable_name, $new_environmental_variable_value): bool {
+        if (!isset(self::DEFAULT_ENVIRONMENTAL_VARIABLES[$environmental_variable_name])) {
+            error_log("ROBHUB: Environmental variable '" . $environmental_variable_name . "' does not exist. #1197825");
+            return false;
+        }
+
         // Make sure that the new value of the environmental variable is valid
         if (!$this->validate_environmental_variable_value($environmental_variable_name, $new_environmental_variable_value)) {
             error_log("ROBHUB: Invalid value for environmental variable '" . $environmental_variable_name . "'. #3715181024");
@@ -1014,21 +1003,22 @@ class Ai4Seo_RobHubApiCommunicator {
         // overwrite entry in $current_environmental_variables-array
         $current_environmental_variables = $this->read_all_environmental_variables();
 
-        // workaround -> if we do not have this variable in our currently stored environmental variables, we add the default value
-        if (!isset($current_environmental_variables[$environmental_variable_name])) {
-            $current_environmental_variables[$environmental_variable_name] = self::DEFAULT_ENVIRONMENTAL_VARIABLES[$environmental_variable_name];
-        }
-
         // is same as default value? delete it
         if ($new_environmental_variable_value == self::DEFAULT_ENVIRONMENTAL_VARIABLES[$environmental_variable_name]) {
             unset($current_environmental_variables[$environmental_variable_name]);
         } else {
             // no change at all?
-            if ($current_environmental_variables[$environmental_variable_name] == $new_environmental_variable_value) {
+            if (isset($current_environmental_variables[$environmental_variable_name])
+                && $current_environmental_variables[$environmental_variable_name] == $new_environmental_variable_value) {
                 return true;
             }
 
             $current_environmental_variables[$environmental_variable_name] = $new_environmental_variable_value;
+        }
+
+        // no changes made
+        if($current_environmental_variables == $this->environmental_variables) {
+            return true;
         }
 
         // update the class parameter as well
@@ -1056,7 +1046,6 @@ class Ai4Seo_RobHubApiCommunicator {
         $current_environmental_variables = $this->read_all_environmental_variables();
 
         if (!isset($current_environmental_variables[$environmental_variable_name])) {
-            error_log("ROBHUB: Environmental variable '" . $environmental_variable_name . "' does not exist. #41319225");
             return false;
         }
 
@@ -1105,10 +1094,18 @@ class Ai4Seo_RobHubApiCommunicator {
                 return true;
 
             case self::ENVIRONMENTAL_VARIABLE_CREDITS_BALANCE:
-            case self::ENVIRONMENTAL_VARIABLE_LAST_CREDIT_BALANCE_CHECK:
+            case self::ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC:
+            case self::ENVIRONMENTAL_VARIABLE_NEXT_FREE_CREDITS_TIMESTAMP:
                 // contains only of numbers
                 return is_numeric($environmental_variable_value) && $environmental_variable_value >= 0;
 
+            case self::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION:
+                // must be an array
+                if (!is_array($environmental_variable_value)) {
+                    return false;
+                }
+
+                return true;
 
             case self::ENVIRONMENTAL_VARIABLE_DEPRECATED_API_AUTH_DATA:
                 // array, contains of two elements, each of them contains only of alphanumeric characters
@@ -1189,11 +1186,11 @@ class Ai4Seo_RobHubApiCommunicator {
         $old_api_password = sanitize_text_field($old_auth_data[1] ?? "");
 
         if ($old_api_username) {
-            ai4seo_robhub_api()->update_environmental_variable(ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_API_USERNAME, $old_api_username);
+            self::update_environmental_variable(ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_API_USERNAME, $old_api_username);
         }
 
         if ($old_api_password) {
-            ai4seo_robhub_api()->update_environmental_variable(ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_API_PASSWORD, $old_api_password);
+            self::update_environmental_variable(ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_API_PASSWORD, $old_api_password);
         }
 
         self::delete_environmental_variable(self::ENVIRONMENTAL_VARIABLE_DEPRECATED_API_AUTH_DATA);

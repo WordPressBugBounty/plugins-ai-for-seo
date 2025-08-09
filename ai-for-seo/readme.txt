@@ -4,7 +4,7 @@ Donate link: https://spa.ce.codes
 Tags: AI, SEO, Metadata, Alt text, Bulk
 Requires at least: 4.7
 Tested up to: 6.8.2
-Stable tag: 2.1.0
+Stable tag: 2.1.2
 Requires PHP: 7.4
 License: GPLv2 or later (or compatible)
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -307,6 +307,13 @@ These settings will allow the plugin to regenerate and overwrite metadata and me
 To import all images from the NextGen Gallery into AI for SEO, click the Import button in the Media section. Once imported, you can generate alt text, titles, captions, and descriptions for these images using the plugin. All changes will automatically sync with the NextGen Gallery plugin.
 
 == Changelog ==
+
+= 2.1.2 =
+* Bug Fixes & Maintenance: Fixed 2 minor bugs, and 2 security updates.
+
+= 2.1.1 =
+* Fixed AJAX requests (Thanks Marcus!)
+* Bug Fixes & Maintenance: Fixed 9 minor bugs, implemented 6 performance optimizations, and 1 security update.
 
 = 2.1.0 =
 * Added "Generate with AI" buttons in the media section of the Gutenberg editor, allowing users to generate media attributes directly from the editor.

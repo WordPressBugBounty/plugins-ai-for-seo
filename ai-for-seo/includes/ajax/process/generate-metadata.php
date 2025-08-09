@@ -35,7 +35,7 @@ if (!$ai4seo_debug) {
 $ai4seo_post_id = absint($_REQUEST["ai4seo_post_id"] ?? 0);
 
 if ($ai4seo_post_id <= 0) {
-    ai4seo_return_error_as_json("Post id is invalid.", 34127323);
+    ai4seo_send_json_error(esc_html__("Post id is invalid.", "ai-for-seo"), 34127323);
 }
 
 
@@ -68,7 +68,7 @@ ai4seo_add_post_context($ai4seo_post_id, $ai4seo_post_content);
 
 // check if content is too large (should never happen as we already condensed the content)
 if (strlen($ai4seo_post_content) > AI4SEO_MAX_TOTAL_CONTENT_SIZE) {
-    ai4seo_return_error_as_json("Content is too large.", 361229323);
+    ai4seo_send_json_error(esc_html__("Content is too large.", "ai-for-seo"), 361229323);
 }
 
 
@@ -106,12 +106,12 @@ $ai4seo_results = ai4seo_robhub_api()->call("ai4seo/generate-all-metadata", $ai4
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 if (!ai4seo_robhub_api()->was_call_successful($ai4seo_results)) {
-    ai4seo_return_error_as_json("Could not execute API call.", 28127323);
+    ai4seo_send_json_error(esc_html__("Could not execute API call.", "ai-for-seo"), 28127323);
 }
 
 // check if data is set
 if (!isset($ai4seo_results["data"]) || !is_array($ai4seo_results["data"]) || !$ai4seo_results["data"]) {
-    ai4seo_return_error_as_json("API call did not return data.", 48127323);
+    ai4seo_send_json_error(esc_html__("API call did not return data.", "ai-for-seo"), 48127323);
 }
 
 $ai4seo_generated_data = $ai4seo_results["data"];
@@ -161,4 +161,4 @@ $ai4seo_ajax_response = array(
     "new_credits_balance" => (int) $ai4seo_results["new-credits-balance"],
 );
 
-wp_send_json_success($ai4seo_ajax_response);
+ai4seo_send_json_success($ai4seo_ajax_response);
