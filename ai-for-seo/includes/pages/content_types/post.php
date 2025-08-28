@@ -20,7 +20,7 @@ if (!ai4seo_can_manage_this_plugin()) {
 
 $ai4seo_supported_post_types = ai4seo_get_supported_post_types();
 
-$ai4seo_post_type = ai4seo_get_current_post_type();
+$ai4seo_post_type = ai4seo_get_active_post_type_subpage();
 
 if (!in_array($ai4seo_post_type, $ai4seo_supported_post_types)) {
     echo "Unknown post type: " . esc_html($ai4seo_post_type);
@@ -31,7 +31,7 @@ $ai4seo_translated_post_type = ai4seo_get_post_type_translation($ai4seo_post_typ
 $ai4seo_translated_post_type_plural = ai4seo_get_post_type_translation($ai4seo_post_type, true);
 
 // sanitize and get current page (pagination)
-$ai4seo_current_page = absint($_REQUEST["ai4seo-page"] ?? 1);
+$ai4seo_current_page = absint($_REQUEST["ai4seo_page"] ?? 1);
 
 if ($ai4seo_current_page < 1) {
     $ai4seo_current_page = 1;
@@ -46,11 +46,11 @@ if (isset($_GET["ai4seo-execute-cron-job-sooner"]) && $_GET["ai4seo-execute-cron
 }
 
 // collect some admin links and buttons
-$ai4seo_this_admin_tab_url = ai4seo_get_post_type_url($ai4seo_post_type, $ai4seo_current_page);
-$ai4seo_refresh_button = ai4seo_get_small_button_tag($ai4seo_this_admin_tab_url, "rotate", __("Refresh page", "ai-for-seo"));
+$ai4seo_this_plugin_page_url = ai4seo_get_post_type_page_url($ai4seo_post_type, $ai4seo_current_page);
+$ai4seo_refresh_button = ai4seo_get_small_button_tag($ai4seo_this_plugin_page_url, "rotate", __("Refresh page", "ai-for-seo"));
 
 // execute cron job sooner link
-$ai4seo_execute_sooner_button_url = ai4seo_get_post_type_url($ai4seo_post_type, $ai4seo_current_page, array("ai4seo-execute-cron-job-sooner" => true));
+$ai4seo_execute_sooner_button_url = ai4seo_get_post_type_page_url($ai4seo_post_type, $ai4seo_current_page, array("ai4seo-execute-cron-job-sooner" => true));
 $ai4seo_execute_sooner_button = ai4seo_get_small_button_tag($ai4seo_execute_sooner_button_url, "bolt", __("Execute sooner!", "ai-for-seo"));
 
 // Define variable for the label of the failed-metadata-generations-link
@@ -59,7 +59,7 @@ $ai4seo_retry_all_failed_metadata_generations_link_label = "<span class='ai4seo-
 // retry all failed metadata generations link
 $ai4seo_retry_all_failed_metadata_generations_link_tag = ai4seo_get_small_button_tag("#", "rotate", $ai4seo_retry_all_failed_metadata_generations_link_label, "", "ai4seo_retry_all_failed_metadata(this, '" . esc_js($ai4seo_post_type) . "'); return false;");
 
-$ai4seo_consider_purchasing_more_credits_link_url = ai4seo_get_admin_url();
+$ai4seo_consider_purchasing_more_credits_link_url = ai4seo_get_subpage_url();
 $ai4seo_consider_purchasing_more_credits_link_tag = ai4seo_get_small_button_tag($ai4seo_consider_purchasing_more_credits_link_url, "circle-plus", __("Get more Credits", "ai-for-seo"), "ai4seo-success-button");
 
 // get value for bulk toggle checkbox
@@ -350,7 +350,7 @@ echo "</table>";
 echo "</div>";
 
 // Pagination
-$ai4seo_pagination_base_argument = ai4seo_get_post_type_url($ai4seo_post_type, 0);
+$ai4seo_pagination_base_argument = ai4seo_get_post_type_page_url($ai4seo_post_type, 0);
 $ai4seo_total_pages = max(1, $ai4seo_total_pages);
 $ai4seo_current_page = max(1, $ai4seo_current_page);
 $ai4seo_pagination_base_argument = $ai4seo_pagination_base_argument ?: '%_%'; // Default base if not defined

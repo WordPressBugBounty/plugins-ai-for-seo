@@ -4,7 +4,7 @@ Donate link: https://spa.ce.codes
 Tags: AI, SEO, Metadata, Alt text, Bulk
 Requires at least: 4.7
 Tested up to: 6.8.2
-Stable tag: 2.1.2
+Stable tag: 2.1.3
 Requires PHP: 7.4
 License: GPLv2 or later (or compatible)
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -30,7 +30,7 @@ Generate all your metadata, image alt text, titles, captions, and descriptions w
    - Here, you’ll find statistics and an overview of all your content that may need improvement to rank higher in Web Search results.
 
 2. **Check Your Content**:
-   - Visit any of the content tabs (Pages, Posts, Products, Media, etc.) to review your content, and it's SEO status/coverage.
+   - Visit any of the content pages (Pages, Posts, Products, Media, etc.) to review your content, and it's SEO status/coverage.
 
 3. **Automate Generation**:
    - Click on 'Activate bulk generation' to allow our AI to optimize your content for you.
@@ -87,7 +87,7 @@ Upload Method:
 == Screenshots ==
 
 1. Dashboard (screenshot-1.jpg)
-2. Media content tab (screenshot-2.jpg)
+2. Media page (screenshot-2.jpg)
 3. Metadata Editor (screenshot-3.jpg)
 4. Media Library (screenshot-4.jpg)
 5. SEO Autopilot Setup (screenshot-5.jpg)
@@ -141,7 +141,7 @@ Yes, in the 'Meta Tag Inclusion:'-section of the settings, you can choose to inc
 Yes, *AI for SEO* lets you decide which media attributes (like 'alt text' or 'title') should be generated. You can configure this in the 'Active Media Attributes:' section of the settings to match your content needs. Simply select the desired attributes and the SEO Autopilot will generate the data accordingly.
 
 = How can I retry all failed metadata generations with just one click? =
-You can find the 'Retry all failed' button in any content tab (e.g. Pages, Posts or media). This allows you to retry all failed metadata generations with a single click, saving you time and effort. Please note that this button will only be displayed if at least one error has occurred.
+You can find the 'Retry all failed' button in any content page (e.g. Pages, Posts or media). This allows you to retry all failed metadata generations with a single click, saving you time and effort. Please note that this button will only be displayed if at least one error has occurred.
 
 = Why is the automatic metadata or media attributes generation pending? =
 We use WordPress's internal task scheduler to manage automatic generation efficiently. This helps prevent overloading your server with too many simultaneous tasks.
@@ -165,7 +165,7 @@ You can find the *AI for SEO* button in the top admin-bar. Clicking on this will
 After opening *AI for SEO*'s Metadata Editor, you can either edit the existing metadata manually or generate new metadata using the 'Generate with AI' buttons.
 
 = Is there an alternate way to access *AI for SEO*'s Metadata Editor? =
-Yes, alternatively, you can go to the 'Pages' or 'Posts' tab within the *AI for SEO* plugin. From there, you can browse through your pages and posts, and choose the ones you want to edit.
+Yes, alternatively, you can go to the 'Pages' or 'Posts' page within the *AI for SEO* plugin. From there, you can browse through your pages and posts, and choose the ones you want to edit.
 
 = What editors are supported? =
 We currently support Elementor, BeTheme (Muffin-Builder / Be-Builder) and the standard editor. We are working on supporting more editors.
@@ -227,7 +227,7 @@ We are currently working on fixing this issue. As a workaround, we recommend sav
 
 = How do I edit metadata in Elementor with *AI for SEO*? =
 1. Open the page or post you want to edit in Elementor.
-2. Click on the settings-button (cog-icon) located at the top of the Elementor header to reveal page-/post-settings.
+2. Click the settings button (cog icon) at the top of the Elementor header to reveal the page or post settings.
 3. In the settings section, click on the 'Show all SEO settings' button to open *AI for SEO*'s Metadata Editor. Here, you can adjust the metadata manually or generate new metadata using AI-driven algorithms.
 
 = How do I edit SEO settings in BeBuilder with *AI for SEO*? =
@@ -250,14 +250,14 @@ Yes, the plugin does support multi-language websites. The plugin also supports t
 = What is the recommended cron job setting for WordPress? =
 The best setup is to use a cronjob outside the WordPress cron system (external cron job, either on your own server or through a third-party service) that runs every minute. This ensures that the SEO Autopilot and scheduled tasks run smoothly without being dependent on WordPress's internal cron system, which may not execute reliably on low-traffic sites.
 
-= I use the WordPress internal cron job system. What should I consider? =
+= I use WordPress’s internal cron system (WP-Cron). What should I consider? =
 If possible, switch to a cron job system outside the WordPress cron system (external cron job, either on your own server or through a third-party service) that runs every minute. If this is not an option and you experience slow SEO Autopilot, consider increasing the SEO Autopilot Duration setting (Settings > Experimental > SEO Autopilot Duration) to allow more processing time per batch.
 
 = I use an external cron job system, but I can only run the cron job every 2+ minutes or less frequently. What should I do? =
-If your external cron job runs less frequently than every minute, we recommend increasing the SEO Autopilot Duration setting (Settings > Experimental > SEO Autopilot Duration). This will allow each SEO Autopilot cycle to handle more tasks at once, compensating for the lower execution frequency.
+If your external cron job runs less frequently than once per minute, we recommend increasing the *SEO Autopilot Duration* setting (Settings > Experimental > SEO Autopilot Duration). This allows each cycle to handle more tasks at once, compensating for the lower execution frequency.
 
 = The SEO Autopilot ignored some entries or marked them as already completed. What can I do? =
-By default, the SEO Autopilot skips entries that already have a complete set of metadata or media attributes, assuming they are already optimized.
+By default, the SEO Autopilot skips entries with a complete set of metadata or media attributes, assuming they are optimized.
 
 If you want to regenerate metadata or media attributes even for entries that are marked as complete:
 
@@ -274,7 +274,7 @@ The 'Render-Level Alt Text Injection' setting ensures that images on your websit
 = I see old data in the plugin while generating metadata or media attributes. What can I do? =
 If you notice outdated data appearing while generating metadata or media attributes, try the following steps:
 
-1. Reset Cache – This will clear stored data and forces the plugin to eventually create new temporary data (cache).
+1. Reset Cache – This will clear stored data and force the plugin to create new temporary data (cache).
 2. If the issue persists, Reset Environmental Variables – This can help resolve cases where incorrect internal values are affecting data processing.
 
 You can find both options under Help > Troubleshooting > Reset Plugin.
@@ -306,7 +306,42 @@ These settings will allow the plugin to regenerate and overwrite metadata and me
 = I use the NextGen Gallery plugin — how do I generate media attributes for my images? =
 To import all images from the NextGen Gallery into AI for SEO, click the Import button in the Media section. Once imported, you can generate alt text, titles, captions, and descriptions for these images using the plugin. All changes will automatically sync with the NextGen Gallery plugin.
 
+# I do not see generated alt text on the front page. What can I do?
+If you generated alt text but it does not appear on the front page, try:
+1. Go to Settings > Show Advanced Settings > Troubleshooting. Enable "Alt Text Injection", save, then check again.
+2. Optionally enable "Image Title Injection" to add a tooltip on hover.
+3. Clear caches (plugin/theme cache, page cache, CDN) so updated attributes render on cached pages.
+4. Ensure images are real <img> tags. Background images set via CSS cannot have alt text.
+
+# Generating alt text fails. Should I switch "Image Upload Method" to "Data"?
+If you see errors while generating alt text or other media attributes, switch the upload method:
+1. Go to Settings > Show Advanced Settings > Troubleshooting. Set "Image Upload Method" to "Data".
+2. Save settings and retry generation (Alt Text, Title, Caption).
+3. Why this helps: Some CDNs, firewalls, or hosts (e.g. Cloudflare, signed URLs, private media paths) block direct URL fetching. "Data" sends the image bytes instead of a public URL and is often more reliable.
+4. If issues persist, clear all caches and confirm the image is a real <img> tag, not a CSS background.
+
+= Can I use *AI for SEO* on a staging or local development site? =
+Yes, you can use *AI for SEO* on staging or local development sites. However, please note that each installation requires its own license and Credits. You can link multiple sites together using the same license holder and license key, allowing them to share the same pool of Credits and various settings.
+
+= I cannot access the plugin due to incognito mode restriction. What can I do? =
+If you cannot access the plugin due to incognito mode restriction, follow these steps:
+
+1. Adjust this URL by replacing [YOUR_WEBSITE] with your actual website URL and open it in your browser to temporarily bypass the restriction:
+   https://[YOUR_WEBSITE]/wp-admin/admin.php?page=ai-for-seo&ai4seo_subpage=account&ai4seo_debug_bypass_incognito_mode=true
+2. Disable incognito mode and save your settings.
+3. If needed, you may enable incognito mode again after saving.
+
+
 == Changelog ==
+
+= 2.1.3 =
+* Dashboard now refreshes automatically; manual page reload is no longer required.
+* Added compatibility with the SEOKey plugin.
+* Alt Text Injection is now disabled by default. To re-enable, go to Settings > Show Advanced Settings (top right) > Troubleshooting & Experimental > Alt Text Injection.
+* Added a submenu for direct plugin access via the WordPress admin menu.
+* Added a "Refresh" button to dashboard statistics. Recommended for large sites (>10,000 entries) to update statistics on demand.
+* Added a new FAQ area under Help > Troubleshooting, covering common problems and solutions.
+* Bug Fixes & Maintenance: Fixed 11 minor bugs, implemented 13 performance and usability improvements, and resolved 2 security issues.
 
 = 2.1.2 =
 * Bug Fixes & Maintenance: Fixed 2 minor bugs, and 2 security updates.
@@ -389,86 +424,9 @@ To import all images from the NextGen Gallery into AI for SEO, click the Import 
 * New "Support & Feedback" Section: Easily access support and provide feedback directly from the dashboard.
 * Tons more minor improvements, bug fixes, and performance enhancements.
 
-= 1.2.15 =
-* Fixed 2 minor bugs and added additional FAQ entries to assist users with common issues.
-
-= 1.2.14 =
-* Added a setting to control whether entries with a complete metadata set are ignored during bulk generation (default) or included, overwriting all of their existing metadata.
-* Added a setting to control whether entries with a complete media attribute set are ignored during bulk generation (default) or included, overwriting all of their existing media attributes.
-* Added a setting called "Bulk Generation Duration" in Help > Troubleshooting to adjust the runtime of a single bulk generation process. This can be useful in cases where server limitations impact processing.
-* Fixed 9 minor bugs and implemented 4 quality-of-life improvements.
-
-= 1.2.13 =
-* Added compatibility with ACF (Advanced Custom Fields): Content created using ACF is now fully recognized and processed correctly by the plugin.
-* Added a setting to choose which metadata fields to sync with your preferred third-party SEO plugin.
-
-= 1.2.12 =
-* Added a troubleshooting section in the help menu to assist users with common issues by resetting various plugin data.
-
-= 1.2.11 =
-* Enhanced license username and key management: You can now view your username and license key directly in the plugin dashboard using the "Show License" button.
-* Introduced support for linking additional websites to a main account: Enter your username and license key in the "Already purchased?" section to activate the license on other websites.
-
-= 1.2.10 =
-* Added a setting to customize the order of bulk generation.
-* Introduced a setting to include or exclude new and/or existing entries from bulk generation.
-* Fixed 2 minor bugs, added 1 quality of life improvement, and 1 security update.
-
-= 1.2.9 =
-* Added compatibility with the WPML multilanguage plugin, enabling improved language recognition for metadata and media attribute generation.
-* Enhanced overall usability on mobile devices.
-* Fixed 14 minor bugs, added 5 quality of life improvements, and 2 security updates.
-
-= 1.2.8 =
-* Added a "Lost your license key?" link to the "Already purchased?" section on the dashboard page.
-* Added 3 FAQ entries regarding what to do if you lose your license key, how to handle third party seo plugins.
-* Added compatibility with Wordpress 6.7.0+.
-* Fixed 17 minor bugs, added 5 quality of life improvements, and 2 security updates.
-
-= 1.2.7 =
-* Fixed a bug that prevented the plugin from automatically generating metadata / media attributes.
-* Fixed 3 minor bugs, and improved performance and security.
-
-= 1.2.6 =
-* Updated Terms of Service: Users must review and accept the new ToS to continue using the plugin.
-* Extended support for various payment methods, including Alipay, PayPal, Apple Pay, Google Pay, Giropay, iDEAL, SEPA, Direct Debit, WeChat Pay, Cartes Bancaires, MobilePay, Multibanko, BLIK, Bancontact, EPS, Przelewy24, SOFORT, TWINT and Klarna.
-* Fixed 21 minor bugs, and improved performance and security.
-
-= 1.2.5 =
-* Added a new setting with four meta tag output modes: "Disable *AI for SEO* Meta Tags," "Force *AI for SEO* Meta Tags," "Replace Existing Meta Tags," and "Complement Existing Meta Tags." The default mode, "Replace Existing Meta Tags," helps resolve compatibility issues with other plugins and may improve SEO performance by eliminating duplicate meta tags.
-* Added support for additional SEO plugins, including Blog2Social.
-* Added a "Help" button in the plugin library, providing users with quick access to the FAQ and support resources.
-* Fixed 11 minor bugs, and improved performance and security.
-
-= 1.2.4 =
-* Added support for additional SEO plugins, including Yoast SEO, Rank Math, SEOPress, All in One SEO, Slim SEO, SEO Simple Pack, Squirrly SEO, and The SEO Framework.
-* Introduced a setting to choose whether to sync metadata with your preferred SEO plugin.
-* Added an option to enable or disable the overwriting of existing metadata.
-* Added an option to enable or disable the overwriting of existing media attributes.
-* Resolved six minor bugs and implemented performance improvements and security updates.
-
-= 1.2.3 =
-* Added a setting to enable or disable synchronization with the Yoast SEO plugin. Support for more SEO plugins will follow shortly.
-* Fixed a bug that prevented settings from being saved correctly.
-* Implemented three minor bug fixes.
-
-= 1.2.2 =
-* All users now receive 5 free credits daily if your balance falls below 100 Credits, allowing continued use of the basic features at no cost.
-* Overhauled pricing and credit rewards: Basic subscription now includes 500 credits (up from 200). Pro subscription now includes 1,500 credits (up from 600). Premium subscription now includes 5,000 credits (up from 3,000).
-* Added a "Getting Started" guide to the Help section, providing a step-by-step tutorial on how to use the plugin.
-* Implemented seven minor bug fixes, along with performance improvements and security updates.
-
-= 1.2.1 =
-* Introduced a new "Help" section that includes a comprehensive FAQ and useful links to assist users in getting started with the plugin.
-* Added "Select All / Unselect All" buttons to the settings page to enhance the user experience.
-* Fixed a bug that occasionally caused statistics to display outdated or incorrect data.
-* Added a "Metadata Editor" button to the top admin bar for smaller screens, making it easier to access the metadata editor.
-* Implemented better error logging to help users troubleshoot issues more effectively.
-* Implemented six minor bug fixes, along with performance improvements and security updates.
-
 = 1.2.0 =
-* Image Metadata Generation: Added support for generating alt text, titles, captions, and descriptions for all images on your website. You can use the bulk or manual generation options available. Simply click the 'Generate with AI' button in the media library or explore the new 'Media' tab within the *AI for SEO* plugin.
-* New 'Settings' Tab: We have introduced a 'Settings' tab with various options to enhance your experience (details below).
+* Image Metadata Generation: Added support for generating alt text, titles, captions, and descriptions for all images on your website. You can use the bulk or manual generation options available. Simply click the 'Generate with AI' button in the media library or explore the new 'Media' page within the *AI for SEO* plugin.
+* New 'Settings' Page: We have introduced a 'Settings' page with various options to enhance your experience (details below).
 ** Meta Tag Inclusion: This option allows you to include or exclude specific meta tags from being output in the header by our plugin. Note that this setting does not affect meta tags generated by other plugins. For instance, if you prefer the meta titles generated by another plugin, you may choose to exclude them here.
 ** Language Selection: Allows you to override the AI’s language detection, which is helpful if your content is in a language different from what the AI has detected.
 ** User Management: Controls which user roles can access and use the plugin. By default, only administrators have access.

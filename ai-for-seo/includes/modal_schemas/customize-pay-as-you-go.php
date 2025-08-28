@@ -209,6 +209,9 @@ echo "<div class='ai4seo-modal-schema-content'>";
                     ));
                     echo ai4seo_wp_kses(ai4seo_get_icon_with_tooltip_tag(esc_html__("Including manually purchased Credits packs. Resets on the 1st of each month, CET – Central European Time.", "ai-for-seo")));
                 echo "</li>";
+                echo "<li>";
+                    echo esc_html__("Taxes may apply depending on your location.", "ai-for-seo");
+                echo "</li>";
             echo "</ol>";
         echo "</div>";
 

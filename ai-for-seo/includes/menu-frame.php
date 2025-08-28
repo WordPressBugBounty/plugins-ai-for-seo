@@ -18,15 +18,15 @@ if (!ai4seo_can_manage_this_plugin()) {
 // === PREPARE =============================================================================== \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
-$ai4seo_dashboard_url = ai4seo_get_admin_url("dashboard");
-$ai4seo_is_dashboard_open = ai4seo_is_tab_open("dashboard");
-$ai4seo_settings_url = ai4seo_get_admin_url("settings");
-$ai4seo_attachment_url = ai4seo_get_admin_url("media");
-$ai4seo_account_url = ai4seo_get_admin_url("account");
-$ai4seo_help_url = ai4seo_get_admin_url("help");
+$ai4seo_dashboard_url = ai4seo_get_subpage_url("dashboard");
+$ai4seo_is_dashboard_open = ai4seo_is_plugin_page_active("dashboard");
+$ai4seo_settings_page_url = ai4seo_get_subpage_url("settings");
+$ai4seo_media_page_url = ai4seo_get_subpage_url("media");
+$ai4seo_account_page_url = ai4seo_get_subpage_url("account");
+$ai4seo_help_page_url = ai4seo_get_subpage_url("help");
 
-$ai4seo_current_content_tab = ai4seo_get_current_tab();
-$ai4seo_current_post_type = ai4seo_get_current_post_type();
+$ai4seo_active_plugin_page = ai4seo_get_active_subpage();
+$ai4seo_current_post_type = ai4seo_get_active_post_type_subpage();
 
 $ai4seo_supported_post_types = ai4seo_get_supported_post_types();
 
@@ -68,8 +68,8 @@ if (isset($_GET["ai4seo-just-purchased"]) || isset($_GET["amp;ai4seo-just-purcha
         jQuery(function() {
             // open modal
             ai4seo_open_generic_success_notification_modal(
-                "<?=esc_js(esc_html__("Your Credits may take a moment to appear on your dashboard. To update your Credits balance, please click on 'Refresh'.  Important: Don't forget to check the 'Account' tab to retrieve your license key.", "ai-for-seo"));?>",
-                "<a href='#' class='ai4seo-button' onclick='window.location=\"<?=esc_js(ai4seo_get_admin_url("dashboard", array("ai4seo_force_sync_account" => "true")))?>\"' target='_self'><?=esc_js(esc_html__("Refresh", "ai-for-seo"))?></a>");
+                "<?=esc_js(esc_html__("Your Credits may take a moment to appear on your dashboard. To update your Credits balance, please click on 'Refresh'.  Important: Don't forget to check the 'Account' page to retrieve your license key.", "ai-for-seo"));?>",
+                "<a href='#' class='ai4seo-button' onclick='window.location=\"<?=esc_js(ai4seo_get_subpage_url("dashboard", array("ai4seo_force_sync_account" => "true")))?>\"' target='_self'><?=esc_js(esc_html__("Refresh", "ai-for-seo"))?></a>");
         });
     </script><?php
     // ------------------------------------------------------------------------ \\
@@ -117,10 +117,10 @@ echo "<div class='wrap ai4seo-wrap'>";
             }
         echo "</div>";
 
-        echo "<nav class='nav-tab-wrapper ai4seo-nav-tab-wrapper'>";
-            // Dashboard tab
-            echo "<a href='" . esc_url($ai4seo_dashboard_url) . "' class='nav-tab ai4seo-nav-tab" . ($ai4seo_is_dashboard_open ? " nav-tab-active ai4seo-nav-tab-active" : "") . "'>";
-                echo '<i class="dashicons dashicons-dashboard ai4seo-nav-tab-icon"></i>';
+        echo "<nav class='nav-tab-wrapper ai4seo-menu-items-wrapper'>";
+            // Dashboard page
+            echo "<a href='" . esc_url($ai4seo_dashboard_url) . "' class='nav-tab ai4seo-menu-item" . ($ai4seo_is_dashboard_open ? " nav-tab-active ai4seo-active-menu-item" : "") . "'>";
+                echo '<i class="dashicons dashicons-dashboard ai4seo-menu-item-icon"></i>';
                 echo "<span>";
                     echo esc_html__("Dashboard", "ai-for-seo");
 
@@ -132,49 +132,49 @@ echo "<div class='wrap ai4seo-wrap'>";
                 echo "</span>";
             echo "</a>";
 
-            // Tabs for supported post-types
-            foreach ($ai4seo_supported_post_types AS $ai4seo_post_type) {
-                $ai4seo_this_tab_label = ai4seo_get_post_type_translation($ai4seo_post_type, true);
-                $ai4seo_this_tab_label = ai4seo_get_nice_label($ai4seo_this_tab_label);
-                $ai4seo_this_tab_icon = ai4seo_get_dashicon_tag_for_navigation($ai4seo_post_type);
-                $ai4seo_is_current_tab = ($ai4seo_current_post_type == $ai4seo_post_type);
-                $ai4seo_this_tab_url = ai4seo_get_post_type_url($ai4seo_post_type);
+            // Pages for supported post-types
+            foreach ($ai4seo_supported_post_types AS $ai4seo_this_post_type) {
+                $ai4seo_this_menu_item_label = ai4seo_get_post_type_translation($ai4seo_this_post_type, true);
+                $ai4seo_this_menu_item_label = ai4seo_get_nice_label($ai4seo_this_menu_item_label);
+                $ai4seo_this_menu_item_icon = ai4seo_get_dashicon_tag_for_navigation($ai4seo_this_post_type);
+                $ai4seo_this_page_is_active = ($ai4seo_current_post_type == $ai4seo_this_post_type);
+                $ai4seo_this_page_url = ai4seo_get_post_type_page_url($ai4seo_this_post_type);
 
-                echo "<a href='" . esc_url($ai4seo_this_tab_url) . "' class='nav-tab ai4seo-nav-tab" . ($ai4seo_is_current_tab ? " nav-tab-active ai4seo-nav-tab-active" : "") . "'>";
-                    echo ai4seo_wp_kses($ai4seo_this_tab_icon);
+                echo "<a href='" . esc_url($ai4seo_this_page_url) . "' class='nav-tab ai4seo-menu-item" . ($ai4seo_this_page_is_active ? " nav-tab-active ai4seo-active-menu-item" : "") . "'>";
+                    echo ai4seo_wp_kses($ai4seo_this_menu_item_icon);
                     echo "<div>";
-                        echo esc_html($ai4seo_this_tab_label);
+                        echo esc_html($ai4seo_this_menu_item_label);
                     echo "</div>";
                 echo "</a>";
             }
 
-            // Media tab
-            echo "<a href='" . esc_url($ai4seo_attachment_url) . "' class='nav-tab ai4seo-nav-tab" . ($ai4seo_current_content_tab == "media" ? " nav-tab-active ai4seo-nav-tab-active" : "") . "'>";
+            // Media page
+            echo "<a href='" . esc_url($ai4seo_media_page_url) . "' class='nav-tab ai4seo-menu-item" . ($ai4seo_active_plugin_page == "media" ? " nav-tab-active ai4seo-active-menu-item" : "") . "'>";
                 echo ai4seo_wp_kses(ai4seo_get_dashicon_tag_for_navigation("attachment"));
                 echo "<span>";
                     echo esc_html(_n("Media", "Media", 2, "ai-for-seo"));
                 echo "</span>";
             echo "</a>";
 
-            // Account tab
-            echo "<a href='" . esc_url($ai4seo_account_url) . "' class='nav-tab ai4seo-nav-tab" . ($ai4seo_current_content_tab == "account" ? " nav-tab-active ai4seo-nav-tab-active" : "") . "'>";
-                echo ai4seo_wp_kses(ai4seo_get_svg_tag("key", "", "ai4seo-nav-tab-icon"));
+            // Account page
+            echo "<a href='" . esc_url($ai4seo_account_page_url) . "' class='nav-tab ai4seo-menu-item" . ($ai4seo_active_plugin_page == "account" ? " nav-tab-active ai4seo-active-menu-item" : "") . "'>";
+                echo ai4seo_wp_kses(ai4seo_get_svg_tag("key", "", "ai4seo-menu-item-icon"));
                 echo "<span>";
                     echo esc_html__("Account", "ai-for-seo");
                 echo "</span>";
             echo "</a>";
 
-            // Settings tab
-            echo "<a href='" . esc_url($ai4seo_settings_url) . "' class='nav-tab ai4seo-nav-tab" . ($ai4seo_current_content_tab == "settings" ? " nav-tab-active ai4seo-nav-tab-active" : "") . "'>";
-                echo '<i class="dashicons dashicons-admin-generic ai4seo-nav-tab-icon"></i>';
+            // Settings page
+            echo "<a href='" . esc_url($ai4seo_settings_page_url) . "' class='nav-tab ai4seo-menu-item" . ($ai4seo_active_plugin_page == "settings" ? " nav-tab-active ai4seo-active-menu-item" : "") . "'>";
+                echo '<i class="dashicons dashicons-admin-generic ai4seo-menu-item-icon"></i>';
                 echo "<span>";
                     echo esc_html__("Settings", "ai-for-seo");
                 echo "</span>";
             echo "</a>";
 
-            // Help tab
-            echo "<a href='" . esc_url($ai4seo_help_url) . "' class='nav-tab ai4seo-nav-tab" . ($ai4seo_current_content_tab == "help" ? " nav-tab-active ai4seo-nav-tab-active" : "") . "'>";
-                echo '<i class="dashicons dashicons-editor-help ai4seo-nav-tab-icon"></i>';
+            // Help page
+            echo "<a href='" . esc_url($ai4seo_help_page_url) . "' class='nav-tab ai4seo-menu-item" . ($ai4seo_active_plugin_page == "help" ? " nav-tab-active ai4seo-active-menu-item" : "") . "'>";
+                echo '<i class="dashicons dashicons-editor-help ai4seo-menu-item-icon"></i>';
                 echo "<span>";
                     echo esc_html__("Help", "ai-for-seo");
                 echo "</span>";
@@ -204,7 +204,7 @@ echo "<div class='wrap ai4seo-wrap'>";
     // === OUTPUT: CONTENT AREA ================================================================== \\
     // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
-    echo "<div class='tab-content ai4seo-tab-content'>";
+    echo "<div class='ai4seo-content-wrapper'>";
 
         // hide all other notices
         echo "<div class='ai4seo-hidden-notices-area'>";
@@ -220,7 +220,7 @@ echo "<div class='wrap ai4seo-wrap'>";
             echo "<center>";
                 echo "<div class='ai4seo-tos-notice'>";
                     echo "<p>" . esc_html__("Please accept our Terms of Service to proceed with using this plugin.", "ai-for-seo") . "</p>";
-                    echo "<a href='" . esc_url(ai4seo_get_admin_url()) . "' class='button ai4seo-button ai4seo-success-button'>" . esc_html__("Show terms of service", "ai-for-seo") . "</a>";
+                    echo "<a href='" . esc_url(ai4seo_get_subpage_url()) . "' class='button ai4seo-button ai4seo-success-button'>" . esc_html__("Show terms of service", "ai-for-seo") . "</a>";
                 echo "</div>";
             echo "</div>";
             return;
@@ -244,10 +244,10 @@ echo "<div class='wrap ai4seo-wrap'>";
         }
 
         // TIDY UP
-        if (isset($_GET["ai4seo_tidyup"]) && $_GET["ai4seo_tidyup"]) {
+        if (isset($_GET["ai4seo_force_tidyup"]) && $_GET["ai4seo_force_tidyup"]) {
             ai4seo_tidy_up();
 
-            $ai4seo_dashboard_url = ai4seo_get_admin_url("dashboard");
+            $ai4seo_dashboard_url = ai4seo_get_subpage_url("dashboard");
 
             // reload page
             echo "<script>";
@@ -262,18 +262,17 @@ echo "<div class='wrap ai4seo-wrap'>";
         // DEBUG POST CONTENT
         if (isset($_GET["ai4seo_debug_post_content"]) && $_GET["ai4seo_debug_post_content"] && is_numeric($_GET["ai4seo_debug_post_content"])) {
             $ai4seo_debug_post_id = absint($_GET["ai4seo_debug_post_content"]);
-            $ai4seo_debug_post_content = ai4seo_get_condensed_post_content_from_database($ai4seo_debug_post_id, true);
+            $ai4seo_condensed_post_content_from_database = ai4seo_get_condensed_post_content_from_database($ai4seo_debug_post_id, true);
 
-            ai4seo_add_post_context($ai4seo_debug_post_id, $ai4seo_debug_post_content);
+            ai4seo_add_post_context($ai4seo_debug_post_id, $ai4seo_condensed_post_content_from_database);
 
-            echo "<pre>FINAL WITH CONTEXT >" . print_r(htmlspecialchars($ai4seo_debug_post_content), true) . "<</pre>";
-            unset($ai4seo_debug_post_content, $ai4seo_debug_post_id);
+            echo "<pre>FINAL WITH CONTEXT >" . print_r(htmlspecialchars($ai4seo_condensed_post_content_from_database), true) . "<</pre>";
+            unset($ai4seo_condensed_post_content_from_database, $ai4seo_debug_post_id);
         }
-
 
         // === CONTENT PAGES =========================================================================== \\
 
-        switch($ai4seo_current_content_tab) {
+        switch($ai4seo_active_plugin_page) {
             case "":
             case "dashboard":
                 require_once(ai4seo_get_includes_pages_path("dashboard.php"));

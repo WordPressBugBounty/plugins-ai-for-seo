@@ -50,7 +50,7 @@
 }
 
 .ai4seo-generate-button {
-    background-color: whitesmoke; !important;
+    background-color: whitesmoke !important;
     color: #333 !important;
     border: 1px solid #777 !important;
     line-height: 2 !important;
@@ -85,7 +85,7 @@
     display: block;
     position: absolute;
     left: calc(50% - 11px);
-    top: -17px;
+    top: -16px;
     bottom: 100%;
     width: 0;
     height: 0;
@@ -145,44 +145,9 @@
     text-align: center;
 }
 
-.ai4seo-generate-all-button-wrapper .ai4seo-generate-all-button {
-    background-color: whitesmoke !important;
-    color: #555 !important;
-    border: 1px solid #ddd !important;
-    line-height: 130% !important;
-    position: relative !important;
-    cursor: pointer !important;
-    width: 150px !important;
-    margin: 0 auto !important;
-    border-radius: 100% !important;
-    height: 150px !important;
-    font-weight: bold !important;
-    box-shadow: 3px 3px #888 !important;
-    display: inline-block !important;
-    box-sizing: border-box !important;
-    white-space: normal !important;
-    padding: 0 !important;
-}
-
 .ai4seo-generate-all-button-wrapper .ai4seo-generate-all-button img {
     display: block;
     margin: .5em auto 0.5em auto;
-}
-
-.ai4seo-generate-all-button-wrapper .ai4seo-generate-all-button .ai4seo-loading-animation {
-    width: 70px!important;
-    height: 0!important;
-}
-
-.ai4seo-generate-all-button-wrapper .ai4seo-generate-all-button:hover {
-    background-color: white !important;
-    border-color: #ccc !important;
-    color: #333 !important;
-}
-
-.ai4seo-generate-all-button-wrapper .ai4seo-generate-all-button:active {
-    transform: translate(3px, 3px);
-    box-shadow: none;
 }
 
 .ai4seo-subscription-badge {
@@ -365,7 +330,7 @@
     text-decoration: none !important;
     display: inline-block !important;
     transform-style: unset !important;
-    background-color: whitesmoke; !important;
+    background-color: whitesmoke !important;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif !important;
 }
 
@@ -874,10 +839,6 @@ progress.ai4seo-progress-success { color: #7AD03A; }
 
 body.ai4seo-has-open-modal {
     overflow: hidden;
-}
-
-.ai4seo-modal .ai4seo-generate-all-button {
-    font-size: 0.8rem!important;
 }
 
 .ai4seo-big-icon {
@@ -1407,10 +1368,10 @@ textarea.ai4seo-username-box {
     position: relative; /* oder static */
     height: auto;
     min-height: calc(100vh - 4rem); /* Adjusted for the top bar height */
-    left: -20px;
+    left: -30px;
     top: 0;
     display: flex;
-    width: calc(100% + 20px);
+    width: calc(100% + 30px);
     box-sizing: border-box;
     padding: 2rem 1.3rem 0 2rem;
     margin: 0;
@@ -1500,13 +1461,13 @@ div.ai4seo-sidebar-headline {
     top: -10px;
 }
 
-nav.ai4seo-nav-tab-wrapper {
+nav.ai4seo-menu-items-wrapper {
     border: 0;
     margin: 0;
     padding: 0;
 }
 
-a.ai4seo-nav-tab {
+a.ai4seo-menu-item {
     padding: .5rem 1rem;
     width: 95%;
     margin-bottom: 1rem;
@@ -1517,7 +1478,7 @@ a.ai4seo-nav-tab {
     border-radius: .5rem;
 }
 
-a.ai4seo-nav-tab > i, a.ai4seo-nav-tab > svg {
+a.ai4seo-menu-item > i, a.ai4seo-menu-item > svg {
     margin-right: 1rem;
     color: #aaa;
     transform: scale(1.25);
@@ -1525,39 +1486,39 @@ a.ai4seo-nav-tab > i, a.ai4seo-nav-tab > svg {
     fill: #aaa;
 }
 
-a.ai4seo-nav-tab > svg {
+a.ai4seo-menu-item > svg {
     width: 20px;
 }
 
-a.ai4seo-nav-tab > div {
+a.ai4seo-menu-item > div {
     display: inline-block;
 }
 
-a.ai4seo-nav-tab:hover {
+a.ai4seo-menu-item:hover {
     background-color: #fff;
 }
 
-a.ai4seo-nav-tab-active {
+a.ai4seo-active-menu-item {
     background-color: #eee !important;
     border: 2px solid #41c6ef !important;
 }
 
-a.ai4seo-nav-tab-active > i, a.ai4seo-nav-tab-active > svg {
+a.ai4seo-active-menu-item > i, a.ai4seo-active-menu-item > svg {
     color: #555;
     fill: #555;
     transform: scale(1.35);
 }
 
-a.ai4seo-nav-tab-active > div {
+a.ai4seo-active-menu-item > div {
     color: #000;
     transform: scale(1.1);
 }
 
-a.ai4seo-nav-tab-active:hover {
+a.ai4seo-active-menu-item:hover {
     background-color: #eee;
 }
 
-div.ai4seo-tab-content {
+div.ai4seo-content-wrapper {
     margin-left: 0;
     display: flex;
     justify-content: left;
@@ -1704,7 +1665,7 @@ div.ai4seo-status-box-credits {
         height: auto;
     }
 
-    div.ai4seo-tab-content {
+    div.ai4seo-content-wrapper {
         height: calc(100vh - 8rem);
     }
 
@@ -1725,13 +1686,13 @@ div.ai4seo-status-box-credits {
         border-radius: 0 0 .5rem 0;
     }
 
-    a.ai4seo-nav-tab {
+    a.ai4seo-menu-item {
         padding: .5rem;
         margin-bottom: .1rem;
         width: 100%;
     }
 
-    .ai4seo-tab-content {
+    .ai4seo-content-wrapper {
         margin-left: 0;
     }
 }
@@ -1919,7 +1880,7 @@ img.ai4seo-notice-icon {
 }
 
 .ai4seo-consumption-progress, .ai4seo-seo-coverage-inner-progress-bar {
-    background-color: #21C653! important;
+    background-color: #21C653 !important;
     min-height: 10px;
     color: #fff;
     border-radius: 3px;
@@ -1928,11 +1889,11 @@ img.ai4seo-notice-icon {
 }
 
 .ai4seo-consumption-progress-orange {
-    background-color: #FFA500! important;
+    background-color: #FFA500 !important;
 }
 
 .ai4seo-consumption-progress-red {
-    background-color: #FF0000! important;
+    background-color: #FF0000 !important;
 }
 
 .ai4seo-top-right-refresh-button-wrapper {
@@ -1952,7 +1913,15 @@ div.ai4seo-credits-number {
     font-size: 4rem;
     font-weight: bold;
     color: black;
-    margin-top: 3rem;
+    margin-top: 2rem;
+    height: 4rem;
+    line-height: 1;
+}
+div.ai4seo-credits-number svg {
+    width: 3rem;
+    height: 3rem;
+    margin-right: 0.5rem;
+    vertical-align: baseline;
 }
 
 div.ai4seo-credits-generation-costs-info {
@@ -1962,6 +1931,7 @@ div.ai4seo-credits-generation-costs-info {
     min-height: 100px;
     display: flex;
     flex-flow: column;
+    margin-top: 2rem;
 }
 
 div.ai4seo-credits-generation-costs-info h4 {
@@ -2304,13 +2274,13 @@ span.ai4seo-credits-renewal-info {
     color: darkgreen;
 }
 
-i.ai4seo-nav-tab-icon {
+i.ai4seo-menu-item-icon {
     margin-right: 5px;
     margin-top: 3px;
     color: #555;
 }
 
-img.ai4seo-nav-tab-icon {
+img.ai4seo-menu-item-icon {
     margin-right: 5px;
     margin-top: 3px;
     margin-bottom: -3px;
@@ -3325,6 +3295,29 @@ div.ai4seo-pay-as-you-go-summary-container {
     }
     100% {
         background-color: white;
+    }
+}
+
+.ai4seo-highlight-animation {
+    animation: ai4seo-highlight-animation-yellow-gradient 2s ease-in-out;
+}
+
+@keyframes ai4seo-highlight-animation-yellow-gradient {
+    0% {
+        background: transparent;
+        text-shadow: none;
+    }
+    30% {
+        /* Yellow center with transparent edges in all directions */
+        background: radial-gradient(circle, rgba(255, 255, 0, 0.5) 0%, rgba(255, 255, 0, 0) 70%);
+        /* Yellow glow for text */
+        text-shadow: 0 0 5px rgba(255, 255, 0, 0.8),
+        0 0 10px rgba(255, 255, 0, 0.6),
+        0 0 15px rgba(255, 255, 0, 0.4);
+    }
+    100% {
+        background: transparent;
+        text-shadow: none;
     }
 }
 

@@ -205,33 +205,33 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-getti
     $ai4seo_this_accordion_content .= "<img src='" . esc_url(ai4seo_get_assets_images_url("help-screenshots/first-steps-1.jpg")) . "' style='width: 100%;' />";
     $ai4seo_this_accordion_content .= "<p><b>2.</b> " . __("<b>Dashboard -> Credits</b>: In this section you will see how many Credits are currently available to use. Underneath the total number of Credits you will see an exact cost breakdown followed by the button <b>Get more Credits</b>. If you click on this button, you will see a modal with different purchase options to obtain more Credits.", "ai-for-seo") . "</p>";
     $ai4seo_this_accordion_content .= "<p><b>2.1.</b> " . __("<b>Dashboard -> Credits -> Get more Credits</b>: After clicking on this button a modal with different purchase options will open. Here you can purchase Credits Packs, start or manage a monthly or yearly subscription and customize the Pay-As-You-Go feature to automatically refill your Credits balance with a pre-set amount. Additionally you will see information about the next free daily Credits you will receive.", "ai-for-seo") . "</p>";
-    $ai4seo_this_accordion_content .= "<p><b>3.</b> " . __("<b>Dashboard -> SEO Autopilot (Bulk Generation)</b>: In this section you can see the current status of the SEO Autopilot. At the bottom of this section you will find buttons to set up and stop the SEO Autopilot.", "ai-for-seo") . "</p>";
-    $ai4seo_this_accordion_content .= "<p><b>3.1.</b> " . __("<b>Dashboard -> SEO Autopilot (Bulk Generation) -> Set up SEO Autopilot</b>: Clicking this button will open a modal with the settings for the SEO Autopilot. In this modal you can select the content types for which the SEO Autopilot should generate SEO data for. You can also select whether the SEO Autopilot should only manage new content entries or only existing ones or both. Additionally you can select the order in which the SEO autopilot should process the content-entries.", "ai-for-seo") . "</p>";
+    $ai4seo_this_accordion_content .= "<p><b>3.</b> " . __("<b>Dashboard → SEO Autopilot (Bulk Generation)</b>: In this section, you can view the current status of the SEO Autopilot. At the bottom of this section, you’ll find buttons to set up or stop the SEO Autopilot.", "ai-for-seo") . "</p>";
+    $ai4seo_this_accordion_content .= "<p><b>3.1.</b> " . __("<b>Dashboard → SEO Autopilot (Bulk Generation) → Set up SEO Autopilot</b>: Clicking this button opens a modal with the settings for the SEO Autopilot. In this modal, you can choose the content types for which the SEO Autopilot should generate SEO data. You can also specify whether it should manage only new content entries, only existing ones, or both. Additionally, you can define the order in which the SEO Autopilot processes the content entries.", "ai-for-seo") . "</p>";
     $ai4seo_this_accordion_content .= "<img src='" . esc_url(ai4seo_get_assets_images_url("help-screenshots/first-steps-2.jpg")) . "' style='width: 100%;' />";
     $ai4seo_this_accordion_content .= "<p><b>4.</b> " . __("<b>Dashboard -> Recent activity</b>: This section will display the recent plugin activity. Next to each item in this list you will see a button to display each content type and a button to edit the SEO settings for the entry.", "ai-for-seo") . "</p>";
 
     // Account
-    $ai4seo_this_accordion_content .= "<p><b>5.</b> " . __("<b>Account</b>: Check out the account settings of the *AI for SEO* plugin by clicking on the \"Account\"-tab in the plugin navigation. On this page you will find your license-details, the settings for SEO and Web Agencies, as well as a section for Privacy & Agreements.", "ai-for-seo") . "</p>";
+    $ai4seo_this_accordion_content .= "<p><b>5.</b> " . __("<b>Account</b>: Check out the account settings of the *AI for SEO* plugin by clicking on the \"Account\" menu item in the plugin navigation. On this page you will find your license-details, the settings for SEO and Web Agencies, as well as a section for Privacy & Agreements.", "ai-for-seo") . "</p>";
     $ai4seo_this_accordion_content .= "<img src='" . esc_url(ai4seo_get_assets_images_url("help-screenshots/first-steps-3.jpg")) . "' style='width: 100%;' />";
     $ai4seo_this_accordion_content .= "<p><b>5.1.</b> " . __("<b>Account -> License</b>: In this section you will find input fields for the license-owner and the license-key. Additionally you will have access to different buttons to manage and set up payment options.", "ai-for-seo") . "</p>";
     $ai4seo_this_accordion_content .= "<p><b>5.2.</b> " . __("<b>Account -> For SEO and Web Agencies</b>: Here you can set up different plugin-features that are mainly designed for agencies. These settings allow you to enable the incognito mode to hide the plugin from other users. You will also find the white-label settings that you can use to put your own spin on the *AI for SEO* plugin to make it your own.", "ai-for-seo") . "</p>";
 
     // Settings
-    $ai4seo_this_accordion_content .= "<p><b>6.</b> " . __("<b>Settings</b>: Checkout the plugins default-settings listed in the \"Settings\" tab. Make sure that those settings meet your needs and adjust them accordingly if necessary.", "ai-for-seo") . "</p>";
+    $ai4seo_this_accordion_content .= "<p><b>6.</b> " . __("<b>Settings</b>: Checkout the plugins default-settings listed in the \"Settings\" menu item. Make sure that those settings meet your needs and adjust them accordingly if necessary.", "ai-for-seo") . "</p>";
     $ai4seo_this_accordion_content .= "<img src='" . esc_url(ai4seo_get_assets_images_url("help-screenshots/first-steps-4.jpg")) . "' style='width: 100%;' />";
     $ai4seo_this_accordion_content .= "<p><b>6.1.</b> " . __("<b>Settings -> Metadata</b>: In this section you can change the settings for the metadata generated by the *AI for SEO* plugin. This will affect content types such as pages, posts and products.", "ai-for-seo") . "</p>";
     $ai4seo_this_accordion_content .= "<p><b>6.2.</b> " . __("<b>Settings -> Media attributes</b>: In this section you can change the settings for the media attributes generated by the *AI for SEO* plugin. This will affect media files.", "ai-for-seo") . "</p>";
     $ai4seo_this_accordion_content .= "<p><b>6.3.</b> " . __("<b>Settings -> User Management</b>: Here you can select the user groups that should be able to manage the *AI for SEO* plugin.", "ai-for-seo") . "</p>";
-    $ai4seo_this_accordion_content .= "<p><b>6.4.</b> " . __("<b>Settings -> Experimental</b>: In this section, you can define the duration of a single SEO Autopilot run. Adjusting this setting may help you process your site's content more efficiently in certain cases.", "ai-for-seo") . "</p>";
+    $ai4seo_this_accordion_content .= "<p><b>6.4.</b> " . __("<b>Settings -> Troubleshooting</b>: In this section, you can define the duration of a single SEO Autopilot run. Adjusting this setting may help you process your site's content more efficiently in certain cases.", "ai-for-seo") . "</p>";
 
     // Content tabes
-    $ai4seo_this_accordion_content .= "<p><b>7.</b> " . __("<b>Content tabs</b>: On the plugin-page you will find tabs for each supported content type (i.e. Page, Post, etc.). Click on any content tab and open the metadata editor by clicking on the button on the right-hand side of an entry.", "ai-for-seo") . "</p>";
+    $ai4seo_this_accordion_content .= "<p><b>7.</b> " . __("<b>Content pages</b>: Inside the plugin you will find menu items for each supported content type (i.e. Page, Post, etc.). Click on any menu item and open the metadata editor by clicking on the button on the right-hand side of an entry.", "ai-for-seo") . "</p>";
     $ai4seo_this_accordion_content .= "<p><b>8.</b> " . sprintf(
             __("<b>Metadata editor</b>: After clicking on the button to open the metadata editor you will find the \"Generate all SEO\" button at the top of the editor. Click this button to generate all metadata for the selected content-entry for only %u Credits. Additionally you will find the \"Generate with AI\"-button underneath every input-field which allows you to generate the metadata for a single metadata-input-field. After the new data has been generated you can either save the changes as generated or you can edit them if you would like to apply any changes and save afterwards.", "ai-for-seo"),
             esc_html(AI4SEO_CREDITS_FLAT_COST),
         ) . "</p>";
     $ai4seo_this_accordion_content .= "<img src='" . esc_url(ai4seo_get_assets_images_url("help-screenshots/first-steps-5.jpg")) . "' style='width: 100%;' />";
-    $ai4seo_this_accordion_content .= "<p><b>9.</b> " . __("<b>Media tab</b>: After clicking on the media-tab you can open the media attribute editor by clicking on the button on the right-hand side of each media-entry.", "ai-for-seo") . "</p>";
+    $ai4seo_this_accordion_content .= "<p><b>9.</b> " . __("<b>Media page</b>: After clicking on the media menu item you can open the media attribute editor by clicking on the button on the right-hand side of each media-entry.", "ai-for-seo") . "</p>";
     $ai4seo_this_accordion_content .= "<p><b>10.</b> " . sprintf(
             __("<b>Media attribute editor</b>: After clicking on the button to open the media attribute editor you will find the \"Generate all SEO\" button at the top of the editor. Click this button to generate all media attributes for the selected media-entry for only %u Credits. Additionally you will find the \"Generate with AI\"-button underneath every input-field which allows you to generate the media attributes for a single attributes-input-field. After the new data has been generated you can either save the changes as generated or you can edit them if you would like to apply any changes and save afterwards.", "ai-for-seo"),
             esc_html(AI4SEO_CREDITS_FLAT_COST),
@@ -239,7 +239,7 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-getti
     $ai4seo_this_accordion_content .= "<img src='" . esc_url(ai4seo_get_assets_images_url("help-screenshots/first-steps-6.jpg")) . "' style='width: 100%;' />";
 
     // Help & contact
-    $ai4seo_this_accordion_content .= "<p><b>11.</b> " . __("<b>Help</b>: You should also check out the \"Help\" tab of the plugin. On this page we put together several helpful tips and tutorials for you. In addition you will find some troubleshooting functions as well as ways to get in touch with us.", "ai-for-seo") . "</p>";
+    $ai4seo_this_accordion_content .= "<p><b>11.</b> " . __("<b>Help</b>: You should also check out the \"Help\" page of the plugin. On this page we put together several helpful tips and tutorials for you. In addition you will find some troubleshooting functions as well as ways to get in touch with us.", "ai-for-seo") . "</p>";
     $ai4seo_this_accordion_content .= "<p><b>11.1.</b> " . __("<b>Help -> Troubleshooting</b>: In this section you have the option to reset some or all of the plugin date. PLEASE make sure to use these functions with caution. Feel free to reach prior to using these functions if you have any questions about them.", "ai-for-seo") . "</p>";
     $ai4seo_this_accordion_content .= "<img src='" . esc_url(ai4seo_get_assets_images_url("help-screenshots/first-steps-7.jpg")) . "' style='width: 100%;' />";
     $ai4seo_this_accordion_content .= "<p><b>12.</b> " . __("<b>Contact us</b>: If you have any questions, suggestions, need further support or require a particularly large number of Credits, feel free to contact us via Help > Contact.", "ai-for-seo") . "</p>";
@@ -260,7 +260,7 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-getti
     $ai4seo_this_accordion_content .= "<img src='" . esc_url(ai4seo_get_assets_images_url("faq-screenshots/screenshot-page-post-2.jpg")) . "' style='width: 100%;' />";
 
     // Additional information: Alternate way to access the "SEO Metadata Editor"
-    $ai4seo_this_accordion_content .= "<p>" . __("<b>Alternatively,</b> you can go to the \"Pages\" or \"Posts\" tab within the *AI for SEO* plugin. From there, you can browse through your pages and posts, and choose the ones you want to edit.", "ai-for-seo") . "</p>";
+    $ai4seo_this_accordion_content .= "<p>" . __("<b>Alternatively,</b> you can go to the \"Pages\" or \"Posts\" page within the *AI for SEO* plugin. From there, you can browse through your pages and posts, and choose the ones you want to edit.", "ai-for-seo") . "</p>";
     $ai4seo_this_accordion_content .= "<img src='" . esc_url(ai4seo_get_assets_images_url("faq-screenshots/screenshot-page-post-3.jpg")) . "' style='width: 100%;' />";
 
     echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("How to generate or edit SEO-relevant metadata for a specific page or post", "ai-for-seo"), $ai4seo_this_accordion_content));
@@ -278,7 +278,7 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-getti
     $ai4seo_this_accordion_content .= "<p><b>2.2</b> " . esc_html__("If your media-page is using the table view, click on the edit-button which will appear once you hover over the entry of the specific image file for which you would like to add/edit the attributes for.", "ai-for-seo") . "<br />";
     $ai4seo_this_accordion_content .= esc_html__("Once the edit-media-page is opened you will see the *AI for SEO*-generate-buttons within the form of the page. Then click on the button to generate the content for each attribute.", "ai-for-seo") . "</p>";
 
-    $ai4seo_this_accordion_content .= "<p>" . __("<b>Alternatively,</b> you can go to the \"Media\" tab within the *AI for SEO* plugin. From there, you can browse through your media-entries, and choose the ones you want to edit.", "ai-for-seo") . "</p>";
+    $ai4seo_this_accordion_content .= "<p>" . __("<b>Alternatively,</b> you can go to the \"Media\" page within the *AI for SEO* plugin. From there, you can browse through your media-entries, and choose the ones you want to edit.", "ai-for-seo") . "</p>";
 
     echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("How to add alt-text, captions, titles and descriptions for media files", "ai-for-seo"), $ai4seo_this_accordion_content));
 
@@ -421,7 +421,7 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-faq'>
     echo "</div>";
 
     // Container with the message that no entries could be found based on the search-input
-    echo "<div class='ai4seo-help-search-notice ai4seo-display-none' id='ai4seo-help-faq-search-notice'>";
+    echo "<div class='ai4seo-help-search-notice ai4seo-help-faq-search-notice ai4seo-display-none' id='ai4seo-help-faq-search-notice'>";
         echo "<p>" . esc_html__("No results could be found based on your search. Please try a different search term.", "ai-for-seo") . "</p>";
     echo "</div>";
 
@@ -436,7 +436,7 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-faq'>
         $ai4seo_this_accordion_content = __("*AI for SEO* is compatible with all major SEO plugins. The metadata generated by *AI for SEO* can be synchronized with popular plugins such as Yoast SEO, Rank Math, SEOPress, All in One SEO, Slim SEO, SEO Simple Pack, Squirrly SEO, The SEO Framework, and Blog2Social. This ensures your metadata remains up-to-date and seamlessly integrates with your preferred SEO tool.", "ai-for-seo");
         echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("Can I use *AI for SEO* alongside another SEO plugin?", "ai-for-seo"), $ai4seo_this_accordion_content));
 
-        $ai4seo_this_accordion_content = __("To enable synchronization with another SEO plugin:<br><br>1. Navigate to the plugin settings and locate the 'Sync 'AI for SEO' Changes:' section.<br>2. Check the box next to your desired SEO plugin to activate syncing.<br><br>If you're using the SEO Autopilot (bulk generation) feature, make sure the relevant meta tags are enabled in the 'Overwrite Existing Metadata (SEO Autopilot Only):' section to replace outdated data within your existing SEO plugin.", "ai-for-seo");
+        $ai4seo_this_accordion_content = __("To enable synchronization with another SEO plugin:<br><br>1. Navigate to the plugin settings and go to the 'Sync *AI for SEO* Changes': section.<br>2. Check the box next to your desired SEO plugin to activate syncing.<br><br>If you're using the SEO Autopilot (Bulk Generation) feature, make sure the relevant meta tags are enabled in the 'Overwrite Existing Metadata (SEO Autopilot Only)': section to replace outdated data within your existing SEO plugin.", "ai-for-seo");
         echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("How do I activate the synchronization with another SEO plugin?", "ai-for-seo"), $ai4seo_this_accordion_content));
 
         $ai4seo_this_accordion_content = __("Providing SEO metadata helps search engines better understand your content, which can lead to higher rankings in search results. This improvement in visibility can drive more clicks, visitors, sales, and leads to your website.", "ai-for-seo");
@@ -487,13 +487,13 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-faq'>
         $ai4seo_this_accordion_content = __("The best setup is to use a cronjob outside the WordPress cron system (external cron job, either on your own server or through a third-party service) that runs every minute. This ensures that the SEO Autopilot and scheduled tasks run smoothly without being dependent on WordPress's internal cron system, which may not execute reliably on low-traffic sites.", "ai-for-seo");
         echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("What is the recommended cron job setting for WordPress?", "ai-for-seo"), $ai4seo_this_accordion_content));
 
-        $ai4seo_this_accordion_content = __("If possible, switch to a cron job system outside the WordPress cron system (external cron job, either on your own server or through a third-party service) that runs every minute. If this is not an option and you experience slow SEO Autopilot, consider increasing the SEO Autopilot Duration setting (Settings > Experimental > SEO Autopilot Duration) to allow more processing time per batch.", "ai-for-seo");
-        echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("I use the WordPress internal cron job system. What should I consider?", "ai-for-seo"), $ai4seo_this_accordion_content));
+        $ai4seo_this_accordion_content = __("If possible, switch to a cron job system outside the WordPress cron system (external cron job, either on your own server or through a third-party service) that runs every minute. If this is not an option and you experience slow SEO Autopilot, consider increasing the SEO Autopilot Duration setting (Settings > Troubleshooting > SEO Autopilot Duration) to allow more processing time per batch.", "ai-for-seo");
+        echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("I use WordPress’s internal cron system (WP-Cron). What should I consider?", "ai-for-seo"), $ai4seo_this_accordion_content));
 
-        $ai4seo_this_accordion_content = __("If your external cron job runs less frequently than every minute, we recommend increasing the SEO Autopilot Duration setting (Settings > Experimental > SEO Autopilot Duration). This will allow each SEO Autopilot cycle to handle more tasks at once, compensating for the lower execution frequency.", "ai-for-seo");
+        $ai4seo_this_accordion_content = __("If your external cron job runs less frequently than once per minute, we recommend increasing the <strong>SEO Autopilot Duration</strong> setting (Settings > Troubleshooting > SEO Autopilot Duration). This allows each cycle to handle more tasks at once, compensating for the lower execution frequency.", "ai-for-seo");
         echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("I use an external cron job system, but I can only run the cron job every 2+ minutes or less frequently. What should I do?", "ai-for-seo"), $ai4seo_this_accordion_content));
 
-        $ai4seo_this_accordion_content = __("By default, the SEO Autopilot skips entries that already have a complete set of metadata or media attributes, assuming they are already optimized.", "ai-for-seo") . "<br /><br />";
+        $ai4seo_this_accordion_content = __("By default, the SEO Autopilot skips entries with a complete set of metadata or media attributes, assuming they are optimized.", "ai-for-seo") . "<br /><br />";
         $ai4seo_this_accordion_content .= __("If you want to regenerate metadata or media attributes even for entries that are marked as complete:", "ai-for-seo") . "<br /><br />";
         $ai4seo_this_accordion_content .= __('Enable "Include Complete Entries When Overwriting (SEO Autopilot Only)" in the Metadata section.', "ai-for-seo") . "<br />";
         $ai4seo_this_accordion_content .= __('Enable "Include Complete Entries When Overwriting (SEO Autopilot Only)" in the Media Attributes section.', "ai-for-seo") . "<br />";
@@ -501,7 +501,7 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-faq'>
         echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("The SEO Autopilot ignored some entries or marked them as already completed. What can I do?", "ai-for-seo"), $ai4seo_this_accordion_content));
 
         $ai4seo_this_accordion_content = __("If you notice outdated data appearing while generating metadata or media attributes, try the following steps:", "ai-for-seo") . "<br /><br />";
-        $ai4seo_this_accordion_content .= __("1. Reset Cache – This will clear stored data and forces the plugin to eventually create new temporary data (cache).", "ai-for-seo") . "<br />";
+        $ai4seo_this_accordion_content .= __("1. Reset Cache – This will clear stored data and force the plugin to create new temporary data (cache)..", "ai-for-seo") . "<br />";
         $ai4seo_this_accordion_content .= __("2. If the issue persists, Reset Environmental Variables – This can help resolve cases where incorrect internal values are affecting data processing.", "ai-for-seo") . "<br /><br />";
         $ai4seo_this_accordion_content .= __("You can find both options under Help > Troubleshooting > Reset Plugin.", "ai-for-seo");
         echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("I see old data in the plugin while generating metadata or media attributes. What can I do?", "ai-for-seo"), $ai4seo_this_accordion_content));
@@ -528,6 +528,47 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-faq'>
 
         $ai4seo_this_accordion_content = __("To import all images from the NextGen Gallery into *AI for SEO*, click the Import button in the Media section. Once imported, you can generate alt text, titles, captions, and descriptions for these images using the plugin. All changes will automatically sync with the NextGen Gallery plugin.", "ai-for-seo");
         echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("I use the NextGen Gallery plugin — how do I generate media attributes for my images?", "ai-for-seo"), $ai4seo_this_accordion_content));
+
+
+        // === FAQ: Alt Text Injection not visible ================================== \\
+
+        $ai4seo_this_accordion_content  = __( 'If you generated alt text but it does not appear on the front page, try:', 'ai-for-seo' ) . '<br /><br />';
+        $ai4seo_this_accordion_content .= __( '1. Go to Settings > Show Advanced Settings > Troubleshooting. Enable "Alt Text Injection", save, then check again.', 'ai-for-seo' ) . '<br />';
+        $ai4seo_this_accordion_content .= __( '2. Optionally enable "Image Title Injection" to add a tooltip on hover.', 'ai-for-seo' ) . '<br />';
+        $ai4seo_this_accordion_content .= __( '3. Clear caches (plugin/theme cache, page cache, CDN) so updated attributes render on cached pages.', 'ai-for-seo' ) . '<br />';
+        $ai4seo_this_accordion_content .= __( '4. Ensure images are real <img> tags. Background images set via CSS cannot have alt text.', 'ai-for-seo' );
+
+        echo ai4seo_wp_kses(
+            ai4seo_get_accordion_element(
+                '> ' . esc_html__( 'I do not see generated alt text on the front page. What can I do?', 'ai-for-seo' ),
+                $ai4seo_this_accordion_content
+            )
+        );
+
+
+        // === FAQ: Image Upload Method = Data ====================================== \\
+
+        $ai4seo_this_accordion_content  = __( 'If you see errors while generating alt text or other media attributes, switch the upload method:', 'ai-for-seo' ) . '<br /><br />';
+        $ai4seo_this_accordion_content .= __( '1. Go to Settings > Show Advanced Settings > Troubleshooting. Set "Image Upload Method" to "Data".', 'ai-for-seo' ) . '<br />';
+        $ai4seo_this_accordion_content .= __( '2. Save settings and retry generation (Alt Text, Title, Caption).', 'ai-for-seo' ) . '<br />';
+        $ai4seo_this_accordion_content .= __( '3. Why this helps: Some CDNs, firewalls, or hosts (e.g., Cloudflare, signed URLs, private media paths) block direct URL fetching. "Data" sends the image bytes instead of a public URL and is often more reliable.', 'ai-for-seo' ) . '<br />';
+        $ai4seo_this_accordion_content .= __( '4. If issues persist, clear all caches and confirm the image is a real <img> tag, not a CSS background.', 'ai-for-seo' );
+
+        echo ai4seo_wp_kses(
+            ai4seo_get_accordion_element(
+                '> ' . esc_html__( 'Generating alt text fails. Should I switch "Image Upload Method" to "Data"?', 'ai-for-seo' ),
+                $ai4seo_this_accordion_content
+            )
+        );
+
+        $ai4seo_this_accordion_content  = __( 'Yes, you can use *AI for SEO* on staging or local development sites. However, please note that each installation requires its own license and Credits. You can link multiple sites together using the same license holder and license key, allowing them to share the same pool of Credits and various settings.', 'ai-for-seo' );
+        echo ai4seo_wp_kses(
+            ai4seo_get_accordion_element(
+                '> ' . esc_html__( 'Can I use *AI for SEO* on a staging or local development site?', 'ai-for-seo' ),
+                $ai4seo_this_accordion_content
+            )
+        );
+
     echo "</div>";
 
     echo "<div class='ai4seo-gap'></div>";
@@ -548,7 +589,7 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-faq'>
         $ai4seo_this_accordion_content = __("Yes, simply deactivate the checkbox next to the desired content type within the 'Set up SEO Autopilot' modal. This modal can be accessed by clicking the 'Set up SEO Autopilot'-button within the 'SEO Autopilot (Bulk Generation)'-section on the *AI for SEO* dashboard of your WordPress website. If you would like to disable the automation for every content type entirely you can click the 'Stop SEO Autopilot' link within the 'SEO Autopilot (Bulk Generation)'-section on the *AI for SEO* dashboard of your WordPress website.", "ai-for-seo");
         echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("Can I turn off the automation feature after I've activated it?", "ai-for-seo"), $ai4seo_this_accordion_content));
 
-        $ai4seo_this_accordion_content = __("Yes! You can decide exactly how the SEO Autopilot behaves. By default, the plugin will automatically generate metadata and media attributes for both new and existing content. However, you can now customize this behavior using three available options:<br>New entries and existing entries<br>New entries only<br>Existing entries only<br><br>You can change these settings anytime via the 'Set Up SEO Autopilot' modal. Just click the 'Set up SEO Autopilot' button in the 'SEO Autopilot (Bulk Generation)' section on your *AI for SEO* dashboard.", "ai-for-seo");
+        $ai4seo_this_accordion_content = __("Yes! You can decide exactly how the SEO Autopilot behaves. By default, the plugin automatically generates metadata and media attributes for both new and existing content. However, you can customize this behavior using three options:<br>• New and existing entries<br>• New entries only<br>• Existing entries only<br><br>You can change these settings anytime in the <strong>Set up SEO Autopilot</strong> modal. Just click the <strong>Set up SEO Autopilot</strong> button in the <strong>SEO Autopilot (Bulk Generation)</strong> section of your *AI for SEO* dashboard.", "ai-for-seo");
         echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("Does the SEO Autopilot (bulk generation) feature work for new content?", "ai-for-seo"), $ai4seo_this_accordion_content));
 
         $ai4seo_this_accordion_content = __("Not by default. However, you can enable the 'Overwrite Existing Metadata (SEO Autopilot Only)'-option in the settings if needed.", "ai-for-seo");
@@ -560,7 +601,7 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-faq'>
         $ai4seo_this_accordion_content = __("Yes, *AI for SEO* lets you decide which media attributes (like 'alt text' or 'title') should be generated. You can configure this in the 'Active Media Attributes:' section of the settings to match your content needs. Simply select the desired attributes and the SEO Autopilot will generate the data accordingly.", "ai-for-seo");
         echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("Can I choose which media attributes the plugin should generate?", "ai-for-seo"), $ai4seo_this_accordion_content));
 
-        $ai4seo_this_accordion_content = __("You can find the 'Retry all failed' button in any content tab (e.g. Pages, Posts or media). This allows you to retry all failed metadata generations with a single click, saving you time and effort. Please note that this button will only be displayed if at least one error has occurred.", "ai-for-seo");
+        $ai4seo_this_accordion_content = __("You can find the 'Retry all failed' button in any content pages (e.g. Pages, Posts or media). This allows you to retry all failed metadata generations with a single click, saving you time and effort. Please note that this button will only be displayed if at least one error has occurred.", "ai-for-seo");
         echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("How can I retry all failed metadata generations with just one click?", "ai-for-seo"), $ai4seo_this_accordion_content));
 
         $ai4seo_this_accordion_content = __("We use WordPress's internal task scheduler to manage automatic generation efficiently. This helps prevent overloading your server with too many simultaneous tasks.", "ai-for-seo") . "<br /><br />";
@@ -570,6 +611,7 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-faq'>
         $ai4seo_this_accordion_content .= __("You can check the *AI for SEO* dashboard to see if any generation is in progress for other items. If many items are pending, it may take longer to process them all.", "ai-for-seo") . "<br /><br />";
         $ai4seo_this_accordion_content .= __("Rest assured, the plugin will automatically generate data for all pending items over time. If you need immediate results, you can use the manual generation option for specific items.", "ai-for-seo");
         echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("Why is the automatic metadata or media attributes generation pending?", "ai-for-seo"), $ai4seo_this_accordion_content));
+
     echo "</div>";
 
     echo "<div class='ai4seo-gap'></div>";
@@ -590,11 +632,11 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-faq'>
         $ai4seo_this_accordion_content = __("After opening the *AI for SEO* metadata editor, you can either edit the existing metadata manually or generate new metadata using the 'Generate with AI' buttons.", "ai-for-seo");
         echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("How can I generate or edit metadata?", "ai-for-seo"), $ai4seo_this_accordion_content));
 
-        $ai4seo_this_accordion_content = __("Yes, alternatively, you can go to the 'Pages' or 'Posts' tab within the *AI for SEO* plugin. From there, you can browse through your pages and posts, and choose the ones you want to edit.", "ai-for-seo");
+        $ai4seo_this_accordion_content = __("Yes, alternatively, you can go to the 'Pages' or 'Posts' page within the *AI for SEO* plugin. From there, you can browse through your pages and posts, and choose the ones you want to edit.", "ai-for-seo");
         echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("Is there an alternate way to access *AI for SEO*'s Metadata Editor?", "ai-for-seo"), $ai4seo_this_accordion_content));
 
         $ai4seo_this_accordion_content = __("1. Open the page or post you want to edit in Elementor.", "ai-for-seo") . "<br />";
-        $ai4seo_this_accordion_content .= __("2. Click on the settings-button (cog-icon) located at the top of the Elementor header to reveal page-/post-settings.", "ai-for-seo") . "<br />";
+        $ai4seo_this_accordion_content .= __("2. Click the settings button (cog icon) at the top of the Elementor header to reveal the page or post settings.", "ai-for-seo") . "<br />";
         $ai4seo_this_accordion_content .= __("3. In the settings section, click on the 'Show all SEO settings' button to open the *AI for SEO* metadata editor. Here, you can adjust the metadata manually or generate new metadata using AI-driven algorithms.", "ai-for-seo");
         echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("How do I edit metadata in Elementor with *AI for SEO*?", "ai-for-seo"), $ai4seo_this_accordion_content));
 
@@ -602,6 +644,20 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-faq'>
         $ai4seo_this_accordion_content .= __("2. Click on the page-options-button on the left side of the BeBuilder navigation, then scroll down to the SEO section.", "ai-for-seo") . "<br />";
         $ai4seo_this_accordion_content .= __("3. Click on the 'Show all SEO settings' button within the SEO section to open the *AI for SEO* metadata editor. Here, you can access and manipulate the metadata using AI-driven algorithms.", "ai-for-seo");
         echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("How do I edit SEO settings in BeBuilder with *AI for SEO*?", "ai-for-seo"), $ai4seo_this_accordion_content));
+
+        // === FAQ: Cannot access plugin due to incognito mode restriction ================= \\
+
+        $ai4seo_account_settings_url = ai4seo_get_subpage_url("account", array("ai4seo_debug_bypass_incognito_mode" => "true"));
+
+        $ai4seo_this_accordion_content = __("If you cannot access the plugin due to incognito mode restriction, follow these steps:", "ai-for-seo") . "<br /><br />";
+        $ai4seo_this_accordion_content .= sprintf(
+            __("1. Click %s to temporarily bypass the incognito mode restriction.", "ai-for-seo") . "<br />",
+            "<a href='" . esc_url($ai4seo_account_settings_url) . "'>" . esc_html__("here", "ai-for-seo") . "</a>"
+        );
+        $ai4seo_this_accordion_content .= __("2. Disable incognito mode and save your settings.", "ai-for-seo") . "<br />";
+        $ai4seo_this_accordion_content .= __("3. If needed, you may enable incognito mode again after saving.", "ai-for-seo");
+
+        echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("I cannot access the plugin due to incognito mode restriction. What can I do?", "ai-for-seo"), $ai4seo_this_accordion_content));
     echo "</div>";
 
     echo "<div class='ai4seo-gap'></div>";
@@ -697,14 +753,14 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-faq'>
         ));
 
         $ai4seo_this_accordion_content = sprintf(
-            __("You can change or cancel your subscription at any time by going to the *AI for SEO* dashboard page and clicking on the 'Get more Credits' button within the 'Credits' section. Once the 'How to get more Credits' modal is open you can then click on the 'Manage Subscription' button within the 'Subscription' section of the modal. Alternatively you can change your subscription by following this link: %s.", "ai-for-seo") . "<br />",
+            __("You can change or cancel your subscription at any time by going to the *AI for SEO* dashboard and clicking the <strong>Get more Credits</strong> button in the <strong>Credits</strong> section. In the <strong>How to get more Credits</strong> modal, click the <strong>Manage subscription</strong> button in the <strong>Subscription</strong> section. Alternatively, you can manage your subscription directly at this link: %s.", "ai-for-seo") . "<br />",
             "<a target='_blank' href='" . esc_html(AI4SEO_OFFICIAL_WEBSITE) . "/cancel-plan'>" . esc_html(AI4SEO_OFFICIAL_WEBSITE) . "/cancel-plan</a>",
         );
         $ai4seo_this_accordion_content .= __("You'll be redirected to Stripe, our invoice partner. Please follow the instructions on the Stripe website to change or cancel your subscription.", "ai-for-seo");
         echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("How do I change or cancel my subscription?", "ai-for-seo"), $ai4seo_this_accordion_content));
 
         $ai4seo_this_accordion_content = sprintf(
-            __("You can change or cancel your subscription at any time by going to the *AI for SEO* dashboard page and clicking on the 'Get more Credits' button within the 'Credits' section. Once the 'How to get more Credits' modal is open you can then click on the 'Manage Subscription' button within the 'Subscription' section of the modal. Alternatively you can change your subscription by following this link: %s.", "ai-for-seo") . "<br />",
+            __("You can change or cancel your subscription at any time by going to the *AI for SEO* dashboard and clicking the <strong>Get more Credits</strong> button in the <strong>Credits</strong> section. In the <strong>How to get more Credits</strong> modal, click the <strong>Manage subscription</strong> button in the <strong>Subscription</strong> section. Alternatively, you can manage your subscription directly at this link: %s.", "ai-for-seo") . "<br />",
             "<a target='_blank' href='" . esc_html(AI4SEO_STRIPE_BILLING_URL) . "'>" . esc_html(AI4SEO_STRIPE_BILLING_URL) . "</a>",
         );
         $ai4seo_this_accordion_content .= __("You'll be redirected to Stripe, our invoice partner. Please follow the instructions on the Stripe website to change your subscription.", "ai-for-seo");
@@ -781,7 +837,7 @@ echo "</div>";
 
 
 // ___________________________________________________________________________________________ \\
-// === TROUBLE SHOOTING ====================================================================== \\
+// === TROUBLESHOOTING ====================================================================== \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 $ai4seo_bulk_generation_duration = (int) ai4seo_get_setting(AI4SEO_SETTING_BULK_GENERATION_DURATION);
@@ -794,7 +850,7 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-troub
 
     // WARNING
     echo esc_html__("ATTENTION: The following tools are for advanced users only or if you are advised to use them by our support team.", "ai-for-seo");
-
+    echo "<div class='ai4seo-gap'></div>";
 
     // === RESET PLUGIN ======================================================================== \\
 
@@ -803,7 +859,7 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-troub
         echo "<div class='card ai4seo-form-section ai4seo-reset-plugin-data-form'>";
             // Headline
             echo "<h2>";
-                echo '<i class="dashicons dashicons-undo ai4seo-nav-tab-icon"></i>';
+                echo '<i class="dashicons dashicons-undo ai4seo-menu-item-icon"></i>';
                 echo esc_html__("Reset plugin data", "ai-for-seo");
             echo "</h2>";
 
@@ -864,6 +920,91 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-troub
                 echo "</div>";
             echo "</div>";
         echo "</div>";
+    echo "</div>";
+
+    echo "<h2>";
+        echo esc_html__("Troubleshooting F.A.Q.", "ai-for-seo");
+    echo "</h2>";
+
+    // Input for the search
+    echo "<div class='ai4seo-help-search-wrapper'>";
+        echo ai4seo_wp_kses(ai4seo_get_svg_tag("magnifying-glass"));
+        echo "<input type='text' class='ai4seo-help-search' id='ai4seo-help-search-troubleshooting' placeholder='" . esc_attr__("Search F.A.Q. (enter min.3 characters)", "ai-for-seo") . "' />";
+    echo "</div>";
+
+    // Container with the message that no entries could be found based on the search-input
+    echo "<div class='ai4seo-help-search-notice ai4seo-help-faq-search-notice ai4seo-display-none' id='ai4seo-help-troubleshooting-search-notice'>";
+        echo "<p>" . esc_html__("No results could be found based on your search. Please try a different search term.", "ai-for-seo") . "</p>";
+    echo "</div>";
+
+    echo "<div class='ai4seo-gap'></div>";
+
+    echo "<div class='ai4seo-faq-section-holder'>";
+        $ai4seo_this_accordion_content = __("If you notice outdated data appearing while generating metadata or media attributes, try the following steps:", "ai-for-seo") . "<br /><br />";
+        $ai4seo_this_accordion_content .= __("1. Reset Cache – This will clear stored data and force the plugin to create new temporary data (cache).", "ai-for-seo") . "<br />";
+        $ai4seo_this_accordion_content .= __("2. If the issue persists, Reset Environmental Variables – This can help resolve cases where incorrect internal values are affecting data processing.", "ai-for-seo") . "<br /><br />";
+        $ai4seo_this_accordion_content .= __("You can find both options under Help > Troubleshooting > Reset Plugin.", "ai-for-seo");
+        echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("I see old data in the plugin while generating metadata or media attributes. What can I do?", "ai-for-seo"), $ai4seo_this_accordion_content));
+
+        $ai4seo_this_accordion_content = __("If you want to revert the plugin settings to their default state: Use the Reset Settings option under Help > Troubleshooting > Reset Plugin. This will restore all settings to their original values but will not delete generated metadata or media attributes.", "ai-for-seo");
+        echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("How can I reset the plugin settings to their default values?", "ai-for-seo"), $ai4seo_this_accordion_content));
+
+        $ai4seo_this_accordion_content = __("If you want to fully remove all generated metadata and plugin data before uninstalling:", "ai-for-seo") . "<br /><br />";
+        $ai4seo_this_accordion_content .= __("1. Go to Help > Troubleshooting > Reset Plugin and select every checkbox.", "ai-for-seo") . "<br />";
+        $ai4seo_this_accordion_content .= __("2. Deactivate and uninstall the plugin.", "ai-for-seo") . "<br /><br />";
+        $ai4seo_this_accordion_content .= __("Note: Media Attributes and synced metadata (to third-party SEO plugins) cannot be removed or undone by the reset. You will need to manually update or remove them in their respective editors.", "ai-for-seo");
+        echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("I want to uninstall the plugin and remove all generated data. How can I do this?", "ai-for-seo"), $ai4seo_this_accordion_content));
+
+        $ai4seo_this_accordion_content = __("If you generated metadata or media attributes with incorrect settings, follow these steps:", "ai-for-seo") . "<br /><br />";
+        $ai4seo_this_accordion_content .= __('1. Use "Reset Generated Data" under Help > Troubleshooting > Reset Plugin to remove all generated metadata. Media files are marked as "not generated" and can be reprocessed again.', "ai-for-seo") . "<br />";
+        $ai4seo_this_accordion_content .= __('2. If the generated metadata was already synced with a third-party SEO plugin, consider enabling: "Include Complete Entries When Overwriting (SEO Autopilot Only)" in the Metadata section.', "ai-for-seo") . "<br />";
+        $ai4seo_this_accordion_content .= __('3. If you generated media attributes, consider enabling: "Include Complete Entries When Overwriting (SEO Autopilot Only)" in the Media Attributes section.', "ai-for-seo") . "<br />";
+        $ai4seo_this_accordion_content .= __("These settings will allow the plugin to regenerate and overwrite metadata and media attributes, even for entries that were previously marked as complete.", "ai-for-seo");
+        echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("I used the wrong settings for manual or bulk generation (e.g., wrong language or missing sync with other SEO plugins). What can I do?", "ai-for-seo"), $ai4seo_this_accordion_content));
+
+        // === FAQ: Alt Text Injection not visible ================================== \\
+
+        $ai4seo_this_accordion_content  = __( 'If you generated alt text but it does not appear on the front page, try:', 'ai-for-seo' ) . '<br /><br />';
+        $ai4seo_this_accordion_content .= __( '1. Go to Settings > Show Advanced Settings > Troubleshooting. Enable "Alt Text Injection", save, then check again.', 'ai-for-seo' ) . '<br />';
+        $ai4seo_this_accordion_content .= __( '2. Optionally enable "Image Title Injection" to add a tooltip on hover.', 'ai-for-seo' ) . '<br />';
+        $ai4seo_this_accordion_content .= __( '3. Clear caches (plugin/theme cache, page cache, CDN) so updated attributes render on cached pages.', 'ai-for-seo' ) . '<br />';
+        $ai4seo_this_accordion_content .= __( '4. Ensure images are real <img> tags. Background images set via CSS cannot have alt text.', 'ai-for-seo' );
+
+        echo ai4seo_wp_kses(
+            ai4seo_get_accordion_element(
+                '> ' . esc_html__( 'I do not see generated alt text on the front page. What can I do?', 'ai-for-seo' ),
+                $ai4seo_this_accordion_content
+            )
+        );
+
+        // === FAQ: Image Upload Method = Data ====================================== \\
+
+        $ai4seo_this_accordion_content  = __( 'If you see errors while generating alt text or other media attributes, switch the upload method:', 'ai-for-seo' ) . '<br /><br />';
+        $ai4seo_this_accordion_content .= __( '1. Go to Settings > Show Advanced Settings > Troubleshooting. Set "Image Upload Method" to "Data".', 'ai-for-seo' ) . '<br />';
+        $ai4seo_this_accordion_content .= __( '2. Save settings and retry generation (Alt Text, Title, Caption).', 'ai-for-seo' ) . '<br />';
+        $ai4seo_this_accordion_content .= __( '3. Why this helps: Some CDNs, firewalls, or hosts (e.g., Cloudflare, signed URLs, private media paths) block direct URL fetching. "Data" sends the image bytes instead of a public URL and is often more reliable.', 'ai-for-seo' ) . '<br />';
+        $ai4seo_this_accordion_content .= __( '4. If issues persist, clear all caches and confirm the image is a real <img> tag, not a CSS background.', 'ai-for-seo' );
+
+        echo ai4seo_wp_kses(
+            ai4seo_get_accordion_element(
+                '> ' . esc_html__( 'Generating alt text fails. Should I switch "Image Upload Method" to "Data"?', 'ai-for-seo' ),
+                $ai4seo_this_accordion_content
+            )
+        );
+
+        // === FAQ: Cannot access plugin due to incognito mode restriction ================= \\
+
+        $ai4seo_account_settings_url = ai4seo_get_subpage_url("account", array("ai4seo_debug_bypass_incognito_mode" => "true"));
+
+        $ai4seo_this_accordion_content = __("If you cannot access the plugin due to incognito mode restriction, follow these steps:", "ai-for-seo") . "<br /><br />";
+        $ai4seo_this_accordion_content .= sprintf(
+            __("1. Click %s to temporarily bypass the incognito mode restriction.", "ai-for-seo") . "<br />",
+            "<a href='" . esc_url($ai4seo_account_settings_url) . "'>" . esc_html__("here", "ai-for-seo") . "</a>"
+        );
+        $ai4seo_this_accordion_content .= __("2. Disable incognito mode and save your settings.", "ai-for-seo") . "<br />";
+        $ai4seo_this_accordion_content .= __("3. If needed, you may enable incognito mode again after saving.", "ai-for-seo");
+
+        echo ai4seo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("I cannot access the plugin due to incognito mode restriction. What can I do?", "ai-for-seo"), $ai4seo_this_accordion_content));
     echo "</div>";
 echo "</div>";
 

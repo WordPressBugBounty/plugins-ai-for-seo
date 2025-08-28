@@ -135,7 +135,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
                 echo "<div class='ai4seo-subscription-badge'>";
                     echo ai4seo_get_svg_tag("circle-check", "", "ai4seo-dark-green-icon") . " ";
                     echo sprintf(
-                        esc_html__("Subscribed to the %s subscription.", "ai-for-seo"),
+                        esc_html__("Subscribed to %s.", "ai-for-seo"),
                         "<strong>" . esc_html($ai4seo_robhub_subscription_plan_name) . "</strong>",
                     );
                 echo "</div>";
@@ -231,7 +231,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
 
                 if ($ai4seo_robhub_credits_balance >= $ai4seo_payg_credits_threshold) {
                     echo sprintf(
-                        esc_html__("Waiting for your Credits balance to drop below or are equal to %s Credits before refilling.", "ai-for-seo"),
+                        esc_html__("Waiting for your Credits balance to drop below or equal to %s Credits before refilling.", "ai-for-seo"),
                         "<strong>" . esc_html($ai4seo_payg_credits_threshold) . "</strong>"
                     );
                 } else {

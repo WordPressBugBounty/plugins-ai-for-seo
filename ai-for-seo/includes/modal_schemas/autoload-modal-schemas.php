@@ -17,7 +17,7 @@ if (!ai4seo_can_manage_this_plugin()) {
 // === PREPARE =============================================================================== \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
-$ai4seo_current_content_tab = ai4seo_get_current_tab();
+$ai4seo_active_plugin_page = ai4seo_get_active_subpage();
 $ai4seo_modal_schemas = array();
 
 
@@ -30,21 +30,21 @@ if ($is_user_inside_plugin_admin_pages) {
     if (ai4seo_does_user_need_to_accept_tos_toc_and_pp(true)) {
         $ai4seo_modal_schemas[] = "tos"; // group a -> every page
     } else {
-        if (ai4seo_does_user_need_to_accept_tos_toc_and_pp(false) && $ai4seo_current_content_tab == "account") {
-            $ai4seo_modal_schemas[] = "tos"; // group b -> via account tab
+        if (ai4seo_does_user_need_to_accept_tos_toc_and_pp(false) && $ai4seo_active_plugin_page == "account") {
+            $ai4seo_modal_schemas[] = "tos"; // group b -> via account page
         }
 
-        if ($ai4seo_current_content_tab == "dashboard" || $ai4seo_current_content_tab == "account") {
+        if ($ai4seo_active_plugin_page == "dashboard" || $ai4seo_active_plugin_page == "account") {
             $ai4seo_modal_schemas[] = "get-more-credits";
             $ai4seo_modal_schemas[] = "select-credits-pack";
             $ai4seo_modal_schemas[] = "customize-pay-as-you-go";
         }
 
-        if ($ai4seo_current_content_tab == "dashboard") {
+        if ($ai4seo_active_plugin_page == "dashboard") {
             $ai4seo_modal_schemas[] = "seo-autopilot";
         }
 
-        if ($ai4seo_current_content_tab == "settings") {
+        if ($ai4seo_active_plugin_page == "settings") {
             $ai4seo_modal_schemas[] = "export-import-settings";
         }
     }

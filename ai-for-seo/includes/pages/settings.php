@@ -78,7 +78,7 @@ echo "<div class='ai4seo-form'>";
     echo "<div class='card ai4seo-form-section'>";
         // Headline
         echo "<h2>";
-            echo '<i class="dashicons dashicons-admin-site ai4seo-nav-tab-icon"></i>';
+            echo '<i class="dashicons dashicons-admin-site ai4seo-menu-item-icon"></i>';
             echo esc_html__("Metadata", "ai-for-seo");
         echo "</h2>";
 
@@ -476,7 +476,7 @@ echo "<div class='ai4seo-form'>";
     echo "<div class='card ai4seo-form-section'>";
         // Headline
         echo "<h2>";
-        echo '<i class="dashicons dashicons-admin-media ai4seo-nav-tab-icon"></i>';
+        echo '<i class="dashicons dashicons-admin-media ai4seo-menu-item-icon"></i>';
         echo esc_html__("Media attributes", "ai-for-seo");
         echo "</h2>";
 
@@ -624,113 +624,6 @@ echo "<div class='ai4seo-form'>";
         echo "</div>";
 
 
-        // === AI4SEO_SETTING_ENABLE_RENDER_LEVEL_ALT_TEXT_INJECTION ========================================================== \\
-
-        $ai4seo_this_setting_name = AI4SEO_SETTING_ENABLE_RENDER_LEVEL_ALT_TEXT_INJECTION;
-        $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
-        $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
-        $ai4seo_this_setting_description = __("Inject alt text at render level to ensure images always have correct alt text, even when themes fail to display it.", "ai-for-seo");
-
-        // Divider
-        echo "<hr class='ai4seo-form-item-divider ai4seo-is-advanced-setting'>";
-
-        // Display form elements
-        echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
-            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-            echo esc_html__("Alt Text Injection:", "ai-for-seo") ;
-            echo "</label>";
-
-            echo "<div class='ai4seo-form-item-input-wrapper'>";
-                    echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' value='1' class='ai4seo-single-checkbox'" . ($ai4seo_this_setting_input_value ? " checked='checked'" : "") . "/> ";
-                    echo esc_html__("Inject alt text", "ai-for-seo");
-
-                    echo "<br>";
-                    echo "</label>";
-
-                echo "<p class='ai4seo-form-item-description'>";
-                    echo ai4seo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
-
-
-        // === AI4SEO_SETTING_ENABLE_RENDER_LEVEL_IMAGE_TITLE_INJECTION ============================================= \\
-
-        $ai4seo_this_setting_name = AI4SEO_SETTING_IMAGE_TITLE_INJECTION_MODE;
-        $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
-        $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
-        $ai4seo_this_setting_description = __("Choose what to inject as the title attribute of image elements. Provides hover information for images.", "ai-for-seo");
-
-        // Divider
-        echo "<hr class='ai4seo-form-item-divider ai4seo-is-advanced-setting'>";
-
-        // Display form elements
-        echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
-            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-            echo esc_html__("Image Title Injection:", "ai-for-seo") ;
-            echo "</label>";
-
-            echo "<div class='ai4seo-form-item-input-wrapper'>";
-                $ai4seo_title_injection_options = ai4seo_get_setting_render_level_title_injection_allowed_values();
-
-                echo "<select id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                foreach ($ai4seo_title_injection_options as $ai4seo_option_value => $ai4seo_option_label) {
-                    $ai4seo_is_selected = ($ai4seo_this_setting_input_value === $ai4seo_option_value) ? ' selected="selected"' : '';
-                    echo "<option value='" . esc_attr($ai4seo_option_value) . "'" . $ai4seo_is_selected . ">";
-                    echo esc_html($ai4seo_option_label);
-                    echo "</option>";
-                }
-                echo "</select>";
-
-                echo "<p class='ai4seo-form-item-description'>";
-                    echo ai4seo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
-
-
-        // === AI4SEO_SETTING_IMAGE_UPLOAD_METHOD ============================== \\
-
-        $ai4seo_this_setting_name = AI4SEO_SETTING_IMAGE_UPLOAD_METHOD;
-        $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
-        $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
-        $ai4seo_this_setting_description = __("Choose how images are sent to our server: <strong>Auto (recommended)</strong>: Selects method based on accessibility. <strong>URL</strong>: Always sends image URL. <strong>Data</strong>: Always sends full image data.", "ai-for-seo");
-        $ai4seo_this_setting_description .= "<br><br>";
-        $ai4seo_this_setting_description .= __("Try 'Data' if you experience generation issues. Slower but more reliable in some situations.", "ai-for-seo");
-
-        // Divider
-        echo "<hr class='ai4seo-form-item-divider ai4seo-is-advanced-setting'>";
-
-        // Display form elements
-        echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
-            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-            echo esc_html__("Image Upload Method:", "ai-for-seo") ;
-            echo "</label>";
-
-            echo "<div class='ai4seo-form-item-input-wrapper'>";
-                $ai4seo_image_upload_method_options = array(
-                    "auto" => __("Auto (default & recommended)", "ai-for-seo"),
-                    "url" => __("URL", "ai-for-seo"),
-                    "base64" => __("Data", "ai-for-seo")
-                );
-
-                echo "<select id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                foreach ($ai4seo_image_upload_method_options as $ai4seo_option_value => $ai4seo_option_label) {
-                    $ai4seo_is_selected = ($ai4seo_this_setting_input_value === $ai4seo_option_value) ? ' selected="selected"' : '';
-                    echo "<option value='" . esc_attr($ai4seo_option_value) . "'" . $ai4seo_is_selected . ">";
-                    echo esc_html($ai4seo_option_label);
-                    echo "</option>";
-                }
-                echo "</select>";
-
-                echo "<p class='ai4seo-form-item-description'>";
-                    echo ai4seo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
-
-
         // === AI4SEO_SETTING_OVERWRITE_EXISTING_ATTACHMENT_ATTRIBUTES ========================================================== \\
 
         $ai4seo_this_setting_name = AI4SEO_SETTING_OVERWRITE_EXISTING_ATTACHMENT_ATTRIBUTES;
@@ -809,6 +702,7 @@ echo "<div class='ai4seo-form'>";
                 echo "</p>";
             echo "</div>";
         echo "</div>";
+
     echo "</div>";
 
 
@@ -816,20 +710,23 @@ echo "<div class='ai4seo-form'>";
     // === USER MANAGEMENT ======================================================================= \\
     // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
-    $ai4seo_this_setting_name = AI4SEO_SETTING_ALLOWED_USER_ROLES;
-    $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
-    $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
-    $ai4seo_this_setting_description = esc_html__("Select user roles that should have access to this plugin. Only roles with 'edit_posts' capability are listed.", "ai-for-seo");
-
     echo "<div class='card ai4seo-form-section ai4seo-is-advanced-setting'>";
         // Headline
         echo "<h2>";
-        echo '<i class="dashicons dashicons-admin-users ai4seo-nav-tab-icon"></i>';
+        echo '<i class="dashicons dashicons-admin-users ai4seo-menu-item-icon"></i>';
         echo esc_html__("User Management", "ai-for-seo");
         echo "</h2>";
 
+
+        // === ALLOWED USER ROLES =========================================================================== \\
+
+        $ai4seo_this_setting_name = AI4SEO_SETTING_ALLOWED_USER_ROLES;
+        $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
+        $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
+        $ai4seo_this_setting_description = esc_html__("Select user roles that should have access to this plugin. Only roles with 'edit_posts' capability are listed.", "ai-for-seo");
+
         // Display form elements
-        echo "<div class='ai4seo-form-item'>";
+        echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
             echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
                 echo esc_html__("Allowed User Roles:", "ai-for-seo") ;
             echo "</label>";
@@ -870,31 +767,36 @@ echo "<div class='ai4seo-form'>";
     echo "</div>";
 
 
-    // === EXPERIMENTAL ================================================================================= \\
-
-    $ai4seo_this_setting_name = AI4SEO_SETTING_BULK_GENERATION_DURATION;
-    $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
-    $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
-    $ai4seo_this_setting_description = "";
-
-    if (ai4seo_is_wordpress_cron_disabled()) {
-        $ai4seo_this_setting_description = __("Set duration to match your cron job frequency. Best performance: server cron every minute with 1-minute duration.", "ai-for-seo");
-    } else {
-        $ai4seo_this_setting_description = "<strong>" . __("Attention:", "ai-for-seo") . "</strong> ";
-        $ai4seo_this_setting_description .= __("WordPress cron is enabled, which may limit SEO Autopilot efficiency. Recommend setting up server cron (every minute) or gradually increase duration.", "ai-for-seo");
-    }
-
-    $ai4seo_this_setting_description .= "<br /><br />";
-    $ai4seo_this_setting_description .= __("Reduce duration if server experiences performance issues during bulk generation.", "ai-for-seo");
+    // ___________________________________________________________________________________________ \\
+    // === TROUBLESHOOTING ========================================================================== \\
+    // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
     echo "<div class='card ai4seo-form-section ai4seo-is-advanced-setting'>";
         // Headline
         echo "<h2>";
-            echo '<i class="dashicons dashicons-sos ai4seo-nav-tab-icon"></i>';
-            echo esc_html__("Experimental", "ai-for-seo");
+            echo '<i class="dashicons dashicons-sos ai4seo-menu-item-icon"></i>';
+            echo esc_html__("Troubleshooting & Experimental", "ai-for-seo");
         echo "</h2>";
 
-        echo "<div class='ai4seo-form-item'>";
+
+        // === BULK GENERATION DURATION ================================================================================= \\
+
+        $ai4seo_this_setting_name = AI4SEO_SETTING_BULK_GENERATION_DURATION;
+        $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
+        $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
+        $ai4seo_this_setting_description = "";
+
+        if (ai4seo_is_wordpress_cron_disabled()) {
+            $ai4seo_this_setting_description = __("Set duration to match your cron job frequency. Best performance: server cron every minute with 1-minute duration.", "ai-for-seo");
+        } else {
+            $ai4seo_this_setting_description = "<strong>" . __("Attention:", "ai-for-seo") . "</strong> ";
+            $ai4seo_this_setting_description .= __("WordPress cron is enabled, which may limit SEO Autopilot efficiency. Recommend setting up server cron (every minute) or gradually increase duration.", "ai-for-seo");
+        }
+
+        $ai4seo_this_setting_description .= "<br /><br />";
+        $ai4seo_this_setting_description .= __("Reduce duration if server experiences performance issues during bulk generation.", "ai-for-seo");
+
+        echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
             echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>" . esc_html__("SEO Autopilot (Bulk Generation) Duration", "ai-for-seo") . ":</label>";
 
             echo "<div class='ai4seo-form-item-input-wrapper'>";
@@ -914,6 +816,121 @@ echo "<div class='ai4seo-form'>";
                 echo "</p>";
             echo "</div>";
         echo "</div>";
+
+
+        // === AI4SEO_SETTING_ENABLE_RENDER_LEVEL_ALT_TEXT_INJECTION ========================================================== \\
+
+        $ai4seo_this_setting_name = AI4SEO_SETTING_ENABLE_RENDER_LEVEL_ALT_TEXT_INJECTION;
+        $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
+        $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
+        $ai4seo_this_setting_description = __("Inject alt text at render level to ensure images always include the correct alt text, even if themes or page builders fail to output it.", "ai-for-seo");
+        $ai4seo_this_setting_description .= "<br><br>" . __("Enable this setting if your theme or page builder does not display alt text generated by the plugin (or omits alt text entirely).", "ai-for-seo");
+
+        // Divider
+        echo "<hr class='ai4seo-form-item-divider ai4seo-is-advanced-setting'>";
+
+        // Display form elements
+        echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
+            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
+            // new feature bubble # todo: remove bubble after some time
+            echo "<span class='ai4seo-green-bubble'>" . esc_html__("NEW", "ai-for-seo") . "</span> ";
+            echo esc_html__("Alt Text Injection:", "ai-for-seo") ;
+
+            echo "</label>";
+
+            echo "<div class='ai4seo-form-item-input-wrapper'>";
+                    echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
+                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' value='1' class='ai4seo-single-checkbox'" . ($ai4seo_this_setting_input_value ? " checked='checked'" : "") . "/> ";
+                    echo esc_html__("Inject alt text", "ai-for-seo");
+                    echo "<br>";
+                    echo "</label>";
+
+                echo "<p class='ai4seo-form-item-description'>";
+                    echo ai4seo_wp_kses($ai4seo_this_setting_description);
+                echo "</p>";
+            echo "</div>";
+        echo "</div>";
+
+
+        // === AI4SEO_SETTING_ENABLE_RENDER_LEVEL_IMAGE_TITLE_INJECTION ============================================= \\
+
+        $ai4seo_this_setting_name = AI4SEO_SETTING_IMAGE_TITLE_INJECTION_MODE;
+        $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
+        $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
+        $ai4seo_this_setting_description = __("Choose what to inject as the title attribute of image elements. Provides hover information for images.", "ai-for-seo");
+
+        // Divider
+        echo "<hr class='ai4seo-form-item-divider ai4seo-is-advanced-setting'>";
+
+        // Display form elements
+        echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
+            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
+            // new feature bubble # todo: remove bubble after some time
+            echo "<span class='ai4seo-green-bubble'>" . esc_html__("NEW", "ai-for-seo") . "</span> ";
+            echo esc_html__("Image Title Injection:", "ai-for-seo") ;
+            echo "</label>";
+
+            echo "<div class='ai4seo-form-item-input-wrapper'>";
+                $ai4seo_title_injection_options = ai4seo_get_setting_render_level_title_injection_allowed_values();
+
+                echo "<select id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
+                foreach ($ai4seo_title_injection_options as $ai4seo_option_value => $ai4seo_option_label) {
+                    $ai4seo_is_selected = ($ai4seo_this_setting_input_value === $ai4seo_option_value) ? ' selected="selected"' : '';
+                    echo "<option value='" . esc_attr($ai4seo_option_value) . "'" . $ai4seo_is_selected . ">";
+                    echo esc_html($ai4seo_option_label);
+                    echo "</option>";
+                }
+                echo "</select>";
+
+                echo "<p class='ai4seo-form-item-description'>";
+                    echo ai4seo_wp_kses($ai4seo_this_setting_description);
+                echo "</p>";
+            echo "</div>";
+        echo "</div>";
+
+        
+        // === AI4SEO_SETTING_IMAGE_UPLOAD_METHOD ============================== \\
+
+        $ai4seo_this_setting_name = AI4SEO_SETTING_IMAGE_UPLOAD_METHOD;
+        $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
+        $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
+        $ai4seo_this_setting_description = __("Choose how images are sent to our server: <strong>Auto (recommended)</strong>: Selects method based on accessibility. <strong>URL</strong>: Always sends image URL. <strong>Data</strong>: Always sends full image data.", "ai-for-seo");
+        $ai4seo_this_setting_description .= "<br><br>";
+        $ai4seo_this_setting_description .= __("Try 'Data' if you experience generation issues. Slower but more reliable in some situations.", "ai-for-seo");
+
+        // Divider
+        echo "<hr class='ai4seo-form-item-divider ai4seo-is-advanced-setting'>";
+
+        // Display form elements
+        echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
+            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
+            // new feature bubble # todo: remove bubble after some time
+            echo "<span class='ai4seo-green-bubble'>" . esc_html__("NEW", "ai-for-seo") . "</span> ";
+            echo esc_html__("Image Upload Method:", "ai-for-seo") ;
+            echo "</label>";
+
+            echo "<div class='ai4seo-form-item-input-wrapper'>";
+                $ai4seo_image_upload_method_options = array(
+                    "auto" => __("Auto (default & recommended)", "ai-for-seo"),
+                    "url" => __("URL", "ai-for-seo"),
+                    "base64" => __("Data", "ai-for-seo")
+                );
+
+                echo "<select id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
+                foreach ($ai4seo_image_upload_method_options as $ai4seo_option_value => $ai4seo_option_label) {
+                    $ai4seo_is_selected = ($ai4seo_this_setting_input_value === $ai4seo_option_value) ? ' selected="selected"' : '';
+                    echo "<option value='" . esc_attr($ai4seo_option_value) . "'" . $ai4seo_is_selected . ">";
+                    echo esc_html($ai4seo_option_label);
+                    echo "</option>";
+                }
+                echo "</select>";
+
+                echo "<p class='ai4seo-form-item-description'>";
+                    echo ai4seo_wp_kses($ai4seo_this_setting_description);
+                echo "</p>";
+            echo "</div>";
+        echo "</div>";
+
     echo "</div>";
 
     // Submit button

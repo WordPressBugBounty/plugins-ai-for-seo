@@ -3,7 +3,7 @@
 Plugin Name: AI for SEO
 Plugin URI: https://aiforseo.ai
 Description: One-Click SEO solution. "AI for SEO" helps your website to rank higher in Web Search results.
-Version: 2.1.2
+Version: 2.1.3
 Author: spacecodes
 Author URI: https://spa.ce.codes
 Text Domain: ai-for-seo
@@ -15,7 +15,7 @@ if (!defined("ABSPATH")) {
     exit;
 }
 
-const AI4SEO_PLUGIN_VERSION_NUMBER = "2.1.2";
+const AI4SEO_PLUGIN_VERSION_NUMBER = "2.1.3";
 const AI4SEO_PLUGIN_NAME = "AI for SEO";
 const AI4SEO_PLUGIN_DESCRIPTION = 'One-Click SEO solution. "AI for SEO" helps your website to rank higher in Web Search results.';
 const AI4SEO_PLUGIN_IDENTIFIER = "ai-for-seo";
@@ -48,7 +48,6 @@ const AI4SEO_VERY_LOW_CREDITS_THRESHOLD = 10;
 const AI4SEO_LOW_CREDITS_THRESHOLD = 40;
 const AI4SEO_CUSTOM_PLAN_DISCOUNT = 30; # in percent
 const AI4SEO_MIN_CREDITS_BALANCE = 5; # todo: will be replaced by the users settings based on the quality of the ai generations
-const AI4SEO_CREDITS_BALANCE_CACHE_LIFETIME = 86400; // 24h
 const AI4SEO_DAILY_FREE_CREDITS_AMOUNT = 5;
 const AI4SEO_PAY_AS_YOU_GO_DISCOUNT = 10; # in percent
 const AI4SEO_CREDITS_FLAT_COST = 5;
@@ -58,6 +57,7 @@ const AI4SEO_BLUE_GET_MORE_CREDITS_BUTTON_THRESHOLD = 250;
 const AI4SEO_NEXTGEN_GALLERY_POST_TYPE = "ai4seo_ngg";
 const AI4SEO_MAX_DISPLAYABLE_ALREADY_READ_NOTIFICATIONS = 2;
 const AI4SEO_ANALYZE_PERFORMANCE_INTERVAL = 7200; // 2h
+const AI4SEO_GLOBAL_NONCE_IDENTIFIER = "ai4seo_ajax_nonce";
 const AI4SEO_CRON_JOBS_ENABLED = true; # set to true to enable cron jobs, false to disable them
 
 /**
@@ -66,6 +66,20 @@ const AI4SEO_CRON_JOBS_ENABLED = true; # set to true to enable cron jobs, false 
  */
 function ai4seo_get_change_log(): array {
     return [
+        [
+            'date' => 'August 28th, 2025',
+            'version' => '2.1.3',
+            'important' => true,
+            'updates' => [
+                'Dashboard now refreshes automatically; manual page reload is no longer required.',
+                'Added compatibility with the SEOKey plugin.',
+                'Alt Text Injection is now disabled by default. To re-enable, go to Settings > Show Advanced Settings (top right) > Troubleshooting & Experimental > Alt Text Injection.',
+                'Added a submenu for direct plugin access via the WordPress admin menu.',
+                'Added a "Refresh" button to dashboard statistics. Recommended for large sites (>10,000 entries) to update statistics on demand.',
+                'Added a new FAQ area under Help > Troubleshooting, covering common problems and solutions.',
+                'Bug Fixes & Maintenance: Fixed 11 minor bugs, implemented 13 performance and usability improvements, and resolved 2 security issues.',
+            ]
+        ],
         [
             'date' => 'August 9th, 2025',
             'version' => '2.1.2',
@@ -159,7 +173,7 @@ function ai4seo_get_change_log(): array {
             ]
         ],
         [
-            'date' => '08th April, 2025',
+            'date' => 'April 08th, 2025',
             'version' => '2.0.2',
             'important' => false,
             'updates' => [
@@ -251,7 +265,7 @@ function ai4seo_get_credits_packs(): array {
  */
 function ai4seo_get_svg_tags(): array {
     return array(
-        "ai-for-seo-main-menu-icon" => '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 500.000000 500.000000"><g transform="translate(0.000000,500.000000) scale(0.100000,-0.100000)" fill="#000000" stroke="none"><path d="M2145 4755 l7 -245 -843 -2 -844 -3 -3 -827 -2 -828 -230 0 -230 0 0 -345 0 -345 230 0 230 0 2 -22 c1 -13 2 -387 3 -833 l0 -810 838 -3 837 -2 0 -245 0 -245 350 0 350 0 0 245 0 245 840 0 840 0 2 308 c1 169 1 539 0 822 -1 283 1 522 3 530 4 13 38 15 240 12 l235 -3 0 345 0 346 -237 2 -238 3 -3 828 -2 827 -840 0 -840 0 0 245 0 245 -351 0 -351 0 7 -245z m344 -1143 c5 -10 21 -63 35 -118 36 -142 104 -375 110 -382 10 -10 18 6 31 60 8 29 32 125 55 213 24 88 45 174 47 190 3 17 10 36 15 43 8 9 124 12 519 12 401 0 509 -3 509 -12 -1 -7 1 -168 4 -358 4 -251 8 -1595 6 -1902 0 -17 -43 -18 -754 -18 l-754 0 -97 145 c-54 80 -101 145 -104 145 -4 0 -25 -24 -46 -52 -47 -63 -150 -196 -170 -220 -14 -17 -48 -18 -463 -18 -247 0 -451 3 -455 6 -3 3 2 29 13 58 10 28 34 103 55 166 124 393 661 2012 677 2043 8 16 37 17 383 17 351 0 375 -1 384 -18z"/><path d="M1907 3088 c-102 -299 -189 -553 -247 -718 -63 -179 -195 -563 -210 -613 l-9 -28 141 3 141 3 41 125 41 125 296 3 296 2 39 -130 38 -130 143 0 c79 0 143 2 143 4 0 6 -80 240 -115 336 -14 41 -51 143 -80 225 -29 83 -70 195 -90 250 -37 102 -235 667 -235 672 0 2 -65 3 -144 3 l-143 0 -46 -132z m203 -241 c0 -8 43 -143 95 -302 52 -158 95 -294 95 -301 0 -11 -38 -14 -205 -14 -136 0 -205 4 -205 10 0 25 202 620 211 620 5 0 9 -6 9 -13z"/><path d="M3126 2484 c-3 -404 -4 -740 -1 -745 4 -5 67 -9 141 -9 l134 0 0 745 0 745 -133 0 -134 0 -7 -736z"/></g></svg> ',
+        "ai-for-seo-main-menu-icon" => '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 500.000000 500.000000"><g transform="translate(0.000000,500.000000) scale(0.100000,-0.100000)" fill="#a7aaad" stroke="none"><path d="M2145 4755 l7 -245 -843 -2 -844 -3 -3 -827 -2 -828 -230 0 -230 0 0 -345 0 -345 230 0 230 0 2 -22 c1 -13 2 -387 3 -833 l0 -810 838 -3 837 -2 0 -245 0 -245 350 0 350 0 0 245 0 245 840 0 840 0 2 308 c1 169 1 539 0 822 -1 283 1 522 3 530 4 13 38 15 240 12 l235 -3 0 345 0 346 -237 2 -238 3 -3 828 -2 827 -840 0 -840 0 0 245 0 245 -351 0 -351 0 7 -245z m344 -1143 c5 -10 21 -63 35 -118 36 -142 104 -375 110 -382 10 -10 18 6 31 60 8 29 32 125 55 213 24 88 45 174 47 190 3 17 10 36 15 43 8 9 124 12 519 12 401 0 509 -3 509 -12 -1 -7 1 -168 4 -358 4 -251 8 -1595 6 -1902 0 -17 -43 -18 -754 -18 l-754 0 -97 145 c-54 80 -101 145 -104 145 -4 0 -25 -24 -46 -52 -47 -63 -150 -196 -170 -220 -14 -17 -48 -18 -463 -18 -247 0 -451 3 -455 6 -3 3 2 29 13 58 10 28 34 103 55 166 124 393 661 2012 677 2043 8 16 37 17 383 17 351 0 375 -1 384 -18z"/><path d="M1907 3088 c-102 -299 -189 -553 -247 -718 -63 -179 -195 -563 -210 -613 l-9 -28 141 3 141 3 41 125 41 125 296 3 296 2 39 -130 38 -130 143 0 c79 0 143 2 143 4 0 6 -80 240 -115 336 -14 41 -51 143 -80 225 -29 83 -70 195 -90 250 -37 102 -235 667 -235 672 0 2 -65 3 -144 3 l-143 0 -46 -132z m203 -241 c0 -8 43 -143 95 -302 52 -158 95 -294 95 -301 0 -11 -38 -14 -205 -14 -136 0 -205 4 -205 10 0 25 202 620 211 620 5 0 9 -6 9 -13z"/><path d="M3126 2484 c-3 -404 -4 -740 -1 -745 4 -5 67 -9 141 -9 l134 0 0 745 0 745 -133 0 -134 0 -7 -736z"/></g></svg> ',
         "all-in-one-seo" => '<svg viewBox="0 0 20 20" width="16" height="16" fill="#a7aaad" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M9.98542 19.9708C15.5002 19.9708 19.9708 15.5002 19.9708 9.98542C19.9708 4.47063 15.5002 0 9.98542 0C4.47063 0 0 4.47063 0 9.98542C0 15.5002 4.47063 19.9708 9.98542 19.9708ZM8.39541 3.65464C8.26016 3.4485 8.0096 3.35211 7.77985 3.43327C7.51816 3.52572 7.26218 3.63445 7.01349 3.7588C6.79519 3.86796 6.68566 4.11731 6.73372 4.36049L6.90493 5.22694C6.949 5.44996 6.858 5.6763 6.68522 5.82009C6.41216 6.04734 6.16007 6.30426 5.93421 6.58864C5.79383 6.76539 5.57233 6.85907 5.35361 6.81489L4.50424 6.6433C4.26564 6.5951 4.02157 6.70788 3.91544 6.93121C3.85549 7.05738 3.79889 7.1862 3.74583 7.31758C3.69276 7.44896 3.64397 7.58105 3.59938 7.71369C3.52048 7.94847 3.61579 8.20398 3.81839 8.34133L4.53958 8.83027C4.72529 8.95617 4.81778 9.1819 4.79534 9.40826C4.75925 9.77244 4.76072 10.136 4.79756 10.4936C4.82087 10.7198 4.72915 10.9459 4.54388 11.0724L3.82408 11.5642C3.62205 11.7022 3.52759 11.9579 3.60713 12.1923C3.69774 12.4593 3.8043 12.7205 3.92615 12.9743C4.03313 13.1971 4.27749 13.3088 4.51581 13.2598L5.36495 13.0851C5.5835 13.0401 5.80533 13.133 5.94623 13.3093C6.16893 13.5879 6.42071 13.8451 6.6994 14.0756C6.87261 14.2188 6.96442 14.4448 6.92112 14.668L6.75296 15.5348C6.70572 15.7782 6.81625 16.0273 7.03511 16.1356C7.15876 16.1967 7.285 16.2545 7.41375 16.3086C7.54251 16.3628 7.67196 16.4126 7.80195 16.4581C8.18224 16.5912 8.71449 16.1147 9.108 15.7625C9.30205 15.5888 9.42174 15.343 9.42301 15.0798C9.42301 15.0784 9.42302 15.077 9.42302 15.0756L9.42301 13.6263C9.42301 13.6109 9.4236 13.5957 9.42476 13.5806C8.26248 13.2971 7.39838 12.2301 7.39838 10.9572V9.41823C7.39838 9.30125 7.49131 9.20642 7.60596 9.20642H8.32584V7.6922C8.32584 7.48312 8.49193 7.31364 8.69683 7.31364C8.90171 7.31364 9.06781 7.48312 9.06781 7.6922V9.20642H11.0155V7.6922C11.0155 7.48312 11.1816 7.31364 11.3865 7.31364C11.5914 7.31364 11.7575 7.48312 11.7575 7.6922V9.20642H12.4773C12.592 9.20642 12.6849 9.30125 12.6849 9.41823V10.9572C12.6849 12.2704 11.7653 13.3643 10.5474 13.6051C10.5477 13.6121 10.5478 13.6192 10.5478 13.6263L10.5478 15.0694C10.5478 15.3377 10.6711 15.5879 10.871 15.7622C11.2715 16.1115 11.8129 16.5837 12.191 16.4502C12.4527 16.3577 12.7086 16.249 12.9573 16.1246C13.1756 16.0155 13.2852 15.7661 13.2371 15.5229L13.0659 14.6565C13.0218 14.4334 13.1128 14.2071 13.2856 14.0633C13.5587 13.8361 13.8107 13.5792 14.0366 13.2948C14.177 13.118 14.3985 13.0244 14.6172 13.0685L15.4666 13.2401C15.7052 13.2883 15.9493 13.1756 16.0554 12.9522C16.1153 12.8261 16.1719 12.6972 16.225 12.5659C16.2781 12.4345 16.3269 12.3024 16.3714 12.1698C16.4503 11.935 16.355 11.6795 16.1524 11.5421L15.4312 11.0532C15.2455 10.9273 15.153 10.7015 15.1755 10.4752C15.2116 10.111 15.2101 9.74744 15.1733 9.38986C15.1499 9.16361 15.2417 8.93757 15.4269 8.811L16.1467 8.31927C16.3488 8.18126 16.4432 7.92558 16.3637 7.69115C16.2731 7.42411 16.1665 7.16292 16.0447 6.90915C15.9377 6.68638 15.6933 6.57462 15.455 6.62366L14.6059 6.79837C14.3873 6.84334 14.1655 6.75048 14.0246 6.57418C13.8019 6.29554 13.5501 6.03832 13.2714 5.80784C13.0982 5.6646 13.0064 5.43858 13.0497 5.2154L13.2179 4.34868C13.2651 4.10521 13.1546 3.85616 12.9357 3.74787C12.8121 3.68669 12.6858 3.62895 12.5571 3.5748C12.4283 3.52065 12.2989 3.47086 12.1689 3.42537C11.9388 3.34485 11.6884 3.44211 11.5538 3.64884L11.0746 4.38475C10.9513 4.57425 10.73 4.66862 10.5082 4.64573C10.1513 4.6089 9.79502 4.61039 9.44459 4.64799C9.22286 4.67177 9.00134 4.57818 8.87731 4.38913L8.39541 3.65464Z" fill="#a7aaad" /></svg>',
         "angle-down" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M201.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L224 306.7 86.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/></svg>',
         "arrow-right" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M438.6 278.6c12.5-12.5 12.5-32.8 0-45.3l-160-160c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L338.8 224 32 224c-17.7 0-32 14.3-32 32s14.3 32 32 32l306.7 0L233.4 393.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0l160-160z"/></svg>',
@@ -309,7 +323,7 @@ function ai4seo_get_svg_tags(): array {
 }
 
 const AI4SEO_STRIPE_BILLING_URL = "https://aiforseo.ai/manage-plan";
-const AI4SEO_POST_TYPES_TAB_NAME = "post";
+const AI4SEO_POST_TYPES_PLUGIN_PAGE_NAME = "post";
 
 // Constants for the wp_options entries
 const AI4SEO_FULLY_COVERED_METADATA_POST_IDS_OPTION_NAME = "ai4seo_fully_covered_metadata_post_ids";
@@ -396,6 +410,7 @@ const AI4SEO_THIRD_PARTY_PLUGIN_SEOPRESS = "seopress";
 const AI4SEO_THIRD_PARTY_PLUGIN_SEO_SIMPLE_PACK = "seo-simple-pack";
 const AI4SEO_THIRD_PARTY_PLUGIN_SLIM_SEO = "slim-seo";
 const AI4SEO_THIRD_PARTY_PLUGIN_SQUIRRLY_SEO = "squirrly-seo";
+const AI4SEO_THIRD_PARTY_PLUGIN_SEO_KEY = "seo-key";
 
 // editors + seo plugins
 const AI4SEO_THIRD_PARTY_PLUGIN_BETHEME = "betheme";
@@ -521,6 +536,13 @@ function ai4seo_get_third_party_seo_plugin_details(): array {
                 'facebook-description' => '_ai4seo_workaround',
                 'twitter-title' => '_ai4seo_workaround',
                 'twitter-description' => '_ai4seo_workaround',
+            ),
+        ),
+        AI4SEO_THIRD_PARTY_PLUGIN_SEO_KEY => array(
+            'name' => 'SEOKEY',
+            'metadata-postmeta-keys' => array(
+                'meta-title' => 'seokey-metatitle',
+                'meta-description' => 'seokey-metadesc',
             ),
         ),
     );
@@ -668,7 +690,7 @@ const AI4SEO_DEFAULT_SETTINGS = array(
     AI4SEO_SETTING_SHOW_ADVANCED_SETTINGS => "hide",
     AI4SEO_SETTING_BULK_GENERATION_DURATION => 60,
     AI4SEO_SETTING_META_TAG_OUTPUT_MODE => "replace",
-    AI4SEO_SETTING_APPLY_CHANGES_TO_THIRD_PARTY_SEO_PLUGINS => array(AI4SEO_THIRD_PARTY_PLUGIN_YOAST_SEO, AI4SEO_THIRD_PARTY_PLUGIN_RANK_MATH, AI4SEO_THIRD_PARTY_PLUGIN_SEOPRESS, AI4SEO_THIRD_PARTY_PLUGIN_THE_SEO_FRAMEWORK, AI4SEO_THIRD_PARTY_PLUGIN_SEO_SIMPLE_PACK),
+    AI4SEO_SETTING_APPLY_CHANGES_TO_THIRD_PARTY_SEO_PLUGINS => array(AI4SEO_THIRD_PARTY_PLUGIN_YOAST_SEO, AI4SEO_THIRD_PARTY_PLUGIN_RANK_MATH, AI4SEO_THIRD_PARTY_PLUGIN_SEOPRESS, AI4SEO_THIRD_PARTY_PLUGIN_THE_SEO_FRAMEWORK, AI4SEO_THIRD_PARTY_PLUGIN_SEO_SIMPLE_PACK, AI4SEO_THIRD_PARTY_PLUGIN_SEO_KEY),
     AI4SEO_SETTING_SYNC_ONLY_THESE_METADATA => array("meta-description", "facebook-title", "facebook-description", "twitter-title", "twitter-description"),
     AI4SEO_SETTING_ALLOWED_USER_ROLES => array("administrator"),
     AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES => array(),
@@ -682,8 +704,8 @@ const AI4SEO_DEFAULT_SETTINGS = array(
     AI4SEO_SETTING_OVERWRITE_EXISTING_ATTACHMENT_ATTRIBUTES => array("title"),
     AI4SEO_SETTING_GENERATE_METADATA_FOR_FULLY_COVERED_ENTRIES => false,
     AI4SEO_SETTING_GENERATE_ATTACHMENT_ATTRIBUTES_FOR_FULLY_COVERED_ENTRIES => false,
-    AI4SEO_SETTING_ENABLE_RENDER_LEVEL_ALT_TEXT_INJECTION => true,
-    AI4SEO_SETTING_IMAGE_TITLE_INJECTION_MODE => "inject_alt_text",
+    AI4SEO_SETTING_ENABLE_RENDER_LEVEL_ALT_TEXT_INJECTION => false,
+    AI4SEO_SETTING_IMAGE_TITLE_INJECTION_MODE => "disabled",
     AI4SEO_SETTING_METADATA_PREFIXES => array(
         "meta-title" => "",
         "meta-description" => "",
@@ -763,7 +785,6 @@ const AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_CRON_JOB_CALL = "last_cronjob_call";
 const AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_SPECIFIC_CRON_JOB_CALLS = "last_specific_cronjob_call";
 const AI4SEO_ENVIRONMENTAL_VARIABLE_CRON_JOB_STATUS_LIST = "cron_job_status_list";
 const AI4SEO_ENVIRONMENTAL_VARIABLE_CRON_JOB_STATUS_LAST_UPDATE_TIMES = "cron_job_status_last_update_times";
-const AI4SEO_ENVIRONMENTAL_VARIABLE_LICENSE_KEY_SHOWN = "licence_key_shown";
 const AI4SEO_ENVIRONMENTAL_VARIABLE_TOS_TOC_AND_PP_ACCEPTED_TIME = "tos_toc_and_pp_accepted_time";
 const AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_TOS_DETAILS_CHECKSUM = "last_tos_details_checksum";
 const AI4SEO_ENVIRONMENTAL_VARIABLE_TOS_LAST_MODAL_OPEN_TIME = "tos_last_modal_open_time";
@@ -788,7 +809,6 @@ const AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES = array(
     AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_CRON_JOB_CALL => 0,
     AI4SEO_ENVIRONMENTAL_VARIABLE_CRON_JOB_STATUS_LIST => array(),
     AI4SEO_ENVIRONMENTAL_VARIABLE_CRON_JOB_STATUS_LAST_UPDATE_TIMES => array(),
-    AI4SEO_ENVIRONMENTAL_VARIABLE_LICENSE_KEY_SHOWN => false,
     AI4SEO_ENVIRONMENTAL_VARIABLE_TOS_LAST_MODAL_OPEN_TIME => 0,
     AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_SPECIFIC_CRON_JOB_CALLS => array(),
     AI4SEO_ENVIRONMENTAL_VARIABLE_TOS_TOC_AND_PP_ACCEPTED_TIME => 0,
@@ -811,7 +831,7 @@ const AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES = array(
 $ai4seo_environmental_variables = AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES;
 
 $ai4seo_persistent_does_user_need_to_accept_tos_toc_and_pp = null; # cache variable
-$ai4seo_scripts_version_number = AI4SEO_PLUGIN_VERSION_NUMBER;
+$ai4seo_scripts_version_number = isset($_GET["ai4seo_debug_uncached_assets"]) && $_GET["ai4seo_debug_uncached_assets"] ? time() : AI4SEO_PLUGIN_VERSION_NUMBER;
 
 // used to store various details about all supported metadata fields to use it on many places throughout the plugin
 add_action('init', function() {
@@ -1196,11 +1216,11 @@ const AI4SEO_ALLOWED_AJAX_FUNCTIONS = array(
     "ai4seo_show_attachment_attributes_editor",
     "ai4seo_generate_metadata",
     "ai4seo_generate_attachment_attributes",
-    "ai4seo_display_license_information",
     "ai4seo_reject_tos",
     "ai4seo_accept_tos",
     "ai4seo_show_terms_of_service",
     "ai4seo_dismiss_notification",
+    "ai4seo_get_dashboard_html",
     "ai4seo_reset_plugin_data",
     "ai4seo_stop_bulk_generation",
     "ai4seo_retry_all_failed_attachment_attributes",
@@ -1250,7 +1270,7 @@ add_action("init", "ai4seo_init_frontend_injections");
 add_action("init", "ai4seo_init_user_essentials");
 
 // perform ajax nonce check
-add_action('plugins_loaded', 'ai4seo_ajax_nonce_check', 0);
+add_action( 'admin_init', 'ai4seo_ajax_nonce_check', 9999 );
 
 // not admin area -> exit here
 if (!ai4seo_is_function_usable("is_admin") || !is_admin()) {
@@ -1442,10 +1462,13 @@ function ai4seo_init_admin_area_essentials() {
     }
 
     $is_user_inside_plugin_admin_pages = ai4seo_is_user_inside_our_plugin_admin_pages();
-    $is_dashboard_page_visible = ai4seo_is_tab_open("dashboard");
+    $is_dashboard_page_visible = ai4seo_is_plugin_page_active("dashboard");
 
-    // Add menu-item to main menu
-    add_action("admin_menu", "ai4seo_add_menu_entries");
+    // Add menu-item to main menu, sub menu-items and page titles
+    add_filter('admin_title', 'ai4seo_filter_admin_title', 10, 2 );
+    add_action('admin_menu', "ai4seo_add_menu_entries");
+    add_filter('parent_file', 'ai4seo_mark_parent_menu_active');
+    add_filter('submenu_file', 'ai4seo_mark_submenu_active');
 
     // plugin action link use filter "plugin_action_links_ + plugin_basename"
     $this_plugin_basename = sanitize_text_field(ai4seo_get_plugin_basename());
@@ -1476,9 +1499,16 @@ function ai4seo_init_admin_area_essentials() {
     add_action("manage_page_posts_custom_column", "ai4seo_add_metadata_editor_button_to_posts_table", 10, 2);
     #add_action("manage_product_posts_custom_column", "ai4seo_add_metadata_editor_button_to_posts_table", 10, 2);
 
-    // if we are on the dashboard -> sync account eventually
-    if ($is_dashboard_page_visible) {
+    // add ajax nonce field to the footer
+    add_action( 'admin_print_footer_scripts', 'ai4seo_print_ajax_nonce_field' );
+
+    // if user is inside our plugin admin pages, check for account sync
+    if ($is_user_inside_plugin_admin_pages) {
         ai4seo_check_for_robhub_account_sync();
+    }
+
+    // if we are on the dashboard -> check for performance analysis
+    if ($is_dashboard_page_visible) {
         ai4seo_check_for_performance_analysis();
     }
 }
@@ -1554,7 +1584,7 @@ function ai4seo_on_deactivation() {
     }
 
     // Define variables for the incognito-setting
-    $ai4seo_setting_enable_incognito_mode = ai4seo_get_setting(AI4SEO_SETTING_ENABLE_INCOGNITO_MODE);
+    $ai4seo_setting_enable_incognito_mode = ai4seo_is_incognito_mode_enabled();
     $ai4seo_setting_incognito_mode_user_id = ai4seo_get_setting(AI4SEO_SETTING_INCOGNITO_MODE_USER_ID);
     $current_user_id = get_current_user_id();
 
@@ -1570,6 +1600,26 @@ function ai4seo_on_deactivation() {
             delete_plugins([plugin_basename(__FILE__)]);
         }
     }
+}
+
+// =========================================================================================== \\
+
+function ai4seo_is_incognito_mode_enabled(): bool {
+    if (isset($_REQUEST["ai4seo_debug_bypass_incognito_mode"]) && $_REQUEST["ai4seo_debug_bypass_incognito_mode"]) {
+        // If the debug bypass parameter is set, we can bypass the incognito mode
+        return false;
+    }
+
+    // Check if the incognito mode is enabled
+    $ai4seo_setting_enable_incognito_mode = ai4seo_get_setting(AI4SEO_SETTING_ENABLE_INCOGNITO_MODE);
+
+    // If the incognito mode is enabled, return true
+    if ($ai4seo_setting_enable_incognito_mode) {
+        return true;
+    }
+
+    // Otherwise, return false
+    return false;
 }
 
 // =========================================================================================== \\
@@ -1783,7 +1833,7 @@ function ai4seo_tidy_up(string $last_known_plugin_version = AI4SEO_PLUGIN_VERSIO
         }
 
         if (get_option("_ai4seo_licence_key_shown") !== false) {
-            ai4seo_update_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_LICENSE_KEY_SHOWN, (bool) get_option("_ai4seo_licence_key_shown"));
+            #ai4seo_update_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_LICENSE_KEY_SHOWN, (bool) get_option("_ai4seo_licence_key_shown"));
             delete_option("_ai4seo_licence_key_shown");
         }
 
@@ -1989,7 +2039,7 @@ function ai4seo_init_robhub_api(): bool {
 
     $ai4seo_robhub_api = new Ai4Seo_RobHubApiCommunicator();
     $ai4seo_robhub_api->set_environmental_variables_option_name(AI4SEO_ROBHUB_ENVIRONMENTAL_VARIABLES_OPTION_NAME);
-    $ai4seo_robhub_api->set_product_parameters("ai4seo", AI4SEO_PLUGIN_VERSION_NUMBER, AI4SEO_MIN_CREDITS_BALANCE, AI4SEO_CREDITS_BALANCE_CACHE_LIFETIME, $product_activation_time);
+    $ai4seo_robhub_api->set_product_parameters("ai4seo", AI4SEO_PLUGIN_VERSION_NUMBER, AI4SEO_MIN_CREDITS_BALANCE, $product_activation_time);
 
     // do we need to accept the terms of service?
     $does_user_need_to_accept_tos_toc_and_pp = ai4seo_does_user_need_to_accept_tos_toc_and_pp();
@@ -1998,38 +2048,255 @@ function ai4seo_init_robhub_api(): bool {
     return true;
 }
 
+// =========================================================================================== \\
+
+/**
+ * Adjusts the browser title for all AI for SEO plugin admin pages.
+ *
+ * Uses ai4seo_is_user_inside_our_plugin_admin_pages(), ai4seo_get_active_subpage(),
+ * ai4seo_get_active_post_type(), and ai4seo_get_plugins_menu_registry()
+ * to determine the current page label.
+ *
+ * @param string $admin_title Default admin title.
+ * @param string $title       Original page title.
+ * @return string Filtered admin title.
+ */
+function ai4seo_filter_admin_title(string $admin_title, string $title ): string {
+    if ( ! ai4seo_is_user_inside_our_plugin_admin_pages() ) {
+        return $admin_title;
+    }
+
+    $registry       = ai4seo_get_plugins_menu_registry();
+    $active_subpage = ai4seo_get_active_subpage();
+    $active_post_type_subpage    = ai4seo_get_active_post_type_subpage();
+
+    // default label
+    $active_page_label = __( 'Dashboard', 'ai-for-seo' );
+
+    if ( ! empty( $active_subpage ) && isset( $registry[ $active_subpage ] ) ) {
+        // Static subpages: settings, media, account, help
+        $active_page_label = $registry[ $active_subpage ]['label'];
+    } elseif ( $active_subpage === 'post' && ! empty( $active_post_type_subpage ) && isset( $registry['post_types'][ $active_post_type_subpage ] ) ) {
+        // Dynamic post-type subpages
+        $active_page_label = $registry['post_types'][ $active_post_type_subpage ]['label'];
+    }
+
+    $website_name = get_bloginfo( 'name' );
+
+    // build everything together and sanitize
+    $browser_title = $active_page_label . ' ‹ ' . AI4SEO_PLUGIN_NAME . ' ‹ ' .  $website_name;
+    $browser_title = wp_strip_all_tags( $browser_title );
+    $browser_title = str_replace( array( '&amp;', '&#038;' ), '&', $browser_title );
+    $browser_title = str_replace( array( '&lt;', '&#060;' ), '<', $browser_title );
+    $browser_title = str_replace( array( '&gt;', '&#062;' ), '>', $browser_title );
+    $browser_title = str_replace( array( '&quot;', '&#034;' ), '"', $browser_title );
+    $browser_title = str_replace( array( '&#039;', '&#039;' ), "'", $browser_title );
+
+    return $browser_title;
+}
+
 // === FUNCTION TO ADD MENU-ITEM TO MAIN MENU ================================================ \\
 
 /**
- * Function to add menu-item to main menu
+ * Build a registry of AI4SEO menu entries: labels and slugs.
+ *
+ * @return array{
+ *   dashboard: array{label:string, slug:string},
+ *   media: array{label:string, slug:string},
+ *   account: array{label:string, slug:string},
+ *   settings: array{label:string, slug:string},
+ *   help: array{label:string, slug:string},
+ *   post_types: array<string, array{label:string, slug:string}>
+ * }
+ */
+function ai4seo_get_plugins_menu_registry(): array {
+    // Static pages.
+    $dashboard_slug = str_replace( '?page=', '', ai4seo_get_subpage_url( 'dashboard', array(), false ) ); // typically 'ai-for-seo'
+    $settings_slug  = str_replace( '?page=', '', ai4seo_get_subpage_url( 'settings', array(), false ) );  // e.g. 'ai-for-seo&ai4seo_subpage=settings'
+    $media_slug     = str_replace( '?page=', '', ai4seo_get_subpage_url( 'media', array(), false ) );     // e.g. 'ai-for-seo&ai4seo_subpage=media'
+    $account_slug   = str_replace( '?page=', '', ai4seo_get_subpage_url( 'account', array(), false ) );   // e.g. 'ai-for-seo&ai4seo_subpage=account'
+    $help_slug      = str_replace( '?page=', '', ai4seo_get_subpage_url( 'help', array(), false ) );      // e.g. 'ai-for-seo&ai4seo_subpage=help'
+
+    // Dynamic post-type pages: use a stable slug (no pagination or other volatile args).
+    $post_types    = ai4seo_get_supported_post_types();
+    $post_type_map = array();
+
+    foreach ( $post_types as $this_post_type ) {
+        $this_post_type = sanitize_key( $this_post_type );
+        $label = ai4seo_get_nice_label( ai4seo_get_post_type_translation( $this_post_type, true ) );
+        $slug  = AI4SEO_PLUGIN_IDENTIFIER . '&ai4seo_subpage=post&ai4seo-post-type=' . $this_post_type;
+
+        $post_type_map[ $this_post_type ] = array(
+            'label' => $label,
+            'slug'  => $slug,
+        );
+    }
+
+    return array(
+        'dashboard'  => array(
+            'label' => __( 'Dashboard', 'ai-for-seo' ),
+            'slug'  => $dashboard_slug,
+        ),
+        'media'      => array(
+            'label' => _n( 'Media', 'Media', 2, 'ai-for-seo' ),
+            'slug'  => $media_slug,
+        ),
+        'account'    => array(
+            'label' => __( 'Account', 'ai-for-seo' ),
+            'slug'  => $account_slug,
+        ),
+        'settings'   => array(
+            'label' => __( 'Settings', 'ai-for-seo' ),
+            'slug'  => $settings_slug,
+        ),
+        'help'       => array(
+            'label' => __( 'Help', 'ai-for-seo' ),
+            'slug'  => $help_slug,
+        ),
+        'post_types' => $post_type_map,
+    );
+}
+
+// =========================================================================================== \\
+
+/**
+ * Register AI4SEO menu and submenus.
+ *
  * @return void
-*/
-function ai4seo_add_menu_entries(){
+ */
+function ai4seo_add_menu_entries() {
     $svg_tags = ai4seo_get_svg_tags();
 
-    if (!isset($svg_tags["ai-for-seo-main-menu-icon"])) {
+    if ( ! isset( $svg_tags['ai-for-seo-main-menu-icon'] ) ) {
         return;
     }
 
-    $encoded_svg = 'data:image/svg+xml;base64,' . base64_encode($svg_tags["ai-for-seo-main-menu-icon"]);
+    $encoded_svg = 'data:image/svg+xml;base64,' . base64_encode( $svg_tags['ai-for-seo-main-menu-icon'] );
 
+    // Top-level title with notification bubble.
+    $menu_title        = AI4SEO_PLUGIN_NAME;
     $notification_count = (int) ai4seo_get_num_unread_notification();
 
-    $menu_title = AI4SEO_PLUGIN_NAME;
-
-    if ($notification_count > 0) {
+    if ( $notification_count > 0 ) {
         $menu_title .= " <span class='update-plugins count-{$notification_count}'><span class='plugin-count'>{$notification_count}</span></span>";
     }
 
+    // Central registry for labels and slugs.
+    $plugins_menu_registries = ai4seo_get_plugins_menu_registry();
+
+    // Top-level.
     add_menu_page(
         AI4SEO_PLUGIN_NAME,
-        $menu_title,
-        "edit_posts",
+        $menu_title,                 // Contains markup for bubble. Keep as-is.
+        'edit_posts',
         AI4SEO_PLUGIN_IDENTIFIER,
-        "ai4seo_include_menu_frame_file",
+        'ai4seo_include_menu_frame_file',
         $encoded_svg,
         99
     );
+
+    // Dashboard (main page uses parent slug as submenu slug).
+    add_submenu_page(
+        AI4SEO_PLUGIN_IDENTIFIER,
+        $plugins_menu_registries['dashboard']['label'] . ' - ' . AI4SEO_PLUGIN_NAME,
+        $plugins_menu_registries['dashboard']['label'],
+        'edit_posts',
+        AI4SEO_PLUGIN_IDENTIFIER,
+        'ai4seo_include_menu_frame_file'
+    );
+
+    // Dynamic post-type submenus.
+    foreach ( $plugins_menu_registries['post_types'] as $this_post_type ) {
+        add_submenu_page(
+            AI4SEO_PLUGIN_IDENTIFIER,
+            $this_post_type['label'] . ' - ' . AI4SEO_PLUGIN_NAME,
+            $this_post_type['label'],
+            'edit_posts',
+            $this_post_type['slug'],
+            'ai4seo_include_menu_frame_file'
+        );
+    }
+
+    // Media.
+    add_submenu_page(
+        AI4SEO_PLUGIN_IDENTIFIER,
+        $plugins_menu_registries['media']['label'] . ' - ' . AI4SEO_PLUGIN_NAME,
+        $plugins_menu_registries['media']['label'],
+        'edit_posts',
+        $plugins_menu_registries['media']['slug'],
+        'ai4seo_include_menu_frame_file'
+    );
+
+    // Account.
+    add_submenu_page(
+        AI4SEO_PLUGIN_IDENTIFIER,
+        $plugins_menu_registries['account']['label'] . ' - ' . AI4SEO_PLUGIN_NAME,
+        $plugins_menu_registries['account']['label'],
+        'edit_posts',
+        $plugins_menu_registries['account']['slug'],
+        'ai4seo_include_menu_frame_file'
+    );
+
+    // Settings.
+    add_submenu_page(
+        AI4SEO_PLUGIN_IDENTIFIER,
+        $plugins_menu_registries['settings']['label'] . ' - ' . AI4SEO_PLUGIN_NAME,
+        $plugins_menu_registries['settings']['label'],
+        'edit_posts',
+        $plugins_menu_registries['settings']['slug'],
+        'ai4seo_include_menu_frame_file'
+    );
+
+    // Help.
+    add_submenu_page(
+        AI4SEO_PLUGIN_IDENTIFIER,
+        $plugins_menu_registries['help']['label'] . ' - ' . AI4SEO_PLUGIN_NAME,
+        $plugins_menu_registries['help']['label'],
+        'edit_posts',
+        $plugins_menu_registries['help']['slug'],
+        'ai4seo_include_menu_frame_file'
+    );
+}
+
+// =========================================================================================== \\
+
+/**
+ * Mark our top-level menu as current when any AI for SEO page is open.
+ *
+ * @param string|null $parent_file
+ * @return string|null The slug of the current top-level menu (if any).
+ */
+function ai4seo_mark_parent_menu_active(?string $parent_file ): ?string {
+    if ( ai4seo_is_user_inside_our_plugin_admin_pages() ) {
+        $parent_file = AI4SEO_PLUGIN_IDENTIFIER;
+    }
+
+    return $parent_file;
+}
+
+// =========================================================================================== \\
+
+/**
+ * Mark the correct submenu entry as current.
+ *
+ * @param string|null $submenu_file
+ * @return string|null The slug of the current submenu entry (if any).
+ */
+function ai4seo_mark_submenu_active(?string $submenu_file): ?string {
+    if ( ai4seo_is_user_inside_our_plugin_admin_pages() ) {
+        // Central registry for labels and slugs.
+        $plugins_menu_registries = ai4seo_get_plugins_menu_registry();
+
+        if ($active_post_type = ai4seo_get_active_post_type_subpage()) {
+            $submenu_file = $plugins_menu_registries['post_types'][$active_post_type]['slug'] ?? $submenu_file;
+        } elseif ( $active_subpage = ai4seo_get_active_subpage() ) {
+            $submenu_file = $plugins_menu_registries[$active_subpage]['slug'] ?? $submenu_file;
+        } else {
+            $submenu_file = AI4SEO_PLUGIN_IDENTIFIER;
+        }
+    }
+
+    return $submenu_file;
 }
 
 // === FUNCTION TO DISPLAY MENU FRAME ===================================================== \\
@@ -2102,6 +2369,18 @@ function ai4seo_enqueue_admin_scripts() {
 
     // Set localization parameters
     ai4seo_set_localization_parameters();
+
+    /**
+     * Prevent optimizers from combining/caching the main script which contains a localized nonce.
+     */
+    add_filter( 'script_loader_tag', function( $tag, $handle, $src ) {
+        if ( $handle === AI4SEO_SCRIPTS_HANDLE ) {
+            // LiteSpeed/Autoptimize respect data-no-optimize.
+            $tag = str_replace( '<script ', '<script data-no-optimize="1" ', $tag );
+        }
+
+        return $tag;
+    }, 10, 3 );
 }
 
 // =========================================================================================== \\
@@ -2113,33 +2392,32 @@ function ai4seo_enqueue_admin_scripts() {
 function ai4seo_set_localization_parameters() {
     global $ai4seo_scripts_version_number;
 
-    // Get post- or page-id
     $current_post_id = get_the_ID() ?: 0;
 
-    // define ajax nonce
-    $ajax_nonce = wp_create_nonce("ai4seo_ajax_nonce");
+    $ajax_nonce = wp_create_nonce( AI4SEO_GLOBAL_NONCE_IDENTIFIER );
 
-    // Add urls for JavaScript use in ai-for-seo-scripts.js-file
     $localization_parameters = array(
-        "ai4seo_site_url" => site_url(),
-        "ai4seo_admin_url" => admin_url(),
-        "ai4seo_includes_url" => includes_url(),
-        "ai4seo_content_url" => content_url(),
-        "ai4seo_plugin_url" => plugins_url(),
-        "ai4seo_plugin_directory_url" => plugins_url("", __FILE__),
-        "ai4seo_uploads_directory_url" => wp_upload_dir(),
-        "ai4seo_assets_directory_url" => ai4seo_get_plugins_url("assets"),
-        "ai4seo_does_user_need_to_accepted_tos_toc_and_pp" => ai4seo_does_user_need_to_accept_tos_toc_and_pp(),
-        "ai4seo_plugin_version_number" => AI4SEO_PLUGIN_VERSION_NUMBER,
-        "ai4seo_admin_scripts_version_number" => $ai4seo_scripts_version_number,
-        "ai4seo_current_post_id" => $current_post_id,
-        "ai4seo_ajax_nonce" => $ajax_nonce,
+        'ai4seo_site_url'                             => site_url(),
+        'ai4seo_admin_url'                            => admin_url(),
+        'ai4seo_admin_ajax_url'                       => admin_url( 'admin-ajax.php' ),
+        'ai4seo_includes_url'                         => includes_url(),
+        'ai4seo_content_url'                          => content_url(),
+        'ai4seo_plugin_url'                           => plugins_url(),
+        'ai4seo_plugin_directory_url'                 => plugins_url( '', __FILE__ ),
+        'ai4seo_uploads_directory_url'                => wp_upload_dir(),
+        'ai4seo_assets_directory_url'                 => ai4seo_get_plugins_url( 'assets' ),
+        'ai4seo_does_user_need_to_accepted_tos_toc_and_pp' => ai4seo_does_user_need_to_accept_tos_toc_and_pp(),
+        'ai4seo_plugin_version_number'                => AI4SEO_PLUGIN_VERSION_NUMBER,
+        'ai4seo_admin_scripts_version_number'         => $ai4seo_scripts_version_number,
+        'ai4seo_current_post_id'                      => $current_post_id,
+        AI4SEO_GLOBAL_NONCE_IDENTIFIER                => $ajax_nonce,
+        'ai4seo_bypass_incognito_mode'                => isset($_REQUEST["ai4seo_debug_bypass_incognito_mode"]) && $_REQUEST["ai4seo_debug_bypass_incognito_mode"],
+        'ai4seo_active_subpage'                       => ai4seo_get_active_subpage(),
+        'ai4seo_active_post_type_subpage'             => ai4seo_get_active_post_type_subpage(),
     );
 
-    wp_localize_script(AI4SEO_SCRIPTS_HANDLE, "ai4seo_localization", $localization_parameters);
-
-    // Add translations
-    wp_set_script_translations(AI4SEO_SCRIPTS_HANDLE, "ai-for-seo");
+    wp_localize_script( AI4SEO_SCRIPTS_HANDLE, 'ai4seo_localization', $localization_parameters );
+    wp_set_script_translations( AI4SEO_SCRIPTS_HANDLE, 'ai-for-seo' );
 }
 
 // =========================================================================================== \\
@@ -2180,11 +2458,6 @@ function ai4seo_add_metadata_editor_button_to_posts_table(string $column_name, i
  * @return array $links - array with links that will be displayed in the plugin directory near the plugin name
  */
 function ai4seo_add_links_to_the_plugin_directory($links): array {
-    // Make sure that this function is only called once
-    if (!ai4seo_singleton(__FUNCTION__)) {
-        return $links;
-    }
-
     // Check for function get_current_user_id()
     if (!function_exists("get_current_user_id")) {
         return array();
@@ -2202,13 +2475,18 @@ function ai4seo_add_links_to_the_plugin_directory($links): array {
         return $links;
     }
 
+    // Make sure that this function is only called once
+    if (!ai4seo_singleton(__FUNCTION__)) {
+        return $links;
+    }
+
     // remove everything from $links, except the deactivate link
     $links = array_filter($links, function($link) {
         return strpos($link, 'deactivate') !== false;
     });
 
     // Define variables for the incognito-setting
-    $ai4seo_setting_enable_incognito_mode = ai4seo_get_setting(AI4SEO_SETTING_ENABLE_INCOGNITO_MODE);
+    $ai4seo_setting_enable_incognito_mode = ai4seo_is_incognito_mode_enabled();
     $ai4seo_setting_incognito_mode_user_id = ai4seo_get_setting(AI4SEO_SETTING_INCOGNITO_MODE_USER_ID);
     $current_user_id = get_current_user_id();
 
@@ -2217,7 +2495,7 @@ function ai4seo_add_links_to_the_plugin_directory($links): array {
         return array();
     }
 
-    $dashboard_link_url = ai4seo_get_admin_url("dashboard");
+    $dashboard_link_url = ai4seo_get_subpage_url("dashboard");
 
     // only show help and upgrade links if the user has not accepted the TOS yet
     if (ai4seo_does_user_need_to_accept_tos_toc_and_pp()) {
@@ -2226,7 +2504,7 @@ function ai4seo_add_links_to_the_plugin_directory($links): array {
         array_unshift($links, $tos_link_tag);
     } else {
         // Add Settings Link
-        $settings_link_url = ai4seo_get_admin_url("settings");
+        $settings_link_url = ai4seo_get_subpage_url("settings");
 
         if ($settings_link_url) {
             $settings_link_tag = "<a href='" . esc_url($settings_link_url) . "'>" . esc_html__("Settings", "ai-for-seo") . "</a>";
@@ -2234,7 +2512,7 @@ function ai4seo_add_links_to_the_plugin_directory($links): array {
         }
 
         // add Help link
-        $help_link_url = ai4seo_get_admin_url("help");
+        $help_link_url = ai4seo_get_subpage_url("help");
 
         if ($help_link_url) {
             $help_link_tag = "<a href='" . esc_url($help_link_url) . "'>" . esc_html__("Help", "ai-for-seo") . "</a>";
@@ -2317,6 +2595,11 @@ function ai4seo_add_admin_menu_item($wp_admin_bar) {
  * @return string $full_html_buffer - the modified html buffer
  */
 function ai4seo_inject_our_meta_tags_into_the_html_head(string $full_html_buffer): string {
+    // check if we are on a singular
+    if (!is_singular()) {
+        return $full_html_buffer; // stop function if we are not on a singular page or post
+    }
+
     // Define variable for the page- or post-id
     $post_id = get_the_ID();
 
@@ -2823,7 +3106,7 @@ function ai4seo_modify_plugin_details_for_white_label(array $all_plugins): array
     $current_user_id = get_current_user_id();
 
     // Define variables for the incognito-setting
-    $setting_enable_incognito_mode = ai4seo_get_setting(AI4SEO_SETTING_ENABLE_INCOGNITO_MODE);
+    $setting_enable_incognito_mode = ai4seo_is_incognito_mode_enabled();
     $setting_incognito_mode_user_id = ai4seo_get_setting(AI4SEO_SETTING_INCOGNITO_MODE_USER_ID);
     $visible_to_anyone = !$setting_enable_incognito_mode || ($setting_incognito_mode_user_id == AI4SEO_DEFAULT_SETTINGS[AI4SEO_SETTING_INCOGNITO_MODE_USER_ID]);
     $only_visible_to_current_user = $setting_enable_incognito_mode && !$visible_to_anyone && $setting_incognito_mode_user_id == $current_user_id;
@@ -3037,23 +3320,33 @@ function ai4seo_ajax_nonce_check() {
         return;
     }
 
+    // check action
     $action = isset( $_REQUEST['action'] ) ? sanitize_text_field( $_REQUEST['action'] ) : '';
 
-    // Only handle our own actions
-    if ( ! $action || strpos( $action, 'ai4seo_' ) === false ) {
+    if ( ! $action || ! strstr( $action, 'ai4seo_' ) ) {
         return;
     }
 
-    // Check permission
+    // Accept both our key and the common 'security' fallback
+    $ajax_nonce = isset( $_REQUEST[AI4SEO_GLOBAL_NONCE_IDENTIFIER] ) ? sanitize_text_field( wp_unslash( $_REQUEST[AI4SEO_GLOBAL_NONCE_IDENTIFIER] ) ) : '';
+
+    if ( ! $ajax_nonce && isset( $_REQUEST['security'] ) ) {
+        $ajax_nonce = sanitize_text_field( wp_unslash( $_REQUEST['security'] ) );
+    }
+
+    if ( ! $ajax_nonce ) {
+        ai4seo_send_json_error( esc_html__('Invalid ajax nonce.', 'ai-for-seo'), 401271224 );
+    }
+
+    if ( ! check_ajax_referer( AI4SEO_GLOBAL_NONCE_IDENTIFIER, AI4SEO_GLOBAL_NONCE_IDENTIFIER, false ) ) {
+        ai4seo_send_json_error( esc_html__('Invalid ajax nonce.', 'ai-for-seo'), 411271224 );
+    }
+
+    // check if we have access to this plugin
+    // this function is used to check if the user has permission to manage this plugin
     if ( ! ai4seo_can_manage_this_plugin() ) {
-        ai4seo_send_json_error( esc_html__( 'Invalid ajax request.', 'ai-for-seo' ), 11420725 );
+        ai4seo_send_json_error( esc_html__('Invalid ajax request.', 'ai-for-seo'), 11420725 );
         return;
-    }
-
-    // Verify nonce
-    $ajax_nonce = isset( $_REQUEST['ai4seo_ajax_nonce'] ) ? sanitize_text_field( $_REQUEST['ai4seo_ajax_nonce'] ) : '';
-    if ( ! $ajax_nonce || ! wp_verify_nonce( $ajax_nonce, 'ai4seo_ajax_nonce' ) ) {
-        ai4seo_send_json_error( esc_html__( 'Invalid ajax nonce.', 'ai-for-seo' ), 401271224 );
     }
 
     // Begin buffering ASAP so any early echoes are captured
@@ -3065,6 +3358,7 @@ function ai4seo_ajax_nonce_check() {
     if ( ! defined( 'WP_DEBUG_DISPLAY' ) ) {
         define( 'WP_DEBUG_DISPLAY', false );
     }
+
     @ini_set( 'display_errors', '0' );
 }
 
@@ -3105,7 +3399,16 @@ function ai4seo_check_for_performance_analysis() {
 function ai4seo_check_for_robhub_account_sync(): void {
     // when using ai4seo_force_sync_account parameter -> reset the last account sync timestamp
     if (isset($_GET["ai4seo_force_sync_account"])) {
-        ai4seo_sync_robhub_account();
+        ai4seo_sync_robhub_account('manual_refresh');
+        return;
+    }
+
+    // check ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED
+    $is_account_synced = ai4seo_robhub_api()->read_environmental_variable(ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED);
+
+    if (!$is_account_synced) {
+        // sync the RobHub account
+        ai4seo_sync_robhub_account('not_yet_synced');
         return;
     }
 
@@ -3114,7 +3417,7 @@ function ai4seo_check_for_robhub_account_sync(): void {
 
     if ($last_account_sync < time() - ai4seo_robhub_api()::ACCOUNT_SYNC_INTERVAL) {
         // sync the RobHub account
-        ai4seo_sync_robhub_account();
+        ai4seo_sync_robhub_account('regular_interval');
         return;
     }
 
@@ -3123,40 +3426,35 @@ function ai4seo_check_for_robhub_account_sync(): void {
 
     if ($next_free_credits_timestamp && $next_free_credits_timestamp < time()) {
         // sync the RobHub account
-        ai4seo_sync_robhub_account();
+        ai4seo_sync_robhub_account('next_free_credits_passed');
         return;
     }
 }
 
 // =========================================================================================== \\
-
 /**
  * Function to sync with client's RobHub Account
  * @param bool $allow_notification_force - if true, we will force a notification to be sent in case of an error
+ * @param string $sync_reason - reason for the sync (for logging purposes)
  * @return bool - true if the RobHub Account was synced, false on error
  */
-function ai4seo_sync_robhub_account(bool $allow_notification_force = false): bool {
+function ai4seo_sync_robhub_account(string $sync_reason = "unknown", bool $allow_notification_force = false): bool {
     // use singleton to only call this function once
     if (!ai4seo_singleton(__FUNCTION__)) {
         return false;
     }
 
-    $sync_account_response = ai4seo_robhub_api()->call("client/sync");
+    $api_response = ai4seo_robhub_api()->sync_account($sync_reason);
 
     // in case we have an error, we try to push a notification
-    ai4seo_check_for_robhub_account_error_notification($sync_account_response, true);
+    ai4seo_check_for_robhub_account_error_notification($api_response, true);
 
     // Interpret response
-    if (!ai4seo_robhub_api()->was_call_successful($sync_account_response)) {
+    if (!ai4seo_robhub_api()->was_call_successful($api_response) || !isset($api_response["data"]) || !is_array($api_response["data"]) || !$api_response["data"]) {
         return false;
     }
 
-    // check data payload
-    if (!isset($sync_account_response["data"]) || !is_array($sync_account_response["data"]) || !$sync_account_response["data"]) {
-        return false;
-    }
-
-    $synced_account_data = $sync_account_response["data"];
+    $synced_account_data = $api_response["data"];
 
     $ai4seo_last_website_toc_and_pp_update_time = (int) ($synced_account_data["last_terms_update_time"] ?? false);
 
@@ -3167,27 +3465,6 @@ function ai4seo_sync_robhub_account(bool $allow_notification_force = false): boo
 
     // compare settings and environmental variables
     ai4seo_update_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_HAS_PURCHASED_SOMETHING, (bool) ($synced_account_data["has_purchased_something"] ?? false));
-
-    // next free credits
-    $next_free_credits_countdown = (int) ($synced_account_data["next_free_credits_countdown"] ?? 0);
-    ai4seo_robhub_api()->update_environmental_variable(ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_NEXT_FREE_CREDITS_TIMESTAMP, time() + $next_free_credits_countdown);
-
-    // subscription
-    if (isset($synced_account_data["plan"]) && $synced_account_data["plan"] != "free") {
-        // build subscription array, base on
-        $subscription = array(
-            "plan" => $synced_account_data["plan"],
-            "subscription_start" => $synced_account_data["subscription_start"] ?? "",
-            "subscription_end" => $synced_account_data["subscription_end"] ?? "",
-            "next_credits_refresh" => $synced_account_data["next_credits_refresh"] ?? "",
-            "do_renew" => (bool) ($synced_account_data["do_renew"] ?? false),
-            "renew_frequency" => $synced_account_data["renew_frequency"] ?? "monthly",
-        );
-
-        ai4seo_robhub_api()->update_environmental_variable(ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION, $subscription);
-    } else {
-        ai4seo_robhub_api()->delete_environmental_variable(ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION);
-    }
 
     // Sync Pay-As-You-Go settings
     if (isset($synced_account_data["is_payg_enabled"])) {
@@ -3258,13 +3535,9 @@ function ai4seo_sync_robhub_account(bool $allow_notification_force = false): boo
 
             unset($notification["force"]);
 
-
             ai4seo_push_notification($notification_index, $message, $force, $notification);
         }
     }
-
-    // set the last account sync time
-    ai4seo_robhub_api()->update_environmental_variable(ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC, time());
 
     return true;
 }
@@ -3480,7 +3753,7 @@ function ai4seo_can_manage_this_plugin(): bool {
     }
 
     // Define variables for the incognito-setting
-    $ai4seo_setting_enable_incognito_mode = ai4seo_get_setting(AI4SEO_SETTING_ENABLE_INCOGNITO_MODE);
+    $ai4seo_setting_enable_incognito_mode = ai4seo_is_incognito_mode_enabled();
     $ai4seo_setting_incognito_mode_user_id = ai4seo_get_setting(AI4SEO_SETTING_INCOGNITO_MODE_USER_ID);
     $current_user_id = get_current_user_id();
 
@@ -3524,7 +3797,7 @@ function ai4seo_can_manage_this_plugin(): bool {
 // =========================================================================================== \\
 
 /**
- * Given any text phrase that may not be suitable as a button or tab label, this function will return a nice label
+ * Given any text phrase that may not be suitable as a button or page label, this function will return a nice label
  * @param $text string The text to be converted
  * @return string The nice label
  */
@@ -3733,22 +4006,30 @@ function ai4seo_get_plugin_basename(): string {
 
 /**
  * Returns a url leading to a point within the plugin
- * @param string $tab The tab to navigate to
+ * @param string $page The page to navigate to
  * @param array $additional_parameter Additional parameters to add to the url
+ * @param bool $return_full_path Whether to add the full path (http://example.com/wp-admin/admin.php?page=ai-for-seo)
  * @return string The plugins admin sub page url
  */
-function ai4seo_get_admin_url(string $tab = "", array $additional_parameter = array()): string {
-    $tab = sanitize_key($tab);
-    $admin_sub_page_url = admin_url("admin.php?page=" . AI4SEO_PLUGIN_IDENTIFIER);
+function ai4seo_get_subpage_url(string $page = "", array $additional_parameter = array(), bool $return_full_path = true): string {
+    $page = sanitize_key($page);
 
-    // workaround: if tab is dashboard, remove it from the url
-    if ($tab == "dashboard") {
-        $tab = "";
+    if ($return_full_path) {
+        $page_url = admin_url("admin.php");
+    } else {
+        $page_url = "";
     }
 
-    // add tab if set
-    if ($tab) {
-        $admin_sub_page_url = add_query_arg('ai4seo-tab', $tab, $admin_sub_page_url);
+    $page_url = add_query_arg('page', AI4SEO_PLUGIN_IDENTIFIER, $page_url);
+
+    // workaround: if page is dashboard, remove it from the url
+    if ($page == "dashboard") {
+        $page = "";
+    }
+
+    // add subpage if set
+    if ($page) {
+        $page_url = add_query_arg('ai4seo_subpage', $page, $page_url);
     }
 
     // add additional parameters if set
@@ -3756,25 +4037,31 @@ function ai4seo_get_admin_url(string $tab = "", array $additional_parameter = ar
         foreach ($additional_parameter as $key => $value) {
             $key = sanitize_key($key);
             $value = sanitize_text_field($value);
-            $admin_sub_page_url = add_query_arg($key, $value, $admin_sub_page_url);
+            $page_url = add_query_arg($key, $value, $page_url);
         }
     }
 
-    return sanitize_url($admin_sub_page_url);
+    // sanitize the url if we want the full path
+    if ($return_full_path) {
+        $page_url = sanitize_url($page_url);
+    }
+
+    return $page_url;
 }
 
 // =========================================================================================== \\
 
 /**
- * Returns the url to a specific post type within the AI4SEO_POST_TYPES_TAB_NAME-Tab
+ * Returns the url to a specific post type within the AI4SEO_POST_TYPES_PLUGIN_PAGE_NAME array
  * @param string $post_type The post type to navigate to
  * @param int $current_page The current page to navigate to
  * @param array $additional_parameter Additional parameters to add to the url
+ * @param bool $return_full_path Whether to add the full path (http://example.com/wp-admin/admin.php?page=ai-for-seo&ai4seo-post-type=post)
  * @return string The url to the post type
  */
-function ai4seo_get_post_type_url(string $post_type, int $current_page = 1, array $additional_parameter = array()): string {
-    $additional_parameter["ai4seo-page"] = $current_page ?: "%#%"; # %#% = pagination workaround
-    return ai4seo_get_admin_url(AI4SEO_POST_TYPES_TAB_NAME, array("ai4seo-post-type" => $post_type) + $additional_parameter);
+function ai4seo_get_post_type_page_url(string $post_type, int $current_page = 1, array $additional_parameter = array(), bool $return_full_path = true): string {
+    $additional_parameter["ai4seo_page"] = $current_page ?: "%#%"; # %#% = pagination workaround
+    return ai4seo_get_subpage_url(AI4SEO_POST_TYPES_PLUGIN_PAGE_NAME, array("ai4seo-post-type" => $post_type) + $additional_parameter, $return_full_path);
 }
 
 // =========================================================================================== \\
@@ -3785,35 +4072,35 @@ function ai4seo_get_post_type_url(string $post_type, int $current_page = 1, arra
  */
 function ai4seo_is_user_inside_our_plugin_admin_pages(): bool {
     // check if the "page" parameter is set and if it is our plugin
-    return isset($_GET["page"]) && sanitize_key($_GET["page"]) == AI4SEO_PLUGIN_IDENTIFIER;
+    return is_admin() && isset($_GET["page"]) && sanitize_key($_GET["page"]) == AI4SEO_PLUGIN_IDENTIFIER;
 }
 
 // =========================================================================================== \\
 
 /**
- * Checks if the current tab is the given tab
- * @param string $tab The tab to check
- * @return bool Whether the current tab is the given tab
+ * Checks if the active page is the given page
+ * @param string $plugin_page The page to check
+ * @return bool Whether the active page is the given page
  */
-function ai4seo_is_tab_open(string $tab = ""): bool {
-    $tab = sanitize_key($tab);
-    $current_tab = ai4seo_get_current_tab();
+function ai4seo_is_plugin_page_active(string $plugin_page = ""): bool {
+    $plugin_page = sanitize_key($plugin_page);
+    $active_plugin_page = ai4seo_get_active_subpage();
 
     // check if we are inside the plugins admin pages (page should be ai-for-seo)
     if (!ai4seo_is_user_inside_our_plugin_admin_pages()) {
         return false;
     }
 
-    // Dashboard: both dashboard and empty tab are considered dashboard
-    if (!$tab) {
-        $tab = "dashboard";
+    // Dashboard: both "dashboard" and empty are considered dashboard
+    if (!$plugin_page) {
+        $plugin_page = "dashboard";
     }
 
-    if (!$current_tab) {
-        $current_tab = "dashboard";
+    if (!$active_plugin_page) {
+        $active_plugin_page = "dashboard";
     }
 
-    return $current_tab == $tab;
+    return $active_plugin_page == $plugin_page;
 }
 
 // =========================================================================================== \\
@@ -3824,29 +4111,37 @@ function ai4seo_is_tab_open(string $tab = ""): bool {
  * @return bool Whether the current post type is the given post type
  */
 function ai4seo_is_post_type_open(string $post_type): bool {
-    $current_post_type = ai4seo_get_current_post_type();
+    $current_post_type = ai4seo_get_active_post_type_subpage();
     return $current_post_type == $post_type;
 }
 
 // =========================================================================================== \\
 
 /**
- * Returns the current tab (admin url tab)
- * @return string The current tab
+ * Returns the active page (admin url page)
+ * @return string The active page
  */
-function ai4seo_get_current_tab(): string {
+function ai4seo_get_active_subpage(): string {
+    if (!ai4seo_is_user_inside_our_plugin_admin_pages()) {
+        return "";
+    }
+
     # workaround: amp; is added to the url when the user is redirected from stripe
-    return sanitize_key($_GET["ai4seo-tab"] ?? $_GET["amp;ai4seo-tab"] ?? ai4seo_get_default_tab());
+    return sanitize_key($_GET["ai4seo_subpage"] ?? $_GET["amp;ai4seo_subpage"] ?? $_GET["ai4seo-tab"] ?? $_GET["amp;ai4seo-tab"] ?? ai4seo_get_default_subpage());
 }
 
 // =========================================================================================== \\
 
 /**
- * Returns the current tab (admin url tab)
- * @return string The current tab
+ * Returns the active post type page
+ * @return string The active post type page
  */
-function ai4seo_get_current_post_type(): string {
-    if (ai4seo_get_current_tab() != "post") {
+function ai4seo_get_active_post_type_subpage(): string {
+    if (!ai4seo_is_user_inside_our_plugin_admin_pages()) {
+        return "";
+    }
+
+    if (ai4seo_get_active_subpage() != "post") {
         return "";
     }
 
@@ -3856,10 +4151,10 @@ function ai4seo_get_current_post_type(): string {
 // =========================================================================================== \\
 
 /**
- * Returns the default tab (dashboard)
- * @return string The default tab
+ * Returns the default page (dashboard)
+ * @return string The default page
  */
-function ai4seo_get_default_tab(): string {
+function ai4seo_get_default_subpage(): string {
     return "dashboard";
 }
 
@@ -4456,7 +4751,7 @@ function ai4seo_get_unprefixed_input_name($input_id): string {
 // =========================================================================================== \\
 
 /**
- * Get the MIME type of a file from a given URL.
+ * Get the MIME type of file from a given URL.
  *
  * @param string $url The URL of the file.
  * @return string The MIME type (e.g., "image/jpeg") or empty string if not found.
@@ -5039,7 +5334,7 @@ function ai4seo_condense_raw_post_content(string &$content, int $soft_cap = 2000
     $content = html_entity_decode($content, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
     // Handle common entities that might not be converted
-    $content = str_replace(['&nbsp;', '&amp;', '&quot;', '&#39;', '&lt;', '&gt;', '&;', '\u2019', 'â€™', 'â€', 'â€³', '€™t', '\u201d', '\u003cli>'], [' ', '&', '"', "'", '<', '>', '\'', '\'', '\'', '"', '"', '\'', '"', '- '], $content);
+    $content = str_replace(['&nbsp;', '&amp;', '&quot;', '&#39;', '&lt;', '&gt;', '&;', '\u2019', 'â€™', 'â€', 'â€³', '€™t', '\u201d', '\u003cli>', '\u2013'], [' ', '&', '"', "'", '<', '>', '\'', '\'', '\'', '"', '"', '\'', '"', '- ', '–'], $content);
 
     // Replace multiple spaces with a single space and trim whitespace
     $content = preg_replace('/\s+/', ' ', $content);
@@ -5154,31 +5449,38 @@ function ai4seo_add_post_context($post_id, &$content) {
     }
 
     // ADD WEBSITE CONTEXT
-    $context .= "ABOUT THE WEBSITE: ";
-    
-    // Website name
-    $wp_name = get_bloginfo('name');
-
-    if ($wp_name) {
-        $context .= "Name: '" . $wp_name . "'. ";
-    }
-
-    // Website tagline
-    $wp_tagline = get_bloginfo('description');
-
-    if ($wp_tagline) {
-        $context .= "Tagline: '" . $wp_tagline . "'. ";
-    }
-
-    // Website URL
-    $wp_url = get_bloginfo('url');
-
-    if ($wp_url) {
-        $context .= "URL: '" . $wp_url . "'. ";
-    }
+    $about_this_website = ai4seo_get_website_context();
+    $context .= "ABOUT THE WEBSITE: {$about_this_website}. ";
 
     $context = trim($context);
     $content = "$context | PAGE CONTENT: " . $content;
+}
+
+// =========================================================================================== \\
+
+function ai4seo_get_website_context(): string {
+    $website_context = "";
+
+    // Get the WordPress site name, tagline, and URL
+    $wp_name = get_bloginfo('name');
+
+    if ($wp_name) {
+        $website_context .= "Name: '" . $wp_name . "'. ";
+    }
+
+    $wp_tagline = get_bloginfo('description');
+
+    if ($wp_tagline) {
+        $website_context .= "Tagline: '" . $wp_tagline . "'. ";
+    }
+
+    $wp_url = get_bloginfo('url');
+
+    if ($wp_url) {
+        $website_context .= "URL: '" . $wp_url . "'";
+    }
+
+    return $website_context;
 }
 
 // =========================================================================================== \\
@@ -5304,6 +5606,132 @@ function ai4seo_analyze_post(int $post_id) {
     }
 
     ai4seo_refresh_one_posts_metadata_coverage_status($post_id, $post);
+}
+
+
+// ___________________________________________________________________________________________ \\
+// === TAXONOMIES ============================================================================ \\
+// ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
+
+/**
+ * Get all taxonomies that expose public term archive URLs.
+ *
+ * Includes core, custom, WooCommerce product taxonomies, and Woo attributes (pa_*)
+ * but excludes Woo attributes that have archives disabled.
+ *
+ * @return array[] List of taxonomy info:
+ *                 array(
+ *                     'taxonomy'      => 'category',
+ *                     'label'         => 'Categories',
+ *                     'is_woocommerce'=> true|false,
+ *                     'is_attribute'  => true|false,
+ *                     'archives_on'   => true|false,
+ *                     'term_count'    => 123,
+ *                     'sample_url'    => 'https://example.com/category/foo' | null,
+ *                 )
+ */
+function ai4seo_get_url_exposed_taxonomies(): array {
+    $cache_key   = 'ai4seo_url_exposed_taxonomies_v1';
+    $cached      = get_transient( $cache_key );
+    if ( is_array( $cached ) ) {
+        return $cached;
+    }
+
+    // Map Woo attribute archive settings if WooCommerce is present.
+    $woo_attr_archive_on = array(); // taxonomy => bool
+    if ( function_exists( 'wc_get_attribute_taxonomies' ) ) {
+        $attrs = wc_get_attribute_taxonomies();
+        if ( is_array( $attrs ) ) {
+            foreach ( $attrs as $attr ) {
+                if ( ! empty( $attr->attribute_name ) ) {
+                    $tax_name                         = 'pa_' . sanitize_key( $attr->attribute_name );
+                    $woo_attr_archive_on[ $tax_name ] = ! empty( $attr->attribute_public );
+                }
+            }
+        }
+    }
+
+    // Get public taxonomies.
+    $tax_objects = get_taxonomies(
+        array(
+            'public' => true,
+        ),
+        'objects'
+    );
+
+    $results = array();
+
+    foreach ( $tax_objects as $tax_name => $tax_obj ) {
+        // Must be queryable and have rewrite rules to expose pretty URLs.
+        $has_rewrite   = ! empty( $tax_obj->rewrite );
+        $is_queryable  = ! empty( $tax_obj->publicly_queryable );
+        if ( ! $has_rewrite || ! $is_queryable ) {
+            continue;
+        }
+
+        // Woo and attributes flags.
+        $is_woo        = in_array( $tax_name, array( 'product_cat', 'product_tag' ), true ) || 0 === strpos( $tax_name, 'pa_' );
+        $is_attribute  = 0 === strpos( $tax_name, 'pa_' );
+
+        // For Woo attributes: respect "Enable archives".
+        if ( $is_attribute ) {
+            $archives_on = isset( $woo_attr_archive_on[ $tax_name ] ) ? (bool) $woo_attr_archive_on[ $tax_name ] : true;
+            if ( ! $archives_on ) {
+                continue; // Skip attributes without archives.
+            }
+        }
+
+        // Count terms cheaply.
+        $term_count = (int) wp_count_terms(
+            array(
+                'taxonomy'   => $tax_name,
+                'hide_empty' => false,
+            )
+        );
+
+        // Sample URL: try to fetch a single term and link to it.
+        $sample_url = null;
+        if ( $term_count > 0 ) {
+            $terms = get_terms(
+                array(
+                    'taxonomy'   => $tax_name,
+                    'hide_empty' => false,
+                    'number'     => 1,
+                    'fields'     => 'all',
+                )
+            );
+            if ( ! is_wp_error( $terms ) && ! empty( $terms ) ) {
+                $url = get_term_link( $terms[0] );
+                if ( ! is_wp_error( $url ) ) {
+                    $sample_url = esc_url( $url );
+                }
+            }
+        }
+
+        $results[] = array(
+            'taxonomy'       => $tax_name,
+            'label'          => isset( $tax_obj->labels->name ) ? (string) $tax_obj->labels->name : $tax_name,
+            'is_woocommerce' => $is_woo,
+            'is_attribute'   => $is_attribute,
+            'archives_on'    => true, // reached only if queryable + rewrite (+ attr archives on)
+            'term_count'     => $term_count,
+            'sample_url'     => $sample_url,
+        );
+    }
+
+    // Sort: Woo first, then by name.
+    usort(
+        $results,
+        static function ( $a, $b ) {
+            if ( $a['is_woocommerce'] !== $b['is_woocommerce'] ) {
+                return $a['is_woocommerce'] ? -1 : 1;
+            }
+            return strcasecmp( $a['taxonomy'], $b['taxonomy'] );
+        }
+    );
+
+    set_transient( $cache_key, $results, 5 * MINUTE_IN_SECONDS );
+    return $results;
 }
 
 
@@ -5515,7 +5943,7 @@ function ai4seo_output_money_back_guarantee_notice() {
         echo "<div class='ai4seo-money-back-guarantee-quote'>";
             echo ai4seo_wp_kses(sprintf(
                 /* translators: %s is a clickable email address */
-                __("We’re excited to have you experience \"AI for SEO\". If you find a better price elsewhere, simply <a href='%s' target='blank'>reach out</a>! We’ll match it.", "ai-for-seo"),
+                __("We’re excited for you to experience *AI for SEO*. If you find a better price elsewhere, simply <a href='%s' target='_blank'>reach out</a>! We’ll match it.", "ai-for-seo"),
                 esc_attr(AI4SEO_OFFICIAL_CONTACT_URL)
             ));
         echo "</div>";
@@ -5530,7 +5958,7 @@ function ai4seo_output_money_back_guarantee_notice() {
         echo "<div class='ai4seo-money-back-guarantee-quote'>";
             echo ai4seo_wp_kses(sprintf(
                 /* translators: %s is a clickable email address */
-                __("During the first %u days after purchasing a subscription (Basic, Pro or Premium) or your first Credits Pack (5000 Credits or lower), if \"AI for SEO\" isn’t the best fit, simply <a href='%s' target='blank'>reach out</a>! We’ll happily refund %s of your money. No questions asked.", "ai-for-seo"),
+                __("During the first %u days after purchasing a subscription (Basic, Pro or Premium) or your first Credits Pack (5000 Credits or lower), if *AI for SEO* isn’t the best fit, simply <a href='%s' target='blank'>reach out</a>! We’ll happily refund %s of your money. No questions asked.", "ai-for-seo"),
                 AI4SEO_MONEY_BACK_GUARANTEE_DAYS,
                 esc_attr(AI4SEO_OFFICIAL_CONTACT_URL),
                 '100%',
@@ -5965,7 +6393,7 @@ function ai4seo_echo_cost_breakdown_section($ai4seo_credits_percentage) {
         } else if ($ai4seo_credits_percentage < 100) {
             echo "<li class='ai4seo-red-message'>";
                 echo ai4seo_wp_kses(sprintf(
-                    __("<strong>Note:</strong> Your Credits balance only covers ~<strong>%s%%</strong> of the remaining entries.", "ai-for-seo"),
+                    __("<strong>Note:</strong> Your Credits balance only covers approximately <strong>%s%%</strong> of the remaining entries.", "ai-for-seo"),
                     esc_html($ai4seo_credits_percentage)
                 ));
             echo "</li>";
@@ -6035,11 +6463,11 @@ function ai4seo_get_dashicon_tag(string $icon_name, string $css_class = ""): str
 // =========================================================================================== \\
 
 /**
- * Function to return the HTML for a dashicon tag for the navigation tabs
- * @param $tab_name string The name of the tab (e.g., "page", "post", "category", etc.)
- * @return string The HTML for the dashicon tag for the navigation tabs
+ * Function to return the HTML for a dashicon tag for the menu items
+ * @param $plugin_page string The name of the plugin page (e.g., "page", "post", "category", etc.)
+ * @return string The HTML for the dashicon tag for the menu items
  */
-function ai4seo_get_dashicon_tag_for_navigation($tab_name): string {
+function ai4seo_get_dashicon_tag_for_navigation($plugin_page): string {
     $icon_name_mapping = array(
         "default" => 'text-page',
         "page" => 'admin-page',
@@ -6056,10 +6484,11 @@ function ai4seo_get_dashicon_tag_for_navigation($tab_name): string {
         "rss_feed" => 'rss',
     );
 
-    $icon_name = $icon_name_mapping[$tab_name] ?? $icon_name_mapping['default'];
+    $icon_name = $icon_name_mapping[$plugin_page] ?? $icon_name_mapping['default'];
 
-    return ai4seo_get_dashicon_tag($icon_name, "ai4seo-nav-tab-icon");
+    return ai4seo_get_dashicon_tag($icon_name, "ai4seo-menu-item-icon");
 }
+
 
 // ___________________________________________________________________________________________ \\
 // === THIRD PARTY SEO PLUGINS =============================================================== \\
@@ -6363,6 +6792,11 @@ function ai4seo_is_plugin_or_theme_active($identifier): bool {
         case AI4SEO_THIRD_PARTY_PLUGIN_NEXTGEN_GALLERY:
             $check_this_file_path = "nextgen-gallery/nggallery.php";
             $check_this_class_name = "C_NextGEN_Bootstrap";
+            break;
+
+        case AI4SEO_THIRD_PARTY_PLUGIN_SEO_KEY:
+            $check_this_file_path = "seo-key/seo-key.php";
+            $check_this_class_name = "SEOKEY_Free";
             break;
     }
 
@@ -6688,6 +7122,17 @@ function ai4seo_automated_generation_cron_job($debug = false): bool {
 
     // === CHECK USERS ROBHUB ACCOUNT ========================================================= \\
 
+    $is_robhub_account_synced = ai4seo_robhub_api()->is_account_synced();
+
+    if (!$is_robhub_account_synced) {
+        if ($debug) {
+            echo "<pre>" . esc_html(__FUNCTION__) . " >" . esc_html(print_r("Robhub account not synced -> skip", true)) . "<</pre>";
+        }
+
+        ai4seo_set_cron_job_status(AI4SEO_BULK_GENERATION_CRON_JOB_NAME, "finished-with-error");
+        return false;
+    }
+
     // check if credentials are set
     if (!ai4seo_robhub_api()->init_credentials(false)) {
         if ($debug) {
@@ -6919,7 +7364,7 @@ function ai4seo_automated_metadata_generation($debug = false, $only_this_post_id
         $metadata_generation_language = ai4seo_get_posts_language($post_id);
         $metadata_generation_language = sanitize_text_field($metadata_generation_language);
 
-        $api_call_parameters = array(
+        $robhub_api_call_parameters = array(
             "input" => $post_content,
             "language" => $metadata_generation_language,
         );
@@ -6928,12 +7373,15 @@ function ai4seo_automated_metadata_generation($debug = false, $only_this_post_id
         $ai4seo_keyphrase = sanitize_text_field(ai4seo_get_any_third_party_seo_plugin_keyphrase($post_id));
 
         if ($ai4seo_keyphrase) {
-            $api_call_parameters["keyphrase"] = $ai4seo_keyphrase;
+            $robhub_api_call_parameters["keyphrase"] = $ai4seo_keyphrase;
         }
+
+        $robhub_api_call_parameters["trigger"] = "automated";
+        $robhub_api_call_parameters["context"] = ai4seo_get_website_context();
 
         $robhub_api_endpoint = "ai4seo/generate-all-metadata";
 
-        $results = ai4seo_robhub_api()->call($robhub_api_endpoint, $api_call_parameters, "POST");
+        $results = ai4seo_robhub_api()->call($robhub_api_endpoint, $robhub_api_call_parameters, "POST");
 
 
         // === CHECK RESULTS ========================================================================== \\
@@ -7236,7 +7684,7 @@ function ai4seo_automated_attachment_attributes_generation(bool $debug = false, 
     $use_base64_image = ai4seo_should_use_base64_image($attachment_url);
 
     // PREPARE ROBHUB API CALL
-    $robhub_endpoint = "ai4seo/generate-all-attachment-attributes";
+    $robhub_api_endpoint = "ai4seo/generate-all-attachment-attributes";
 
     $attachment_attributes_generation_language = ai4seo_get_attachments_language($attachment_post_id);
 
@@ -7244,11 +7692,14 @@ function ai4seo_automated_attachment_attributes_generation(bool $debug = false, 
         "language" => $attachment_attributes_generation_language,
     );
 
+    $robhub_api_call_parameters["trigger"] = "automated";
+    $robhub_api_call_parameters["context"] = ai4seo_get_website_context();
+
     // API CALL WITH ATTACHMENT URL
     if (!$use_base64_image) {
         $robhub_api_call_parameters["attachment_url"] = $attachment_url;
 
-        $results = ai4seo_robhub_api()->call($robhub_endpoint, $robhub_api_call_parameters, "POST");
+        $results = ai4seo_robhub_api()->call($robhub_api_endpoint, $robhub_api_call_parameters, "POST");
 
         if (!ai4seo_robhub_api()->was_call_successful($results)) {
             unset($robhub_api_call_parameters["attachment_url"]);
@@ -7322,7 +7773,7 @@ function ai4seo_automated_attachment_attributes_generation(bool $debug = false, 
 // =========================================================================================== \\
 
 function ai4seo_generate_attachment_attributes_using_base64($attachment_url, $mime_type, $robhub_api_call_parameters) {
-    $robhub_endpoint = "ai4seo/generate-all-attachment-attributes";
+    $robhub_api_endpoint = "ai4seo/generate-all-attachment-attributes";
     $base64_from_image_file_response = ai4seo_get_base64_from_image_file($attachment_url);
 
     if (isset($base64_from_image_file_response["success"]) && $base64_from_image_file_response["success"]
@@ -7333,7 +7784,7 @@ function ai4seo_generate_attachment_attributes_using_base64($attachment_url, $mi
         $robhub_api_call_parameters["reference_attachment_url"] = $attachment_url;
         $robhub_api_call_parameters["input"] = $attachment_base64_uri;
 
-        $results = ai4seo_robhub_api()->call($robhub_endpoint, $robhub_api_call_parameters, "POST");
+        $results = ai4seo_robhub_api()->call($robhub_api_endpoint, $robhub_api_call_parameters, "POST");
     } else {
         $results = array(
             "success" => false,
@@ -7707,6 +8158,13 @@ function ai4seo_analyze_plugin_performance(bool $debug = false): bool {
 
     ai4seo_set_cron_job_status(AI4SEO_ANALYSE_PLUGIN_PERFORMANCE_CRON_JOB_NAME, "processing");
 
+    // sync robhub account eventually
+    $last_account_sync = ai4seo_robhub_api()->read_environmental_variable(ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC);
+
+    if ($last_account_sync < time() - ai4seo_robhub_api()::BACKGROUND_ACCOUNT_SYNC_INTERVAL) {
+        ai4seo_sync_robhub_account('plugin_analyse', true);
+    }
+
     // perform a full seo posts coverage
     ai4seo_refresh_all_posts_seo_coverage($debug);
 
@@ -7714,7 +8172,7 @@ function ai4seo_analyze_plugin_performance(bool $debug = false): bool {
     ai4seo_refresh_all_posts_generation_status_summary($debug);
 
     // update the last performance analysis time
-    ai4seo_update_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_PERFORMANCE_ANALYSIS_TIME, time());;
+    ai4seo_update_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_PERFORMANCE_ANALYSIS_TIME, time());
 
     ai4seo_set_cron_job_status(AI4SEO_ANALYSE_PLUGIN_PERFORMANCE_CRON_JOB_NAME, "finished");
     return true;
@@ -10292,6 +10750,24 @@ function ai4seo_send_json_success($data = [], $status_code = null) {
 // =========================================================================================== \\
 
 /**
+ * Print a hidden nonce field into admin pages we render.
+ */
+function ai4seo_print_ajax_nonce_field(): void {
+    // Only when our menu/page is active.
+    if ( !ai4seo_is_user_inside_our_plugin_admin_pages() ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        return;
+    }
+
+    // Hidden input. Not part of a form, just a DOM source for JS. No referrer field.
+    printf(
+        '<input type="hidden" id="' . esc_attr(AI4SEO_GLOBAL_NONCE_IDENTIFIER) . '" value="%s" />',
+        esc_attr( wp_create_nonce( AI4SEO_GLOBAL_NONCE_IDENTIFIER ) )
+    );
+}
+
+// =========================================================================================== \\
+
+/**
  * Called via AJAX - saves various kind of data
  * @return void
  */
@@ -10455,7 +10931,7 @@ function ai4seo_init_purchase() {
     $stripe_price_id = ai4seo_deep_sanitize($_POST["stripe_price_id"]);
 
     // build redirect url
-    $redirect_url = ai4seo_get_admin_url("dashboard") . "&ai4seo-just-purchased=true";
+    $redirect_url = ai4seo_get_subpage_url("dashboard") . "&ai4seo-just-purchased=true";
 
     // call robhub api endpoint "payg-settings" with current payg settings
     $robhub_endpoint = "client/init-purchase";
@@ -10713,6 +11189,51 @@ function ai4seo_show_attachment_attributes_editor() {
 // =========================================================================================== \\
 
 /**
+ * Called via AJAX - Returns the dashboard HTML for auto-refresh functionality
+ * @return void
+ */
+function ai4seo_get_dashboard_html() {
+    // Make sure that this function is only called once
+    if (!ai4seo_singleton(__FUNCTION__)) {
+        return;
+    }
+
+    // we might want to see fresh data
+    ai4seo_check_for_performance_analysis();
+
+    ob_start();
+    require_once(ai4seo_get_includes_pages_path("dashboard.php"));
+    $ai4seo_dashboard_content = ob_get_clean();
+
+    // Extract only the dashboard container content
+    // Look for the opening div and find the matching closing div
+    $ai4seo_start_pattern = '<div class=\'ai4seo-cards-container ai4seo-dashboard\'>';
+    $ai4seo_start_pos = strpos($ai4seo_dashboard_content, $ai4seo_start_pattern);
+    
+    if ($ai4seo_start_pos !== false) {
+        // Find the content starting from after the opening tag
+        $ai4seo_content_start = $ai4seo_start_pos + strlen($ai4seo_start_pattern);
+        $ai4seo_content = substr($ai4seo_dashboard_content, $ai4seo_content_start);
+        
+        // Find the last closing div tag (which should be the matching one)
+        $ai4seo_last_div_pos = strrpos($ai4seo_content, '</div>');
+        
+        if ($ai4seo_last_div_pos !== false) {
+            $ai4seo_inner_content = substr($ai4seo_content, 0, $ai4seo_last_div_pos);
+            $ai4seo_dashboard_html = '<div class="ai4seo-cards-container ai4seo-dashboard">' . $ai4seo_inner_content . '</div>';
+            ai4seo_send_json_success($ai4seo_dashboard_html);
+        } else {
+            ai4seo_send_json_error( esc_html__('Dashboard closing tag not found', 'ai-for-seo'), 71628825 );
+        }
+    } else {
+        ai4seo_send_json_error( esc_html__('Dashboard container not found', 'ai-for-seo'), 81628825 );
+    }
+}
+
+
+// =========================================================================================== \\
+
+/**
  * Called via AJAX - Generates metadata after clicking on a generate metadata button
  * @return void
  */
@@ -10741,19 +11262,6 @@ function ai4seo_generate_attachment_attributes() {
 
     require_once(ai4seo_get_includes_ajax_process_path("generate-attachment-attributes.php"));
     wp_die();
-}
-
-
-// =========================================================================================== \\
-
-function ai4seo_display_license_information() {
-    // Make sure that this function is only called once
-    if (!ai4seo_singleton(__FUNCTION__)) {
-        return;
-    }
-
-    ai4seo_update_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_LICENSE_KEY_SHOWN, false);
-    ai4seo_send_json_success();
 }
 
 // =========================================================================================== \\
@@ -11725,7 +12233,6 @@ function ai4seo_validate_environmental_variable_value(string $environmental_vari
             return true;
 
 
-        case AI4SEO_ENVIRONMENTAL_VARIABLE_LICENSE_KEY_SHOWN:
         case AI4SEO_ENVIRONMENTAL_VARIABLE_ENHANCED_REPORTING_ACCEPTED:
             // boolean
             return is_bool($environmental_variable_value);
@@ -12106,9 +12613,9 @@ function ai4seo_get_notification_buttons(string $notification_index, array $noti
     $show_go_to_account_settings_button = (bool) ($notification['go_to_account_settings_button'] ?? false);
     $show_go_to_settings_button = (bool) ($notification['go_to_settings_button'] ?? false);
     $show_go_to_help_button = (bool) ($notification['go_to_help_button'] ?? false);
-    $account_url = ai4seo_get_admin_url("account");
-    $settings_url = ai4seo_get_admin_url("settings");
-    $help_url = ai4seo_get_admin_url("help");
+    $account_url = ai4seo_get_subpage_url("account");
+    $settings_url = ai4seo_get_subpage_url("settings");
+    $help_url = ai4seo_get_subpage_url("help");
 
     $notification_buttons = "";
 
@@ -12117,7 +12624,7 @@ function ai4seo_get_notification_buttons(string $notification_index, array $noti
 
     // plugin-update notification -> add "See what's new" button
     if ($notification_index === "plugin-update") {
-        $notification_buttons .= ai4seo_get_button_text_link_tag("#ai4seo-recent-plugin-updates", "arrow-up-right-from-square", __("See what's new", "ai-for-seo"), "", "jQuery(\".ai4seo-recent-plugin-updates-content\").show()");
+        $notification_buttons .= ai4seo_get_button_text_link_tag("#ai4seo_recent_plugin_updates", "arrow-up-right-from-square", __("See what's new", "ai-for-seo"), "", "jQuery(\".ai4seo-recent-plugin-updates-content\").show()");
     }
 
 
@@ -12297,6 +12804,17 @@ function ai4seo_check_notification_conditions(string $notification_index, array 
                 if ($num_visible_notifications > $max_num_visible_notifications_condition) {
                     return false; // condition not met
                 }
+                break;
+
+            case "is_robhub_account_synced_condition":
+                // check if the RobHub account is synced
+                $is_robhub_account_synced_condition = (bool) $condition_value;
+                $is_robhub_account_synced = ai4seo_robhub_api()->is_account_synced();
+
+                if ($is_robhub_account_synced_condition != $is_robhub_account_synced) {
+                    return false; // condition not met
+                }
+
                 break;
 
             # unknown condition -> always opt out
@@ -12528,7 +13046,7 @@ function ai4seo_remove_all_notifications() {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 function ai4seo_check_for_new_notifications() {
-    $is_user_on_our_dashboard = ai4seo_is_tab_open("dashboard");
+    $is_user_on_our_dashboard = ai4seo_is_plugin_page_active("dashboard");
 
     // push these notifications, only on our dashboard to save resources
 
@@ -12686,7 +13204,7 @@ function ai4seo_check_for_rate_us_notification($force = false) {
 
     // todo: user already rated us, no need to show the rate us notification again
 
-    $message = esc_html__("We hope you're enjoying the plugin! We'd love to hear your feedback and thoughts on your experience. Leaving a comment and rating our plugin using the button below truly helps us with further development and allows us to maintain high support standards. Your input is greatly appreciated!", "ai-for-seo");
+    $message = esc_html__("We hope you're enjoying the plugin and we'd love to hear your feedback and thoughts on your experience. Leaving a comment and rating our plugin using the button below truly helps us with further development and allows us to maintain high support standards. Your input is greatly appreciated!", "ai-for-seo");
     $message .= "<br><br>" . esc_html__("On behalf of the entire AI for SEO team, thank you for your support!", "ai-for-seo");
     $message .= " ❤️";
 
@@ -12696,6 +13214,7 @@ function ai4seo_check_for_rate_us_notification($force = false) {
             "show_avatar" => true,
             "rate_us_button" => true,
             "max_num_visible_notifications_condition" => 0, # prevent spam, catch a focused moment
+            "is_robhub_account_synced_condition" => true, // only show this notification if the RobHub account is synced
         )
     );
 }
@@ -12743,6 +13262,7 @@ function ai4seo_check_for_low_credits_balance_notification($force = false) {
             "is_permanent" => true,
             "get_more_credits_button" => true,
             "get_a_custom_quote_button" => true,
+            "is_robhub_account_synced_condition" => true, // only show this notification if the RobHub account is synced
         ));
 }
 
@@ -12869,7 +13389,8 @@ function ai4seo_check_for_missing_entries_notification($force = false) {
     ai4seo_push_notification($notification_index, implode("<br>", $messages), $force,
         array(
             "set_up_seo_autopilot_button" => true,
-            "max_num_visible_notifications_condition" => 1 # prevent spam
+            "max_num_visible_notifications_condition" => 1, # prevent spam
+            "is_robhub_account_synced_condition" => true, // only show this notification if the RobHub account is synced
         )
     );
 }
@@ -12981,7 +13502,7 @@ function ai4seo_check_for_inefficient_cron_jobs_notification($force = false) {
     if (ai4seo_is_wordpress_cron_disabled()) {
         $message = esc_html__("Your server cron jobs do not appear to be functioning properly, limiting AI for SEO automation. Please ensure that server cron jobs run at least every 5 minutes (1 minute for best results) or (not recommended) enable WordPress' internal cron system.", "ai-for-seo");
     } else {
-        $message = esc_html__("The last successful bulk generation run occurred a long time ago, which may indicate that WordPress' internal cron jobs are running too infrequently. We recommend switching to a server-based cron job during bulk generation and setting it to run at least every 5 minutes (every 1 minute for the fastest results). If you need assistance, please contact your hosting provider. If this is not an option, please check Settings > Experimental > Bulk Generation Duration for a workaround.", "ai-for-seo");
+        $message = esc_html__("The last successful Bulk Generation run was a long time ago, which may indicate that WordPress’ internal cron system is running too infrequently. We recommend switching to a server-based cron job during Bulk Generation and setting it to run at least every 5 minutes (every 1 minute for the fastest results). If you need assistance, please contact your hosting provider. If this is not an option, please check Settings > Troubleshooting > SEO Autopilot Duration for a workaround.", "ai-for-seo");
     }
 
     // push the notification
@@ -12989,7 +13510,8 @@ function ai4seo_check_for_inefficient_cron_jobs_notification($force = false) {
         array(
             "notice_type" => "notice-warning",
             "contact_us" => true,
-            "max_num_visible_notifications_condition" => 2 # prevent spam
+            "max_num_visible_notifications_condition" => 2, # prevent spam
+            "is_robhub_account_synced_condition" => true, // only show this notification if the RobHub account is synced
         )
     );
 }
@@ -13126,6 +13648,7 @@ function ai4seo_check_for_finished_seo_autopilot_notification($force = false) {
     ai4seo_push_notification($notification_index, $message, $force,
         array(
             "notice_type" => $notice_type,
+            "is_robhub_account_synced_condition" => true, // only show this notification if the RobHub account is synced
         )
     );
 }
@@ -13205,6 +13728,7 @@ function ai4seo_check_discount_notification($discount, $allow_notification_force
         "grab_deal_button" => true,
         "expire_at" => $expire_at,
         "voucher_code" => $discount_voucher_code,
+        "is_robhub_account_synced_condition" => true, // only show this notification if the RobHub account is synced
         # "min_num_missing_entries_condition" => 50, # todo: use this, if we can distinguish between agency and non-agency users
         # "do_credits_cover_all_missing_entries_condition" => false, # todo: use this, if we can distinguish between agency and non-agency users
     );

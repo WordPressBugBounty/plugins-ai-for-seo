@@ -10,9 +10,15 @@ if (!defined("ABSPATH")) {
 }
 
 $ai4seo_robhub_subscription = ai4seo_robhub_api()->read_environmental_variable(ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION);
+$ai4seo_is_robhub_account_synced = ai4seo_robhub_api()->is_account_synced();
 
 // Define boolean to determine whether to read license-data
-$ai4seo_show_license_details = (bool) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_HAS_PURCHASED_SOMETHING);
+$ai4seo_show_license_details = (bool) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_HAS_PURCHASED_SOMETHING) && ai4seo_robhub_api()->init_credentials();
+
+// For debugging: check $_GET["ai4seo_force_show_licence_details"]
+if (isset($_GET["ai4seo_force_show_licence_details"]) && $_GET["ai4seo_force_show_licence_details"]) {
+    $ai4seo_show_license_details = true;
+}
 
 // Define license variables
 $ai4seo_license_username = ($ai4seo_show_license_details ? ai4seo_robhub_api()->get_api_username() : "");
@@ -90,7 +96,7 @@ echo "<div class='ai4seo-form'>";
         // === HEADLINE ============================================================================== \\
 
         echo "<h2>";
-            echo "<i class='dashicons dashicons-id-alt ai4seo-nav-tab-icon'></i>";
+            echo "<i class='dashicons dashicons-id-alt ai4seo-menu-item-icon'></i>";
             echo esc_html__("License", "ai-for-seo");
         echo "</h2>";
 
@@ -140,7 +146,7 @@ echo "<div class='ai4seo-form'>";
             echo "<div class='ai4seo-form-item-input-wrapper' style='position:relative;'>";
                 // Display only actual input-field for when there is no existing api-key
                 if (!$ai4seo_license_key) {
-                    echo "<input type='text' class='ai4seo-textfield' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' autocomplete='off' value='" . esc_attr($ai4seo_license_key) . "' />";
+                    echo "<input type='text' class='ai4seo-textfield' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' autocomplete='off' value='' />";
                 }
 
                 // Display both input-fields and toggle buttons if there is an existing api-key
@@ -184,12 +190,14 @@ echo "<div class='ai4seo-form'>";
                 }
 
                 // Customize pay-as-you-go
-                if ($ai4seo_has_purchased_something) {
+                if ($ai4seo_has_purchased_something && $ai4seo_is_robhub_account_synced) {
                     echo ai4seo_wp_kses(ai4seo_get_button_text_link_tag("#", "list", esc_html__("Customize Pay-As-You-Go", "ai-for-seo"), "", "ai4seo_handle_open_customize_payg_modal();"));
                 }
 
                 // Button to manage credits
-                echo ai4seo_wp_kses(ai4seo_get_button_text_link_tag("#", "arrow-up-right-from-square", esc_html__("Get more Credits", "ai-for-seo"), "", "ai4seo_open_get_more_credits_modal();"));
+                if ($ai4seo_is_robhub_account_synced) {
+                    echo ai4seo_wp_kses(ai4seo_get_button_text_link_tag("#", "arrow-up-right-from-square", esc_html__("Get more Credits", "ai-for-seo"), "", "ai4seo_open_get_more_credits_modal();"));
+                }
             echo "</div>";
         echo "</div>";
     echo "</div>";
@@ -205,7 +213,7 @@ echo "<div class='ai4seo-form'>";
         // === HEADLINE ============================================================================== \\
 
         echo "<h2>";
-            echo "<i class='dashicons dashicons-megaphone ai4seo-nav-tab-icon'></i>";
+            echo "<i class='dashicons dashicons-megaphone ai4seo-menu-item-icon'></i>";
             echo esc_html__("For SEO and Web Agencies", "ai-for-seo");
         echo "</h2>";
 
@@ -400,7 +408,7 @@ echo "<div class='ai4seo-form'>";
     echo "<div class='card ai4seo-form-section'>";
         // Headline
         echo "<h2>";
-            echo '<i class="dashicons dashicons-shield ai4seo-nav-tab-icon"></i>';
+            echo '<i class="dashicons dashicons-shield ai4seo-menu-item-icon"></i>';
             echo esc_html__("Privacy & Agreements", "ai-for-seo");
         echo "</h2>";
 

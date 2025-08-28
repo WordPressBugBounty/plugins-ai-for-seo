@@ -80,6 +80,7 @@ if (isset($ai4seo_recent_robhub_environmental_variable_changes[$ai4seo_robhub_ap
     $ai4seo_old_api_password = $ai4seo_recent_robhub_environmental_variable_changes[$ai4seo_robhub_api_password_key][0] ?? "";
     $ai4seo_new_api_username = $ai4seo_recent_robhub_environmental_variable_changes[$ai4seo_robhub_api_username_key][1] ?? "";
     $ai4seo_new_api_password = $ai4seo_recent_robhub_environmental_variable_changes[$ai4seo_robhub_api_password_key][1] ?? "";
+    $ai4seo_reset_robhub_account = false;
 
     // if we have new username or password, we need to test the new credentials
     if ($ai4seo_new_api_username && $ai4seo_new_api_password) {
@@ -89,11 +90,7 @@ if (isset($ai4seo_recent_robhub_environmental_variable_changes[$ai4seo_robhub_ap
 
         // check if the response is valid
         if (ai4seo_robhub_api()->was_call_successful($ai4seo_robhub_api_response)) {
-            // reset last account sync, so we can sync the details again
-            ai4seo_robhub_api()->reset_last_account_sync();
-
-            // remove all notifications, as we may have new ones with this new account
-            ai4seo_remove_all_notifications();
+            $ai4seo_reset_robhub_account = true;
         } else {
             ai4seo_robhub_api()->update_environmental_variable($ai4seo_robhub_api_username_key, $ai4seo_old_api_username);
             ai4seo_robhub_api()->update_environmental_variable($ai4seo_robhub_api_password_key, $ai4seo_old_api_password);
@@ -104,14 +101,19 @@ if (isset($ai4seo_recent_robhub_environmental_variable_changes[$ai4seo_robhub_ap
     } else if ($ai4seo_old_api_username || $ai4seo_old_api_password) {
         // if the new username or password is empty, we try to init a free account
         ai4seo_robhub_api()->init_free_account();
-
-        // reset last account sync, so we can sync its details again
-        ai4seo_robhub_api()->reset_last_account_sync();
-
-        // remove all notifications, as we may have new ones with this new account
-        ai4seo_remove_all_notifications();
+        $ai4seo_reset_robhub_account = true;
     } else {
         // if we had no username or password before, we do nothing
         // this is the case when the user has not set any credentials before and jut saved
+    }
+
+    // reset some variables and mechanics to adapt to the new account
+    if ($ai4seo_reset_robhub_account) {
+        // reset last account sync, so we can sync its details again
+        ai4seo_robhub_api()->reset_last_account_sync();
+        ai4seo_robhub_api()->update_environmental_variable(ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED, false);
+
+        // remove all notifications, as we may have new ones with this new account
+        ai4seo_remove_all_notifications();
     }
 }

@@ -1,12 +1,11 @@
 // Prepare variables
 var ai4seo_post_outputs = {};
 var ai4seo_remaining_credits = 0;
-var ai4seo_admin_ajax_url = ai4seo_get_full_domain() + "/wp-admin/admin-ajax.php";
-var ai4seo_admin_url = ai4seo_get_full_domain() + "/wp-admin/admin.php";
 var ai4seo_admin_plugin_page_url = ai4seo_get_full_domain() + "/wp-admin/admin.php?page=ai-for-seo";
 var ai4seo_admin_installed_plugins_page_url = ai4seo_get_full_domain() + "/wp-admin/plugins.php";
 var ai4seo_official_contact_url = "https://aiforseo.ai/contact";
 var ai4seo_mousedown_origin = null;
+const AI4SEO_GLOBAL_NONCE_IDENTIFIER = 'ai4seo_ajax_nonce';
 
 var ai4seo_svg_icons = {
     'circle-check': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM369 209L241 337c-9.4 9.4-24.6 9.4-33.9 0l-64-64c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l47 47L335 175c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9z"/></svg>',
@@ -29,8 +28,8 @@ var ai4seo_seo_inputs = {
     '#x-title-input-metabox > div > div > div': {'metadata_identifier': 'twitter-title', 'key_by_key': false, "processing-context": "metadata"},
     '#x-description-input-metabox > div > div > div': {'metadata_identifier': 'twitter-description', 'additional_selectors': ["#yoast_wpseo_twitter-description"], 'key_by_key': false, "processing-context": "metadata"},
 
-    '#yoast-google-preview-title-modal > div > div > div': {'metadata_identifier': 'twitter-title', 'additional_selectors': ["#yoast_wpseo_title"], 'key_by_key': true, "processing-context": "metadata"},
-    '#yoast-google-preview-description-modal > div > div > div': {'metadata_identifier': 'twitter-description', 'additional_selectors': ["#yoast_wpseo_metadesc"], 'key_by_key': false, "processing-context": "metadata"},
+    '#yoast-google-preview-title-modal > div > div > div': {'metadata_identifier': 'meta-title', 'additional_selectors': ["#yoast_wpseo_title"], 'key_by_key': true, "processing-context": "metadata"},
+    '#yoast-google-preview-description-modal > div > div > div': {'metadata_identifier': 'meta-description', 'additional_selectors': ["#yoast_wpseo_metadesc"], 'key_by_key': false, "processing-context": "metadata"},
 
     '#facebook-title-input-modal > div > div > div': {'metadata_identifier': 'facebook-title', 'additional_selectors': ["#yoast_wpseo_opengraph-title"], 'key_by_key': false, "processing-context": "metadata"},
     '#facebook-description-input-modal > div > div > div': {'metadata_identifier': 'facebook-description', 'additional_selectors': ["#yoast_wpseo_opengraph-description"], 'key_by_key': false, "processing-context": "metadata"},
@@ -87,6 +86,9 @@ var ai4seo_seo_inputs = {
     // gutenberg side bar
     '.components-base-control .components-textarea-control__input': {'attachment_attributes_identifier': 'alt-text', 'key_by_key': false, 'css-class': 'ai4seo-attachment-generate-attributes-button', "processing-context": "attachment-attributes"},
 
+    // KEO KEY Plugin
+    '#tab-seokey-metas #meta-tags-inputs #metatitle': {'metadata_identifier': 'meta-title', 'key_by_key': true, "processing-context": "metadata"},
+    '#tab-seokey-metas #meta-tags-inputs #meta-tags-inputs-textarea': {'metadata_identifier': 'meta-description', 'key_by_key': false, "processing-context": "metadata"},
 };
 
 var ai4seo_content_containers = [
@@ -96,11 +98,11 @@ var ai4seo_content_containers = [
     ".mce-content-body", ".mcb-wrap-inner", ".the_content_wrapper", // Be-Builder
 ];
 
-
 let ai4seo_generate_all_button_selectors = {
     "metadata": [
         "#wpseo-metabox-root",
-        "#ai4seo-generate-all-metadata-button-hook"
+        "#ai4seo-generate-all-metadata-button-hook",
+        "#meta-tags-inputs",
     ],
     "attachment-attributes": [
         ".media-frame-content .attachment-info .details",
@@ -187,7 +189,6 @@ var ai4seo_attachment_mime_type_selectors = [".media-frame-content .attachment-i
 // allowed ajax function (also change in ai-for-seo.php file)
 let ai4seo_allowed_ajax_actions = [
     "ai4seo_save_anything",
-    "ai4seo_display_license_information",
     "ai4seo_show_metadata_editor", "ai4seo_show_attachment_attributes_editor",
     "ai4seo_generate_metadata", "ai4seo_generate_attachment_attributes",
     "ai4seo_reject_tos", "ai4seo_accept_tos", "ai4seo_show_terms_of_service",
@@ -196,6 +197,7 @@ let ai4seo_allowed_ajax_actions = [
     "ai4seo_disable_payg", "ai4seo_init_purchase",
     "ai4seo_import_nextgen_gallery_images",
     "ai4seo_export_settings", "ai4seo_show_import_settings_preview", "ai4seo_import_settings",
+    "ai4seo_get_dashboard_html",
     "ai4seo_restore_default_settings"
 ];
 
@@ -215,6 +217,12 @@ if (typeof jQuery === 'function') {
         }
 
         ai4seo_init_html_elements();
+
+        // Initialize dashboard auto-refresh if on dashboard page
+        ai4seo_init_dashboard_refresh();
+
+        // remove notification count (when dashboard was opened)
+        ai4seo_remove_notification_count();
 
         // init html element again after 250 ms
         setTimeout(function() {
@@ -770,10 +778,6 @@ function ai4seo_init_generate_buttons() {
         if (!ai4seo_is_attachment_mime_type_supported()) {
             return;
         }
-    }
-
-    if (ai4seo_exists(".ai4seo-generate-button")) {
-        ai4seo_jQuery(".ai4seo-generate-button").remove();
     }
 
     // Loop through mapping and call function to add button-element
@@ -1414,6 +1418,15 @@ function ai4seo_get_plugin_version_number() {
 
 // =========================================================================================== \\
 
+function ai4seo_get_admin_ajax_url() {
+    return (typeof window !== 'undefined' && window.ajaxurl) ||
+        ai4seo_get_localization_parameter('ai4seo_admin_ajax_url') ||
+        (ai4seo_get_localization_parameter('ai4seo_admin_url') + 'admin-ajax.php') ||
+        '/wp-admin/admin-ajax.php';
+}
+
+// =========================================================================================== \\
+
 function ai4seo_get_seconds_since_page_load() {
     // Check if ai4seo_page_load_time is defined
     if (typeof window.ai4seo_page_load_time === 'undefined') {
@@ -1923,9 +1936,9 @@ function ai4seo_fill_text( selector, value, options = {}) {
     var element = ai4seo_jQuery(selector);
 
     if (element.is('input')) {
-        element.val(value).keypress().change();
+        element.val(value).keypress().keyup().change();
     } else if (element.is('textarea')) {
-        element.val(value).keypress().change();
+        element.val(value).keypress().keyup().change();
     } else {
         var text_length = ai4seo_jQuery(selector).text().length;
 
@@ -2101,8 +2114,42 @@ function ai4seo_show_element_for_x_time(element, milliseconds = 3000) {
 
 
 // ___________________________________________________________________________________________ \\
+// === PLUGIN'S PAGES ======================================================================== \\
+// ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
+
+function ai4seo_get_active_subpage() {
+    return ai4seo_get_localization_parameter("ai4seo_active_subpage");
+}
+
+// =========================================================================================== \\
+
+function ai4seo_get_active_post_type_subpage() {
+    return ai4seo_get_localization_parameter("ai4seo_active_post_type_subpage");
+}
+
+
+// ___________________________________________________________________________________________ \\
 // === DASHBOARD ============================================================================= \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
+
+function ai4seo_remove_notification_count() {
+    // only on dashboard page
+    if (ai4seo_get_active_subpage() !== "dashboard") {
+        return;
+    }
+
+    if (!ai4seo_exists("#toplevel_page_ai-for-seo")) {
+        return;
+    }
+
+    if (!ai4seo_exists("#toplevel_page_ai-for-seo .update-plugins")) {
+        return;
+    }
+
+    ai4seo_jQuery("#toplevel_page_ai-for-seo .update-plugins").remove();
+}
+
+// =========================================================================================== \\
 
 function add_force_sync_account_parameter_and_reload_page() {
     ai4seo_reload_page_with_parameter("ai4seo_force_sync_account", "true");
@@ -2312,7 +2359,7 @@ function ai4seo_add_generate_all_button(processing_context, element_selector) {
     }
 
     // put everything together
-    let button_html = "<button type='button' onclick='" + onclick + "' title='" + button_title + "' class='ai4seo-generate-all-button'>" + button_label + "</button>";
+    let button_html = "<button type='button' onclick='" + onclick + "' title='" + button_title + "' class='ai4seo-button ai4seo-big-button ai4seo-generate-all-button'>" + button_label + "</button>";
     let wrapped_button_html = "<div class='ai4seo-generate-all-button-wrapper'>" + button_html + "</div>";
 
     // Add button-element after element
@@ -2397,10 +2444,17 @@ function ai4seo_add_link_element_to_yoast_seo_input_label(editor_element_selecto
         return;
     }
 
+    let next_element = parent_element.next();
+
     // Check if element after parent_element contains "ai4seo-generate-button"-class
-    if (parent_element.next().hasClass("ai4seo-generate-button")) {
+    // AND it has NOT class "ai4seo-element-inactive"
+    if (next_element.hasClass("ai4seo-element-inactive")) {
+        return;
+    }
+
+    if (next_element.hasClass("ai4seo-generate-button")) {
         // Remove button-element
-        parent_element.next().remove();
+        next_element.remove();
     }
 
     // Add link element after parent-element
@@ -2450,7 +2504,7 @@ function ai4seo_get_generate_button_output(element_selector, button_label = "aut
         additional_css_class = " " + ai4seo_seo_inputs[element_selector]['css-class'];
     }
 
-    return "<button type='button' onclick='" + button_onclick + "' title='" + button_title + "' class='ai4seo-generate-button ai4seo-generate-button-arrow" + additional_css_class + "'><img src='" + ai4seo_get_ai4seo_plugin_directory_url() + "/assets/images/logos/ai-for-seo-logo-32x32.png' class='ai4seo-icon ai4seo-button-icon ai4seo-logo'> " + button_label + "</button>";
+    return "<button type='button' onclick='" + button_onclick + "' title='" + button_title + "' class='ai4seo-button ai4seo-generate-button ai4seo-generate-button-arrow" + additional_css_class + "'><img src='" + ai4seo_get_ai4seo_plugin_directory_url() + "/assets/images/logos/ai-for-seo-logo-32x32.png' class='ai4seo-icon ai4seo-button-icon ai4seo-logo'> " + button_label + "</button>";
 }
 
 // =========================================================================================== \\
@@ -2463,10 +2517,17 @@ function ai4seo_add_generate_button_to_input(input_element_selector) {
     // Define variable for input-element
     var input_element = ai4seo_jQuery(input_element_selector);
 
-    // Check if element after input_element contains "ai4seo-generate-button"-class
-    if (input_element.next().hasClass("ai4seo-generate-button")) {
+    let next_element = input_element.next();
+
+    // Check if element after parent_element contains "ai4seo-generate-button"-class
+    // AND it has NOT class "ai4seo-element-inactive"
+    if (next_element.hasClass("ai4seo-element-inactive")) {
+        return;
+    }
+
+    if (next_element.hasClass("ai4seo-generate-button")) {
         // Remove button-element
-        input_element.next().remove();
+        next_element.remove();
     }
 
     // Add button-element after input-element
@@ -3281,11 +3342,16 @@ function ai4seo_add_open_edit_metadata_modal_button_to_be_builder_navigation() {
         return;
     }
 
+    // check if we have a ai4seo-show-all-seo-settings-button already before seo_title_element_container
+    if (ai4seo_exists(".ai4seo-show-all-seo-settings-button")) {
+        return;
+    }
+
     // Generate output
     var output = "";
 
     // Add button to output
-    output += "<button type=\"button\" class=\"ai4seo-generate-button\" aria-label=\"AI for SEO\" title=\"AI for SEO\" onclick='ai4seo_open_metadata_editor_modal(" + post_id + ", true);'>";
+    output += "<button type=\"button\" class=\"ai4seo-button ai4seo-generate-button ai4seo-show-all-seo-settings-button\" aria-label=\"AI for SEO\" title=\"AI for SEO\" onclick='ai4seo_open_metadata_editor_modal(" + post_id + ", true);'>";
         output += "<img src='" + ai4seo_get_ai4seo_plugin_directory_url() + "/assets/images/logos/ai-for-seo-logo-32x32.png' class='ai4seo-icon ai4seo-button-icon ai4seo-logo'> ";
         output += wp.i18n.__("Show all SEO settings", "ai-for-seo");
     output += "</button>";
@@ -3297,17 +3363,6 @@ function ai4seo_add_open_edit_metadata_modal_button_to_be_builder_navigation() {
 // =========================================================================================== \\
 
 function ai4seo_add_open_edit_metadata_modal_button_to_elementor_navigation() {
-    // Make sure that at least one of the elementor-elements can be found
-    if (!ai4seo_exists("#elementor-panel-page-menu-content .elementor-panel-menu-group:first-child .elementor-panel-menu-items") && !ai4seo_exists("#elementor-panel-page-settings-controls")) {
-        return
-    }
-
-    // Define variable for the first elementor-panel-menu-group-element within the elementor-navigation
-    var first_elementor_panel_menu_group_container = ai4seo_jQuery("#elementor-panel-page-menu-content .elementor-panel-menu-group:first-child .elementor-panel-menu-items");
-
-    // Define variable for the container of the elementor panel page settings controls
-    var elementor_panel_page_settings_controls = ai4seo_jQuery("#elementor-panel-page-settings-controls");
-
     // Read post-id from hidden container if not defined
     var post_id = ai4seo_get_post_id();
 
@@ -3316,20 +3371,36 @@ function ai4seo_add_open_edit_metadata_modal_button_to_elementor_navigation() {
         return;
     }
 
+    // check if we have a ai4seo-show-all-seo-settings-button already before seo_title_element_container
+    if (ai4seo_exists(".ai4seo-show-all-seo-settings-button")) {
+        return;
+    }
+
     // Generate output
     var output = "";
 
     // Add button to output
-    output += "<button type=\"button\" class=\"ai4seo-generate-button\" aria-label=\"AI for SEO\" title=\"AI for SEO\" onclick='ai4seo_open_metadata_editor_modal(" + post_id + ", true);'>";
+    output += "<button type=\"button\" class=\"ai4seo-button ai4seo-generate-button ai4seo-show-all-seo-settings-button\" aria-label=\"AI for SEO\" title=\"AI for SEO\" onclick='ai4seo_open_metadata_editor_modal(" + post_id + ", true);'>";
         output += "<img src='" + ai4seo_get_ai4seo_plugin_directory_url() + "/assets/images/logos/ai-for-seo-logo-32x32.png' class='ai4seo-icon ai4seo-button-icon ai4seo-logo'> ";
         output += wp.i18n.__("Show all SEO settings", "ai-for-seo");
     output += "</button>";
 
-    // Add button to first_elementor_panel_menu_group_container
-    first_elementor_panel_menu_group_container.append(output);
+    // Make sure that at least one of the elementor-elements can be found
+    if (ai4seo_exists("#elementor-panel-page-menu-content .elementor-panel-menu-group:first-child .elementor-panel-menu-items")) {
+        // Define variable for the first elementor-panel-menu-group-element within the elementor-navigation
+        var first_elementor_panel_menu_group_container = ai4seo_jQuery("#elementor-panel-page-menu-content .elementor-panel-menu-group:first-child .elementor-panel-menu-items");
 
-    // Add button to elementor panel page settings controls
-    elementor_panel_page_settings_controls.prepend(output);
+        // Add button to first_elementor_panel_menu_group_container
+        first_elementor_panel_menu_group_container.append(output);
+    }
+
+    if (ai4seo_exists("#elementor-panel-page-settings-controls")) {
+        // Define variable for the container of the elementor panel page settings controls
+        var elementor_panel_page_settings_controls = ai4seo_jQuery("#elementor-panel-page-settings-controls");
+
+        // Add button to elementor panel page settings controls
+        elementor_panel_page_settings_controls.prepend(output);
+    }
 }
 
 // =========================================================================================== \\
@@ -3429,7 +3500,7 @@ function ai4seo_find_closest_form_container(reference_element) {
     }
 
     // Array of selectors to check
-    let check_elements = [".ai4seo-form", ".ai4seo-modal", ".ai4seo-tab-content"];
+    let check_elements = [".ai4seo-form", ".ai4seo-modal", ".ai4seo-content-wrapper"];
 
     // Loop through selectors using for...of, which supports early exit
     for (let element of check_elements) {
@@ -3491,18 +3562,6 @@ function ai4seo_validate_account_inputs(input_values) {
     }
 
     return true;
-}
-
-// =========================================================================================== \\
-
-function ai4seo_display_license_information() {
-    // perform ajax action
-    ai4seo_perform_ajax_call('ai4seo_display_license_information')
-        .then(response => {
-            // reload page
-            ai4seo_reload_page();
-        })
-        .catch(error => { /* auto error handler enabled */ });
 }
 
 // =========================================================================================== \\
@@ -3597,7 +3656,7 @@ function ai4seo_init_notifications() {
     // move all .ai4seo-notice to beginning of .ai4seo-dashboard, if not already done
     if (ai4seo_exists(".ai4seo-dashboard")) {
         // move all .ai4seo-notice to .ai4seo-dashboard
-        jQuery(".ai4seo-notice").each(function() {
+        jQuery(jQuery(".ai4seo-notice").get().reverse()).each(function() {
             // check if .ai4seo-notice is already inside .ai4seo-dashboard
             if (ai4seo_exists(jQuery(this).closest(".ai4seo-dashboard"))) {
                 return; // already inside .ai4seo-dashboard, skip
@@ -3786,7 +3845,7 @@ function ai4seo_show_advanced_settings(show_fade_animation = false) {
     ai4seo_jQuery("#ai4seo-advanced-setting-state").val("show");
 
     if (show_fade_animation) {
-        ai4seo_jQuery(".ai4seo-form-section").fadeOut(0, function () {
+        ai4seo_jQuery(".ai4seo-form-section:not(.ai4seo-is-advanced-setting)").fadeOut(0, function () {
             ai4seo_jQuery(this).fadeIn(300);
         });
     }
@@ -3821,7 +3880,7 @@ function ai4seo_hide_advanced_settings(show_fade_animation = false) {
     ai4seo_jQuery("#ai4seo-advanced-setting-state").val("hide");
 
     if (show_fade_animation) {
-        ai4seo_jQuery(".ai4seo-form-section").fadeOut(0, function () {
+        ai4seo_jQuery(".ai4seo-form-section:not(.ai4seo-is-advanced-setting)").fadeOut(0, function () {
             ai4seo_jQuery(this).fadeIn(300);
         });
     }
@@ -3921,14 +3980,7 @@ function ai4seo_validate_settings_inputs(input_values) {
  * @param {boolean} add_contact_us_link
  * @returns {Promise<any>}
  */
-function ai4seo_perform_ajax_call(
-    action,
-    data = {},
-    auto_check_response = true,
-    additional_error_list = {},
-    show_generic_error = true,
-    add_contact_us_link = true
-) {
+function ai4seo_perform_ajax_call(action, data = {}, auto_check_response = true, additional_error_list = {}, show_generic_error = true, add_contact_us_link = true) {
     // 1) Validate the action early
     const invalid = ai4seo_validate_ajax_action(action);
 
@@ -4001,10 +4053,15 @@ function ai4seo_validate_ajax_action(action) {
  * @returns {Object}
  */
 function ai4seo_build_ajax_payload(action, data) {
+    const nonce = ai4seo_get_ajax_nonce();
+    const bypass_incognito_mode = ai4seo_get_localization_parameter("ai4seo_bypass_incognito_mode");
+
     return {
         ...(data || {}),
-        ai4seo_ajax_nonce: ai4seo_get_ajax_nonce(),
+        [AI4SEO_GLOBAL_NONCE_IDENTIFIER]: nonce,
+        security: nonce,
         action: action,
+        ai4seo_debug_bypass_incognito_mode: bypass_incognito_mode,
     };
 }
 
@@ -4017,6 +4074,8 @@ function ai4seo_build_ajax_payload(action, data) {
  * @returns {Promise<any>}
  */
 function ai4seo_execute_ajax_request(payload) {
+    let ai4seo_admin_ajax_url = ai4seo_get_admin_ajax_url();
+
     return new Promise((resolve, reject) => {
         jQuery
             .ajax({
@@ -4149,15 +4208,44 @@ function ai4seo_log_special_zero_ajax_error(jqXHR) {
  * @returns {{error:string, code:number, details:any}}
  */
 function ai4seo_build_standard_ajax_error(failCtx) {
-    const { jqXHR, textStatus, errorThrown } = failCtx || {};
+    let { jqXHR, textStatus, errorThrown } = failCtx || {};
     const raw =
         jqXHR && typeof jqXHR.responseText === "string"
             ? jqXHR.responseText
             : "";
 
+    // If textStatus is undefined or null, set it to a default message
+    if (typeof textStatus === "undefined" || textStatus === null) {
+        textStatus = "Unknown error";
+    }
+
+    // If textStatus is not a string, convert it to a string for consistency
+    if (typeof textStatus !== "string") {
+        textStatus = String(textStatus || "Unknown error");
+    }
+
+    // If errorThrown is undefined or null, set it to a default message
+    if (typeof errorThrown === "undefined" || errorThrown === null) {
+        errorThrown = "No error information provided";
+    }
+
+    // If errorThrown is not a string, convert it to a string for consistency
+    if (typeof errorThrown !== "string") {
+        if (errorThrown && typeof errorThrown === "object") {
+            try {
+                errorThrown = JSON.stringify(errorThrown);
+            } catch (e) {
+                errorThrown = String(errorThrown);
+            }
+        } else {
+            errorThrown = String(errorThrown || "Unknown error");
+        }
+    }
+
     // Helpful console diagnostics, but keep the thrown object concise
     console.groupCollapsed("[AI4SEO] AJAX Error");
     console.error("AI for SEO: AJAX Error:", textStatus, errorThrown);
+
     if (raw) {
         console.warn("AI for SEO: Raw response (first 800 chars):\n", raw.slice(0, 800));
     }
@@ -4173,7 +4261,15 @@ function ai4seo_build_standard_ajax_error(failCtx) {
 // =========================================================================================== \\
 
 function ai4seo_get_ajax_nonce() {
-    return ai4seo_get_localization_parameter("ai4seo_ajax_nonce");
+    // try to get the nonce from the DOM
+    const dom = document.getElementById('ai4seo_ajax_nonce');
+
+    if (dom && dom.value) {
+        return dom.value;
+    }
+
+    // if not found in the DOM, try to get it from the localization parameters
+    return ai4seo_get_localization_parameter('ai4seo_ajax_nonce') || '';
 }
 
 // =========================================================================================== \\
@@ -4249,12 +4345,12 @@ function ai4seo_set_input_type_attribute(input_element, type_attribute) {
 
 jQuery(document).ready(function() {
     // Function to perform the search
-    jQuery("#ai4seo-help-search").on("keyup", function(event) {
+    jQuery(".ai4seo-help-search").on("keyup", function(event) {
         var code_of_key_pressed = event.keyCode || event.which;
         var search_text = jQuery(this).val().toLowerCase();
         var faq_section_holder_element = jQuery(".ai4seo-faq-section-holder");
         var faq_entry_holder_element = jQuery(".ai4seo-accordion-holder");
-        var no_results_notice_holder = jQuery("#ai4seo-help-faq-search-notice");
+        var no_results_notice_holder = jQuery(".ai4seo-help-faq-search-notice");
         var has_results = false;
 
         if (search_text.length >= 3) {
@@ -4880,4 +4976,992 @@ function ai4seo_execute_import_settings(import_button, new_settings, categories)
         .catch(error => {
             ai4seo_remove_loading_html_from_element(import_button);
         });
+}
+
+
+// ___________________________________________________________________________________________ \\
+// === DASHBOARD AUTO-REFRESH ================================================================ \\
+// ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
+
+// Metrics counters (disabled by default, enable via debug flag)
+var ai4seo_dashboard_debug_counter_enabled = false; // Toggle debug counter visibility
+var ai4seo_dashboard_debug_metrics = false;
+var ai4seo_dashboard_metrics = {
+    refresh_attempts: 0,
+    cancelled_responses: 0,
+    no_change_streak_length: 0,
+    hidden_mode_triggers: 0,
+    full_reload_triggers: 0,
+    user_interaction_locks: 0
+};
+
+// Global variables for dashboard auto-refresh
+var ai4seo_dashboard_refresh_timer = null;
+var ai4seo_dashboard_refresh_lock = false;
+var ai4seo_dashboard_refresh_interval = 10000; // 10 seconds # todo: change this to 10000
+var ai4seo_dashboard_is_hidden = false;
+var ai4seo_dashboard_refresh_failures = 0;
+var ai4seo_dashboard_max_failures = 5;
+
+// Enhanced refresh system variables
+var ai4seo_dashboard_hidden_start_time = null;
+var ai4seo_dashboard_hidden_refresh_timer = null;
+var ai4seo_dashboard_hidden_reload_timer = null;
+var ai4seo_dashboard_no_changes_streak = 0;
+var ai4seo_dashboard_adaptive_interval = 10000; // Base interval for adaptive scaling
+var ai4seo_dashboard_last_user_click = Date.now();
+var ai4seo_dashboard_idle_reload_timer = null;
+var ai4seo_dashboard_user_interaction_lock = false;
+var ai4seo_dashboard_user_interaction_timer = null;
+var ai4seo_dashboard_current_ajax_request = null;
+var ai4seo_dashboard_changed_nodes = [];
+
+/**
+ * Initialize dashboard auto-refresh functionality
+ * Only runs on dashboard page where .ai4seo-dashboard container exists
+ */
+function ai4seo_init_dashboard_refresh() {
+    // Only initialize if we're on the dashboard page
+    if (!ai4seo_exists('.ai4seo-dashboard')) {
+        return;
+    }
+
+    ai4seo_init_dashboard_progress_bar();
+
+    // Set up visibility change listener for pause/resume
+    document.addEventListener('visibilitychange', ai4seo_handle_dashboard_visibility_change);
+
+    // Set up user interaction listeners
+    ai4seo_init_dashboard_user_interaction_listeners();
+
+    // Clear any existing timers
+    ai4seo_clear_all_dashboard_timers();
+
+    // Initialize user click tracking
+    ai4seo_dashboard_last_user_click = Date.now();
+    ai4seo_schedule_dashboard_idle_reload_check();
+
+    // Start the refresh cycle
+    ai4seo_schedule_dashboard_refresh();
+
+    // Clean up on page unload
+    window.addEventListener('beforeunload', ai4seo_clear_all_dashboard_timers);
+}
+
+// =========================================================================================== \\
+
+/**
+ * Initialize user interaction listeners for dashboard refresh control
+ */
+function ai4seo_init_dashboard_user_interaction_listeners() {
+    // Click listener with 5-second refresh lock
+    document.addEventListener('mousedown', ai4seo_handle_dashboard_click);
+    
+    // Mouse move and scroll listeners with 1-second refresh lock (debounced)
+    var ai4seo_move_timeout = null;
+    
+    document.addEventListener('mousemove', function() {
+        if (ai4seo_move_timeout) {
+            return; // Debounce high-frequency events
+        }
+        ai4seo_move_timeout = setTimeout(function() {
+            ai4seo_handle_dashboard_mouse_interaction();
+            ai4seo_move_timeout = null;
+        }, 100); // 100ms debounce
+    });
+    
+    document.addEventListener('scroll', function() {
+        if (ai4seo_move_timeout) {
+            return; // Debounce high-frequency events
+        }
+        ai4seo_move_timeout = setTimeout(function() {
+            ai4seo_handle_dashboard_mouse_interaction();
+            ai4seo_move_timeout = null;
+        }, 100); // 100ms debounce
+    });
+}
+
+// =========================================================================================== \\
+
+/**
+ * Handle user clicks - apply 5-second refresh lock and reset intervals
+ */
+function ai4seo_handle_dashboard_click() {
+    if (!ai4seo_exists('.ai4seo-dashboard')) {
+        return;
+    }
+
+    // Update metrics
+    if (ai4seo_dashboard_debug_metrics) {
+        ai4seo_dashboard_metrics.user_interaction_locks++;
+    }
+    
+    // Record click time for idle tracking
+    ai4seo_dashboard_last_user_click = Date.now();
+    
+    // Reset adaptive interval to 10s
+    ai4seo_dashboard_adaptive_interval = 10000;
+    ai4seo_dashboard_no_changes_streak = 0;
+
+    // Snap to 3 seconds remaining if near finish
+    ai4seo_snap_dashboard_refresh_timer(3000);
+
+    // Cancel any in-flight requests
+    ai4seo_cancel_dashboard_in_flight_request();
+}
+
+// =========================================================================================== \\
+
+/**
+ * Handle mouse move and scroll - apply 1-second refresh lock
+ */
+function ai4seo_handle_dashboard_mouse_interaction() {
+    if (!ai4seo_exists('.ai4seo-dashboard')) {
+        return;
+    }
+    
+    // Record click time for idle tracking
+    ai4seo_snap_dashboard_refresh_timer(1000); // Snap to 1 second remaining if near finish
+}
+
+// =========================================================================================== \\
+
+/**
+ * Snap the refresh timer back to a specific "seconds until refresh" if near finish
+ * @param {number} snap_ms - ms to leave until refresh
+ */
+function ai4seo_snap_dashboard_refresh_timer(snap_ms) {
+    if (!ai4seo_dashboard_refresh_end_time) {
+        return; // No timer running
+    }
+
+    if (ai4seo_dashboard_current_ajax_request) {
+        return;
+    }
+
+    var now = Date.now();
+    var remaining_ms = ai4seo_dashboard_refresh_end_time - now;
+
+    // Only snap if <= snap_seconds seconds left
+    if (remaining_ms <= snap_ms) {
+        ai4seo_dashboard_refresh_end_time = now + (snap_ms);
+
+        // Clear and re-set the main refresh timeout
+        if (ai4seo_dashboard_refresh_timer) {
+            clearTimeout(ai4seo_dashboard_refresh_timer);
+        }
+
+        ai4seo_dashboard_refresh_timer = setTimeout(ai4seo_fetch_and_update_dashboard, snap_ms);
+
+        // Restart progress bar with adjusted duration
+        ai4seo_start_dashboard_progress(snap_ms);
+    }
+}
+
+// =========================================================================================== \\
+
+/**
+ * Cancel any in-flight AJAX request and mark response for discard
+ */
+function ai4seo_cancel_dashboard_in_flight_request() {
+    if (!ai4seo_dashboard_current_ajax_request) {
+        return false;
+    }
+
+    // Mark request as cancelled for idempotent discard
+    ai4seo_dashboard_current_ajax_request._ai4seo_cancelled = true;
+
+    // Update metrics
+    if (ai4seo_dashboard_debug_metrics) {
+        ai4seo_dashboard_metrics.cancelled_responses++;
+    }
+
+    // Note: We don't actually abort the request to avoid potential issues,
+    // instead we mark it for discard when response arrives
+    ai4seo_dashboard_current_ajax_request = null;
+
+    return true;
+}
+
+// =========================================================================================== \\
+
+/**
+ * Handle browser tab visibility changes - enhanced with inactive behavior
+ */
+function ai4seo_handle_dashboard_visibility_change() {
+    if (document.hidden) {
+        // browser tab became hidden
+        ai4seo_dashboard_is_hidden = true;
+        ai4seo_dashboard_hidden_start_time = Date.now();
+        
+        // Update metrics
+        if (ai4seo_dashboard_debug_metrics) {
+            ai4seo_dashboard_metrics.hidden_mode_triggers++;
+        }
+        
+        // Clear all active timers
+        ai4seo_clear_all_dashboard_timers();
+        
+        // Start hidden mode: 3-minute refresh cadence
+        ai4seo_schedule_dashboard_hidden_mode_refresh();
+        
+        // Schedule full reload after 15 minutes of inactivity
+        ai4seo_dashboard_hidden_reload_timer = setTimeout(function() {
+            if (ai4seo_dashboard_debug_metrics) {
+                ai4seo_dashboard_metrics.full_reload_triggers++;
+            }
+            location.reload();
+        }, 15 * 60 * 1000); // 15 minutes
+        
+    } else {
+        // browser tab became visible
+        var ai4seo_was_hidden = ai4seo_dashboard_is_hidden;
+        ai4seo_dashboard_is_hidden = false;
+        ai4seo_dashboard_hidden_start_time = null;
+        
+        // Clear hidden mode timers
+        ai4seo_clear_dashboard_hidden_mode_timers();
+        
+        if (ai4seo_was_hidden && ai4seo_exists('.ai4seo-dashboard')) {
+            // Reset adaptive interval to 10s base
+            ai4seo_dashboard_adaptive_interval = 10000;
+            ai4seo_dashboard_no_changes_streak = 0;
+            
+            // Trigger immediate refresh
+            ai4seo_fetch_and_update_dashboard();
+        }
+    }
+}
+
+// =========================================================================================== \\
+
+/**
+ * Schedule refresh in hidden mode (3-minute intervals)
+ */
+function ai4seo_schedule_dashboard_hidden_mode_refresh() {
+    if (!ai4seo_dashboard_is_hidden) {
+        return;
+    }
+    
+    ai4seo_dashboard_hidden_refresh_timer = setTimeout(function() {
+        if (ai4seo_dashboard_is_hidden && ai4seo_exists('.ai4seo-dashboard')) {
+            ai4seo_fetch_and_update_dashboard();
+            ai4seo_schedule_dashboard_hidden_mode_refresh(); // Schedule next
+        }
+    }, 3 * 60 * 1000); // 3 minutes
+}
+
+// =========================================================================================== \\
+
+/**
+ * Clear hidden mode timers
+ */
+function ai4seo_clear_dashboard_hidden_mode_timers() {
+    if (ai4seo_dashboard_hidden_refresh_timer) {
+        clearTimeout(ai4seo_dashboard_hidden_refresh_timer);
+        ai4seo_dashboard_hidden_refresh_timer = null;
+    }
+    if (ai4seo_dashboard_hidden_reload_timer) {
+        clearTimeout(ai4seo_dashboard_hidden_reload_timer);
+        ai4seo_dashboard_hidden_reload_timer = null;
+    }
+}
+
+// =========================================================================================== \\
+
+/**
+ * Schedule idle reload check (monitors for 1+ minute without clicks)
+ */
+function ai4seo_schedule_dashboard_idle_reload_check() {
+    if (ai4seo_dashboard_idle_reload_timer) {
+        clearTimeout(ai4seo_dashboard_idle_reload_timer);
+    }
+    
+    ai4seo_dashboard_idle_reload_timer = setTimeout(function() {
+        var ai4seo_time_since_click = Date.now() - ai4seo_dashboard_last_user_click;
+        
+        if (ai4seo_time_since_click >= 60 * 1000) { // 1 minute idle
+            // User has been idle for 1+ minute, schedule full reload every 5 minutes
+            if (ai4seo_dashboard_debug_metrics) {
+                ai4seo_dashboard_metrics.full_reload_triggers++;
+            }
+            location.reload();
+        } else {
+            // Not idle yet, check again
+            ai4seo_schedule_dashboard_idle_reload_check();
+        }
+    }, 5 * 60 * 1000); // Check every 5 minutes
+}
+
+// =========================================================================================== \\
+
+/**
+ * Clear all dashboard timers
+ */
+function ai4seo_clear_all_dashboard_timers() {
+    ai4seo_clear_dashboard_refresh_timer();
+    ai4seo_clear_dashboard_hidden_mode_timers();
+    
+    if (ai4seo_dashboard_user_interaction_timer) {
+        clearTimeout(ai4seo_dashboard_user_interaction_timer);
+        ai4seo_dashboard_user_interaction_timer = null;
+    }
+    
+    if (ai4seo_dashboard_idle_reload_timer) {
+        clearTimeout(ai4seo_dashboard_idle_reload_timer);
+        ai4seo_dashboard_idle_reload_timer = null;
+    }
+}
+
+// =========================================================================================== \\
+
+/**
+ * Schedule the next dashboard refresh with enhanced adaptive logic
+ */
+function ai4seo_schedule_dashboard_refresh() {
+    // Precedence rule 1: User interaction locks take top priority
+    if (ai4seo_dashboard_user_interaction_lock) {
+        return;
+    }
+    
+    // Precedence rule 2: Browser tab visibility state overrides cadence
+    if (ai4seo_dashboard_is_hidden) {
+        return; // Hidden mode handles its own scheduling
+    }
+    
+    // Don't schedule if refresh is locked
+    if (ai4seo_dashboard_refresh_lock) {
+        return;
+    }
+
+    ai4seo_clear_dashboard_refresh_timer();
+    
+    var ai4seo_delay;
+    
+    // Precedence rule 3: Failure backoff applies when request fails
+    if (ai4seo_dashboard_refresh_failures > 0) {
+        // Exponential backoff: 10s -> 20s -> 40s -> 80s -> 120s (max)
+        ai4seo_delay = Math.min(ai4seo_dashboard_refresh_interval * Math.pow(2, ai4seo_dashboard_refresh_failures), 120000);
+    } else {
+        // Precedence rule 4: No-change adaptive cadence for successful refreshes
+        ai4seo_delay = ai4seo_dashboard_adaptive_interval;
+    }
+
+    ai4seo_start_dashboard_progress(ai4seo_delay);
+
+    ai4seo_dashboard_refresh_timer = setTimeout(ai4seo_fetch_and_update_dashboard, ai4seo_delay);
+}
+
+// =========================================================================================== \\
+
+/**
+ * Clear the dashboard refresh timer
+ */
+function ai4seo_clear_dashboard_refresh_timer() {
+    if (ai4seo_dashboard_refresh_timer) {
+        clearTimeout(ai4seo_dashboard_refresh_timer);
+        ai4seo_dashboard_refresh_timer = null;
+    }
+}
+
+// =========================================================================================== \\
+
+/**
+ * Fetch fresh dashboard HTML and update the DOM
+ */
+function ai4seo_fetch_and_update_dashboard() {
+    // Skip if already refreshing
+    if (ai4seo_dashboard_refresh_lock) {
+        return;
+    }
+    
+    // Skip if user interaction is locked
+    if (ai4seo_dashboard_user_interaction_lock) {
+        return;
+    }
+    
+    // Skip if dashboard container no longer exists
+    if (!ai4seo_exists('.ai4seo-dashboard')) {
+        return;
+    }
+
+    // Update metrics
+    if (ai4seo_dashboard_debug_metrics) {
+        ai4seo_dashboard_metrics.refresh_attempts++;
+    }
+
+    // Set lock to prevent concurrent refreshes (single-flight semantics)
+    ai4seo_dashboard_refresh_lock = true;
+
+    // Store request reference for cancellation tracking
+    var ai4seo_this_request = { _ai4seo_cancelled: false };
+    ai4seo_dashboard_current_ajax_request = ai4seo_this_request;
+
+    if (ai4seo_dashboard_debug_counter_enabled && ai4seo_exists('#ai4seo-dashboard-debug-counter')) {
+        setTimeout(function() {
+            ai4seo_add_loading_html_to_element(ai4seo_jQuery('#ai4seo-dashboard-debug-counter'));
+        }, 1000);
+    }
+
+    ai4seo_perform_ajax_call('ai4seo_get_dashboard_html', {}, false) // auto_check_response = false
+        .then(response => {
+
+            // Check if this request was cancelled (idempotent discard)
+            if (ai4seo_this_request._ai4seo_cancelled) {
+                return; // Discard response
+            }
+            
+            if (response && typeof response === 'string') {
+                var ai4seo_changes_made = ai4seo_update_dashboard_content(response);
+                
+                // Adaptive interval logic based on changes
+                if (ai4seo_changes_made) {
+                    // Reset to base interval on changes (rule 5: reset on changes)
+                    ai4seo_dashboard_adaptive_interval = 10000;
+                    ai4seo_dashboard_no_changes_streak = 0;
+                } else {
+                    // Increase interval for no changes (rule 7: adaptive cadence)
+                    ai4seo_dashboard_no_changes_streak++;
+                    ai4seo_dashboard_adaptive_interval = Math.min(
+                        10000 + (ai4seo_dashboard_no_changes_streak * 10000), // 20s, 30s, 40s, 50s, 60s
+                        60000 // Cap at 60s
+                    );
+                    
+                    if (ai4seo_dashboard_debug_metrics) {
+                        ai4seo_dashboard_metrics.no_change_streak_length = ai4seo_dashboard_no_changes_streak;
+                    }
+                }
+                
+                // Reset failure count on success
+                ai4seo_dashboard_refresh_failures = 0;
+            }
+        })
+        .catch(error => {
+            // Check if this request was cancelled
+            if (ai4seo_this_request._ai4seo_cancelled) {
+                return; // Discard error
+            }
+            
+            // Increment failure count for exponential backoff
+            ai4seo_dashboard_refresh_failures = Math.min(ai4seo_dashboard_refresh_failures + 1, ai4seo_dashboard_max_failures);
+            // Silently log errors, don't show user notifications for auto-refresh failures
+            console.warn('AI4SEO Dashboard auto-refresh failed (attempt ' + ai4seo_dashboard_refresh_failures + '):', error);
+        })
+        .finally(() => {
+            // Clear request reference
+            if (ai4seo_dashboard_current_ajax_request === ai4seo_this_request) {
+                ai4seo_dashboard_current_ajax_request = null;
+            }
+            
+            // Release lock and schedule next refresh
+            ai4seo_dashboard_refresh_lock = false;
+            
+            // Schedule next refresh based on current state
+            if (ai4seo_dashboard_is_hidden) {
+                // Hidden mode handles its own scheduling
+                return;
+            } else {
+                ai4seo_schedule_dashboard_refresh();
+            }
+        });
+}
+
+// =========================================================================================== \\
+
+/**
+ * Update dashboard content with new HTML using atomic DOM diffing
+ * @param {string} new_html - Fresh HTML content for the dashboard
+ * @returns {boolean} - Whether any changes were made
+ */
+function ai4seo_update_dashboard_content(new_html) {
+    var ai4seo_start_time = performance.now();
+    var ai4seo_current_dashboard = ai4seo_jQuery('.ai4seo-dashboard')[0];
+    
+    if (!ai4seo_current_dashboard) {
+        return false;
+    }
+
+    try {
+        // Clear previous changed nodes array
+        ai4seo_dashboard_changed_nodes = [];
+        
+        // Parse new HTML into a DOM tree
+        var ai4seo_parser = new DOMParser();
+        var ai4seo_new_doc = ai4seo_parser.parseFromString(new_html, 'text/html');
+        var ai4seo_new_dashboard = ai4seo_new_doc.querySelector('.ai4seo-dashboard');
+        
+        if (!ai4seo_new_dashboard) {
+            console.warn('AI4SEO: New dashboard content missing .ai4seo-dashboard container');
+            return false;
+        }
+
+        // Perform DOM diffing and patching
+        var ai4seo_changes_made = ai4seo_diff_and_patch_dashboard(ai4seo_current_dashboard, ai4seo_new_dashboard);
+        var ai4seo_elapsed_time = performance.now() - ai4seo_start_time;
+
+        // Performance guardrail - if diffing took too long, replace everything next time
+        if (ai4seo_elapsed_time > 100) {
+            console.warn('AI4SEO: Dashboard diff took too long (' + ai4seo_elapsed_time.toFixed(2) + 'ms), consider full replacement');
+        }
+
+        // Apply highlighting to changed nodes (requirement 1)
+        if (ai4seo_changes_made && ai4seo_dashboard_changed_nodes.length > 0) {
+            ai4seo_apply_highlight_animation();
+        }
+
+        // If changes were made, reinitialize HTML elements
+        if (ai4seo_changes_made) {
+            ai4seo_init_html_elements();
+        }
+        
+        return ai4seo_changes_made;
+
+    } catch (error) {
+        console.error('AI4SEO: Dashboard update failed:', error);
+        // Fall back to full replacement
+        ai4seo_current_dashboard.outerHTML = new_html;
+        ai4seo_init_html_elements();
+        return true; // Assume changes were made in fallback
+    }
+}
+
+// =========================================================================================== \\
+
+/**
+ * Apply highlight animation to changed nodes
+ */
+function ai4seo_apply_highlight_animation() {
+    // Batch DOM writes to avoid layout thrashing
+    ai4seo_dashboard_changed_nodes.forEach(function(node) {
+        if (node && node.nodeType === Node.ELEMENT_NODE) {
+            node.classList.add('ai4seo-highlight-animation');
+        }
+    });
+    
+    // Remove highlighting after 3 seconds
+    setTimeout(function() {
+        ai4seo_dashboard_changed_nodes.forEach(function(node) {
+            if (node && node.nodeType === Node.ELEMENT_NODE) {
+                node.classList.remove('ai4seo-highlight-animation');
+                ai4seo_remove_empty_class_attr(node); // Clean up empty class attributes
+            }
+        });
+        ai4seo_dashboard_changed_nodes = [];
+    }, 3000);
+}
+
+// =========================================================================================== \\
+
+// Utility: remove empty class attribute
+function ai4seo_remove_empty_class_attr(el) {
+    if (!el || el.nodeType !== Node.ELEMENT_NODE) {
+        return;
+    }
+    // Prefer classList length. Fallback to trimmed attribute check.
+    if (!el.classList || el.classList.length === 0 || (el.getAttribute('class') || '').trim() === '') {
+        el.removeAttribute('class');
+    }
+}
+
+// =========================================================================================== \\
+
+/**
+ * Perform atomic DOM diffing and patching between old and new dashboard nodes
+ * @param {Element} old_node - Current dashboard DOM node
+ * @param {Element} new_node - New dashboard DOM node
+ * @returns {boolean} - Whether any changes were made
+ */
+function ai4seo_diff_and_patch_dashboard(old_node, new_node) {
+    var ai4seo_changes_made = false;
+
+    // Compare node types
+    if (old_node.nodeType !== new_node.nodeType) {
+        // console.log('AI4SEO: Node type changed, replaced entire node: ' + old_node.nodeName + ' to ' + JSON.stringify(new_node));
+        var ai4seo_new_cloned = new_node.cloneNode(true);
+        old_node.parentNode.replaceChild(ai4seo_new_cloned, old_node);
+        // Track replaced node for highlighting
+        if (ai4seo_new_cloned.nodeType === Node.ELEMENT_NODE) {
+            ai4seo_dashboard_changed_nodes.push(ai4seo_new_cloned);
+        }
+        return true;
+    }
+
+    // Handle text nodes
+    if (old_node.nodeType === Node.TEXT_NODE) {
+        if (old_node.textContent !== new_node.textContent) {
+            // console.log('AI4SEO: Text content changed for node: ' + old_node.parentNode.nodeName + ' from ' + old_node.textContent + ' to ' + new_node.textContent);
+            old_node.textContent = new_node.textContent;
+            ai4seo_changes_made = true;
+            // Track parent element for highlighting (can't highlight text nodes directly)
+            if (old_node.parentNode && old_node.parentNode.nodeType === Node.ELEMENT_NODE) {
+                ai4seo_dashboard_changed_nodes.push(old_node.parentNode);
+            }
+        }
+        return ai4seo_changes_made;
+    }
+
+    // Handle element nodes
+    if (old_node.nodeType === Node.ELEMENT_NODE) {
+        if (ai4seo_is_dashboard_diff_excluded(old_node)) {
+            return false;
+        }
+
+        // Compare tag names
+        if (old_node.tagName !== new_node.tagName) {
+            // console.log('AI4SEO: Tag name changed, replaced entire node: ' + old_node.tagName + ' to ' + new_node.tagName + ' (' + old_node.outerHTML + ' to ' + new_node.outerHTML + ')');
+            var ai4seo_new_cloned = new_node.cloneNode(true);
+            old_node.parentNode.replaceChild(ai4seo_new_cloned, old_node);
+            // Track replaced node for highlighting
+            ai4seo_dashboard_changed_nodes.push(ai4seo_new_cloned);
+            return true;
+        }
+
+        // Compare and update attributes
+        if (ai4seo_sync_node_attributes(old_node, new_node)) {
+            ai4seo_changes_made = true;
+            // Track element for highlighting when attributes change
+            ai4seo_dashboard_changed_nodes.push(old_node);
+        }
+
+        // Compare and update child nodes
+        ai4seo_changes_made = ai4seo_sync_child_nodes(old_node, new_node) || ai4seo_changes_made;
+    }
+
+    return ai4seo_changes_made;
+}
+
+// =========================================================================================== \\
+
+/**
+ * Synchronize attributes between old and new nodes
+ * @param {Element} old_node
+ * @param {Element} new_node
+ * @returns {boolean} - Whether any changes were made
+ */
+function ai4seo_sync_node_attributes(old_node, new_node) {
+    var ai4seo_changes_made = false;
+    var ai4seo_old_attrs = old_node.attributes;
+    var ai4seo_new_attrs = new_node.attributes;
+
+    // Update/add attributes from new node
+    for (var i = 0; i < ai4seo_new_attrs.length; i++) {
+        var ai4seo_attr = ai4seo_new_attrs[i];
+        var ai4seo_old_value = old_node.getAttribute(ai4seo_attr.name);
+        
+        if (ai4seo_old_value !== ai4seo_attr.value) {
+            old_node.setAttribute(ai4seo_attr.name, ai4seo_attr.value);
+            ai4seo_changes_made = true;
+        }
+    }
+
+    // Remove attributes not in new node
+    for (var j = ai4seo_old_attrs.length - 1; j >= 0; j--) {
+        var ai4seo_old_attr = ai4seo_old_attrs[j];
+        if (!new_node.hasAttribute(ai4seo_old_attr.name)) {
+            old_node.removeAttribute(ai4seo_old_attr.name);
+            ai4seo_changes_made = true;
+        }
+    }
+
+    return ai4seo_changes_made;
+}
+
+// =========================================================================================== \\
+
+/**
+ * Synchronize child nodes between old and new nodes
+ * @param {Element} old_node
+ * @param {Element} new_node
+ * @returns {boolean} - Whether any changes were made
+ */
+function ai4seo_sync_child_nodes(old_node, new_node) {
+    var ai4seo_changes_made = false;
+
+    // If the container itself is excluded, skip all children work.
+    if (ai4seo_is_dashboard_diff_excluded(old_node)) {
+        return false;
+    }
+
+    // We walk with two indices to handle skips without desync.
+    var old_i = 0;
+    var new_i = 0;
+
+    // Snapshot children once per loop; rebuild after structural edits.
+    function getChildrenPairs() {
+        return {
+            old_children: Array.from(old_node.childNodes),
+            new_children: Array.from(new_node.childNodes)
+        };
+    }
+
+    var pair = getChildrenPairs();
+    var old_children = pair.old_children;
+    var new_children = pair.new_children;
+
+    while (old_i < old_children.length || new_i < new_children.length) {
+        var old_child = old_children[old_i] || null;
+        var new_child = new_children[new_i] || null;
+
+        // Skip text vs element checks here; handled in diff recursion.
+
+        // Case A: old exists, new missing -> removal candidate
+        if (old_child && !new_child) {
+            // Never remove excluded nodes
+            if (old_child.nodeType === Node.ELEMENT_NODE && ai4seo_is_dashboard_diff_excluded(old_child)) {
+                old_i++; // keep it, just move on
+            } else {
+                old_node.removeChild(old_child);
+                ai4seo_changes_made = true;
+
+                // After structural change, refresh snapshots without advancing indices
+                pair = getChildrenPairs();
+                old_children = pair.old_children;
+                new_children = pair.new_children;
+            }
+            continue;
+        }
+
+        // Case B: new exists, old missing -> addition candidate
+        if (!old_child && new_child) {
+            // Do not add nodes that are themselves excluded containers
+            if (new_child.nodeType === Node.ELEMENT_NODE && ai4seo_is_dashboard_diff_excluded(new_child)) {
+                new_i++; // skip adding excluded
+            } else {
+                var cloned = new_child.cloneNode(true);
+                old_node.appendChild(cloned);
+                ai4seo_changes_made = true;
+
+                if (cloned.nodeType === Node.ELEMENT_NODE) {
+                    ai4seo_dashboard_changed_nodes.push(cloned);
+                }
+
+                // Refresh snapshots; advance both since we consumed one on each side
+                pair = getChildrenPairs();
+                old_children = pair.old_children;
+                new_children = pair.new_children;
+                old_i++;
+                new_i++;
+            }
+            continue;
+        }
+
+        // Case C: both exist
+        if (old_child && new_child) {
+            // If either side sits inside an excluded container, skip this pair.
+            var old_excl = (old_child.nodeType === Node.ELEMENT_NODE) && ai4seo_is_dashboard_diff_excluded(old_child);
+            var new_excl = (new_child.nodeType === Node.ELEMENT_NODE) && ai4seo_is_dashboard_diff_excluded(new_child);
+
+            if (old_excl || new_excl) {
+                // Advance both to keep alignment, but do not mutate DOM.
+                old_i++;
+                new_i++;
+                continue;
+            }
+
+            // Recurse normally
+            ai4seo_changes_made = ai4seo_diff_and_patch_dashboard(old_child, new_child) || ai4seo_changes_made;
+
+            old_i++;
+            new_i++;
+            continue;
+        }
+    }
+
+    return ai4seo_changes_made;
+}
+
+
+// === DASHBOARD REFRESH PROGRESS BAR ========================================== \\
+
+var ai4seo_dashboard_progress_interval = null;
+var ai4seo_dashboard_refresh_end_time = null;
+
+/**
+ * Initialize progress bar UI
+ */
+function ai4seo_init_dashboard_progress_bar() {
+    if (!ai4seo_exists('.ai4seo-wrap')) {
+        return;
+    }
+
+    if (!ai4seo_exists('.ai4seo-dashboard')) {
+        return;
+    }
+
+    // Remove existing if re-init
+    if (ai4seo_exists('#ai4seo-dashboard-progress-wrapper')) {
+        ai4seo_jQuery('#ai4seo-dashboard-progress-wrapper').remove();
+    }
+    if (ai4seo_exists('#ai4seo-dashboard-debug-counter')) {
+        ai4seo_jQuery('#ai4seo-dashboard-debug-counter').remove();
+    }
+
+    // Create wrapper
+    var wrapper = ai4seo_jQuery('<div>', {
+        id: 'ai4seo-dashboard-progress-wrapper',
+        css: {
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '3px',
+            background: 'transparent',
+            zIndex: 9999,
+            display: ai4seo_dashboard_debug_counter_enabled ? 'block' : 'none'
+        }
+    });
+
+    // Create progress bar
+    var progress = ai4seo_jQuery('<div>', {
+        id: 'ai4seo-dashboard-progress-bar',
+        css: {
+            height: '100%',
+            width: '0%',
+            background: 'rgba(84, 163, 203, 0.8)', // light blue, 50% transparent
+            transition: 'width 0.1s linear',
+            display: ai4seo_dashboard_debug_counter_enabled ? 'block' : 'none'
+        }
+    });
+
+    wrapper.append(progress);
+    ai4seo_jQuery('.ai4seo-wrap').prepend(wrapper);
+
+    // Create debug counter
+    var counter = ai4seo_jQuery('<div>', {
+        id: 'ai4seo-dashboard-debug-counter',
+        text: '',
+        css: {
+            position: 'absolute',
+            top: '4px',
+            right: '8px',
+            fontSize: '11px',
+            background: 'rgba(0,0,0,0.5)',
+            color: '#fff',
+            padding: '2px 5px',
+            borderRadius: '3px',
+            zIndex: 10000,
+            display: ai4seo_dashboard_debug_counter_enabled ? 'block' : 'none'
+        }
+    });
+
+    ai4seo_jQuery('.ai4seo-wrap').append(counter);
+}
+
+// =========================================================================================== \\
+
+/**
+ * Start the progress countdown
+ * @param {number} duration_ms - total duration in milliseconds
+ */
+function ai4seo_start_dashboard_progress(duration_ms) {
+    if (!ai4seo_exists('#ai4seo-dashboard-progress-bar')) {
+        ai4seo_init_dashboard_progress_bar();
+    }
+
+    ai4seo_dashboard_refresh_end_time = Date.now() + duration_ms;
+
+    if (ai4seo_dashboard_progress_interval) {
+        clearInterval(ai4seo_dashboard_progress_interval);
+    }
+
+    ai4seo_dashboard_progress_interval = setInterval(function() {
+        var now = Date.now();
+        var remaining = ai4seo_dashboard_refresh_end_time - now;
+        if (remaining < 0) remaining = 0;
+
+        var percent = 100 - ((remaining / duration_ms) * 100);
+        ai4seo_jQuery('#ai4seo-dashboard-progress-bar').css('width', percent + '%');
+
+        if (ai4seo_dashboard_debug_counter_enabled) {
+            ai4seo_jQuery('#ai4seo-dashboard-debug-counter').text(Math.ceil(remaining / 1000) + 's');
+        }
+
+        if (remaining <= 0) {
+            clearInterval(ai4seo_dashboard_progress_interval);
+        }
+    }, 100);
+}
+
+// =========================================================================================== \\
+
+/**
+ * Reset the progress bar immediately
+ */
+function ai4seo_reset_dashboard_progress() {
+    if (ai4seo_exists('#ai4seo-dashboard-progress-bar')) {
+        ai4seo_jQuery('#ai4seo-dashboard-progress-bar').css('width', '0%');
+    }
+    if (ai4seo_dashboard_progress_interval) {
+        clearInterval(ai4seo_dashboard_progress_interval);
+        ai4seo_dashboard_progress_interval = null;
+    }
+    if (ai4seo_dashboard_debug_counter_enabled) {
+        ai4seo_jQuery('#ai4seo-dashboard-debug-counter').text('');
+    }
+}
+
+// === DASHBOARD DIFF EXCLUSIONS ============================================================ \\
+
+// 1) Configure which containers should be frozen during diffing.
+//    You can add classes, ids, or attributes. Two generic hooks are included:
+//    [data-ai4seo-ignore-during-dashboard-refresh="1"] and .ai4seo-ignore-during-dashboard-refresh
+var ai4seo_dashboard_diff_exclude_selectors = [
+    '[data-ai4seo-ignore-during-dashboard-refresh="1"]',
+    '.ai4seo-ignore-during-dashboard-refresh',
+    // Examples for cards you keep open/collapsed:
+    '.ai4seo-card.ai4seo-is-open',
+    '.ai4seo-card.ai4seo-is-collapsed',
+    '.ai4seo-card[data-ai4seo-keep-state="1"]'
+];
+
+// =========================================================================================== \\
+
+/**
+ * Public API: add more exclusion selectors at runtime.
+ * @param {string[]} selectors
+ * @return {void}
+ */
+function ai4seo_register_dashboard_diff_exclusions(selectors) {
+    if (!Array.isArray(selectors)) {
+        return;
+    }
+    selectors.forEach(function(sel) {
+        if (typeof sel === 'string' && sel.trim() && ai4seo_dashboard_diff_exclude_selectors.indexOf(sel) === -1) {
+            ai4seo_dashboard_diff_exclude_selectors.push(sel);
+        }
+    });
+}
+
+// =========================================================================================== \\
+
+/**
+ * True if node is inside an excluded container.
+ * Matches the node itself or any ancestor with a configured selector.
+ * @param {Node} node
+ * @return {boolean}
+ */
+function ai4seo_is_dashboard_diff_excluded(node) {
+    if (!node || node.nodeType !== Node.ELEMENT_NODE) {
+        return false;
+    }
+    var el = /** @type {Element} */ (node);
+
+    // Fast path: generic hooks
+    if (el.closest('[data-ai4seo-ignore-during-dashboard-refresh="1"], .ai4seo-ignore-during-dashboard-refresh')) {
+        return true;
+    }
+
+    // Custom selectors
+    for (var i = 0; i < ai4seo_dashboard_diff_exclude_selectors.length; i++) {
+        var sel = ai4seo_dashboard_diff_exclude_selectors[i];
+        try {
+            if (el.closest(sel)) {
+                return true;
+            }
+        } catch (e) {
+            // Invalid selector should not break diffing
+            continue;
+        }
+    }
+    return false;
 }

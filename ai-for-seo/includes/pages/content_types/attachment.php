@@ -30,7 +30,7 @@ $ai4seo_current_credits_balance = ai4seo_robhub_api()->get_credits_balance();
 $ai4seo_media_label_singular = _n("media", "media", 1, "ai-for-seo");
 $ai4seo_media_label_plural = _n("media", "media", 2, "ai-for-seo");
 $ai4seo_total_pages = 1;
-$ai4seo_current_page = absint($_REQUEST["ai4seo-page"] ?? 1);
+$ai4seo_current_page = absint($_REQUEST["ai4seo_page"] ?? 1);
 
 if ($ai4seo_current_page < 1) {
     $ai4seo_current_page = 1;
@@ -133,11 +133,11 @@ if ($ai4seo_all_attachment_posts) {
 }
 
 // collect some admin links and buttons
-$ai4seo_this_admin_tab_url = ai4seo_get_admin_url($ai4seo_nice_post_type, array("ai4seo-page" => $ai4seo_current_page));
-$ai4seo_refresh_button = ai4seo_get_small_button_tag($ai4seo_this_admin_tab_url, "rotate", __("Refresh page", "ai-for-seo"));
+$ai4seo_this_plugin_page_url = ai4seo_get_subpage_url($ai4seo_nice_post_type, array("ai4seo_page" => $ai4seo_current_page));
+$ai4seo_refresh_button = ai4seo_get_small_button_tag($ai4seo_this_plugin_page_url, "rotate", __("Refresh page", "ai-for-seo"));
 
 // execute cron job sooner link
-$ai4seo_execute_sooner_text_link_url = ai4seo_get_admin_url($ai4seo_nice_post_type, array("ai4seo-execute-cron-job-sooner" => true, "ai4seo-page" => $ai4seo_current_page));
+$ai4seo_execute_sooner_text_link_url = ai4seo_get_subpage_url($ai4seo_nice_post_type, array("ai4seo-execute-cron-job-sooner" => true, "ai4seo_page" => $ai4seo_current_page));
 $ai4seo_execute_sooner_button = ai4seo_get_small_button_tag($ai4seo_execute_sooner_text_link_url, "bolt", __("Execute sooner!", "ai-for-seo"));
 
 // Define variable for the label of the failed-attributes-generations-link
@@ -146,7 +146,7 @@ $ai4seo_retry_all_failed_attachment_attributes_generations_link_label = "<span c
 // retry all failed attachment attributes generations link
 $ai4seo_retry_all_failed_attachment_attributes_generations_link_tag = ai4seo_get_small_button_tag("#", "rotate", $ai4seo_retry_all_failed_attachment_attributes_generations_link_label, "", "ai4seo_retry_all_failed_attachment_attributes(this); return false;");
 
-$ai4seo_consider_purchasing_more_credits_link_url = ai4seo_get_admin_url();
+$ai4seo_consider_purchasing_more_credits_link_url = ai4seo_get_subpage_url();
 $ai4seo_consider_purchasing_more_credits_link_tag = ai4seo_get_small_button_tag($ai4seo_consider_purchasing_more_credits_link_url, "circle-plus", __("Get more Credits", "ai-for-seo"), "ai4seo-success-button");
 
 $ai4seo_bulk_generation_order = ai4seo_get_setting(AI4SEO_SETTING_BULK_GENERATION_ORDER);
@@ -407,7 +407,7 @@ echo "</table>";
 echo "</div>";
 
 // Pagination
-$ai4seo_pagination_base_argument = ai4seo_get_admin_url($ai4seo_nice_post_type, array("ai4seo-page" => "%#%"));
+$ai4seo_pagination_base_argument = ai4seo_get_subpage_url($ai4seo_nice_post_type, array("ai4seo_page" => "%#%"));
 $ai4seo_total_pages = max(1, $ai4seo_total_pages);
 $ai4seo_current_page = max(1, $ai4seo_current_page);
 $ai4seo_pagination_base_argument = $ai4seo_pagination_base_argument ?: '%_%'; // Default base if not defined

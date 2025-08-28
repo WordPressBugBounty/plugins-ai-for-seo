@@ -35,6 +35,15 @@ if (!$ai4seo_debug) {
 // === CHECK PARAMETER ======================================================================= \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
+// === CHECK ROBHUB ACCOUNT =============================================================== \\
+
+$ai4seo_is_robhub_account_synced = ai4seo_robhub_api()->is_account_synced();
+
+if (!$ai4seo_is_robhub_account_synced) {
+    ai4seo_send_json_error(esc_html__("Failed to verify your license data. Please check your account settings.", "ai-for-seo"), 131320825);
+}
+
+
 // === CHECK PARAMETER: ATTACHMENT POST ID =========================================================== \\
 
 // get sanitized post id parameter
@@ -120,9 +129,11 @@ $ai4seo_robhub_api_call_parameters = array(
     "language" => $ai4seo_attachment_attributes_generation_language
 );
 
+$ai4seo_robhub_api_call_parameters["trigger"] = "manual";
+$ai4seo_robhub_api_call_parameters["context"] = ai4seo_get_website_context();
+
 $ai4seo_robhub_endpoint = "ai4seo/generate-all-attachment-attributes";
 
-$ai4seo_use_base64_image = false; # DEBUG
 
 // === CALL ROBHUB API  WITH ATTACHMENT URL ================================================================== \\
 
@@ -145,6 +156,8 @@ if ($ai4seo_use_base64_image) {
 }
 
 if (!ai4seo_robhub_api()->was_call_successful($ai4seo_results ?? false)) {
+    #error_log("AI for SEO: Could not generate attachment attributes: " . print_r($ai4seo_results, true));
+
     ai4seo_send_json_error(sprintf(
         esc_html__("Could not generate media attributes: %s", "ai-for-seo"),
         ($ai4seo_results["message"] ?? "Unknown error!")
@@ -154,6 +167,7 @@ if (!ai4seo_robhub_api()->was_call_successful($ai4seo_results ?? false)) {
 $ai4seo_generated_data = $ai4seo_results["data"] ?? array();
 
 if (!$ai4seo_generated_data || !is_array($ai4seo_generated_data)) {
+    #error_log("AI for SEO: Could not generate attachment attributes: " . print_r($ai4seo_results, true));
     ai4seo_send_json_error(esc_html__("API call did not return valid data.", "ai-for-seo"), 431024824);
 }
 

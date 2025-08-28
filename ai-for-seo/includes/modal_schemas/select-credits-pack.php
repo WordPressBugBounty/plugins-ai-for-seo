@@ -127,7 +127,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
                     }
 
                     echo "<div class='ai4seo-credits-pack-selection-item-price'>";
-                        echo esc_html($ai4seo_preferred_currency) . " " . esc_html(number_format_i18n($ai4seo_this_price_usd, 2));
+                        echo esc_html($ai4seo_preferred_currency) . " " . esc_html(number_format_i18n($ai4seo_this_price_usd, 2)) . "*";
                     echo "</div>";
                 echo "</div>";
             echo "</div>";
@@ -142,6 +142,11 @@ echo "<div class='ai4seo-modal-schema-content'>";
         }
 
         echo "</div>"; // close display-none-container
+
+        // Taxes may apply
+        echo "<div style='float: right; margin-top: 10px; font-size: smaller'>";
+            echo "* " . esc_html__("Taxes may apply", "ai-for-seo");
+        echo "</div>";
 
     echo "</div>";
 

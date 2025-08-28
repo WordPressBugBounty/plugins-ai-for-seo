@@ -28,6 +28,14 @@ if (!$ai4seo_debug) {
     ob_start();
 }
 
+// === CHECK ROBHUB ACCOUNT =============================================================== \\
+
+$ai4seo_is_robhub_account_synced = ai4seo_robhub_api()->is_account_synced();
+
+if (!$ai4seo_is_robhub_account_synced) {
+    ai4seo_send_json_error(esc_html__("Failed to verify your license data. Please check your account settings.", "ai-for-seo"), 121320825);
+}
+
 
 // === CHECK PARAMETER: POST ID =========================================================== \\
 
@@ -88,17 +96,19 @@ $ai4seo_post_content = sanitize_text_field($ai4seo_post_content);
 
 $ai4seo_metadata_generation_language = ai4seo_get_posts_language($ai4seo_post_id);
 
-$ai4seo_api_call_parameters = array(
+$ai4seo_robhub_api_call_parameters = array(
     "input" => $ai4seo_post_content,
     "language" => $ai4seo_metadata_generation_language
 );
 
 if ($ai4seo_keyphrase) {
-    $ai4seo_api_call_parameters["keyphrase"] = $ai4seo_keyphrase;
+    $ai4seo_robhub_api_call_parameters["keyphrase"] = $ai4seo_keyphrase;
 }
 
+$ai4seo_robhub_api_call_parameters["trigger"] = "manual";
+$ai4seo_robhub_api_call_parameters["context"] = ai4seo_get_website_context();
 
-$ai4seo_results = ai4seo_robhub_api()->call("ai4seo/generate-all-metadata", $ai4seo_api_call_parameters, "POST");
+$ai4seo_results = ai4seo_robhub_api()->call("ai4seo/generate-all-metadata", $ai4seo_robhub_api_call_parameters, "POST");
 
 
 // ___________________________________________________________________________________________ \\
@@ -106,11 +116,13 @@ $ai4seo_results = ai4seo_robhub_api()->call("ai4seo/generate-all-metadata", $ai4
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 if (!ai4seo_robhub_api()->was_call_successful($ai4seo_results)) {
+    #error_log("AI for SEO: Could not generate metadata: " . print_r($ai4seo_results, true));
     ai4seo_send_json_error(esc_html__("Could not execute API call.", "ai-for-seo"), 28127323);
 }
 
 // check if data is set
 if (!isset($ai4seo_results["data"]) || !is_array($ai4seo_results["data"]) || !$ai4seo_results["data"]) {
+    #error_log("AI for SEO: Could not generate metadata: " . print_r($ai4seo_results, true));
     ai4seo_send_json_error(esc_html__("API call did not return data.", "ai-for-seo"), 48127323);
 }
 

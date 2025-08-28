@@ -46,7 +46,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
         echo ai4seo_wp_kses(ai4seo_get_svg_tag("triangle-exclamation", "", "ai4seo-red-icon")) . " ";
         echo ai4seo_wp_kses(sprintf(
             __("Before starting the SEO Autopilot for the first time, ensure that the <a href='%s'>plugin settings</a> are configured correctly.", "ai-for-seo"),
-            esc_url(ai4seo_get_admin_url("settings"))
+            esc_url(ai4seo_get_subpage_url("settings"))
         ));
         echo "<br><br>";
     }
