@@ -3,7 +3,7 @@
 Plugin Name: AI for SEO
 Plugin URI: https://aiforseo.ai
 Description: One-Click SEO solution. "AI for SEO" helps your website to rank higher in Web Search results.
-Version: 2.1.3
+Version: 2.1.4
 Author: spacecodes
 Author URI: https://spa.ce.codes
 Text Domain: ai-for-seo
@@ -15,7 +15,7 @@ if (!defined("ABSPATH")) {
     exit;
 }
 
-const AI4SEO_PLUGIN_VERSION_NUMBER = "2.1.3";
+const AI4SEO_PLUGIN_VERSION_NUMBER = "2.1.4";
 const AI4SEO_PLUGIN_NAME = "AI for SEO";
 const AI4SEO_PLUGIN_DESCRIPTION = 'One-Click SEO solution. "AI for SEO" helps your website to rank higher in Web Search results.';
 const AI4SEO_PLUGIN_IDENTIFIER = "ai-for-seo";
@@ -49,7 +49,6 @@ const AI4SEO_LOW_CREDITS_THRESHOLD = 40;
 const AI4SEO_CUSTOM_PLAN_DISCOUNT = 30; # in percent
 const AI4SEO_MIN_CREDITS_BALANCE = 5; # todo: will be replaced by the users settings based on the quality of the ai generations
 const AI4SEO_DAILY_FREE_CREDITS_AMOUNT = 5;
-const AI4SEO_PAY_AS_YOU_GO_DISCOUNT = 10; # in percent
 const AI4SEO_CREDITS_FLAT_COST = 5;
 const AI4SEO_MONEY_BACK_GUARANTEE_DAYS = 14;
 const AI4SEO_MAX_LATEST_ACTIVITY_LOGS = 10;
@@ -58,6 +57,7 @@ const AI4SEO_NEXTGEN_GALLERY_POST_TYPE = "ai4seo_ngg";
 const AI4SEO_MAX_DISPLAYABLE_ALREADY_READ_NOTIFICATIONS = 2;
 const AI4SEO_ANALYZE_PERFORMANCE_INTERVAL = 7200; // 2h
 const AI4SEO_GLOBAL_NONCE_IDENTIFIER = "ai4seo_ajax_nonce";
+const AI4SEO_PAYG_CREDITS_THRESHOLD = 100;
 const AI4SEO_CRON_JOBS_ENABLED = true; # set to true to enable cron jobs, false to disable them
 
 /**
@@ -66,6 +66,15 @@ const AI4SEO_CRON_JOBS_ENABLED = true; # set to true to enable cron jobs, false 
  */
 function ai4seo_get_change_log(): array {
     return [
+
+         [
+            'date' => 'September 13th, 2025',
+            'version' => '2.1.4',
+            'important' => false,
+            'updates' => [
+                'Bug Fixes & Maintenance: Fixed 6 minor bugs, and 1 security update.'
+            ],
+         ],
         [
             'date' => 'August 28th, 2025',
             'version' => '2.1.3',
@@ -220,43 +229,57 @@ function ai4seo_get_change_log(): array {
  * @return array[]
  */
 function ai4seo_get_credits_packs(): array {
-    return array(
-        "price_1QKhvmHNyvfVK0r9Qz70F98V" => array(
+    $credits_packs = array(
+        "price_1S6ThfHNyvfVK0r9KimFGz1E" => array(
             "credits_amount" => 500,
-            "price_usd" => 9.99,
-            "reference_price_usd" => 9.99,
+            "price_usd" => 9,
+            "reference_price_usd" => 9,
+            "price_eur" => 8,
+            "reference_price_eur" => 8,
             "stripe_product_id" => "prod_RD8C2kl2gPqozh",
             "stripe_payment_link" => "https://buy.stripe.com/5kA00X7yF5Rc3BK8ww",
         ),
-        "price_1QKi2RHNyvfVK0r9H6MM8hK4" => array(
+        "price_1S6TjQHNyvfVK0r9WttAsfP9" => array(
             "credits_amount" => 1500,
-            "price_usd" => 23.99,
-            "reference_price_usd" => 29.97,
+            "price_usd" => 19,
+            "reference_price_usd" => 19,
+            "price_eur" => 16,
+            "reference_price_eur" => 16,
             "stripe_product_id" => "prod_RD8JI7ELrXPSWg",
             "stripe_payment_link" => "",
         ),
-        "price_1R4N44HNyvfVK0r9sYtU3g8Y" => array(
+        "price_1S6TlCHNyvfVK0r9s0CZ3z1Z" => array(
             "credits_amount" => 5000,
-            "price_usd" => 69.99,
-            "reference_price_usd" => 99.90,
+            "price_usd" => 49,
+            "reference_price_usd" => 49,
+            "price_eur" => 45,
+            "reference_price_eur" => 45,
             "stripe_product_id" => "prod_RD8KgysYBIyi2Z",
             "stripe_payment_link" => "",
         ),
-        "price_1R4N2vHNyvfVK0r9s3WhZxCl" => array(
-            "credits_amount" => 15000,
-            "price_usd" => 179.00,
-            "reference_price_usd" => 299.70,
-            "stripe_product_id" => "prod_RD8LcGkIHN7O0K",
-            "stripe_payment_link" => "",
-        ),
-        "price_1R4MwkHNyvfVK0r9sgPn4ppM" => array(
-            "credits_amount" => 50000,
-            "price_usd" => 499.00,
-            "reference_price_usd" => 999.00,
-            "stripe_product_id" => "prod_RD8LWAmW1fQ32n",
-            "stripe_payment_link" => "",
-        ),
     );
+
+    # Special Credit Packs for users in group A, B, or C
+    if (ai4seo_robhub_api()->is_group('a') || ai4seo_robhub_api()->is_group('b') || ai4seo_robhub_api()->is_group('c')) {
+        $credits_packs += array(
+            "price_1R4N2vHNyvfVK0r9s3WhZxCl" => array(
+                "credits_amount" => 15000,
+                "price_usd" => 179.00,
+                "reference_price_usd" => 299.70,
+                "stripe_product_id" => "prod_RD8LcGkIHN7O0K",
+                "stripe_payment_link" => "",
+            ),
+            "price_1R4MwkHNyvfVK0r9sgPn4ppM" => array(
+                "credits_amount" => 50000,
+                "price_usd" => 499.00,
+                "reference_price_usd" => 999.00,
+                "stripe_product_id" => "prod_RD8LWAmW1fQ32n",
+                "stripe_payment_link" => "",
+            ),
+        );
+    }
+
+    return $credits_packs;
 }
 
 /**
@@ -667,7 +690,6 @@ const AI4SEO_ALL_ACCOUNT_PAGE_SETTINGS = array(
 const AI4SEO_SETTING_PREFERRED_CURRENCY = 'preferred_currency';
 const AI4SEO_SETTING_PAYG_ENABLED = 'payg_enabled';
 const AI4SEO_SETTING_PAYG_STRIPE_PRICE_ID = 'payg_stripe_price_id';
-const AI4SEO_SETTING_PAYG_CREDITS_THRESHOLD = 'payg_credits_threshold';
 const AI4SEO_SETTING_PAYG_DAILY_BUDGET = 'payg_daily_budget';
 const AI4SEO_SETTING_PAYG_MONTHLY_BUDGET = 'payg_monthly_budget';
 
@@ -675,7 +697,6 @@ const AI4SEO_ALL_GET_MORE_CREDITS_MODAL_SETTINGS = array(
     AI4SEO_SETTING_PREFERRED_CURRENCY,
     AI4SEO_SETTING_PAYG_ENABLED,
     AI4SEO_SETTING_PAYG_STRIPE_PRICE_ID,
-    AI4SEO_SETTING_PAYG_CREDITS_THRESHOLD,
     AI4SEO_SETTING_PAYG_DAILY_BUDGET,
     AI4SEO_SETTING_PAYG_MONTHLY_BUDGET,
 );
@@ -743,10 +764,9 @@ const AI4SEO_DEFAULT_SETTINGS = array(
     AI4SEO_SETTING_ADD_GENERATOR_HINTS => true,
     AI4SEO_SETTING_META_TAGS_BLOCK_STARTING_HINT => "[{NAME}] This site is optimized with the {NAME} plugin v{VERSION} - {WEBSITE}",
     AI4SEO_SETTING_META_TAGS_BLOCK_ENDING_HINT => "[{NAME}] End",
-    AI4SEO_SETTING_PREFERRED_CURRENCY => "USD",
+    AI4SEO_SETTING_PREFERRED_CURRENCY => "usd",
     AI4SEO_SETTING_PAYG_ENABLED => false,
     AI4SEO_SETTING_PAYG_STRIPE_PRICE_ID => "", # defaults to previously purchased pack
-    AI4SEO_SETTING_PAYG_CREDITS_THRESHOLD => 100,
     AI4SEO_SETTING_PAYG_DAILY_BUDGET => 0, # defaults to cost credits pack
     AI4SEO_SETTING_PAYG_MONTHLY_BUDGET => 0, # defaults to recommended credits pack entry,
 );
@@ -910,7 +930,7 @@ add_action('init', function() {
             "icon" => "headline",
             "mime-type-restrictions" => array(),
             "input-type" => "textarea",
-            "hint" => __("<strong>Best Practice:</strong> A descriptive and unique title for your image that helps users and search engines understand the content of the image. This title is displayed when the image is loaded in the browser and may be used as the default filename if someone downloads the image.<br><br>The AI aims to generate an image title with an optimal length of <strong>20 to 50</strong> characters.<br><br>The image title is not directly visible on your website but is stored in the <strong>image metadata</strong>.  A well-crafted title can aid in organizing your media library and improve searchability within WordPress.", "ai-for-seo"),
+            "hint" => __("<strong>Best Practice:</strong> A descriptive and unique title for your image that helps users and search engines understand the content of the image. This title is displayed when the image is loaded in the browser and may be used as the default filename if someone downloads the image.<br><br>The AI aims to generate an image title with an optimal length of <strong>20 to 50</strong> characters.<br><br>The image title is not directly visible on your website but is stored in the <strong>image metadata</strong>. A well-crafted title can aid in organizing your media library and improve searchability within WordPress.", "ai-for-seo"),
             "api-identifier" => "title",
         ),
         "alt-text" => array(
@@ -1101,7 +1121,9 @@ function ai4seo_get_allowed_html_tags_and_attributes(): array {
             "selected" => array(),
         ),
         "br" => array(),
-        "strong" => array(),
+        "strong" => array(
+            "class" => array(),
+        ),
         "input" => array(
             "type" => array(),
             "id" => array(),
@@ -2084,7 +2106,7 @@ function ai4seo_filter_admin_title(string $admin_title, string $title ): string 
     $website_name = get_bloginfo( 'name' );
 
     // build everything together and sanitize
-    $browser_title = $active_page_label . ' ‹ ' . AI4SEO_PLUGIN_NAME . ' ‹ ' .  $website_name;
+    $browser_title = $active_page_label . ' ‹ ' . AI4SEO_PLUGIN_NAME . ' ‹ '  . $website_name;
     $browser_title = wp_strip_all_tags( $browser_title );
     $browser_title = str_replace( array( '&amp;', '&#038;' ), '&', $browser_title );
     $browser_title = str_replace( array( '&lt;', '&#060;' ), '<', $browser_title );
@@ -2392,7 +2414,7 @@ function ai4seo_enqueue_admin_scripts() {
 function ai4seo_set_localization_parameters() {
     global $ai4seo_scripts_version_number;
 
-    $current_post_id = get_the_ID() ?: 0;
+    $current_post_id = ai4seo_get_post_id();
 
     $ajax_nonce = wp_create_nonce( AI4SEO_GLOBAL_NONCE_IDENTIFIER );
 
@@ -2601,7 +2623,7 @@ function ai4seo_inject_our_meta_tags_into_the_html_head(string $full_html_buffer
     }
 
     // Define variable for the page- or post-id
-    $post_id = get_the_ID();
+    $post_id = ai4seo_get_post_id();
 
     // Stop function if no page- or post-id is defined
     if (!$post_id) {
@@ -3475,10 +3497,6 @@ function ai4seo_sync_robhub_account(string $sync_reason = "unknown", bool $allow
         ai4seo_update_setting(AI4SEO_SETTING_PAYG_STRIPE_PRICE_ID, $synced_account_data["stripe_price_id"]);
     }
 
-    if (isset($synced_account_data["payg_threshold"]) && is_numeric($synced_account_data["payg_threshold"])) {
-        ai4seo_update_setting(AI4SEO_SETTING_PAYG_CREDITS_THRESHOLD, (int) $synced_account_data["payg_threshold"]);
-    }
-
     if (isset($synced_account_data["payg_daily_budget"]) && is_numeric($synced_account_data["payg_daily_budget"])) {
         ai4seo_update_setting(AI4SEO_SETTING_PAYG_DAILY_BUDGET, (int) $synced_account_data["payg_daily_budget"]);
     }
@@ -3487,10 +3505,9 @@ function ai4seo_sync_robhub_account(string $sync_reason = "unknown", bool $allow
         ai4seo_update_setting(AI4SEO_SETTING_PAYG_MONTHLY_BUDGET, (int) $synced_account_data["payg_monthly_budget"]);
     }
 
-    // stripe_last_customer_currency
-    if (isset($synced_account_data["stripe_last_customer_currency"]) && $synced_account_data["stripe_last_customer_currency"]) {
-        $synced_account_data["stripe_last_customer_currency"] = strtoupper($synced_account_data["stripe_last_customer_currency"]);
-        ai4seo_update_setting(AI4SEO_SETTING_PREFERRED_CURRENCY, $synced_account_data["stripe_last_customer_currency"]);
+    // preferred_currency
+    if (isset($synced_account_data["preferred_currency"]) && $synced_account_data["preferred_currency"]) {
+        ai4seo_update_setting(AI4SEO_SETTING_PREFERRED_CURRENCY, $synced_account_data["preferred_currency"]);
     }
 
     // discount
@@ -3526,6 +3543,23 @@ function ai4seo_sync_robhub_account(string $sync_reason = "unknown", bool $allow
             $message = $notification["message"];
             unset($notification["message"]);
 
+            # TEMPORARY WORKAROUND FOR BONUS CREDITS NOTIFICATION
+            // first-purchase-credits-bonus, Title: “30% extra credits on your first purchase”
+            // Body: “Offer ends in {EXPIRE_COUNTDOWN}. Auto-applied at checkout. One per account.”
+            if ((ai4seo_robhub_api()->is_group('c') || ai4seo_robhub_api()->is_group('f'))) {
+                if ($notification_index == "first-purchase-credits-bonus") {
+                    $message = sprintf(
+                        "<strong>" . esc_html__("Congratulations on taking the first step towards enhancing your SEO with AI for SEO!", "ai-for-seo") . "</strong><br> " .
+                        esc_html__("To help you get started, we're offering you a special bonus of %s%% extra Credits on your first purchase. This offer is auto-applied at checkout and is valid for the next %s.", "ai-for-seo"),
+                        "<strong>30</strong>",
+                        "<strong>{{EXPIRE_COUNTDOWN}}</strong>",
+                    );
+                }
+            } else {
+                ai4seo_remove_notification("first-purchase-credits-bonus");
+                continue;
+            }
+
             // set $force and unset it from the notification array
             if ($allow_notification_force) {
                 $force = isset($notification["force"]) && (bool) $notification["force"];
@@ -3537,6 +3571,10 @@ function ai4seo_sync_robhub_account(string $sync_reason = "unknown", bool $allow
 
             ai4seo_push_notification($notification_index, $message, $force, $notification);
         }
+
+        # TEMPORARY WORKAROUND FOR BONUS CREDITS NOTIFICATION
+    } else {
+        ai4seo_remove_notification("first-purchase-credits-bonus");
     }
 
     return true;
@@ -4476,7 +4514,7 @@ function ai4seo_format_seconds_to_hhmmss_or_days_hhmmss(int $seconds): string {
 
     if ($hours >= 24) {
         $formatted_duration = sprintf(
-            esc_html__('%d days and %02d:%02d:%02d', 'ai-for-seo'),
+            esc_html__('%d days %02d:%02d:%02d', 'ai-for-seo'),
             floor($hours / 24),
             $hours % 24,
             $minutes,
@@ -5016,6 +5054,182 @@ function ai4seo_get_remote_body(string $url) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 /**
+ * Return a robust Post/Page ID for the current request.
+ *
+ * Default: prefer the main queried object (stable even with secondary loops).
+ * Falls back to the loop's global $post when requested.
+ *
+ * Usage: replace get_the_ID() with ai4seo_get_post_id().
+ *
+ * @since 2.1.4
+ *
+ * @param array $args {
+ *     Optional behavior flags.
+ *
+ *     @type string $prefer   'primary' or 'loop'. Default 'primary'.
+ *                            - 'primary': use main query / queried object.
+ *                            - 'loop'   : use global $post first, then primary.
+ *     @type string $fallback 'loop' or '0'. Default 'loop'.
+ *                            What to return if no primary ID is found.
+ * }
+ * @return int Post ID or 0.
+ */
+function ai4seo_get_post_id( array $args = array() ): int {
+    $args = wp_parse_args(
+        $args,
+        array(
+            'prefer'   => 'primary',
+            'fallback' => 'loop',
+        )
+    );
+
+    // Per-request manual override stack. Use push/pop helpers below.
+    static $ai4seo_post_context_stack = array();
+
+    // If an override is active, honor it.
+    if ( ! empty( $ai4seo_post_context_stack ) ) {
+        $override_id = (int) end( $ai4seo_post_context_stack );
+        if ( $override_id > 0 ) {
+            /**
+             * Filter: allow last-chance override of the manually pushed ID.
+             *
+             * @param int   $override_id
+             * @param array $args
+             */
+            return (int) apply_filters( 'ai4seo_post_id_overridden', $override_id, $args );
+        }
+    }
+
+    // Cache the computed "primary" ID to avoid repeated work.
+    static $ai4seo_cached_primary_id = null;
+
+    // Helper to compute the primary (main-queried) ID once.
+    $compute_primary = static function () {
+        // Not for wp-admin screens (except AJAX). Keep predictable.
+        if ( is_admin() && ! wp_doing_ajax() ) {
+            return 0;
+        }
+
+        $post_id = 0;
+
+        $queried = get_queried_object();
+        if ( $queried instanceof WP_Post ) {
+            $post_id = (int) $queried->ID;
+        } else {
+            // Static "Posts page" when set and we are on the blog index.
+            if ( is_home() && ! is_front_page() ) {
+                $page_for_posts = (int) get_option( 'page_for_posts' );
+                if ( $page_for_posts > 0 ) {
+                    $post_id = $page_for_posts;
+                }
+            }
+
+            // Static "Front page" when set.
+            if ( 0 === $post_id && is_front_page() ) {
+                $page_on_front = (int) get_option( 'page_on_front' );
+                if ( $page_on_front > 0 ) {
+                    $post_id = $page_on_front;
+                }
+            }
+
+            // WooCommerce shop archive maps to a Page ID.
+            if ( 0 === $post_id && function_exists( 'is_shop' ) && is_shop() ) {
+                $shop_id = (int) get_option( 'woocommerce_shop_page_id' );
+                if ( $shop_id > 0 ) {
+                    $post_id = $shop_id;
+                }
+            }
+        }
+
+        // Resolve previews that point to a revision.
+        if ( $post_id > 0 ) {
+            $maybe_parent = wp_is_post_revision( $post_id );
+            if ( $maybe_parent ) {
+                $post_id = (int) $maybe_parent;
+            }
+        }
+
+        /**
+         * Filter the detected primary post ID for the current request.
+         *
+         * @param int $post_id
+         */
+        return (int) apply_filters( 'ai4seo_primary_post_id', $post_id );
+    };
+
+    // Compute or read the cached primary ID.
+    if ( null === $ai4seo_cached_primary_id ) {
+        $ai4seo_cached_primary_id = $compute_primary();
+    }
+
+    // Optionally use the loop's current post first.
+    if ( 'loop' === $args['prefer'] ) {
+        $loop_id = 0;
+        /** @var WP_Post|null $post */
+        global $post;
+        if ( $post instanceof WP_Post ) {
+            $loop_id = (int) $post->ID;
+        }
+        if ( $loop_id > 0 ) {
+            return (int) apply_filters( 'ai4seo_post_id_loop_preferred', $loop_id, $args );
+        }
+        // Fall through to primary if loop ID not available.
+    }
+
+    // Prefer primary.
+    if ( $ai4seo_cached_primary_id > 0 ) {
+        return (int) $ai4seo_cached_primary_id;
+    }
+
+    // Fallback strategy.
+    if ( 'loop' === $args['fallback'] ) {
+        $loop_id = 0;
+        /** @var WP_Post|null $post */
+        global $post;
+        if ( $post instanceof WP_Post ) {
+            $loop_id = (int) $post->ID;
+        }
+        if ( $loop_id > 0 ) {
+            return (int) $loop_id;
+        }
+    }
+
+    return 0;
+}
+
+// =========================================================================================== \\
+
+/**
+ * Push a temporary post context ID.
+ * Call before entering a custom loop; pair with ai4seo_pop_post_context().
+ *
+ * @since 2.1.4
+ * @param int $post_id
+ * @return void
+ */
+function ai4seo_push_post_context( $post_id ) {
+    static $ai4seo_post_context_stack = array(); // same static as above by function scope.
+    $ai4seo_post_context_stack[]       = (int) $post_id;
+}
+
+// =========================================================================================== \\
+
+/**
+ * Pop the last pushed post context ID.
+ *
+ * @since 2.1.4
+ * @return void
+ */
+function ai4seo_pop_post_context() {
+    static $ai4seo_post_context_stack = array(); // same static as above by function scope.
+    if ( ! empty( $ai4seo_post_context_stack ) ) {
+        array_pop( $ai4seo_post_context_stack );
+    }
+}
+
+// =========================================================================================== \\
+
+/**
  * Returns all supported post types for this wordpress setup
  * @return array The supported post types
  */
@@ -5108,7 +5322,7 @@ function ai4seo_get_combined_post_content(int $post_id = 0, string $editor_ident
     // Read post-id if it is not numeric
     if (empty($post_id)) {
         // Get post- or page-id
-        $post_id = get_the_ID();
+        $post_id = ai4seo_get_post_id();
     }
 
     if (empty($post_id)) {
@@ -8201,7 +8415,7 @@ function ai4seo_refresh_all_posts_seo_coverage(bool $debug = false) {
 
     // === GENERATED POST IDS ================================================================================= \\
 
-    $query = "SELECT post_id FROM " . esc_sql($wpdb->postmeta) . " WHERE meta_key = '" . esc_sql(AI4SEO_POST_META_GENERATED_DATA_META_KEY) .  "'";
+    $query = "SELECT post_id FROM " . esc_sql($wpdb->postmeta) . " WHERE meta_key = '" . esc_sql(AI4SEO_POST_META_GENERATED_DATA_META_KEY) . "'";
     $generated_data_post_ids = $wpdb->get_col($query);
 
     if ($debug) {
@@ -11885,7 +12099,7 @@ function ai4seo_validate_setting_value(string $setting_name, $setting_value): bo
         case AI4SEO_SETTING_PREFERRED_CURRENCY:
             $allowed_currencies = ai4seo_get_allowed_currencies();
 
-            if (!in_array($setting_value, $allowed_currencies)) {
+            if (!in_array(strtoupper($setting_value), $allowed_currencies)) {
                 error_log("AI4SEO: Invalid currency for setting '" . $setting_name . "'. #341016325");
                 return false;
             }
@@ -11908,7 +12122,6 @@ function ai4seo_validate_setting_value(string $setting_name, $setting_value): bo
 
             return true;
 
-        case AI4SEO_SETTING_PAYG_CREDITS_THRESHOLD:
         case AI4SEO_SETTING_PAYG_DAILY_BUDGET:
         case AI4SEO_SETTING_PAYG_MONTHLY_BUDGET:
             return is_numeric($setting_value) && $setting_value >= 0;
@@ -12536,7 +12749,7 @@ function ai4seo_echo_notice_from_notification(string $notification_index, array 
     // Add CSS classes for unread notifications (blinking)
     $additional_classes = $is_unread ? ' ai4seo-unread-notice' : '';
 
-    echo '<div class="notice ai4seo-notice ai4seo-notification' . ($is_dismissable ? " is-dismissible" : "") . ' ' . esc_attr($notice_class . $additional_classes) . '" data-notification-index="' . esc_attr($notification_index) . '">';
+    echo '<div class="notice ai4seo-notice ai4seo-notification' . ($is_dismissable ? " is-dismissible" : "") . ' ' . esc_attr($notice_class . $additional_classes) . ' ai4seo-ignore-during-dashboard-refresh" data-notification-index="' . esc_attr($notification_index) . '">';
         echo '<img class="ai4seo-notice-icon" src="' . esc_url(ai4seo_get_ai_for_seo_logo_url("32x32")) . '" alt="' . esc_attr(AI4SEO_PLUGIN_NAME) . '" /> ';
 
         // the message
@@ -12570,9 +12783,9 @@ function ai4seo_filter_notification_message($message, string $notification_index
         $users_first_name = ai4seo_is_function_usable('get_current_user_id') && get_current_user_id() ? get_user_meta(get_current_user_id(), 'first_name', true) : '';
 
         if ($users_first_name) {
-            $greetings = "<strong>" .  sprintf(esc_html__("Hi %s", "ai-for-seo"), esc_html($users_first_name)) . ",</strong>";
+            $greetings = "<strong>" . sprintf(esc_html__("Hi %s", "ai-for-seo"), esc_html($users_first_name)) . ",</strong>";
         } else {
-            $greetings = "<strong>" .  esc_html__("Hi", "ai-for-seo") . ",</strong>";
+            $greetings = "<strong>" . esc_html__("Hi", "ai-for-seo") . ",</strong>";
         }
 
         $greetings .= "<br><br>";
@@ -12604,11 +12817,13 @@ function ai4seo_filter_notification_message($message, string $notification_index
  */
 function ai4seo_get_notification_buttons(string $notification_index, array $notification): string {
     $show_dismiss_button = !(isset($notification['is_permanent']) && $notification['is_permanent']);
+    $show_not_now_button = (bool) ($notification['not_now_button'] ?? false); # replaces dismiss button if set
     $show_contact_us_button = (bool) ($notification['contact_us'] ?? false);
     $show_set_up_seo_autopilot_button = (bool) ($notification['set_up_seo_autopilot_button'] ?? false);
     $show_get_a_get_more_credits_button = (bool) ($notification['get_more_credits_button'] ?? false);
     $show_get_a_custom_quote_button = (bool) ($notification['get_a_custom_quote_button'] ?? false);
     $show_grab_deal_button = (bool) ($notification['grab_deal_button'] ?? false);
+    $show_claim_bonus_button = (bool) ($notification['claim_bonus_button'] ?? false);
     $show_rate_us_button = (bool) ($notification['rate_us_button'] ?? false);
     $show_go_to_account_settings_button = (bool) ($notification['go_to_account_settings_button'] ?? false);
     $show_go_to_settings_button = (bool) ($notification['go_to_settings_button'] ?? false);
@@ -12641,6 +12856,11 @@ function ai4seo_get_notification_buttons(string $notification_index, array $noti
     // Show a "Grab Deal" Button
     if ($show_grab_deal_button) {
         $notification_buttons .= ai4seo_get_button_text_link_tag("#", "gift", __("Grab Deal", "ai-for-seo"), "ai4seo-unicorn-button", "ai4seo_open_get_more_credits_modal()");
+    }
+
+    // Show a "Claim Bonus" Button
+    if ($show_claim_bonus_button) {
+        $notification_buttons .= ai4seo_get_button_text_link_tag("#", "arrow-up-right-from-square", __("Claim Bonus", "ai-for-seo"), "ai4seo-unicorn-button", "ai4seo_open_get_more_credits_modal()");
     }
 
     // Show a "Get more Credits" Button
@@ -12678,12 +12898,16 @@ function ai4seo_get_notification_buttons(string $notification_index, array $noti
         $notification_buttons .= ai4seo_get_button_text_link_tag(sanitize_url(AI4SEO_OFFICIAL_CONTACT_URL), "envelope", __("Contact us", "ai-for-seo"), "", "", "_blank");
     }
 
-    // dismiss button
-    if ($show_dismiss_button) {
+    // dismiss / not now button
+    if ($show_dismiss_button || $show_not_now_button) {
         // dismiss button
         $notification_buttons .= '<button type="button" class="ai4seo-button ai4seo-abort-button ai4seo-notification-dismiss-button" data-notification-index="' . esc_attr($notification_index) . '" title="' . esc_attr__("Dismiss this notification", "ai-for-seo") . '">';
             $notification_buttons .= ai4seo_get_svg_tag("circle-xmark", "", "ai-for-seo");
-            $notification_buttons .= esc_html__("Dismiss", "ai-for-seo");
+            if ($show_not_now_button) {
+                $notification_buttons .= esc_html__("Not now", "ai-for-seo");
+            } else {
+                $notification_buttons .= esc_html__("Dismiss", "ai-for-seo");
+            }
         $notification_buttons .= '</button>';
     }
 
@@ -13755,10 +13979,8 @@ function ai4seo_check_discount_notification($discount, $allow_notification_force
 function ai4seo_does_user_need_to_accept_tos_toc_and_pp($check_group = true): bool {
     global $ai4seo_persistent_does_user_need_to_accept_tos_toc_and_pp;
 
-    // group b -> no tos or toc
-    if ($check_group && ai4seo_robhub_api()->is_group_b()) {
-        return false;
-    }
+    // currently deactivated
+    return false;
 
     if ($ai4seo_persistent_does_user_need_to_accept_tos_toc_and_pp !== null) {
         return $ai4seo_persistent_does_user_need_to_accept_tos_toc_and_pp;
@@ -14177,7 +14399,6 @@ function ai4seo_send_pay_as_you_go_settings() {
     $payg_settings = array();
     $payg_settings[AI4SEO_SETTING_PAYG_ENABLED] = (bool) ai4seo_get_setting(AI4SEO_SETTING_PAYG_ENABLED);
     $payg_settings[AI4SEO_SETTING_PAYG_STRIPE_PRICE_ID] = ai4seo_get_setting(AI4SEO_SETTING_PAYG_STRIPE_PRICE_ID);
-    $payg_settings[AI4SEO_SETTING_PAYG_CREDITS_THRESHOLD] = (int) ai4seo_get_setting(AI4SEO_SETTING_PAYG_CREDITS_THRESHOLD);
     $payg_settings[AI4SEO_SETTING_PAYG_DAILY_BUDGET] = (int) ai4seo_get_setting(AI4SEO_SETTING_PAYG_DAILY_BUDGET);
     $payg_settings[AI4SEO_SETTING_PAYG_MONTHLY_BUDGET] = (int) ai4seo_get_setting(AI4SEO_SETTING_PAYG_MONTHLY_BUDGET);
     $payg_settings = ai4seo_deep_sanitize($payg_settings);

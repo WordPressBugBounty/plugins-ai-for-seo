@@ -4,7 +4,7 @@ Donate link: https://spa.ce.codes
 Tags: AI, SEO, Metadata, Alt text, Bulk
 Requires at least: 4.7
 Tested up to: 6.8.2
-Stable tag: 2.1.3
+Stable tag: 2.1.4
 Requires PHP: 7.4
 License: GPLv2 or later (or compatible)
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -333,6 +333,9 @@ If you cannot access the plugin due to incognito mode restriction, follow these 
 
 
 == Changelog ==
+
+= 2.1.4 =
+* Bug Fixes & Maintenance: Fixed 6 bugs, and 1 security update.
 
 = 2.1.3 =
 * Dashboard now refreshes automatically; manual page reload is no longer required.

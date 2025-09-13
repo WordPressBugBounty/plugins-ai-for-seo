@@ -140,7 +140,7 @@ echo "<div class='ai4seo-form ai4seo-editor-form'>";
                 // Suffix
                 if ($ai4seo_this_metadata_suffix) {
                     echo "<span class='ai4seo-editor-suffix ai4seo-gray-text' style='position: absolute; left: 0;'>";
-                        echo esc_html__("Suffix", "ai-for-seo") . ": " .  esc_html($ai4seo_this_metadata_suffix) . " ";
+                        echo esc_html__("Suffix", "ai-for-seo") . ": " . esc_html($ai4seo_this_metadata_suffix) . " ";
 
                         // tooltip
                         echo ai4seo_wp_kses(ai4seo_get_icon_with_tooltip_tag(__("Prefix and suffix are added automatically when the page is rendered. Please do not include them in this input field.", "ai-for-seo")));

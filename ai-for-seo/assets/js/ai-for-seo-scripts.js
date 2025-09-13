@@ -253,6 +253,13 @@ if (typeof jQuery === 'function') {
 
         // Add click-functions to parent-window for ai4seo_click_function_containers-elements if they exist
         if (ai4seo_exists(ai4seo_click_function_containers)) {
+            // Workaround to display buttons within elementor-navigation
+            jQuery("#elementor-panel-content-wrapper").click(function(){
+                setTimeout(function() {
+                    ai4seo_add_open_edit_metadata_modal_button_to_elementor_navigation();
+                }, 200);
+            });
+
             // Loop through all click-function-containers
             for (var i = 0; i < ai4seo_click_function_containers.length; i++) {
                 // Add click-function to parent-window
@@ -925,6 +932,11 @@ function ai4seo_init_countdown(element) {
         return;
     }
 
+    // add class ai4seo-ignore-during-dashboard-refresh if not already set
+    if (!element.hasClass('ai4seo-ignore-during-dashboard-refresh')) {
+        element.addClass('ai4seo-ignore-during-dashboard-refresh');
+    }
+
     // check if element has data-time-left attribute
     let total_seconds = element.data('time-left');
 
@@ -952,7 +964,7 @@ function ai4seo_init_countdown(element) {
                 }
             }
         } else if (total_seconds > 86400) { // More than 24 hours
-            // format time as "X days and hh:mm:ss"
+            // format time as "X days hh:mm:ss"
             let time_str = ai4seo_format_time_with_days(total_seconds);
             element.text(time_str);
         } else {
@@ -985,7 +997,7 @@ function ai4seo_format_time_with_days(total_seconds) {
         String(seconds).padStart(2, '0');
 
     if (days > 0) {
-        time_str = wp.i18n.__('%1$d day%2$s and %3$s', 'ai-for-seo')
+        time_str = wp.i18n.__('%1$d day%2$s %3$s', 'ai-for-seo')
             .replace('%1$d', days)
             .replace('%2$s', days > 1 ? 's' : '')
             .replace('%3$s', time_str);
@@ -4569,19 +4581,16 @@ function ai4seo_handle_payg_form_change() {
     let payg_credits_amount = ai4seo_jQuery("#ai4seo_payg_stripe_price_id option:selected").data("credits-amount");
     let payg_price = ai4seo_jQuery("#ai4seo_payg_stripe_price_id option:selected").data("price");
     let payg_reference_price = ai4seo_jQuery("#ai4seo_payg_stripe_price_id option:selected").data("reference-price");
-    let payg_credits_threshold = ai4seo_jQuery("#ai4seo_payg_credits_threshold").val();
     let payg_daily_budget = ai4seo_jQuery("#ai4seo_payg_daily_budget").val();
     let payg_monthly_budget = ai4seo_jQuery("#ai4seo_payg_monthly_budget").val();
 
     // replace , with .
-    payg_price = payg_price.replace(",", ".");
+    if (typeof payg_price === "string") {
+        payg_price = payg_price.replace(",", ".");
+    }
 
     // cast payg_price to float
     payg_price = parseFloat(payg_price);
-
-    // cast payg_credits_threshold to int
-    payg_credits_threshold = parseInt(payg_credits_threshold);
-    ai4seo_jQuery("#ai4seo_payg_credits_threshold").val(payg_credits_threshold);
 
     // cast payg_daily_budget to int
     payg_daily_budget = parseInt(payg_daily_budget);
@@ -4604,8 +4613,9 @@ function ai4seo_handle_payg_form_change() {
 
     ai4seo_jQuery("#ai4seo-payg-summary-credits-amount").text(payg_credits_amount);
     ai4seo_jQuery("#ai4seo-payg-summary-price").text(payg_price);
-    ai4seo_jQuery("#ai4seo-payg-summary-reference-price").text(payg_reference_price);
-    ai4seo_jQuery("#ai4seo-payg-summary-threshold").text(payg_credits_threshold);
+    if (ai4seo_exists("#ai4seo-payg-summary-reference-price")) {
+        ai4seo_jQuery("#ai4seo-payg-summary-reference-price").text(payg_reference_price);
+    }
     ai4seo_jQuery("#ai4seo-payg-summary-daily-budget").text(payg_daily_budget);
     ai4seo_jQuery("#ai4seo-payg-summary-monthly-budget").text(payg_monthly_budget);
 }
@@ -4627,26 +4637,19 @@ function ai4seo_validate_payg_inputs() {
         return false;
     }
 
-    // check threshold (must be between 0 and 99999)
-    let payg_credits_threshold = ai4seo_jQuery("#ai4seo_payg_credits_threshold").val();
+    // check daily budget, must be at least as high as the price
+    let payg_daily_budget = ai4seo_jQuery("#ai4seo_payg_daily_budget").val();
+    let payg_price = null;
 
-    // cast payg_credits_threshold to int
-    payg_credits_threshold = parseInt(payg_credits_threshold);
-
-    if (payg_credits_threshold < 0 || payg_credits_threshold > 99999) {
-        ai4seo_open_generic_error_notification_modal(101117325, wp.i18n.__("Please enter a valid threshold (0-99999).", "ai-for-seo"));
+    if (ai4seo_exists("#ai4seo_payg_stripe_price_id option:selected")) {
+        payg_price = parseFloat(ai4seo_jQuery("#ai4seo_payg_stripe_price_id option:selected").data("price"));
+    } else {
+        ai4seo_open_generic_error_notification_modal(531312925, wp.i18n.__("Please select a valid credits pack.", "ai-for-seo"));
         return false;
     }
 
-    // check daily budget, must be at least as high as the price
-    let payg_daily_budget = ai4seo_jQuery("#ai4seo_payg_daily_budget").val();
-    let payg_price = ai4seo_jQuery("#ai4seo_payg_credits_amount option:selected").data("price");
-
     // cast payg_daily_budget to int
     payg_daily_budget = parseInt(payg_daily_budget);
-
-    // cast payg_price to float
-    payg_price = parseFloat(payg_price);
 
     if (payg_daily_budget < payg_price) {
         ai4seo_open_generic_error_notification_modal(111117325, wp.i18n.__("The daily budget must be at least as high as the selected price.", "ai-for-seo"));

@@ -51,7 +51,6 @@ $ai4seo_robhub_credits_balance = ai4seo_robhub_api()->get_credits_balance();
 
 $ai4seo_is_payg_enabled = (bool) ai4seo_get_setting(AI4SEO_SETTING_PAYG_ENABLED);
 $ai4seo_has_purchased_something = (bool) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_HAS_PURCHASED_SOMETHING);
-$ai4seo_payg_credits_threshold = (int) ai4seo_get_setting(AI4SEO_SETTING_PAYG_CREDITS_THRESHOLD);
 
 $ai4seo_api_username = ai4seo_robhub_api()->get_api_username();
 
@@ -70,41 +69,62 @@ echo "</div>";
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 echo "<div class='ai4seo-modal-schema-content'>";
-    echo esc_html__("Choose one of the following options to get more Credits (you may also combine):", "ai-for-seo");
+    if (!ai4seo_robhub_api()->is_group('d') && !ai4seo_robhub_api()->is_group('e') && !ai4seo_robhub_api()->is_group('f')) {
+        echo esc_html__("Choose one of the following options to get more Credits (you may also combine):", "ai-for-seo");
+    } else {
+        if ($ai4seo_user_is_on_free_plan) {
+            echo sprintf(
+                esc_html__("Use “%s” to choose a plan that fits your needs. When your Credits run low, enable %s to auto-refill your balance.", "ai-for-seo"),
+                "<strong>" . esc_html__("See options", "ai-for-seo") . "</strong>",
+                "<strong>" . esc_html__("Pay-As-You-Go", "ai-for-seo") . "</strong>"
+            );
+        } else {
+            echo sprintf(
+                esc_html__("You are currently subscribed to the %s plan. When your Credits run low, enable %s to auto-refill your balance.", "ai-for-seo"),
+                "<strong>" . esc_html($ai4seo_robhub_subscription_plan_name) . "</strong>",
+                "<strong>" . esc_html__("Pay-As-You-Go", "ai-for-seo") . "</strong>"
+            );
+        }
+    }
+
+    $ai4seo_section_number = 1;
 
 
     // === CREDITS PACK ================================================================================= \\
 
-    echo "<div class='ai4seo-get-more-credits-section'>";
-        echo "<div class='ai4seo-get-more-credits-section-left'>";
-            echo "<div class='ai4seo-get-more-credits-section-big-number'>";
-                echo "1";
+    if (!ai4seo_robhub_api()->is_group('d') && !ai4seo_robhub_api()->is_group('e') && !ai4seo_robhub_api()->is_group('f')) {
+        echo "<div class='ai4seo-get-more-credits-section'>";
+            echo "<div class='ai4seo-get-more-credits-section-left'>";
+                echo "<div class='ai4seo-get-more-credits-section-big-number'>";
+                    echo $ai4seo_section_number;
+                echo "</div>";
+            echo "</div>";
+
+            echo "<div class='ai4seo-get-more-credits-section-right'>";
+                echo "<div class='ai4seo-get-more-credits-section-big-title'>";
+                    echo esc_html__("Credits Pack", "ai-for-seo");
+                echo "</div>";
+
+                echo esc_html__("Need more Credits for a one-time job? Choose a Credits Pack that fits your needs.", "ai-for-seo");
+
+                // current discount
+                ai4seo_echo_current_discount();
+
+                echo "<br>";
+
+                echo ai4seo_wp_kses(ai4seo_get_button_text_link_tag("#", "list", esc_html__("See options", "ai-for-seo"), "ai4seo-success-button", "ai4seo_handle_open_select_credits_pack_modal();"));
             echo "</div>";
         echo "</div>";
 
-        echo "<div class='ai4seo-get-more-credits-section-right'>";
-            echo "<div class='ai4seo-get-more-credits-section-big-title'>";
-                echo esc_html__("Credits Pack", "ai-for-seo");
-            echo "</div>";
-
-            echo esc_html__("Need more Credits for a one-time job? Choose a Credits Pack that fits your needs.", "ai-for-seo");
-
-            // current discount
-            ai4seo_echo_current_discount();
-
-            echo "<br>";
-
-            echo ai4seo_wp_kses(ai4seo_get_button_text_link_tag("#", "list", esc_html__("See options", "ai-for-seo"), "ai4seo-success-button", "ai4seo_handle_open_select_credits_pack_modal();"));
-        echo "</div>";
-    echo "</div>";
-
+        $ai4seo_section_number++;
+    }
 
     // === SUBSCRIPTION ================================================================================= \\
 
     echo "<div class='ai4seo-get-more-credits-section'>";
         echo "<div class='ai4seo-get-more-credits-section-left'>";
             echo "<div class='ai4seo-get-more-credits-section-big-number'>";
-                echo "2";
+                echo $ai4seo_section_number;
             echo "</div>";
         echo "</div>";
 
@@ -196,70 +216,75 @@ echo "<div class='ai4seo-modal-schema-content'>";
         echo "</div>";
     echo "</div>";
 
+    $ai4seo_section_number++;
+
 
     // === PAY-AS-YOU-GO ================================================================================= \\
 
     echo "<div class='ai4seo-get-more-credits-section'>";
         echo "<div class='ai4seo-get-more-credits-section-left'>";
             echo "<div class='ai4seo-get-more-credits-section-big-number'>";
-                echo "3";
+                echo $ai4seo_section_number;
             echo "</div>";
         echo "</div>";
 
-        echo "<div class='ai4seo-get-more-credits-section-right'>";
-            echo "<div class='ai4seo-get-more-credits-section-big-title'>";
+        echo "<div class='ai4seo-get-more-credits-section-right'" . ($ai4seo_has_purchased_something ? "" : " style='color: #999'") . ">";
+            echo "<div class='ai4seo-get-more-credits-section-big-title'" . ($ai4seo_has_purchased_something ? "" : " style='color: #999'") . ">";
                 echo esc_html__("Pay-As-You-Go", "ai-for-seo");
             echo "</div>";
 
-            echo ai4seo_wp_kses(sprintf(
-                __("Automatically refill your Credits balance with a custom amount. Get <strong>%s%% discount</strong> on all refills.", "ai-for-seo"),
-                AI4SEO_PAY_AS_YOU_GO_DISCOUNT,
-            ));
+            echo sprintf(
+                esc_html__("Never run out of Credits! With Pay-As-You-Go enabled, we will automatically refill your Credits balance once it drops below %s.", "ai-for-seo"),
+                "<strong>" . esc_html(AI4SEO_PAYG_CREDITS_THRESHOLD) . "</strong>"
+            );
 
             echo "<br><br>";
 
-            echo sprintf(
-                esc_html__("Current status: %s", "ai-for-seo"),
-                ($ai4seo_is_payg_enabled
-                    ? "<strong><span class='ai4seo-green-message'>" . esc_html__("Enabled", "ai-for-seo") . "</span></strong>"
-                    : "<strong><span class='ai4seo-red-message'>" . esc_html__("Not enabled yet", "ai-for-seo") . "</span></strong>")
-            );
-
-            // info on $ai4seo_payg_credits_threshold
-            if ($ai4seo_is_payg_enabled) {
-                echo ". ";
-
-                if ($ai4seo_robhub_credits_balance >= $ai4seo_payg_credits_threshold) {
-                    echo sprintf(
-                        esc_html__("Waiting for your Credits balance to drop below or equal to %s Credits before refilling.", "ai-for-seo"),
-                        "<strong>" . esc_html($ai4seo_payg_credits_threshold) . "</strong>"
-                    );
-                } else {
-                    echo sprintf(
-                        esc_html__("Your Credits balance is below %s Credits. We are currently processing your refill...", "ai-for-seo"),
-                        "<strong>" . esc_html($ai4seo_payg_credits_threshold) . "</strong>"
-                    );
-                }
-            }
-
-            if (!$ai4seo_has_purchased_something) {
-                echo ". <strong><span class='ai4seo-red-message'>" . esc_html__("Please purchase a Credits Pack or a subscription first.", "ai-for-seo") . "</span></strong>";
-            }
-
-            echo "<br>";
-
             if ($ai4seo_has_purchased_something) {
-                echo ai4seo_wp_kses(ai4seo_get_button_text_link_tag("#", "list", esc_html__("Customize", "ai-for-seo"), "ai4seo-success-button", "ai4seo_handle_open_customize_payg_modal();"));
+                echo "<strong>" . sprintf(
+                        esc_html__("Current status: %s", "ai-for-seo"),
+                        ($ai4seo_is_payg_enabled
+                            ? "<span class='ai4seo-green-message'>" . esc_html__("Enabled", "ai-for-seo") . "</span>"
+                            : "<span class='ai4seo-red-message'>" . esc_html__("Not enabled yet", "ai-for-seo") . "</span>")
+                    ) . ".</strong> ";
+
+                // info on AI4SEO_PAYG_CREDITS_THRESHOLD
+                if ($ai4seo_is_payg_enabled) {
+                    if ($ai4seo_robhub_credits_balance >= AI4SEO_PAYG_CREDITS_THRESHOLD) {
+                        echo sprintf(
+                                esc_html__("Waiting for your Credits balance to drop below or equal to %s Credits before refilling.", "ai-for-seo"),
+                                "<strong>" . esc_html(AI4SEO_PAYG_CREDITS_THRESHOLD) . "</strong>"
+                            ) . " ";
+                    } else {
+                        echo sprintf(
+                                esc_html__("Your Credits balance is below %s Credits. We are currently processing your refill...", "ai-for-seo"),
+                                "<strong>" . esc_html(AI4SEO_PAYG_CREDITS_THRESHOLD) . "</strong>"
+                            ) . " ";
+                    }
+                }
+
+                echo "<br>";
+
+                if ($ai4seo_has_purchased_something) {
+                    echo ai4seo_wp_kses(ai4seo_get_button_text_link_tag("#", "list", esc_html__("Customize", "ai-for-seo"), "ai4seo-success-button", "ai4seo_handle_open_customize_payg_modal();"));
+                } else {
+                    echo ai4seo_wp_kses(ai4seo_get_button_text_link_tag("#", "list", esc_html__("Customize", "ai-for-seo"), "ai4seo-inactive-button", "ai4seo_open_notification_modal('" . esc_js(esc_html__("Please purchase a Credits Pack or a subscription first.", "ai-for-seo")) . "');"));
+                }
+
+                if ($ai4seo_is_payg_enabled) {
+                    echo ai4seo_wp_kses(ai4seo_get_button_text_link_tag("#", "", esc_html__("Disable", "ai-for-seo"), "ai4seo-abort-button ai4seo-gap-left", "ai4seo_disable_payg(this);"));
+                }
             } else {
-                echo ai4seo_wp_kses(ai4seo_get_button_text_link_tag("#", "list", esc_html__("Customize", "ai-for-seo"), "ai4seo-inactive-button", "ai4seo_open_notification_modal('" . esc_js(esc_html__("Please purchase a Credits Pack or a subscription first.", "ai-for-seo")) . "');"));
-            }
-
-
-            if ($ai4seo_is_payg_enabled) {
-                echo ai4seo_wp_kses(ai4seo_get_button_text_link_tag("#", "", esc_html__("Disable", "ai-for-seo"), "ai4seo-abort-button ai4seo-gap-left", "ai4seo_disable_payg(this);"));
+                if (ai4seo_robhub_api()->is_group('a') || ai4seo_robhub_api()->is_group('b') || ai4seo_robhub_api()->is_group('c')) {
+                    echo "<strong><span class='ai4seo-red-message'>" . esc_html__("Please purchase a Credits Pack or a subscription first.", "ai-for-seo") . "</span></strong>";
+                } else {
+                    echo "<strong><span class='ai4seo-red-message'>" . esc_html__("Please subscribe to a plan first to enable Pay-As-You-Go.", "ai-for-seo") . "</span></strong>";
+                }
             }
         echo "</div>";
     echo "</div>";
+
+    $ai4seo_section_number++;
 
 
     // === FREE CREDITS ================================================================================= \\
@@ -268,7 +293,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
         echo "<div class='ai4seo-get-more-credits-section'>";
             echo "<div class='ai4seo-get-more-credits-section-left'>";
                 echo "<div class='ai4seo-get-more-credits-section-big-number'>";
-                    echo "4";
+                    echo $ai4seo_section_number;
                 echo "</div>";
             echo "</div>";
 

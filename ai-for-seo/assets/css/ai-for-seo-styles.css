@@ -113,10 +113,11 @@
 
 /* Generate-button details for attachments */
 .attachment-info .ai4seo-generate-button.ai4seo-attachment-generate-attributes-button, .attachment-details .ai4seo-generate-button.ai4seo-attachment-generate-attributes-button  {
-    padding: 0 !important;
+    padding: 8px 0 2px 0 !important;
     margin-bottom: 1em !important;
-    width: 65% !important;
+    width: calc(65% - 2px) !important;
     float: right !important;
+    margin-right: 2px;
 }
 
 .post-type-attachment .ai4seo-generate-button.ai4seo-attachment-generate-attributes-button {
@@ -1913,15 +1914,20 @@ div.ai4seo-credits-number {
     font-size: 4rem;
     font-weight: bold;
     color: black;
-    margin-top: 2rem;
+    margin-top: 1rem;
     height: 4rem;
     line-height: 1;
 }
+
 div.ai4seo-credits-number svg {
     width: 3rem;
     height: 3rem;
     margin-right: 0.5rem;
     vertical-align: baseline;
+}
+
+div.ai4seo-next-free-credits-container {
+    margin-top: 1rem;
 }
 
 div.ai4seo-credits-generation-costs-info {
@@ -1935,7 +1941,7 @@ div.ai4seo-credits-generation-costs-info {
 }
 
 div.ai4seo-credits-generation-costs-info h4 {
-    margin-bottom: .5rem;
+    margin-bottom: 0;
 }
 
 div.ai4seo-credits-generation-costs-info li {
@@ -1993,8 +1999,7 @@ div.ai4seo-get-more-credits-section {
 }
 
 div.ai4seo-get-more-credits-section > div.ai4seo-get-more-credits-section-left {
-    border-right: 1px solid #ddd;
-    margin-right: 1.5rem;
+    margin-right: .5rem;
     margin-left: 1rem;
 }
 
@@ -2025,7 +2030,7 @@ div.ai4seo-get-more-credits-section-big-title {
     color: #666;
     font-style: italic;
     font-weight: bold;
-    font-size: 1.1rem;
+    font-size: 1.2rem;
     display: block;
     margin-bottom: .5rem;
 }

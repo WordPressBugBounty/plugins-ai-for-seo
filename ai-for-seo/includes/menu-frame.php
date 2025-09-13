@@ -68,7 +68,7 @@ if (isset($_GET["ai4seo-just-purchased"]) || isset($_GET["amp;ai4seo-just-purcha
         jQuery(function() {
             // open modal
             ai4seo_open_generic_success_notification_modal(
-                "<?=esc_js(esc_html__("Your Credits may take a moment to appear on your dashboard. To update your Credits balance, please click on 'Refresh'.  Important: Don't forget to check the 'Account' page to retrieve your license key.", "ai-for-seo"));?>",
+                "<?=esc_js(esc_html__("Your Credits may take a moment to appear on your dashboard. To update your Credits balance, please click on 'Refresh'. Important: Don't forget to check the 'Account' page to retrieve your license key.", "ai-for-seo"));?>",
                 "<a href='#' class='ai4seo-button' onclick='window.location=\"<?=esc_js(ai4seo_get_subpage_url("dashboard", array("ai4seo_force_sync_account" => "true")))?>\"' target='_self'><?=esc_js(esc_html__("Refresh", "ai-for-seo"))?></a>");
         });
     </script><?php

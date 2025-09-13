@@ -52,6 +52,7 @@ class Ai4Seo_RobHubApiCommunicator {
     public const ENVIRONMENTAL_VARIABLE_SUBSCRIPTION = "subscription";
     public const ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC = "last_account_sync";
     public const ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED = "is_account_synced";
+    public const ENVIRONMENTAL_VARIABLE_GROUP = "group";
 
     public const DEFAULT_ENVIRONMENTAL_VARIABLES = array(
         self::ENVIRONMENTAL_VARIABLE_DEPRECATED_API_AUTH_DATA => array(),
@@ -62,6 +63,7 @@ class Ai4Seo_RobHubApiCommunicator {
         self::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION => array(),
         self::ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC => 0,
         self::ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED => false,
+        self::ENVIRONMENTAL_VARIABLE_GROUP => 'x',
     );
     private array $environmental_variables = self::DEFAULT_ENVIRONMENTAL_VARIABLES;
 
@@ -289,7 +291,7 @@ class Ai4Seo_RobHubApiCommunicator {
                 error_log("AI for SEO: API request failed with HTTP status " . $http_status . " for endpoint " . $endpoint . ". Response: " . $raw_response);
             }
 
-            return $this->respond_error("API request failed with HTTP status " . $http_status .  " - response: " . $raw_response, 221313823);
+            return $this->respond_error("API request failed with HTTP status " . $http_status . " - response: " . $raw_response, 221313823);
         }
 
         // normalize response
@@ -762,6 +764,13 @@ class Ai4Seo_RobHubApiCommunicator {
         $next_free_credits_countdown = (int) ($synced_account_data["next_free_credits_countdown"] ?? 0);
         self::update_environmental_variable(self::ENVIRONMENTAL_VARIABLE_NEXT_FREE_CREDITS_TIMESTAMP, time() + $next_free_credits_countdown);
 
+        // group
+        if (isset($synced_account_data["group"]) && in_array($synced_account_data["group"], array('a', 'b', 'c', 'd', 'e', 'f'))) {
+            $group = $synced_account_data["group"];
+        }
+
+        self::update_environmental_variable(self::ENVIRONMENTAL_VARIABLE_GROUP, $group ?? 'x');
+
         // subscription
         if (isset($synced_account_data["plan"]) && $synced_account_data["plan"] != "free") {
             // build subscription array, base on
@@ -789,31 +798,18 @@ class Ai4Seo_RobHubApiCommunicator {
     // =========================================================================================== \\
 
     /**
-     * Determines an A/B group (a or b) based on api username
+     * Determines an A-F group
      *
-     * @return string 'a' or 'b'
+     * @return string 'a' to 'f' or 'x' if not determined
      */
-    function get_ab_group($api_username = ''): string {
-        // otherwise build it
-        if (!$api_username) {
-            $api_username = $this->build_api_username();
-        }
-
-        // Calculate hash and determine group
-        $hash = crc32($api_username);
-        return ($hash % 2 === 0) ? 'a' : 'b';
+    function get_ab_group(): string {
+        return $this->read_environmental_variable(self::ENVIRONMENTAL_VARIABLE_GROUP) ?: 'x';
     }
 
     // =========================================================================================== \\
 
-    function is_group_a($api_username = ''):  bool {
-        return $this->get_ab_group($api_username) === 'a';
-    }
-
-    // =========================================================================================== \\
-
-    function is_group_b($api_username = ''):  bool {
-        return $this->get_ab_group($api_username) === 'b';
+    function is_group($group):  bool {
+        return $this->get_ab_group() === $group;
     }
 
     // =========================================================================================== \\
@@ -1210,6 +1206,10 @@ class Ai4Seo_RobHubApiCommunicator {
             case self::ENVIRONMENTAL_VARIABLE_NEXT_FREE_CREDITS_TIMESTAMP:
                 // contains only of numbers
                 return is_numeric($environmental_variable_value) && $environmental_variable_value >= 0;
+
+            case self::ENVIRONMENTAL_VARIABLE_GROUP:
+                // must be one of the allowed groups
+                return in_array($environmental_variable_value, array('a', 'b', 'c', 'd', 'e', 'f', 'x', ''));
 
             case self::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION:
                 // must be an array

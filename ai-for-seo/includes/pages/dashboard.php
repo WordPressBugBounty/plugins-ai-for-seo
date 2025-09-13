@@ -43,6 +43,11 @@ $ai4seo_current_credits_balance = ai4seo_robhub_api()->get_credits_balance();
 $ai4seo_insufficient_credits_balance = ($ai4seo_current_credits_balance < AI4SEO_MIN_CREDITS_BALANCE);
 $ai4seo_is_robhub_account_synced = ai4seo_robhub_api()->is_account_synced();
 
+// next free credits
+$ai4seo_next_free_credits_timestamp = ai4seo_robhub_api()->read_environmental_variable(ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_NEXT_FREE_CREDITS_TIMESTAMP);
+$ai4seo_free_plan_credits_amount = ai4seo_get_plan_credits("free");
+$ai4seo_next_free_credits_seconds_left = ai4seo_get_time_difference_in_seconds($ai4seo_next_free_credits_timestamp);
+
 
 // === CHECK BULK GENERATION STATUS ========================================================== \\
 
@@ -225,6 +230,25 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
                 }
             echo "</div>";
         echo "</div>";
+
+        // next free credits container
+        if ($ai4seo_current_credits_balance < $ai4seo_free_plan_credits_amount) {
+            echo "<div class='ai4seo-next-free-credits-container'>";
+                echo ai4seo_wp_kses(sprintf(
+                    __('Next <span class="ai4seo-green-bubble">+%1$s Credits</span> in <strong>%2$s</strong>', 'ai-for-seo'),
+                    esc_html(AI4SEO_DAILY_FREE_CREDITS_AMOUNT),
+                    "<span class='ai4seo-countdown' data-time-left='" . esc_attr($ai4seo_next_free_credits_seconds_left) . "' data-trigger='ai4seo_reload_page'>" . esc_html(ai4seo_format_seconds_to_hhmmss_or_days_hhmmss($ai4seo_next_free_credits_seconds_left)) . "</span>",
+                    esc_html($ai4seo_free_plan_credits_amount)
+                ));
+
+                $ai4seo_free_credits_tooltip = sprintf(
+                    __("We provide you with <strong>%s free Credits each day</strong> if your balance falls below %s Credits. Simply keep using the plugin to receive them automatically.", "ai-for-seo"),
+                    esc_html(AI4SEO_DAILY_FREE_CREDITS_AMOUNT),
+                    esc_html($ai4seo_free_plan_credits_amount),
+                );
+                echo ai4seo_wp_kses(ai4seo_get_icon_with_tooltip_tag($ai4seo_free_credits_tooltip));
+            echo "</div>";
+        }
 
         // costs breakdown
         echo "<div class='ai4seo-credits-generation-costs-info'>";
