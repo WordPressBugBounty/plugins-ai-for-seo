@@ -742,7 +742,7 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-faq'>
         // lost key content
         $ai4seo_this_accordion_content = sprintf(
             __(
-                "If you’ve lost your license data, don’t worry! You can contact our support team by <a href='%s' target='_blank'>filling out our contact form</a>. To help us resolve your issue quickly, please provide the following details when reaching out:<br>- Your website domain<br>- The email address you used during the purchase.<br>Our team will respond as soon as possible to help you retrieve your license key.",
+                'If you’ve lost your license key, don’t worry. Simply go to AI for SEO > Account, click on "Lost your license data?", and follow the steps shown.',
                 "ai-for-seo"
             ),
             esc_url(AI4SEO_OFFICIAL_CONTACT_URL)
@@ -921,6 +921,9 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-troub
             echo "</div>";
         echo "</div>";
     echo "</div>";
+
+
+    // === TROUBLESHOOTING F.A.Q ================================================================================= \\
 
     echo "<h2>";
         echo esc_html__("Troubleshooting F.A.Q.", "ai-for-seo");

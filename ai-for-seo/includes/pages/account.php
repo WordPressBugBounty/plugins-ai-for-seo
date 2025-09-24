@@ -59,29 +59,6 @@ $ai4seo_has_purchased_something = (bool) ai4seo_read_environmental_variable(AI4S
 
 
 // ___________________________________________________________________________________________ \\
-// === JAVASCRIPT ============================================================================ \\
-// ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
-
-?><script type="text/javascript">
-    // Function to display lost-key-modal
-    function ai4seo_open_lost_key_modal() {
-        // Define variables for the modal
-        let modal_headline = wp.i18n.__("Lost your license data?", "ai-for-seo");
-        let modal_content = wp.i18n.__("Please contact us for assistance. To help us resolve your issue quickly, kindly provide details such as your <strong>website domain</strong> and the <strong>email address</strong> used during the purchase.", "ai-for-seo");
-        let modal_footer = "<button type='button' class='ai4seo-button ai4seo-abort-button' onclick='ai4seo_close_modal_by_child(this);'>" + wp.i18n.__("Close", "ai-for-seo") + "</button> ";
-        modal_footer += wp.i18n.sprintf(wp.i18n.__("<a href='%s' target='_blank' class='button ai4seo-button ai4seo-success-button'>Contact us</a>", "ai-for-seo"), ai4seo_official_contact_url);
-        let modal_settings = {
-            close_on_outside_click: true,
-            add_close_button: true,
-        }
-
-        // Open notification modal
-        ai4seo_open_notification_modal(modal_headline, modal_content, modal_footer, modal_settings);
-    }
-</script><?php
-
-
-// ___________________________________________________________________________________________ \\
 // === OUTPUT ================================================================================ \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
@@ -182,7 +159,7 @@ echo "<div class='ai4seo-form'>";
         echo "<div class='ai4seo-form-item' style='padding-top:0;'>";
             echo "<div class='ai4seo-buttons-wrapper' style='margin-top: 0; margin-bottom: 5px;'>";
                 // Button to show lost-license-instructions
-                echo ai4seo_wp_kses(ai4seo_get_button_text_link_tag("#", "key", esc_html__("Lost your license data?", "ai-for-seo"), "", "ai4seo_open_lost_key_modal();"));
+                echo ai4seo_wp_kses(ai4seo_get_button_text_link_tag("#", "key-slash", esc_html__("Lost your license data?", "ai-for-seo"), "", "ai4seo_open_lost_key_modal();"));
 
                 // Button to manage subscription if user has an active subscription
                 if (!$ai4seo_user_is_on_free_plan) {
@@ -191,7 +168,7 @@ echo "<div class='ai4seo-form'>";
 
                 // Customize pay-as-you-go
                 if ($ai4seo_has_purchased_something && $ai4seo_is_robhub_account_synced) {
-                    echo ai4seo_wp_kses(ai4seo_get_button_text_link_tag("#", "list", esc_html__("Customize Pay-As-You-Go", "ai-for-seo"), "", "ai4seo_handle_open_customize_payg_modal();"));
+                    echo ai4seo_wp_kses(ai4seo_get_button_text_link_tag("#", "sliders", esc_html__("Customize Pay-As-You-Go", "ai-for-seo"), "", "ai4seo_handle_open_customize_payg_modal();"));
                 }
 
                 // Button to manage credits

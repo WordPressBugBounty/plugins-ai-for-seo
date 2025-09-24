@@ -1,6 +1,6 @@
-# Code Formatting Guidelines for AI for SEO Plugin
+# Code Formatting Guidelines for AI for SEO Plugin
 
-This document describes the code formatting and style conventions used throughout the AI for SEO WordPress plugin. Following a consistent style helps keep the codebase readable and maintainable.
+This document describes the code formatting and style conventions used throughout the AI for SEO WordPress plugin. Following a consistent style helps keep the codebase readable and maintainable.
 
 ---
 
@@ -157,6 +157,11 @@ This document describes the code formatting and style conventions used throughou
 - Place JS and CSS under `assets/`.
 - Keep each file focused: one class or related group of functions only.
 - Store documentation and notes under `docs/` in Markdown format.
+
+---
+
+## Translations
+- Use translation functions for all visible texts (e.g. __(xxx, 'ai-for-seo'), esc_html__(xxx, 'ai-for-seo')). Consider sprintf() to add parameters to the translation. For JavaScript, use wp.i18n.__(xxx, ''ai-for-seo')
 
 ---
 

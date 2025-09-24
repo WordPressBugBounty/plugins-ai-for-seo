@@ -4,7 +4,7 @@ Donate link: https://spa.ce.codes
 Tags: AI, SEO, Metadata, Alt text, Bulk
 Requires at least: 4.7
 Tested up to: 6.8.2
-Stable tag: 2.1.4
+Stable tag: 2.1.5
 Requires PHP: 7.4
 License: GPLv2 or later (or compatible)
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -208,10 +208,7 @@ You can change or cancel your subscription at any time by going to the *AI for S
 You'll be redirected to Stripe, our invoice partner. Please follow the instructions on the Stripe website to change your subscription.
 
 = What should I do if I lose my license key? =
-If you’ve lost your license key, don’t worry! You can contact our support team at info@aiforseo.ai for assistance. To help us resolve your issue quickly, please provide the following details when reaching out:
-- Your website domain
-- The email address you used during the purchase
-Our team will respond as soon as possible to help you retrieve your license key.
+If you’ve lost your license key, don’t worry. Simply go to AI for SEO > Account, click on "Lost your license data?", and follow the steps shown.
 
 = Does *AI for SEO* support Multi-Site installations? =
 Yes, *AI for SEO* fully supports Multi-Site installations. Simply purchase a subscription on your primary website and use the same license owner and license key across all your sub-sites.
@@ -333,6 +330,10 @@ If you cannot access the plugin due to incognito mode restriction, follow these 
 
 
 == Changelog ==
+
+= 2.1.5 =
+* Added a new feature to easily retrieve lost license data. Go to your Account page, click "Lost your license data?", and follow the instructions.
+* Bug Fixes & Maintenance: Fixed 2 minor bugs and implemented 4 usability improvements.
 
 = 2.1.4 =
 * Bug Fixes & Maintenance: Fixed 6 bugs, and 1 security update.

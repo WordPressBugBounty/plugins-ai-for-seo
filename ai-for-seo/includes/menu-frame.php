@@ -36,8 +36,6 @@ if ($ai4seo_is_dashboard_open) {
     $ai4seo_unread_notifications_count = (int) ai4seo_get_num_unread_notification();
 }
 
-$ai4seo_group = ai4seo_robhub_api()->get_ab_group();
-
 
 // ___________________________________________________________________________________________ \\
 // === OUTPUT: STYLES ======================================================================== \\
@@ -61,6 +59,8 @@ $ai4seo_group = ai4seo_robhub_api()->get_ab_group();
 
 # workaround: amp; is added to the url when the user is redirected from stripe
 if (isset($_GET["ai4seo-just-purchased"]) || isset($_GET["amp;ai4seo-just-purchased"])) {
+    ai4seo_update_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_JUST_PURCHASED_SOMETHING_TIME, time());
+
     // todo: auto-check via ajax and then reload
     // todo: check if credits have arrived
     // --- JAVASCRIPT --------------------------------------------------------- \\
@@ -68,8 +68,8 @@ if (isset($_GET["ai4seo-just-purchased"]) || isset($_GET["amp;ai4seo-just-purcha
         jQuery(function() {
             // open modal
             ai4seo_open_generic_success_notification_modal(
-                "<?=esc_js(esc_html__("Your Credits may take a moment to appear on your dashboard. To update your Credits balance, please click on 'Refresh'. Important: Don't forget to check the 'Account' page to retrieve your license key.", "ai-for-seo"));?>",
-                "<a href='#' class='ai4seo-button' onclick='window.location=\"<?=esc_js(ai4seo_get_subpage_url("dashboard", array("ai4seo_force_sync_account" => "true")))?>\"' target='_self'><?=esc_js(esc_html__("Refresh", "ai-for-seo"))?></a>");
+                "<?=esc_js(esc_html__("Thank you for your purchase! Your credits will be added to your dashboard shortly.", "ai-for-seo"));?>",
+                "<button type='button' class='ai4seo-button ai4seo-inactive-button ai4seo-inactive-countdown-button' data-time-left='10' onclick='window.location=\"<?=esc_js(ai4seo_get_subpage_url("dashboard", array("ai4seo_force_sync_account" => "true")))?>\"' target='_self'><?=esc_js(esc_html__("Refresh", "ai-for-seo"))?></button>");
         });
     </script><?php
     // ------------------------------------------------------------------------ \\
@@ -195,7 +195,7 @@ echo "<div class='wrap ai4seo-wrap'>";
             echo "</div>";
         echo "</div>";*/
 
-        echo "<div class='ai4seo-sidebar-version-number'>" . ($ai4seo_group == 'a' ? "v" : "") . esc_html(AI4SEO_PLUGIN_VERSION_NUMBER) . "</div>";
+        echo "<div class='ai4seo-sidebar-version-number'>" . esc_html(AI4SEO_PLUGIN_VERSION_NUMBER) . "</div>";
 
     echo "</div>";
 

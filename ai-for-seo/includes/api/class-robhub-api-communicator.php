@@ -38,9 +38,12 @@ class Ai4Seo_RobHubApiCommunicator {
         "client/changed-api-user" => 5,
         "client/payg-settings" => 5,
         "client/init-purchase" => 5,
+        "client/send-licence-data" => 61
     );
 
     private array $recent_endpoint_responses = array();
+
+    // === ENVIRONMENTAL VARIABLES ================================================================================= \\
 
     public string $environmental_variables_option_name = "robhub_environmental_variables";
 
@@ -80,6 +83,7 @@ class Ai4Seo_RobHubApiCommunicator {
         "client/changed-api-user",
         "client/payg-settings",
         "client/init-purchase",
+        "client/send-licence-data",
     );
 
     private array $free_endpoints = array(
@@ -92,6 +96,7 @@ class Ai4Seo_RobHubApiCommunicator {
         "client/changed-api-user",
         "client/payg-settings",
         "client/init-purchase",
+        "client/send-licence-data",
     );
 
     private array $no_need_to_accept_tos_endpoints = array(
@@ -178,7 +183,7 @@ class Ai4Seo_RobHubApiCommunicator {
         // check for proper credentials
         if (!$this->init_credentials()) {
             if ($debug) {
-                error_log("AI for SEO: Could not initialize credentials for endpoint " . $endpoint . ". Trying to create a free account.");
+                error_log("AI for SEO: Could not initialize credentials for endpoint " . $endpoint . ".");
             }
 
             return $this->respond_error("Missing or corrupt auth credentials", 2113111223);
@@ -250,6 +255,11 @@ class Ai4Seo_RobHubApiCommunicator {
             'method'      => $request_method,
             'timeout'     => 300  // Timeout in seconds (5 minutes)
         );
+
+        // set transient
+        if ($endpoint_lock_duration > 0) {
+            set_transient($transient_name, $api_call_checksum, $endpoint_lock_duration);
+        }
 
         // Make the request
         try {
@@ -329,11 +339,6 @@ class Ai4Seo_RobHubApiCommunicator {
 
         // save the response in the recent_endpoint_responses array
         $this->recent_endpoint_responses[$api_call_checksum] = $normalized_response;
-
-        // set transient
-        if ($endpoint_lock_duration > 0) {
-            set_transient($transient_name, $api_call_checksum, $endpoint_lock_duration);
-        }
 
         if ($debug) {
             error_log("AI for SEO: API call to " . $curl_url . " was successful. Response: " . print_r($normalized_response, true));
@@ -551,11 +556,13 @@ class Ai4Seo_RobHubApiCommunicator {
 
     /**
      * Function to create a free account and save the credentials.
+     * @param $base_username string The base username to use for the free account (optional).
+     * @param $update_to_database bool Whether to save the new credentials to the database.
      * @return bool True if free account was successfully created, false otherwise.
      */
-    function init_free_account(): bool {
+    function init_free_account(string $base_username = "", bool $update_to_database = true): bool {
         // build pseudo api username and password first
-        $new_api_username = $this->build_api_username();
+        $new_api_username = $this->build_api_username($base_username);
 
         if (!$this->use_this_credentials($new_api_username, $this->public_get_free_account_api_password)) {
             error_log("AI for SEO: Could not build api for free account creation.");
@@ -579,7 +586,7 @@ class Ai4Seo_RobHubApiCommunicator {
         }
 
         // try save new credentials
-        if (!$this->use_this_credentials($response["data"]["api_username"], $response["data"]["api_password"], true)) {
+        if (!$this->use_this_credentials($response["data"]["api_username"], $response["data"]["api_password"], $update_to_database)) {
             $this->api_username = "";
             $this->api_password = "";
             error_log("AI for SEO: Could not save free account credentials.");
@@ -973,6 +980,18 @@ class Ai4Seo_RobHubApiCommunicator {
         );
 
         $this->call("client/reject-terms", $reject_terms_parameter, "POST");
+    }
+
+    // =========================================================================================== \\
+
+    function perform_lost_licence_call($stripe_email) {
+        $this->set_random_credentials_if_not_set();
+
+        $endpoint_parameter = array();
+        $endpoint_parameter["stripe_email"] = $stripe_email;
+
+        // call robhub api endpoint "client/send-licence-data"
+        return $this->call("client/send-licence-data", $endpoint_parameter, "POST");
     }
 
     // =========================================================================================== \\

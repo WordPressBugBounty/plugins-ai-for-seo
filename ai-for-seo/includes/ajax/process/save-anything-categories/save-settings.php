@@ -174,8 +174,5 @@ if (isset($ai4seo_post_parameter[AI4SEO_SETTING_PAYG_ENABLED]) && $ai4seo_post_p
     if ($ai4seo_sent_pay_as_you_go_settings_response === false) {
         ai4seo_send_json_error(esc_html__("Could not send pay-as-you-go settings to RobHub", "ai-for-seo"), 401217325);
         wp_die();
-    } else if (is_string($ai4seo_sent_pay_as_you_go_settings_response)) {
-        ai4seo_send_json_error($ai4seo_sent_pay_as_you_go_settings_response, 411217325);
-        wp_die();
     }
 }

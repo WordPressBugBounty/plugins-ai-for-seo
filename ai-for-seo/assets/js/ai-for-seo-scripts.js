@@ -179,9 +179,6 @@ var ai4seo_js_file_id = "ai-for-seo-scripts-js";
 var ai4seo_css_file_path = ai4seo_get_ai4seo_plugin_directory_url() + "/assets/css/ai-for-seo-styles.css?ver=" + ai4seo_admin_scripts_version_number;
 var ai4seo_css_file_id = "ai-for-seo-styles-css";
 
-var ai4seo_just_clicked_modal_wrapper = false;
-var ai4seo_min_content_length = 75;
-
 var ai4seo_supported_mime_types = ["image/jpeg", "JPEG", "image/jpg", "JPG", "image/png", "PNG", "image/gif", "GIF", "image/webp", "WEBP", "image/avif", "AVIF"];
 
 var ai4seo_attachment_mime_type_selectors = [".media-frame-content .attachment-info .details .file-type", "#minor-publishing #misc-publishing-actions .misc-pub-filetype"];
@@ -198,7 +195,8 @@ let ai4seo_allowed_ajax_actions = [
     "ai4seo_import_nextgen_gallery_images",
     "ai4seo_export_settings", "ai4seo_show_import_settings_preview", "ai4seo_import_settings",
     "ai4seo_get_dashboard_html",
-    "ai4seo_restore_default_settings"
+    "ai4seo_restore_default_settings",
+    "ai4seo_request_lost_licence_data"
 ];
 
 
@@ -229,7 +227,7 @@ if (typeof jQuery === 'function') {
             ai4seo_init_html_elements();
         }, 250);
 
-        // Init html elements within the media-modal
+        // Init html elements within the WordPress media-modal
         ai4seo_init_html_elements_for_media_modal();
 
         // Observe global media attachment additions
@@ -388,6 +386,9 @@ function ai4seo_init_html_elements() {
 
     // init checkbox containers
     ai4seo_init_checkbox_containers();
+
+    // init inactive countdown buttons
+    ai4seo_init_inactive_countdown_buttons();
 
     if (ai4seo_does_user_need_to_accept_tos_toc_and_pp()) {
         // workaround: if the checkbox is already checked when the page is loaded, the button is not enabled
@@ -774,6 +775,74 @@ function ai4seo_init_html_elements_for_media_modal() {
 
     // Start the checking process
     ai4seo_check_visibility();
+}
+
+// =========================================================================================== \\
+
+function ai4seo_init_inactive_countdown_buttons() {
+    // check for elements with class ai4seo-inactive-countdown-button
+    if (!ai4seo_exists(".ai4seo-inactive-countdown-button")) {
+        return;
+    }
+
+    // Loop through all elements with class ai4seo-inactive-countdown-button
+    ai4seo_jQuery(".ai4seo-inactive-countdown-button").each(function() {
+        let button = ai4seo_jQuery(this);
+
+        // check if button has data-time-left attribute
+        let total_seconds = button.data("time-left");
+
+        if (typeof total_seconds === "undefined" || !total_seconds || isNaN(total_seconds) || total_seconds <= 0) {
+            return;
+        }
+
+        // skip if data-countdown-active attribute is set to true
+        let countdown_active = button.data("countdown-active");
+
+        if (typeof countdown_active !== "undefined" && countdown_active) {
+            return;
+        }
+
+        total_seconds = parseInt(total_seconds);
+
+        // set button to disabled
+        button.prop("disabled", true);
+
+        // add class ai4seo-ignore-during-dashboard-refresh if not already set
+        if (!button.hasClass("ai4seo-ignore-during-dashboard-refresh")) {
+            button.addClass("ai4seo-ignore-during-dashboard-refresh");
+        }
+
+        if (!button.hasClass("ai4seo-inactive-button")) {
+            button.addClass("ai4seo-inactive-button");
+        }
+
+        // add "...{seconds}" to button text
+        let original_button_text = button.text();
+        button.text(original_button_text + " (" + total_seconds + "s)");
+
+        // add data-countdown-active attribute to button
+        button.data("countdown-active", true);
+
+        // start countdown
+        let countdown_interval = setInterval(function() {
+            total_seconds--;
+
+            if (total_seconds <= 0) {
+                clearInterval(countdown_interval);
+                button.prop("disabled", false);
+                button.removeClass("ai4seo-inactive-button");
+                button.text(original_button_text);
+                button.removeData("time-left");
+                button.removeData("countdown-active");
+                button.removeClass("ai4seo-inactive-countdown-button");
+                return;
+            }
+
+            button.text(original_button_text + " (" + total_seconds + "s)");
+            button.data("time-left", total_seconds);
+        }, 1000);
+    });
 }
 
 // =========================================================================================== \\
@@ -1603,9 +1672,67 @@ function ai4seo_reload_page_with_parameter(parameter_name, parameter_value) {
 
 // =========================================================================================== \\
 
-function ai4seo_reload_page() {
-    // Reload the page with the current URL
-    window.location.reload();
+function ai4seo_go_to_subpage(subpage) {
+    let admin_url = ai4seo_get_localization_parameter("ai4seo_admin_url");
+
+    // set page parameter to "ai-for-seo", then set ai4seo_subpage parameter to the desired subpage
+    let new_url = ai4seo_add_or_modify_url_parameter(admin_url, "page", "ai-for-seo");
+    new_url = ai4seo_add_or_modify_url_parameter(new_url, "ai4seo_subpage", subpage);
+
+    // go to the new url
+    window.location.href = new_url;
+}
+
+// =========================================================================================== \\
+
+function ai4seo_add_or_modify_url_parameter(url, parmeter_name, parameter_value) {
+    let url_object = new URL(url);
+    let search_params = url_object.searchParams;
+
+    // Set or update the parameter
+    search_params.set(parmeter_name, parameter_value);
+
+    // Return the modified URL as a string
+    return url_object.toString();
+}
+
+// =========================================================================================== \\
+
+function ai4seo_remove_url_parameter(url, parameter_name) {
+    let url_object = new URL(url);
+    let search_params = url_object.searchParams;
+
+    // Remove the parameter
+    search_params.delete(parameter_name);
+
+    // Return the modified URL as a string
+    return url_object.toString();
+}
+
+// =========================================================================================== \\
+
+function ai4seo_clean_url_parameter(url, keep_page = true, keep_ai4seo_subpage = false, keep_ai4seo_post_type = false) {
+    let url_object = new URL(url);
+    let search_params = url_object.searchParams;
+
+    // Remove all ai4seo_-parameters except the ones we want to keep
+    search_params.forEach((value, key) => {
+        if (key.startsWith('ai4seo_')) {
+            if ((key === 'ai4seo_subpage' && keep_ai4seo_subpage) ||
+                (key === 'ai4seo_post_type' && keep_ai4seo_post_type)) {
+                return; // Skip removal for this parameter
+            }
+            search_params.delete(key);
+        }
+
+        // Remove page parameter if not requested to keep
+        if (key === 'page' && !keep_page) {
+            search_params.delete(key);
+        }
+    });
+
+    // Return the modified URL as a string
+    return url_object.toString();
 }
 
 // =========================================================================================== \\
@@ -3617,6 +3744,71 @@ function ai4seo_toggle_visibility_on_checkbox(selector_checkbox, selector_target
     }
 }
 
+// =========================================================================================== \\
+
+// Function to display lost-key-modal
+function ai4seo_open_lost_key_modal() {
+    // Define variables for the modal
+    let modal_headline = wp.i18n.__("Lost your license data?", "ai-for-seo");
+    let modal_content = "<div class='ai4seo-form-item'>";
+    modal_content += wp.i18n.__("Please enter the same email address used during Stripe checkout. You can check your order confirmation email for the correct address.", "ai-for-seo");
+    modal_content += "<div class='ai4seo-gap'></div>";
+    modal_content += "<div class='ai4seo-form-item-input-wrapper'>";
+    modal_content += "<input type='email' id='ai4seo-lost-licence-email' class='ai4seo-textfield' placeholder='" + wp.i18n.__("Enter your email address", "ai-for-seo") + "' />";
+    modal_content += "</div>";
+    modal_content += "</div>";
+    
+    let modal_footer = "<button type='button' class='ai4seo-button ai4seo-abort-button' onclick='ai4seo_close_modal_by_child(this);'>" + wp.i18n.__("Cancel", "ai-for-seo") + "</button> ";
+    modal_footer += "<button type='button' id='ai4seo-lost-licence-submit' class='button ai4seo-button ai4seo-success-button' onclick='ai4seo_request_lost_licence_data(this);'>" + wp.i18n.__("Send License Data", "ai-for-seo") + "</button>";
+    
+    let modal_settings = {
+        close_on_outside_click: true,
+        add_close_button: true,
+    }
+
+    // Open notification modal
+    ai4seo_open_notification_modal(modal_headline, modal_content, modal_footer, modal_settings);
+}
+
+// =========================================================================================== \\
+
+// Function to request lost licence data
+function ai4seo_request_lost_licence_data(submit_element) {
+    // Get email value
+    let email = ai4seo_jQuery("#ai4seo-lost-licence-email").val();
+    
+    // Validate email
+    if (!email || email.length < 3 || !email.includes("@")) {
+        ai4seo_open_generic_error_notification_modal(451820925, wp.i18n.__("Please enter a valid email address.", "ai-for-seo"));
+        return;
+    }
+    
+    // Add loading state to submit button
+    ai4seo_add_loading_html_to_element(ai4seo_jQuery(submit_element));
+    ai4seo_lock_and_disable_lockable_input_fields();
+    
+    // Prepare AJAX data
+    let ajax_data = {
+        stripe_email: email
+    };
+    
+    // Perform AJAX call
+    ai4seo_perform_ajax_call('ai4seo_request_lost_licence_data', ajax_data, true, {}, true)
+        .then(response => {
+            // Always show success confirmation regardless of API response
+            let confirmation_message = wp.i18n.__("If this email address is linked to a Stripe order for AI for SEO, you will receive an email with your licence data within the next 60 seconds.", "ai-for-seo");
+            let confirmation_headline = wp.i18n.__("Request Sent", "ai-for-seo");
+            let confirmation_footer = "<button type='button' class='button ai4seo-button ai4seo-success-button' onclick='ai4seo_close_all_modals();ai4seo_go_to_subpage(\"account\")'>" + wp.i18n.__("OK", "ai-for-seo") + "</button>";
+            
+            ai4seo_open_notification_modal(confirmation_headline, confirmation_message, confirmation_footer, {close_on_outside_click: false, add_close_button: false});
+        })
+        .catch(error => { /* auto error handler enabled */ })
+        .finally(() => {
+            ai4seo_remove_loading_html_from_element(submit_element);
+            ai4seo_unlock_and_enable_lockable_input_fields();
+        });
+}
+
 
 // ___________________________________________________________________________________________ \\
 // === NOTIFICATIONS ========================================================================= \\
@@ -4286,24 +4478,6 @@ function ai4seo_get_ajax_nonce() {
 
 // =========================================================================================== \\
 
-function ai4seo_hide_loading_icons(element) {
-    // Default-definition of icon-element
-    if (!ai4seo_exists(element)) {
-        element = ai4seo_jQuery(".ai4seo-hidden-loading-icon-holder");
-    }
-
-    // Make sure that icon_element is jquery-element
-    element = ai4seo_jQuery(element);
-
-    // Hide loading icon/s
-    element.hide();
-
-    // Enable locked input-fields
-    ai4seo_unlock_and_enable_lockable_input_fields();
-}
-
-// =========================================================================================== \\
-
 function ai4seo_lock_and_disable_lockable_input_fields() {
     if (!ai4seo_exists(".ai4seo-lockable")) {
         return;
@@ -4336,20 +4510,6 @@ function ai4seo_unlock_and_enable_lockable_input_fields() {
     all_input_fields.prop("disabled", false);
 }
 
-// =========================================================================================== \\
-
-function ai4seo_set_input_type_attribute(input_element, type_attribute) {
-    // Make sure that input_element is jquery-element
-    input_element = ai4seo_jQuery(input_element);
-
-    // Make sure that input_element exists
-    if (!ai4seo_exists(input_element)) {
-        return;
-    }
-
-    // Set new type-attribute to selected attribute
-    input_element.attr("type", type_attribute);
-}
 
 // ___________________________________________________________________________________________ \\
 // === HELP PAGE ============================================================================= \\
@@ -4436,8 +4596,8 @@ function ai4seo_confirm_reset_plugin_data() {
     ai4seo_open_notification_modal(
         wp.i18n.__("Please confirm", "ai-for-seo"),
         ai4seo_notification_modal_message,
-    "<button type='button' class='ai4seo-button ai4seo-abort-button' onclick='ai4seo_close_modal_by_child(this);'>" + wp.i18n.__("Abort", "ai-for-seo") + "</button><button type='button' class='ai4seo-button ai4seo-success-button' onclick='ai4seo_reset_plugin_data();'>" + wp.i18n.__("Reset Plugin Data", "ai-for-seo") + "</button>"
-);
+        "<button type='button' class='ai4seo-button ai4seo-abort-button' onclick='ai4seo_close_modal_by_child(this);'>" + wp.i18n.__("Abort", "ai-for-seo") + "</button><button type='button' class='ai4seo-button ai4seo-success-button' onclick='ai4seo_reset_plugin_data();'>" + wp.i18n.__("Reset Plugin Data", "ai-for-seo") + "</button>"
+    );
 }
 
 // =========================================================================================== \\
@@ -4501,6 +4661,7 @@ function ai4seo_reset_plugin_data() {
         })
         .catch(error => { /* auto error handler */ });
 }
+
 
 // ___________________________________________________________________________________________ \\
 // === SELECT CREDITS PACK MODAL ============================================================= \\

@@ -650,6 +650,12 @@ progress.ai4seo-progress-success { color: #7AD03A; }
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
 }
 
+.ai4seo-modal-content p, .ai4seo-modal-content span, .ai4seo-modal-content li, .ai4seo-modal-content div, .ai4seo-modal-content td {
+    font-size: 1rem;
+    line-height: 160%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+}
+
 @media (max-width: 650px) {
     .ai4seo-modal-close-icon {
         top: 0.5rem;
@@ -998,7 +1004,7 @@ body.ai4seo-has-open-modal {
             #bbeeff 23px,
             #bbeeff 46px
     );
-    animation: stripes 10s linear infinite;
+    animation: ai4seo-stripes-animation 10s linear infinite;
     background-size: 300% 100%;
     border: 1px solid #ccc;
 }
@@ -1011,12 +1017,12 @@ body.ai4seo-has-open-modal {
             #aaddaa 23px,
             #aaddaa 46px
     );
-    animation: stripes 10s linear infinite;
+    animation: ai4seo-stripes-animation 10s linear infinite;
     background-size: 300% 100%;
     border: 1px solid #ccc;
 }
 
-@keyframes stripes {
+@keyframes ai4seo-stripes-animation {
     0% {
         background-position: 100% 0;
     }
@@ -1033,12 +1039,12 @@ body.ai4seo-has-open-modal {
             #cccccc 23px,
             #cccccc 46px
     );
-    animation: slow-stripes 20s linear infinite;
+    animation: ai4seo-slow-stripes-animation 20s linear infinite;
     background-size: 300% 100%;
     border: 1px solid #ccc;
 }
 
-@keyframes slow-stripes {
+@keyframes ai4seo-slow-stripes-animation {
     0% {
         background-position: 100% 0;
     }
@@ -2667,9 +2673,9 @@ div.ai4seo-credits-pack-selection-item-reference-price {
 
 div.ai4seo-credits-pack-selection-item-price {
     font-size: larger;
-    font-weight: bold;
     width: 110px;
     text-align: right;
+    white-space: nowrap;
 }
 
 div.ai4seo-credits-pack-selection-container .ai4seo-credits-pack-show-more-options-button {
@@ -3154,6 +3160,35 @@ div.ai4seo-pay-as-you-go-summary-container {
 }
 
 
+/* Datetime picker styling for SEO Autopilot */
+.ai4seo-datetime-picker-container {
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.ai4seo-datetime-picker-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: #1d2327;
+}
+
+.ai4seo-datetime-picker-input {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #8c8f94;
+    border-radius: 4px;
+    font-size: 14px;
+    background-color: #fff;
+    color: #1d2327;
+}
+
+.ai4seo-datetime-picker-input:focus {
+    border-color: #2271b1;
+    outline: none;
+    box-shadow: 0 0 0 1px #2271b1;
+}
+
+
 /* === ADMIN MENU =========================================================================== */
 
 #wpadminbar .ai4seo-main-menu-icon {
@@ -3481,32 +3516,4 @@ div.ai4seo-pay-as-you-go-summary-container {
         transform: scale(1.3);
         opacity: 0;
     }
-}
-
-/* Datetime picker styling for SEO Autopilot */
-.ai4seo-datetime-picker-container {
-    margin-top: 1rem;
-    margin-bottom: 0.5rem;
-}
-
-.ai4seo-datetime-picker-label {
-    display: block;
-    margin-bottom: 0.5rem;
-    color: #1d2327;
-}
-
-.ai4seo-datetime-picker-input {
-    width: 100%;
-    padding: 0.5rem;
-    border: 1px solid #8c8f94;
-    border-radius: 4px;
-    font-size: 14px;
-    background-color: #fff;
-    color: #1d2327;
-}
-
-.ai4seo-datetime-picker-input:focus {
-    border-color: #2271b1;
-    outline: none;
-    box-shadow: 0 0 0 1px #2271b1;
 }

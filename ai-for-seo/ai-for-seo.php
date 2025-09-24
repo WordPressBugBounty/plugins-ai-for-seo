@@ -3,7 +3,7 @@
 Plugin Name: AI for SEO
 Plugin URI: https://aiforseo.ai
 Description: One-Click SEO solution. "AI for SEO" helps your website to rank higher in Web Search results.
-Version: 2.1.4
+Version: 2.1.5
 Author: spacecodes
 Author URI: https://spa.ce.codes
 Text Domain: ai-for-seo
@@ -15,7 +15,7 @@ if (!defined("ABSPATH")) {
     exit;
 }
 
-const AI4SEO_PLUGIN_VERSION_NUMBER = "2.1.4";
+const AI4SEO_PLUGIN_VERSION_NUMBER = "2.1.5";
 const AI4SEO_PLUGIN_NAME = "AI for SEO";
 const AI4SEO_PLUGIN_DESCRIPTION = 'One-Click SEO solution. "AI for SEO" helps your website to rank higher in Web Search results.';
 const AI4SEO_PLUGIN_IDENTIFIER = "ai-for-seo";
@@ -58,6 +58,7 @@ const AI4SEO_MAX_DISPLAYABLE_ALREADY_READ_NOTIFICATIONS = 2;
 const AI4SEO_ANALYZE_PERFORMANCE_INTERVAL = 7200; // 2h
 const AI4SEO_GLOBAL_NONCE_IDENTIFIER = "ai4seo_ajax_nonce";
 const AI4SEO_PAYG_CREDITS_THRESHOLD = 100;
+const AI4SEO_ALLOWED_PAYG_STATUS = array('idle', 'budget-limit-reached', 'processing', 'payment-pending', 'payment-received', 'payment-failed', 'error');
 const AI4SEO_CRON_JOBS_ENABLED = true; # set to true to enable cron jobs, false to disable them
 
 /**
@@ -66,7 +67,15 @@ const AI4SEO_CRON_JOBS_ENABLED = true; # set to true to enable cron jobs, false 
  */
 function ai4seo_get_change_log(): array {
     return [
-
+        [
+            'date' => 'September 23th, 2025',
+            'version' => '2.1.5',
+            'important' => false,
+            'updates' => [
+                'Added a new feature to easily retrieve lost license data. Go to your Account page, click "Lost your license data?", and follow the instructions.',
+                'Bug Fixes & Maintenance: Fixed 2 minor bugs and implemented 4 usability improvements.'
+            ],
+        ],
          [
             'date' => 'September 13th, 2025',
             'version' => '2.1.4',
@@ -265,14 +274,14 @@ function ai4seo_get_credits_packs(): array {
             "price_1R4N2vHNyvfVK0r9s3WhZxCl" => array(
                 "credits_amount" => 15000,
                 "price_usd" => 179.00,
-                "reference_price_usd" => 299.70,
+                "reference_price_usd" => 179.00,
                 "stripe_product_id" => "prod_RD8LcGkIHN7O0K",
                 "stripe_payment_link" => "",
             ),
             "price_1R4MwkHNyvfVK0r9sgPn4ppM" => array(
                 "credits_amount" => 50000,
                 "price_usd" => 499.00,
-                "reference_price_usd" => 999.00,
+                "reference_price_usd" => 499.00,
                 "stripe_product_id" => "prod_RD8LWAmW1fQ32n",
                 "stripe_payment_link" => "",
             ),
@@ -318,9 +327,11 @@ function ai4seo_get_svg_tags(): array {
         "globe" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M352 256c0 22.2-1.2 43.6-3.3 64l-185.3 0c-2.2-20.4-3.3-41.8-3.3-64s1.2-43.6 3.3-64l185.3 0c2.2 20.4 3.3 41.8 3.3 64zm28.8-64l123.1 0c5.3 20.5 8.1 41.9 8.1 64s-2.8 43.5-8.1 64l-123.1 0c2.1-20.6 3.2-42 3.2-64s-1.1-43.4-3.2-64zm112.6-32l-116.7 0c-10-63.9-29.8-117.4-55.3-151.6c78.3 20.7 142 77.5 171.9 151.6zm-149.1 0l-176.6 0c6.1-36.4 15.5-68.6 27-94.7c10.5-23.6 22.2-40.7 33.5-51.5C239.4 3.2 248.7 0 256 0s16.6 3.2 27.8 13.8c11.3 10.8 23 27.9 33.5 51.5c11.6 26 20.9 58.2 27 94.7zm-209 0L18.6 160C48.6 85.9 112.2 29.1 190.6 8.4C165.1 42.6 145.3 96.1 135.3 160zM8.1 192l123.1 0c-2.1 20.6-3.2 42-3.2 64s1.1 43.4 3.2 64L8.1 320C2.8 299.5 0 278.1 0 256s2.8-43.5 8.1-64zM194.7 446.6c-11.6-26-20.9-58.2-27-94.6l176.6 0c-6.1 36.4-15.5 68.6-27 94.6c-10.5 23.6-22.2 40.7-33.5 51.5C272.6 508.8 263.3 512 256 512s-16.6-3.2-27.8-13.8c-11.3-10.8-23-27.9-33.5-51.5zM135.3 352c10 63.9 29.8 117.4 55.3 151.6C112.2 482.9 48.6 426.1 18.6 352l116.7 0zm358.1 0c-30 74.1-93.6 130.9-171.9 151.6c25.5-34.2 45.2-87.7 55.3-151.6l116.7 0z"/></svg>',
         "handshake" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M323.4 85.2l-96.8 78.4c-16.1 13-19.2 36.4-7 53.1c12.9 17.8 38 21.3 55.3 7.8l99.3-77.2c7-5.4 17-4.2 22.5 2.8s4.2 17-2.8 22.5l-20.9 16.2L512 316.8 512 128l-.7 0-3.9-2.5L434.8 79c-15.3-9.8-33.2-15-51.4-15c-21.8 0-43 7.5-60 21.2zm22.8 124.4l-51.7 40.2C263 274.4 217.3 268 193.7 235.6c-22.2-30.5-16.6-73.1 12.7-96.8l83.2-67.3c-11.6-4.9-24.1-7.4-36.8-7.4C234 64 215.7 69.6 200 80l-72 48 0 224 28.2 0 91.4 83.4c19.6 17.9 49.9 16.5 67.8-3.1c5.5-6.1 9.2-13.2 11.1-20.6l17 15.6c19.5 17.9 49.9 16.6 67.8-2.9c4.5-4.9 7.8-10.6 9.9-16.5c19.4 13 45.8 10.3 62.1-7.5c17.9-19.5 16.6-49.9-2.9-67.8l-134.2-123zM16 128c-8.8 0-16 7.2-16 16L0 352c0 17.7 14.3 32 32 32l32 0c17.7 0 32-14.3 32-32l0-224-80 0zM48 320a16 16 0 1 1 0 32 16 16 0 1 1 0-32zM544 128l0 224c0 17.7 14.3 32 32 32l32 0c17.7 0 32-14.3 32-32l0-208c0-8.8-7.2-16-16-16l-80 0zm32 208a16 16 0 1 1 32 0 16 16 0 1 1 -32 0z"/></svg>',
         "headline" => '<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" rx="15" ry="15"/><rect x="15" y="20" width="40" height="10" rx="5" ry="5" fill="#ffffff"/><rect x="60" y="20" width="20" height="10" rx="5" ry="5" fill="#ffffff"/></svg>',
+        'hourglass-start' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><!--!Font Awesome Free v7.0.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M160 64C142.3 64 128 78.3 128 96C128 113.7 142.3 128 160 128L160 139C160 181.4 176.9 222.1 206.9 252.1L274.8 320L206.9 387.9C176.9 417.9 160 458.6 160 501L160 512C142.3 512 128 526.3 128 544C128 561.7 142.3 576 160 576L480 576C497.7 576 512 561.7 512 544C512 526.3 497.7 512 480 512L480 501C480 458.6 463.1 417.9 433.1 387.9L365.2 320L433.1 252.1C463.1 222.1 480 181.4 480 139L480 128C497.7 128 512 113.7 512 96C512 78.3 497.7 64 480 64L160 64zM416 501L416 512L224 512L224 501C224 475.5 234.1 451.1 252.1 433.1L320 365.2L387.9 433.1C405.9 451.1 416 475.5 416 501z"/></svg>',
         'image' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M0 96C0 60.7 28.7 32 64 32l384 0c35.3 0 64 28.7 64 64l0 320c0 35.3-28.7 64-64 64L64 480c-35.3 0-64-28.7-64-64L0 96zM323.8 202.5c-4.5-6.6-11.9-10.5-19.8-10.5s-15.4 3.9-19.8 10.5l-87 127.6L170.7 297c-4.6-5.7-11.5-9-18.7-9s-14.2 3.3-18.7 9l-64 80c-5.8 7.2-6.9 17.1-2.9 25.4s12.4 13.6 21.6 13.6l96 0 32 0 208 0c8.9 0 17.1-4.9 21.2-12.8s3.6-17.4-1.4-24.7l-120-176zM112 192a48 48 0 1 0 0-96 48 48 0 1 0 0 96z"/></svg>',
         'image-slash' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M0 96C0 60.7 28.7 32 64 32l384 0c35.3 0 64 28.7 64 64l0 320c0 35.3-28.7 64-64 64L64 480c-35.3 0-64-28.7-64-64L0 96zM323.8 202.5c-4.5-6.6-11.9-10.5-19.8-10.5s-15.4 3.9-19.8 10.5l-87 127.6L170.7 297c-4.6-5.7-11.5-9-18.7-9s-14.2 3.3-18.7 9l-64 80c-5.8 7.2-6.9 17.1-2.9 25.4s12.4 13.6 21.6 13.6l96 0 32 0 208 0c8.9 0 17.1-4.9 21.2-12.8s3.6-17.4-1.4-24.7l-120-176zM112 192a48 48 0 1 0 0-96 48 48 0 1 0 0 96z"/><line x1="0" y1="0" x2="512" y2="512" stroke="black" stroke-width="32" /></svg>',
         'key' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M336 352c97.2 0 176-78.8 176-176S433.2 0 336 0S160 78.8 160 176c0 18.7 2.9 36.8 8.3 53.7L7 391c-4.5 4.5-7 10.6-7 17l0 80c0 13.3 10.7 24 24 24l80 0c13.3 0 24-10.7 24-24l0-40 40 0c13.3 0 24-10.7 24-24l0-40 40 0c6.4 0 12.5-2.5 17-7l33.3-33.3c16.9 5.4 35 8.3 53.7 8.3zM376 96a40 40 0 1 1 0 80 40 40 0 1 1 0-80z"/></svg>',
+        'key-slash' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><!--!Font Awesome Free v7.0.1 by @fontawesome - https://fontawesome.com --><path d="M400 416C497.2 416 576 337.2 576 240C576 142.8 497.2 64 400 64C302.8 64 224 142.8 224 240C224 258.7 226.9 276.8 232.3 293.7L71 455C66.5 459.5 64 465.6 64 472L64 552C64 565.3 74.7 576 88 576L168 576C181.3 576 192 565.3 192 552L192 512L232 512C245.3 512 256 501.3 256 488L256 448L296 448C302.4 448 308.5 445.5 313 441L346.3 407.7C363.2 413.1 381.3 416 400 416zM440 160C462.1 160 480 177.9 480 200C480 222.1 462.1 240 440 240C417.9 240 400 222.1 400 200C400 177.9 417.9 160 440 160z"/><line x1="50" y1="50" x2="552" y2="552" stroke="black" stroke-width="50" /></svg>',
         'list' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M40 48C26.7 48 16 58.7 16 72l0 48c0 13.3 10.7 24 24 24l48 0c13.3 0 24-10.7 24-24l0-48c0-13.3-10.7-24-24-24L40 48zM192 64c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L192 64zm0 160c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-288 0zm0 160c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-288 0zM16 232l0 48c0 13.3 10.7 24 24 24l48 0c13.3 0 24-10.7 24-24l0-48c0-13.3-10.7-24-24-24l-48 0c-13.3 0-24 10.7-24 24zM40 368c-13.3 0-24 10.7-24 24l0 48c0 13.3 10.7 24 24 24l48 0c13.3 0 24-10.7 24-24l0-48c0-13.3-10.7-24-24-24l-48 0z"/></svg>',
         "magnifying-glass" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"/></svg> ',
         "rank-math" => '<svg viewBox="0 0 462.03 462.03" xmlns="http://www.w3.org/2000/svg" width="20"><g fill="#a7aaad"><path d="m462 234.84-76.17 3.43 13.43 21-127 81.18-126-52.93-146.26 60.97 10.14 24.34 136.1-56.71 128.57 54 138.69-88.61 13.43 21z"/><path d="m54.1 312.78 92.18-38.41 4.49 1.89v-54.58h-96.67zm210.9-223.57v235.05l7.26 3 89.43-57.05v-181zm-105.44 190.79 96.67 40.62v-165.19h-96.67z"/></g></svg>',
@@ -331,6 +342,7 @@ function ai4seo_get_svg_tags(): array {
         "rocket-chat" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M284 224.8a34.1 34.1 0 1 0 34.3 34.1A34.2 34.2 0 0 0 284 224.8zm-110.5 0a34.1 34.1 0 1 0 34.3 34.1A34.2 34.2 0 0 0 173.6 224.8zm220.9 0a34.1 34.1 0 1 0 34.3 34.1A34.2 34.2 0 0 0 394.5 224.8zm153.8-55.3c-15.5-24.2-37.3-45.6-64.7-63.6-52.9-34.8-122.4-54-195.7-54a406 406 0 0 0 -72 6.4 238.5 238.5 0 0 0 -49.5-36.6C99.7-11.7 40.9 .7 11.1 11.4A14.3 14.3 0 0 0 5.6 34.8C26.5 56.5 61.2 99.3 52.7 138.3c-33.1 33.9-51.1 74.8-51.1 117.3 0 43.4 18 84.2 51.1 118.1 8.5 39-26.2 81.8-47.1 103.5a14.3 14.3 0 0 0 5.6 23.3c29.7 10.7 88.5 23.1 155.3-10.2a238.7 238.7 0 0 0 49.5-36.6A406 406 0 0 0 288 460.1c73.3 0 142.8-19.2 195.7-54 27.4-18 49.1-39.4 64.7-63.6 17.3-26.9 26.1-55.9 26.1-86.1C574.4 225.4 565.6 196.4 548.3 169.5zM285 409.9a345.7 345.7 0 0 1 -89.4-11.5l-20.1 19.4a184.4 184.4 0 0 1 -37.1 27.6 145.8 145.8 0 0 1 -52.5 14.9c1-1.8 1.9-3.6 2.8-5.4q30.3-55.7 16.3-100.1c-33-26-52.8-59.2-52.8-95.4 0-83.1 104.3-150.5 232.8-150.5s232.9 67.4 232.9 150.5C517.9 342.5 413.6 409.9 285 409.9z"/></svg>',
         "seopress" => '<svg id="uuid-4f6a8a41-18e3-4f77-b5a9-4b1b38aa2dc9" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 899.655 494.3094"><path id="uuid-a155c1ca-d868-4653-8477-8dd87240a765" d="M327.3849,435.128l-299.9999-.2497c-16.2735,1.1937-28.4981,15.3538-27.3044,31.6273,1.0719,14.6128,12.6916,26.2325,27.3044,27.3044l299.9999,.2497c16.2735-1.1937,28.4981-15.3538,27.3044-31.6273-1.0718-14.6128-12.6916-26.2325-27.3044-27.3044Z" style="fill:#fff"/><path id="uuid-e30ba4c6-4769-466b-a03a-e644c5198e56" d="M27.3849,58.9317l299.9999,.2497c16.2735-1.1937,28.4981-15.3537,27.3044-31.6273-1.0718-14.6128-12.6916-26.2325-27.3044-27.3044L27.3849,0C11.1114,1.1937-1.1132,15.3537,.0805,31.6273c1.0719,14.6128,12.6916,26.2325,27.3044,27.3044Z" style="fill:#fff"/><path id="uuid-2bbd52d6-aec1-4689-9d4c-23c35d4f22b8" d="M652.485,.2849c-124.9388,.064-230.1554,93.4132-245.1001,217.455H27.3849c-16.2735,1.1937-28.4981,15.3537-27.3044,31.6272,1.0719,14.6128,12.6916,26.2325,27.3044,27.3044H407.3849c16.2298,135.4454,139.187,232.0888,274.6323,215.8589,135.4455-16.2298,232.0888-139.1869,215.8589-274.6324C882.9921,93.6834,777.5884,.2112,652.485,.2849Zm0,433.4217c-102.9754,0-186.4533-83.478-186.4533-186.4533,0-102.9753,83.4781-186.4533,186.4533-186.4533,102.9754,0,186.4533,83.478,186.4533,186.4533,.0524,102.9753-83.383,186.4959-186.3583,186.5483-.0316,0-.0634,0-.0951,0v-.095Z" style="fill:#fff"/></svg>',
         "shopping-cart" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M0 24C0 10.7 10.7 0 24 0L69.5 0c22 0 41.5 12.8 50.6 32l411 0c26.3 0 45.5 25 38.6 50.4l-41 152.3c-8.5 31.4-37 53.3-69.5 53.3l-288.5 0 5.4 28.5c2.2 11.3 12.1 19.5 23.6 19.5L488 336c13.3 0 24 10.7 24 24s-10.7 24-24 24l-288.3 0c-34.6 0-64.3-24.6-70.7-58.5L77.4 54.5c-.7-3.8-4-6.5-7.9-6.5L24 48C10.7 48 0 37.3 0 24zM128 464a48 48 0 1 1 96 0 48 48 0 1 1 -96 0zm336-48a48 48 0 1 1 0 96 48 48 0 1 1 0-96z"/></svg>',
+        "sliders" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><!--!Font Awesome Free v7.0.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M96 128C78.3 128 64 142.3 64 160C64 177.7 78.3 192 96 192L182.7 192C195 220.3 223.2 240 256 240C288.8 240 317 220.3 329.3 192L544 192C561.7 192 576 177.7 576 160C576 142.3 561.7 128 544 128L329.3 128C317 99.7 288.8 80 256 80C223.2 80 195 99.7 182.7 128L96 128zM96 288C78.3 288 64 302.3 64 320C64 337.7 78.3 352 96 352L342.7 352C355 380.3 383.2 400 416 400C448.8 400 477 380.3 489.3 352L544 352C561.7 352 576 337.7 576 320C576 302.3 561.7 288 544 288L489.3 288C477 259.7 448.8 240 416 240C383.2 240 355 259.7 342.7 288L96 288zM96 448C78.3 448 64 462.3 64 480C64 497.7 78.3 512 96 512L150.7 512C163 540.3 191.2 560 224 560C256.8 560 285 540.3 297.3 512L544 512C561.7 512 576 497.7 576 480C576 462.3 561.7 448 544 448L297.3 448C285 419.7 256.8 400 224 400C191.2 400 163 419.7 150.7 448L96 448z"/></svg>',
         "square-check" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-320c0-35.3-28.7-64-64-64L64 32zM337 209L209 337c-9.4 9.4-24.6 9.4-33.9 0l-64-64c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l47 47L303 175c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9z"/></svg>',
         "square-facebook" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M64 32C28.7 32 0 60.7 0 96V416c0 35.3 28.7 64 64 64h98.2V334.2H109.4V256h52.8V222.3c0-87.1 39.4-127.5 125-127.5c16.2 0 44.2 3.2 55.7 6.4V172c-6-.6-16.5-1-29.6-1c-42 0-58.2 15.9-58.2 57.2V256h83.6l-14.4 78.2H255V480H384c35.3 0 64-28.7 64-64V96c0-35.3-28.7-64-64-64H64z"/></svg>',
         "square-twitter-x" => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M64 32C28.7 32 0 60.7 0 96V416c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V96c0-35.3-28.7-64-64-64H64zm297.1 84L257.3 234.6 379.4 396H283.8L209 298.1 123.3 396H75.8l111-126.9L69.7 116h98l67.7 89.5L313.6 116h47.5zM323.3 367.6L153.4 142.9H125.1L296.9 367.6h26.3z"/></svg>',
@@ -594,18 +606,9 @@ function ai4seo_get_allowed_currencies(): array {
 }
 
 
-// === Plugin's Settings ================================================================================= \\
+// === PLUGIN'S SETTINGS ================================================================================= \\
 
-// Variable for the plugin settings
-/**
- * How to create new settings:
- * 1. Create a Constant below
- * 2. Add the constant to the corresponding AI4SEO_ALL_*_SETTINGS array
- * 3. Define a default Setting in $ai4seo_default_settings
- * 4. Define a validation in ai4seo_validate_setting_value()
- * 5. If the setting is changeable in the Settings menu: Go to settings.php and
- *    create the output of the setting at the corresponding place
- */
+/** Check docs/settings.md for a guide on how to use Plugin's settings */
 
 // SETTINGS FROM THE SETTINGS PAGE
 const AI4SEO_SETTING_SHOW_ADVANCED_SETTINGS = 'show_advanced_settings';
@@ -821,6 +824,8 @@ const AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_ATTACHMENT_POST_ENTRIES = "num_attachmen
 const AI4SEO_ENVIRONMENTAL_VARIABLE_CURRENT_DISCOUNT = "current_discount";
 const AI4SEO_ENVIRONMENTAL_VARIABLE_PLUGIN_ACTIVATION_TIME = "plugin_activation_time";
 const AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_PERFORMANCE_ANALYSIS_TIME = "last_performance_analysis_time";
+const AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_STATUS = "payg_status";
+const AI4SEO_ENVIRONMENTAL_VARIABLE_JUST_PURCHASED_SOMETHING_TIME = "just_purchased_something_time";
 
 const AI4SEO_NOTIFICATION_AUTO_DISMISS_DAYS = 7;
 
@@ -846,6 +851,8 @@ const AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES = array(
     AI4SEO_ENVIRONMENTAL_VARIABLE_CURRENT_DISCOUNT => array(),
     AI4SEO_ENVIRONMENTAL_VARIABLE_PLUGIN_ACTIVATION_TIME => 0,
     AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_PERFORMANCE_ANALYSIS_TIME => 0,
+    AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_STATUS => 'idle',
+    AI4SEO_ENVIRONMENTAL_VARIABLE_JUST_PURCHASED_SOMETHING_TIME => 0,
 );
 
 $ai4seo_environmental_variables = AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES;
@@ -1074,6 +1081,7 @@ function ai4seo_get_allowed_html_tags_and_attributes(): array {
             "disabled" => array(),
             "style" => array(),
             "data-clipboard-text" => array(),
+            "data-time-left" => array(),
         ),
         "span" => array(
             "id" => array(),
@@ -1103,6 +1111,7 @@ function ai4seo_get_allowed_html_tags_and_attributes(): array {
             "title" => array(),
             "class" => array(),
             "onclick" => array(),
+            "data-time-left" => array(),
         ),
         "i" => array(
             "onclick" => array(),
@@ -1254,6 +1263,7 @@ const AI4SEO_ALLOWED_AJAX_FUNCTIONS = array(
     "ai4seo_show_import_settings_preview",
     "ai4seo_import_settings",
     "ai4seo_restore_default_settings",
+    "ai4seo_request_lost_licence_data",
 );
 
 // the robhub api communicator is used to communicate with the robhub api which handles all the ai stuff
@@ -1483,7 +1493,7 @@ function ai4seo_init_admin_area_essentials() {
         return;
     }
 
-    $is_user_inside_plugin_admin_pages = ai4seo_is_user_inside_our_plugin_admin_pages();
+    $is_user_inside_our_plugin_admin_pages = ai4seo_is_user_inside_our_plugin_admin_pages();
     $is_dashboard_page_visible = ai4seo_is_plugin_page_active("dashboard");
 
     // Add menu-item to main menu, sub menu-items and page titles
@@ -1500,7 +1510,7 @@ function ai4seo_init_admin_area_essentials() {
     $last_tos_modal_open_time = (int) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_TOS_LAST_MODAL_OPEN_TIME);
 
     // outside the plugin admin pages, show the modal only once a week
-    if ($is_user_inside_plugin_admin_pages || $last_tos_modal_open_time < time() - WEEK_IN_SECONDS) {
+    if ($is_user_inside_our_plugin_admin_pages || $last_tos_modal_open_time < time() - WEEK_IN_SECONDS) {
         if (ai4seo_does_user_need_to_accept_tos_toc_and_pp()) {
             add_action("wp_footer", "ai4seo_show_terms_of_service_modal");
             add_action("get_footer", "ai4seo_show_terms_of_service_modal");
@@ -1525,7 +1535,7 @@ function ai4seo_init_admin_area_essentials() {
     add_action( 'admin_print_footer_scripts', 'ai4seo_print_ajax_nonce_field' );
 
     // if user is inside our plugin admin pages, check for account sync
-    if ($is_user_inside_plugin_admin_pages) {
+    if ($is_user_inside_our_plugin_admin_pages) {
         ai4seo_check_for_robhub_account_sync();
     }
 
@@ -2146,7 +2156,7 @@ function ai4seo_get_plugins_menu_registry(): array {
     foreach ( $post_types as $this_post_type ) {
         $this_post_type = sanitize_key( $this_post_type );
         $label = ai4seo_get_nice_label( ai4seo_get_post_type_translation( $this_post_type, true ) );
-        $slug  = AI4SEO_PLUGIN_IDENTIFIER . '&ai4seo_subpage=post&ai4seo-post-type=' . $this_post_type;
+        $slug  = AI4SEO_PLUGIN_IDENTIFIER . '&ai4seo_subpage=post&ai4seo_post_type=' . $this_post_type;
 
         $post_type_map[ $this_post_type ] = array(
             'label' => $label,
@@ -3419,6 +3429,9 @@ function ai4seo_check_for_performance_analysis() {
  * Function to init the RobHub Account by syncing it eventually
  */
 function ai4seo_check_for_robhub_account_sync(): void {
+    $active_subpage = ai4seo_get_active_subpage();
+    $active_subpage_is_dashboard = $active_subpage == "dashboard";
+
     // when using ai4seo_force_sync_account parameter -> reset the last account sync timestamp
     if (isset($_GET["ai4seo_force_sync_account"])) {
         ai4seo_sync_robhub_account('manual_refresh');
@@ -3429,7 +3442,6 @@ function ai4seo_check_for_robhub_account_sync(): void {
     $is_account_synced = ai4seo_robhub_api()->read_environmental_variable(ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED);
 
     if (!$is_account_synced) {
-        // sync the RobHub account
         ai4seo_sync_robhub_account('not_yet_synced');
         return;
     }
@@ -3438,7 +3450,6 @@ function ai4seo_check_for_robhub_account_sync(): void {
     $last_account_sync = ai4seo_robhub_api()->read_environmental_variable(ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC);
 
     if ($last_account_sync < time() - ai4seo_robhub_api()::ACCOUNT_SYNC_INTERVAL) {
-        // sync the RobHub account
         ai4seo_sync_robhub_account('regular_interval');
         return;
     }
@@ -3447,8 +3458,25 @@ function ai4seo_check_for_robhub_account_sync(): void {
     $next_free_credits_timestamp = ai4seo_robhub_api()->read_environmental_variable(ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_NEXT_FREE_CREDITS_TIMESTAMP);
 
     if ($next_free_credits_timestamp && $next_free_credits_timestamp < time()) {
-        // sync the RobHub account
         ai4seo_sync_robhub_account('next_free_credits_passed');
+        return;
+    }
+
+    // if the credits balance is below 100 AND AI4SEO_SETTING_PAYG_ENABLED is true, we need to check for client's payment
+    // dashboard only
+    $is_payg_enabled = (bool) ai4seo_get_setting(AI4SEO_SETTING_PAYG_ENABLED);
+    $credits_balance = (int) ai4seo_robhub_api()->get_credits_balance();
+
+    if ($is_payg_enabled && $credits_balance < 100) {
+        ai4seo_sync_robhub_account('payg_waiting_for_payment');
+        return;
+    }
+
+    // if the environmental variable AI4SEO_ENVIRONMENTAL_VARIABLE_JUST_PURCHASED_SOMETHING_TIME is set and in the last 3 minutes, we need to sync the account again
+    $just_purchased_something_time = (int) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_JUST_PURCHASED_SOMETHING_TIME);
+
+    if ($just_purchased_something_time && $just_purchased_something_time > time() - 180) {
+        ai4seo_sync_robhub_account('waiting_for_payment');
         return;
     }
 }
@@ -3494,7 +3522,7 @@ function ai4seo_sync_robhub_account(string $sync_reason = "unknown", bool $allow
     }
 
     if (isset($synced_account_data["stripe_price_id"]) && $synced_account_data["stripe_price_id"]) {
-        ai4seo_update_setting(AI4SEO_SETTING_PAYG_STRIPE_PRICE_ID, $synced_account_data["stripe_price_id"]);
+        ai4seo_update_setting(AI4SEO_SETTING_PAYG_STRIPE_PRICE_ID, sanitize_text_field($synced_account_data["stripe_price_id"]));
     }
 
     if (isset($synced_account_data["payg_daily_budget"]) && is_numeric($synced_account_data["payg_daily_budget"])) {
@@ -3505,10 +3533,21 @@ function ai4seo_sync_robhub_account(string $sync_reason = "unknown", bool $allow
         ai4seo_update_setting(AI4SEO_SETTING_PAYG_MONTHLY_BUDGET, (int) $synced_account_data["payg_monthly_budget"]);
     }
 
+    if (isset($synced_account_data["payg_status"]) && in_array($synced_account_data["payg_status"], AI4SEO_ALLOWED_PAYG_STATUS)) {
+        ai4seo_update_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_STATUS, sanitize_key($synced_account_data["payg_status"]));
+
+        ai4seo_check_for_payg_status_errors($synced_account_data["payg_status"]);
+    } else {
+        ai4seo_delete_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_STATUS);
+    }
+
     // preferred_currency
     if (isset($synced_account_data["preferred_currency"]) && $synced_account_data["preferred_currency"]) {
         ai4seo_update_setting(AI4SEO_SETTING_PREFERRED_CURRENCY, $synced_account_data["preferred_currency"]);
     }
+
+    // in case there is a new plugin version available, we need to check for it
+    ai4seo_check_for_plugin_update_available($synced_account_data["latest_product_version"] ?? "", true);
 
     // discount
     if (isset($synced_account_data["discount"]) && is_array($synced_account_data["discount"])) {
@@ -3947,7 +3986,7 @@ function ai4seo_get_icon_with_tooltip_tag(string $tooltip_text, string $icon_css
     $icon = ai4seo_get_svg_tag($icon_name, "", $icon_css_class);
     $output = "<span class='ai4seo-icon-with-tooltip ai4seo-tooltip-holder'>";
     $output .= $icon;
-    $output .= "<div class='ai4seo-tooltip'>{$tooltip_text}</div>";
+    $output .= "<div class='ai4seo-tooltip ai4seo-ignore-during-dashboard-refresh'>{$tooltip_text}</div>";
     $output .= "</span>";
     return $output;
 }
@@ -4094,12 +4133,12 @@ function ai4seo_get_subpage_url(string $page = "", array $additional_parameter =
  * @param string $post_type The post type to navigate to
  * @param int $current_page The current page to navigate to
  * @param array $additional_parameter Additional parameters to add to the url
- * @param bool $return_full_path Whether to add the full path (http://example.com/wp-admin/admin.php?page=ai-for-seo&ai4seo-post-type=post)
+ * @param bool $return_full_path Whether to add the full path (http://example.com/wp-admin/admin.php?page=ai-for-seo&ai4seo_subpage=post&ai4seo_post_type=post)
  * @return string The url to the post type
  */
 function ai4seo_get_post_type_page_url(string $post_type, int $current_page = 1, array $additional_parameter = array(), bool $return_full_path = true): string {
     $additional_parameter["ai4seo_page"] = $current_page ?: "%#%"; # %#% = pagination workaround
-    return ai4seo_get_subpage_url(AI4SEO_POST_TYPES_PLUGIN_PAGE_NAME, array("ai4seo-post-type" => $post_type) + $additional_parameter, $return_full_path);
+    return ai4seo_get_subpage_url(AI4SEO_POST_TYPES_PLUGIN_PAGE_NAME, array("ai4seo_post_type" => $post_type) + $additional_parameter, $return_full_path);
 }
 
 // =========================================================================================== \\
@@ -4183,7 +4222,7 @@ function ai4seo_get_active_post_type_subpage(): string {
         return "";
     }
 
-    return sanitize_key($_GET["ai4seo-post-type"] ?? ai4seo_get_default_post_type());
+    return sanitize_key($_GET["ai4seo_post_type"] ?? ai4seo_get_default_post_type());
 }
 
 // =========================================================================================== \\
@@ -10920,22 +10959,7 @@ function ai4seo_remove_post_ids_from_all_generation_status_options($post_ids) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 /*
- * Instructions for adding a new AJAX action:
- *
- * - If the AJAX function **saves settings or environment variables**, use the `ai4seo_save_anything()` function.
- *   - In that case, consider creating a new file under `includes/ajax/process/save-anything-categories/`
- *     using the name of the form being submitted (e.g., `save-xxxx-editor-values.php`).
- *
- * - If the AJAX function **does not save settings or environment variables**:
- *   - Create a new function following the pattern of `ai4seo_stop_bulk_generation()` for simpler functions and `ai4seo_generate_metadata()` for more complex operations
- *   - For more complex operations, create a corresponding file under `includes/ajax/process/` (e.g., `generate-metadata.php`).
- *   - For displaying content via AJAX, use `ai4seo_show_metadata_editor()` as an example.
- *
- * - Whitelist the AJAX function in two places:
- *   1. Add the function name to the `ai4seo_allowed_ajax_actions` array in `ai-for-seo-scripts.js`.
- *   2. Add the function name to the `AI4SEO_ALLOWED_AJAX_FUNCTIONS` constant in `ai-for-seo.php`.
- *
- * - To see how to call the AJAX function from JavaScript, refer to the `ai4seo_import_nextgen_gallery_images()` function in `ai-for-seo-scripts.js`.
+ * Instructions for adding a new AJAX action: see docs/ajax.md
  */
 
 // =========================================================================================== \\
@@ -11180,6 +11204,48 @@ function ai4seo_init_purchase() {
     }
 
     ai4seo_send_json_success(array("purchase_url" => $purchase_url));
+}
+
+// =========================================================================================== \\
+
+/**
+ * Called via AJAX - requests lost licence data to be sent via email
+ * @return void
+ */
+function ai4seo_request_lost_licence_data() {
+    // Make sure that this function is only called once
+    if (!ai4seo_singleton(__FUNCTION__)) {
+        return;
+    }
+
+    // check stripe_email
+    if (!isset($_POST["stripe_email"]) || !is_string($_POST["stripe_email"])) {
+        ai4seo_send_json_error(esc_html__("Invalid email address", "ai-for-seo"), 551819325);
+        wp_die();
+    }
+
+    $stripe_email = sanitize_email($_POST["stripe_email"]);
+    
+    // Validate email format
+    if (!filter_var($stripe_email, FILTER_VALIDATE_EMAIL)) {
+        ai4seo_send_json_error(esc_html__("Invalid email address", "ai-for-seo"), 561819325);
+        wp_die();
+    }
+
+    // call robhub api endpoint "client/send-licence-data"
+    $robhub_endpoint = "client/send-licence-data";
+
+    $response = ai4seo_robhub_api()->perform_lost_licence_call($stripe_email);
+
+    // endpoint lock it (61 seconds -> return error)
+    if (!ai4seo_robhub_api()->was_call_successful($response) && isset($response["code"]) && $response["code"] === 521561224) {
+        ai4seo_send_json_error(esc_html__("You can only request your licence data once every 60 seconds. Please wait a moment and try again.", "ai-for-seo"), 521561224);
+        wp_die();
+    }
+
+    // Always treat as success regardless of API response (as per requirements)
+    // Even if the API responds with an error (e.g. email not found), treat it as a success
+    ai4seo_send_json_success();
 }
 
 // =========================================================================================== \\
@@ -12398,6 +12464,7 @@ function ai4seo_validate_environmental_variable_value(string $environmental_vari
         case AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_KNOWN_PLUGIN_VERSION:
             // contains only of numbers and dots
             return is_string($environmental_variable_value) && preg_match("/^[0-9.]+$/", $environmental_variable_value);
+
         case AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_CRON_JOB_CALL:
         case AI4SEO_ENVIRONMENTAL_VARIABLE_TOS_TOC_AND_PP_ACCEPTED_TIME:
         case AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_TOS_DETAILS_CHECKSUM:
@@ -12410,6 +12477,7 @@ function ai4seo_validate_environmental_variable_value(string $environmental_vari
         case AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_POST_ENTRIES:
         case AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_ATTACHMENT_POST_ENTRIES:
         case AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_PERFORMANCE_ANALYSIS_TIME:
+        case AI4SEO_ENVIRONMENTAL_VARIABLE_JUST_PURCHASED_SOMETHING_TIME:
         case AI4SEO_ENVIRONMENTAL_VARIABLE_PLUGIN_ACTIVATION_TIME:
             // contains only of numbers
             return is_numeric($environmental_variable_value) && $environmental_variable_value >= 0;
@@ -12489,6 +12557,9 @@ function ai4seo_validate_environmental_variable_value(string $environmental_vari
             }
 
             return true;
+
+        case AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_STATUS:
+            return in_array($environmental_variable_value, AI4SEO_ALLOWED_PAYG_STATUS);
 
         default:
             return false;
@@ -12821,16 +12892,22 @@ function ai4seo_get_notification_buttons(string $notification_index, array $noti
     $show_contact_us_button = (bool) ($notification['contact_us'] ?? false);
     $show_set_up_seo_autopilot_button = (bool) ($notification['set_up_seo_autopilot_button'] ?? false);
     $show_get_a_get_more_credits_button = (bool) ($notification['get_more_credits_button'] ?? false);
+    $show_customize_payg_button = (bool) ($notification['customize_payg_button'] ?? false);
+    $show_increase_payg_budget_button = (bool) ($notification['increase_payg_budget_button'] ?? false); // same as customize payg
+    $show_sync_account_button = (bool) ($notification['sync_account_button'] ?? false);
     $show_get_a_custom_quote_button = (bool) ($notification['get_a_custom_quote_button'] ?? false);
     $show_grab_deal_button = (bool) ($notification['grab_deal_button'] ?? false);
     $show_claim_bonus_button = (bool) ($notification['claim_bonus_button'] ?? false);
     $show_rate_us_button = (bool) ($notification['rate_us_button'] ?? false);
     $show_go_to_account_settings_button = (bool) ($notification['go_to_account_settings_button'] ?? false);
+    $show_lost_licence_key_button = (bool) ($notification['lost_licence_key_button'] ?? false);
+    $show_update_plugin_button = (bool) ($notification['update_plugin_button'] ?? false);
     $show_go_to_settings_button = (bool) ($notification['go_to_settings_button'] ?? false);
     $show_go_to_help_button = (bool) ($notification['go_to_help_button'] ?? false);
     $account_url = ai4seo_get_subpage_url("account");
     $settings_url = ai4seo_get_subpage_url("settings");
     $help_url = ai4seo_get_subpage_url("help");
+    $wp_admin_plugins_list_url = esc_url(admin_url("plugins.php"));
 
     $notification_buttons = "";
 
@@ -12868,6 +12945,16 @@ function ai4seo_get_notification_buttons(string $notification_index, array $noti
         $notification_buttons .= ai4seo_get_button_text_link_tag("#", "circle-plus", __("Get more Credits", "ai-for-seo"), "ai4seo-primary-button", "ai4seo_open_get_more_credits_modal()");
     }
 
+    // Show a "Customize PAYG" Button
+    if ($show_customize_payg_button) {
+        $notification_buttons .= ai4seo_wp_kses(ai4seo_get_button_text_link_tag("#", "sliders", esc_html__("Customize Pay-As-You-Go", "ai-for-seo"), "", "ai4seo_handle_open_customize_payg_modal();"));
+    }
+
+    // Show a "Increase Budget" Button (same as customize payg)
+    if ($show_increase_payg_budget_button) {
+        $notification_buttons .= ai4seo_wp_kses(ai4seo_get_button_text_link_tag("#", "sliders", esc_html__("Increase Budget", "ai-for-seo"), "", "ai4seo_handle_open_customize_payg_modal();"));
+    }
+
     // Show a "Get an exclusive quote" Button
     if ($show_get_a_custom_quote_button) {
         $notification_buttons .= ai4seo_get_button_text_link_tag(sanitize_url(AI4SEO_OFFICIAL_CONTACT_URL), "handshake", __("Get an exclusive quote", "ai-for-seo"), "ai4seo-unicorn-button", "", "_blank");
@@ -12888,9 +12975,24 @@ function ai4seo_get_notification_buttons(string $notification_index, array $noti
         $notification_buttons .= ai4seo_get_button_text_link_tag($account_url, "key", __("Account Settings", "ai-for-seo"), "ai4seo-primary-button");
     }
 
+    // Show an "Update Plugin" button
+    if ($show_update_plugin_button) {
+        $notification_buttons .= ai4seo_get_button_text_link_tag($wp_admin_plugins_list_url, "circle-up", __("Update Plugin", "ai-for-seo"), "ai4seo-primary-button");
+    }
+
+    // Show a lost licence key button
+    if ($show_lost_licence_key_button) {
+        $notification_buttons .= ai4seo_wp_kses(ai4seo_get_button_text_link_tag("#", "key-slash", esc_html__("Lost your license data?", "ai-for-seo"), "", "ai4seo_open_lost_key_modal();"));
+    }
+
     // Show a "Go to Help section" button
     if ($show_go_to_help_button) {
         $notification_buttons .= ai4seo_get_button_text_link_tag($help_url, "circle-question", __("Go to Help", "ai-for-seo"), "ai4seo-primary-button");
+    }
+
+    // sync account button
+    if ($show_sync_account_button) {
+        $notification_buttons .= ai4seo_get_button_text_link_tag("#", "rotate", __("Refresh", "ai-for-seo"), "", "add_force_sync_account_parameter_and_reload_page();");
     }
 
     // contact us button
@@ -13647,16 +13749,127 @@ function ai4seo_check_for_robhub_account_error_notification($api_response, $forc
     }
 
     $message .= "<br><br>";
-    $message .= "<strong>" . __("Lost your license data?", "ai-for-seo") . "</strong> ";
-    $message .= __("Please contact us for assistance. To help us resolve your issue quickly, kindly provide details such as your <strong>website domain</strong> and the <strong>email address</strong> used during the purchase.");
+    $message .= "<strong>" . esc_html__("Lost your license data?", "ai-for-seo") . "</strong> ";
+    $message .= sprintf(
+        esc_html__("Please click on %s and follow the instructions.", "ai-for-seo"),
+        "<strong>" . esc_html__("Lost your license data?", "ai-for-seo") . "</strong>"
+    );
 
     // push the notification
     ai4seo_push_notification($notification_index, $message, $force,
         array(
             "notice_type" => "notice-error",
             "is_permanent" => true,
-            "go_to_account_settings_button" => true,
+            "lost_licence_key_button" => true,
             "contact_us" => true
+        )
+    );
+}
+
+// =========================================================================================== \\
+
+function ai4seo_check_for_plugin_update_available($latest_plugin_version, $force = false) {
+    $notification_index = "plugin-update-available";
+
+    if (!$latest_plugin_version) {
+        ai4seo_remove_notification($notification_index);
+        return;
+    }
+
+    // if we have the latest version, potentially remove the notification
+    if (version_compare(AI4SEO_PLUGIN_VERSION_NUMBER, $latest_plugin_version, '>=')) {
+        ai4seo_remove_notification($notification_index);
+        return;
+    }
+
+    // check if this notification is already dismissed
+    if (!$force && ai4seo_is_notification_dismissed($notification_index)) {
+        return;
+    }
+
+    // build message
+    $message = sprintf(
+    /* translators: 1: Plugin name, 2: Plugin version */
+        esc_html__('A new version of %1$s is available: %2$s. Your current version is %3$s. Please update to the latest version to enjoy new features and improvements.', 'ai-for-seo'),
+        '<strong>' . esc_html(AI4SEO_PLUGIN_NAME) . '</strong>',
+        '<strong>' . esc_html($latest_plugin_version) . '</strong>',
+        esc_html(AI4SEO_PLUGIN_VERSION_NUMBER)
+    );
+
+    // push the notification
+    ai4seo_push_notification($notification_index, $message, $force,
+        array(
+            "notice_type" => "notice-info",
+            "update_plugin_button" => true,
+            "max_num_visible_notifications_condition" => 1 # prevent spam
+        )
+    );
+}
+
+// =========================================================================================== \\
+
+function ai4seo_check_for_payg_status_errors($payg_status, $force = false) {
+    $notification_index = "payg-status-error";
+
+    // if we have a successful response, potentially remove the notification
+    if (!in_array($payg_status, array('budget-limit-reached', 'payment-pending', 'payment-failed', 'error'))) {
+        ai4seo_remove_notification($notification_index);
+        return;
+    }
+
+    $show_increase_payg_budget_button = false;
+    $show_contact_us_button = false;
+    $show_sync_account_button = false;
+
+    switch ($payg_status) {
+        case 'budget-limit-reached':
+            $notice_type = 'notice-warning';
+            $message = __("<strong>Budget limit reached.</strong> New usage is paused. Increase your limit to resume immediately, or wait for the next cycle.", "ai-for-seo");
+            $show_increase_payg_budget_button = true;
+            break;
+        case 'payment-pending':
+            $notice_type = 'notice-warning';
+            $message = sprintf(
+                __("<strong>Your Pay-As-You-Go payment is still pending.</strong> New usage is paused until the payment is completed. Click '%s' to check if the payment has arrived. If it takes longer than expected, please contact us for assistance.", "ai-for-seo"),
+                '<strong>' . esc_html__("Refresh", "ai-for-seo") . '</strong>'
+            );
+            $show_contact_us_button = true;
+            $show_sync_account_button = true;
+            $force = true;
+            break;
+        case 'payment-failed':
+            $notice_type = 'notice-error';
+            $message = __("<strong>Your Pay-As-You-Go payment has failed.</strong> New usage is paused until the payment issue is resolved. Please check your payment information.", "ai-for-seo");
+            $show_contact_us_button = true;
+            $show_sync_account_button = true;
+            $force = true;
+            break;
+        case 'error':
+            $notice_type = 'notice-error';
+            $message = __("<strong>There was an error with your Pay-As-You-Go refill.</strong> New usage is paused until the issue is resolved.", "ai-for-seo");
+            $show_contact_us_button = true;
+            $show_sync_account_button = true;
+            $force = true;
+            break;
+        default:
+            ai4seo_remove_notification($notification_index);
+            return;
+    }
+
+    // check if this notification is already dismissed
+    if (!$force && ai4seo_is_notification_dismissed($notification_index)) {
+        return;
+    }
+
+    // push the notification
+    ai4seo_push_notification($notification_index, $message, $force,
+        array(
+            "notice_type" => $notice_type,
+            "is_permanent" => true,
+            "contact_us" => $show_contact_us_button,
+            "increase_payg_budget_button" => $show_increase_payg_budget_button,
+            "sync_account_button" => $show_sync_account_button,
+            "is_robhub_account_synced_condition" => true, // only show this notification if the RobHub account is synced
         )
     );
 }
@@ -13950,6 +14163,7 @@ function ai4seo_check_discount_notification($discount, $allow_notification_force
         "notice_type" => "notice-success",
         "show_avatar" => true,
         "grab_deal_button" => true,
+        "not_now_button" => true,
         "expire_at" => $expire_at,
         "voucher_code" => $discount_voucher_code,
         "is_robhub_account_synced_condition" => true, // only show this notification if the RobHub account is synced
@@ -14410,6 +14624,9 @@ function ai4seo_send_pay_as_you_go_settings() {
         error_log("AI4SEO: Invalid response from RobHub API. #361217325");
         return false;
     }
+
+    // remove potential previous error notification
+    ai4seo_remove_notification("payg-status-error");
 
     return true;
 }
