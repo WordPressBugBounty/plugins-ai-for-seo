@@ -399,7 +399,7 @@ class Ai4Seo_RobHubApiCommunicator {
 
             return array(
                 "success" => false,
-                "code" => 311823824,
+                "code" => $call_response["code"],
                 "message" => $call_response["message"]
             );
         }

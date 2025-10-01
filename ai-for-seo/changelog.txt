@@ -1,5 +1,9 @@
 == Changelog ==
 
+= 2.1.6 =
+* Added compatibility with WordPress 6.8.3
+* Bug Fixes & Maintenance: Fixed 2 minor bugs.
+
 = 2.1.5 =
 * Added a new feature to easily retrieve lost license data. Go to your Account page, click "Lost your license data?", and follow the instructions.
 * Bug Fixes & Maintenance: Fixed 2 minor bugs and implemented 4 usability improvements.

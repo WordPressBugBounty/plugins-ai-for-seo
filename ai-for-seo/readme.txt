@@ -3,8 +3,8 @@ Contributors: spacecodes
 Donate link: https://spa.ce.codes
 Tags: AI, SEO, Metadata, Alt text, Bulk
 Requires at least: 4.7
-Tested up to: 6.8.2
-Stable tag: 2.1.5
+Tested up to: 6.8.3
+Stable tag: 2.1.6
 Requires PHP: 7.4
 License: GPLv2 or later (or compatible)
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -330,6 +330,10 @@ If you cannot access the plugin due to incognito mode restriction, follow these 
 
 
 == Changelog ==
+
+= 2.1.6 =
+* Added compatibility with WordPress 6.8.3
+* Bug Fixes & Maintenance: Fixed 2 minor bugs.
 
 = 2.1.5 =
 * Added a new feature to easily retrieve lost license data. Go to your Account page, click "Lost your license data?", and follow the instructions.

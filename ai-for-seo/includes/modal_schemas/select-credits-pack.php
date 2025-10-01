@@ -66,6 +66,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
 
         $ai4seo_entry_counter = 0;
         $ai4seo_pre_selected_credits_pack_entry = array();
+        $ai4seo_hidden_credits_packs_container_open = false;
 
         foreach ($ai4seo_credits_packs AS $ai4seo_this_payg_stripe_price_id => $ai4seo_credits_pack_entry) {
             $ai4seo_entry_counter++;
@@ -134,19 +135,39 @@ echo "<div class='ai4seo-modal-schema-content'>";
 
             // show more options button
             if ($ai4seo_entry_counter === 3) {
-                echo "<center>";
+                if (count($ai4seo_credits_packs) > 3) {
+                    echo "<center>";
                     echo ai4seo_wp_kses(ai4seo_get_small_button_tag("#", "angle-down", __("Show more options", "ai-for-seo") . " " . ai4seo_get_svg_tag("angle-down"), "ai4seo-credits-pack-show-more-options-button", "jQuery(this).parent().hide();jQuery(this).parent().next().show();"));
-                echo "</center>";
-                echo "<div style='display: none;'>";
+                    echo "</center>";
+                    echo "<div style='display: none;'>";
+                    $ai4seo_hidden_credits_packs_container_open = true;
+                }
             }
         }
 
-        echo "</div>"; // close display-none-container
+        if ($ai4seo_hidden_credits_packs_container_open) {
+            echo "</div>"; // close display-none-container
+        }
 
         // Taxes may apply
         echo "<div style='float: right; margin-top: 10px; font-size: smaller'>";
             echo "* " . esc_html__("Taxes may apply", "ai-for-seo");
         echo "</div>";
+
+        // contact us for larger packs
+        if (count($ai4seo_credits_packs) <= 3) {
+            echo "<div class='ai4seo-tiny-gap'></div>";
+
+            // you're interested in larger Credits Packs? Contact us!
+            echo "<div style='margin-top: 30px; margin-bottom: 10px; padding: 10px 0; border: 2px dashed #ccc; border-radius: 10px; background-color: #fafafa; text-align: center; font-size: large;'>";
+                echo sprintf(
+                    esc_html__("Managing 2,000+ posts, products or images? Get a tailored enterprise plan with up to %s. %sRequest a custom plan%s", "ai-for-seo"),
+                    "<strong>30% savings</strong>",
+                    "<br>-> <a href='" . esc_url(AI4SEO_OFFICIAL_CONTACT_URL) . "' target='_blank' rel='noopener'><strong>",
+                    "</strong></a> <-"
+                );
+            echo "</div>";
+        }
 
     echo "</div>";
 

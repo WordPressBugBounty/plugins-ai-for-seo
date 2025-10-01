@@ -3,7 +3,7 @@
 Plugin Name: AI for SEO
 Plugin URI: https://aiforseo.ai
 Description: One-Click SEO solution. "AI for SEO" helps your website to rank higher in Web Search results.
-Version: 2.1.5
+Version: 2.1.6
 Author: spacecodes
 Author URI: https://spa.ce.codes
 Text Domain: ai-for-seo
@@ -15,7 +15,7 @@ if (!defined("ABSPATH")) {
     exit;
 }
 
-const AI4SEO_PLUGIN_VERSION_NUMBER = "2.1.5";
+const AI4SEO_PLUGIN_VERSION_NUMBER = "2.1.6";
 const AI4SEO_PLUGIN_NAME = "AI for SEO";
 const AI4SEO_PLUGIN_DESCRIPTION = 'One-Click SEO solution. "AI for SEO" helps your website to rank higher in Web Search results.';
 const AI4SEO_PLUGIN_IDENTIFIER = "ai-for-seo";
@@ -67,6 +67,15 @@ const AI4SEO_CRON_JOBS_ENABLED = true; # set to true to enable cron jobs, false 
  */
 function ai4seo_get_change_log(): array {
     return [
+        [
+            'date' => 'October 1st, 2025',
+            'version' => '2.1.6',
+            'important' => false,
+            'updates' => [
+                'Added compatibility with WordPress 6.8.3',
+                'Bug Fixes & Maintenance: Fixed 2 minor bugs.'
+            ],
+        ],
         [
             'date' => 'September 23th, 2025',
             'version' => '2.1.5',
@@ -268,8 +277,8 @@ function ai4seo_get_credits_packs(): array {
         ),
     );
 
-    # Special Credit Packs for users in group A, B, or C
-    if (ai4seo_robhub_api()->is_group('a') || ai4seo_robhub_api()->is_group('b') || ai4seo_robhub_api()->is_group('c')) {
+    # Large Credit Packs for users in group B-E
+    if (!ai4seo_robhub_api()->is_group('a') && !ai4seo_robhub_api()->is_group('f')) {
         $credits_packs += array(
             "price_1R4N2vHNyvfVK0r9s3WhZxCl" => array(
                 "credits_amount" => 15000,
@@ -3585,18 +3594,14 @@ function ai4seo_sync_robhub_account(string $sync_reason = "unknown", bool $allow
             # TEMPORARY WORKAROUND FOR BONUS CREDITS NOTIFICATION
             // first-purchase-credits-bonus, Title: “30% extra credits on your first purchase”
             // Body: “Offer ends in {EXPIRE_COUNTDOWN}. Auto-applied at checkout. One per account.”
-            if ((ai4seo_robhub_api()->is_group('c') || ai4seo_robhub_api()->is_group('f'))) {
-                if ($notification_index == "first-purchase-credits-bonus") {
-                    $message = sprintf(
-                        "<strong>" . esc_html__("Congratulations on taking the first step towards enhancing your SEO with AI for SEO!", "ai-for-seo") . "</strong><br> " .
-                        esc_html__("To help you get started, we're offering you a special bonus of %s%% extra Credits on your first purchase. This offer is auto-applied at checkout and is valid for the next %s.", "ai-for-seo"),
-                        "<strong>30</strong>",
-                        "<strong>{{EXPIRE_COUNTDOWN}}</strong>",
-                    );
-                }
-            } else {
-                ai4seo_remove_notification("first-purchase-credits-bonus");
-                continue;
+            // TODO: REMOVE AFTER 04.10.2025
+            if ($notification_index == "first-purchase-credits-bonus") {
+                $message = sprintf(
+                    "<strong>" . esc_html__("Congratulations on taking the first step towards enhancing your SEO with AI for SEO!", "ai-for-seo") . "</strong><br> " .
+                    esc_html__("To help you get started, we're offering you a special bonus of %s%% extra Credits on your first purchase. This offer is auto-applied at checkout and is valid for the next %s.", "ai-for-seo"),
+                    "<strong>30</strong>",
+                    "<strong>{{EXPIRE_COUNTDOWN}}</strong>",
+                );
             }
 
             // set $force and unset it from the notification array
@@ -3612,6 +3617,7 @@ function ai4seo_sync_robhub_account(string $sync_reason = "unknown", bool $allow
         }
 
         # TEMPORARY WORKAROUND FOR BONUS CREDITS NOTIFICATION
+        # TODO: REMOVE AFTER 04.10.2025
     } else {
         ai4seo_remove_notification("first-purchase-credits-bonus");
     }
