@@ -13,6 +13,8 @@ if (!ai4seo_can_manage_this_plugin()) {
     return;
 }
 
+require_once __DIR__ . '/list-filters.php';
+
 
 // ___________________________________________________________________________________________ \\
 // === PREPARE =============================================================================== \\
@@ -41,6 +43,11 @@ if (isset($_GET["ai4seo-execute-cron-job-sooner"]) && $_GET["ai4seo-execute-cron
     ai4seo_inject_additional_cronjob_call(AI4SEO_BULK_GENERATION_CRON_JOB_NAME);
 }
 
+$ai4seo_pending_attributes_attachment_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_PENDING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME);
+$ai4seo_processing_attributes_attachment_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_PROCESSING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME);
+$ai4seo_failed_attributes_attachment_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_FAILED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME);
+$ai4seo_fully_covered_attachment_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_FULLY_COVERED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME);
+
 
 // ___________________________________________________________________________________________ \\
 // === READ ================================================================================== \\
@@ -63,11 +70,10 @@ if (ai4seo_is_plugin_or_theme_active(AI4SEO_THIRD_PARTY_PLUGIN_NEXTGEN_GALLERY))
         $ai4seo_num_not_imported_nextgen_gallery_images = count($ai4seo_nextgen_gallery_image_pids) - $ai4seo_num_imported_nextgen_gallery_images;
     }
 
-    $ai4seo_import_nextgen_gallery_button = ai4seo_wp_kses(
-        ai4seo_get_button_text_link_tag("#", "file-export",  esc_html__("Import NextGen Gallery images ($ai4seo_num_not_imported_nextgen_gallery_images)", "ai-for-seo"),
+    $ai4seo_import_nextgen_gallery_button = ai4seo_get_button_text_link_tag("#", "file-export",  esc_html__("Import NextGen Gallery images ($ai4seo_num_not_imported_nextgen_gallery_images)", "ai-for-seo"),
             ($ai4seo_num_not_imported_nextgen_gallery_images ? "ai4seo-success-button" : "ai4seo-inactive-button"),
-            ($ai4seo_num_not_imported_nextgen_gallery_images ? "ai4seo_import_nextgen_gallery_images(this);" : ""))
-    );
+            ($ai4seo_num_not_imported_nextgen_gallery_images ? "ai4seo_import_nextgen_gallery_images(this);" : ""));
+
 }
 
 // Prepare arguments for the wp-query
@@ -78,17 +84,110 @@ $ai4seo_posts_query_arguments = array(
     "posts_per_page" => 20,
     "orderby" => "ID",
     "order" => "DESC",
-    "paged" => $ai4seo_current_page,
 );
 
-// Fire query
-$ai4seo_post_data = new WP_Query($ai4seo_posts_query_arguments);
+$ai4seo_filter_context = ai4seo_setup_content_type_filters(array(
+    'form_action' => ai4seo_get_subpage_url($ai4seo_nice_post_type, array('ai4seo_page' => 1)),
+    'post_types' => (array) $ai4seo_post_types,
+    'post_status' => array('publish', 'future', 'inherit'),
+    'post_mime_types' => (array) $ai4seo_allowed_attachment_mime_types,
+    'search_file_meta' => true,
+    'per_page' => 20,
+));
 
-// Define variable for the posts that were found
-$ai4seo_all_attachment_posts = $ai4seo_post_data->posts ?? array();
-$ai4seo_total_pages = (int) ($ai4seo_post_data->max_num_pages ?? 1);
+$ai4seo_filter_form_html = $ai4seo_filter_context['html'];
+$ai4seo_filter_status = $ai4seo_filter_context['filter_status'];
+$ai4seo_filter_text = $ai4seo_filter_context['filter_text'];
+$ai4seo_search_ids = $ai4seo_filter_context['search_ids'];
+$ai4seo_items_per_page = (int) $ai4seo_filter_context['per_page'];
 
-unset($ai4seo_post_data);
+if ($ai4seo_items_per_page < 1) {
+    $ai4seo_items_per_page = 20;
+}
+
+$ai4seo_filter_query_args = array();
+
+if (!empty($ai4seo_filter_context['query_args'])) {
+    foreach ($ai4seo_filter_context['query_args'] as $ai4seo_query_key => $ai4seo_query_value) {
+        $ai4seo_filter_query_args[sanitize_key($ai4seo_query_key)] = sanitize_text_field($ai4seo_query_value);
+    }
+}
+
+if (is_array($ai4seo_search_ids)) {
+    $ai4seo_candidate_attachment_post_ids = $ai4seo_search_ids;
+} else {
+    $ai4seo_candidate_arguments = $ai4seo_posts_query_arguments;
+    $ai4seo_candidate_arguments['fields'] = 'ids';
+    $ai4seo_candidate_arguments['posts_per_page'] = -1;
+    $ai4seo_candidate_arguments['no_found_rows'] = true;
+    $ai4seo_candidate_attachment_post_ids = get_posts($ai4seo_candidate_arguments);
+}
+
+$ai4seo_candidate_attachment_post_ids = array_values(array_unique(array_map('intval', (array) $ai4seo_candidate_attachment_post_ids)));
+rsort($ai4seo_candidate_attachment_post_ids, SORT_NUMERIC);
+
+$ai4seo_status_map = array(
+    'complete' => $ai4seo_fully_covered_attachment_post_ids,
+    'missing' => ai4seo_get_post_ids_from_option(AI4SEO_MISSING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME),
+    'failed' => $ai4seo_failed_attributes_attachment_post_ids,
+    'processing' => array_merge($ai4seo_pending_attributes_attachment_post_ids, $ai4seo_processing_attributes_attachment_post_ids),
+);
+
+$ai4seo_filtered_candidate_attachment_post_ids = ai4seo_filter_post_ids_by_status(
+    $ai4seo_candidate_attachment_post_ids,
+    $ai4seo_filter_status,
+    $ai4seo_status_map
+);
+$ai4seo_filtered_candidate_attachment_post_ids = array_values(array_unique(array_map('intval', $ai4seo_filtered_candidate_attachment_post_ids)));
+
+$ai4seo_total_items = count($ai4seo_filtered_candidate_attachment_post_ids);
+$ai4seo_total_pages = $ai4seo_total_items ? (int) ceil($ai4seo_total_items / $ai4seo_items_per_page) : 1;
+
+if ($ai4seo_total_pages < 1) {
+    $ai4seo_total_pages = 1;
+}
+
+if ($ai4seo_current_page > $ai4seo_total_pages) {
+    $ai4seo_current_page = $ai4seo_total_pages;
+}
+
+if ($ai4seo_current_page < 1) {
+    $ai4seo_current_page = 1;
+}
+
+$ai4seo_offset = ($ai4seo_current_page - 1) * $ai4seo_items_per_page;
+$ai4seo_current_page_attachment_post_ids = array_slice($ai4seo_filtered_candidate_attachment_post_ids, $ai4seo_offset, $ai4seo_items_per_page);
+
+$ai4seo_all_attachment_posts = array();
+
+if ($ai4seo_current_page_attachment_post_ids) {
+    $ai4seo_posts_query_arguments['post__in'] = $ai4seo_current_page_attachment_post_ids;
+    $ai4seo_posts_query_arguments['orderby'] = 'post__in';
+    $ai4seo_posts_query_arguments['order'] = 'DESC';
+    $ai4seo_posts_query_arguments['posts_per_page'] = count($ai4seo_current_page_attachment_post_ids);
+
+    $ai4seo_post_data = new WP_Query($ai4seo_posts_query_arguments);
+    $ai4seo_all_attachment_posts = $ai4seo_post_data->posts ?? array();
+    unset($ai4seo_post_data);
+}
+
+$ai4seo_this_plugin_page_url = ai4seo_get_subpage_url(
+    $ai4seo_nice_post_type,
+    array_merge(array('ai4seo_page' => (string) $ai4seo_current_page), $ai4seo_filter_query_args)
+);
+$ai4seo_refresh_button = ai4seo_get_small_button_tag($ai4seo_this_plugin_page_url, "rotate", __("Refresh page", "ai-for-seo"));
+
+$ai4seo_execute_sooner_text_link_url = ai4seo_get_subpage_url(
+    $ai4seo_nice_post_type,
+    array_merge(
+        array(
+            'ai4seo_page' => (string) $ai4seo_current_page,
+            'ai4seo-execute-cron-job-sooner' => true,
+        ),
+        $ai4seo_filter_query_args
+    )
+);
+$ai4seo_execute_sooner_button = ai4seo_get_small_button_tag($ai4seo_execute_sooner_text_link_url, "bolt", __("Execute sooner!", "ai-for-seo"));
 
 // fetch all post ids from this page
 $ai4seo_current_attachment_post_ids = array_map(function ($ai4seo_attachment_post) {
@@ -113,14 +212,6 @@ $ai4seo_last_cron_job_call_timestamp = ai4seo_get_last_cron_job_call_time(AI4SEO
 $ai4seo_next_cron_job_call = wp_next_scheduled(AI4SEO_BULK_GENERATION_CRON_JOB_NAME);
 $ai4seo_next_cron_job_call_diff = ($ai4seo_next_cron_job_call ? $ai4seo_next_cron_job_call - time() : 9999999);
 
-
-// look for attachment post ids that are scheduled by the cron jobs to process attributes
-$ai4seo_pending_attributes_attachment_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_PENDING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME);
-$ai4seo_processing_attributes_attachment_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_PROCESSING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME);
-
-// look for failed to fill post ids
-$ai4seo_failed_attributes_attachment_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_FAILED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME);
-
 // remove entries from $ai4seo_all_failed_to_fill_attributes_attachment_post_ids that are not on this page
 $ai4seo_current_page_failed_to_fill_attachment_post_ids = array();
 
@@ -132,42 +223,21 @@ if ($ai4seo_all_attachment_posts) {
     }
 }
 
-// collect some admin links and buttons
-$ai4seo_this_plugin_page_url = ai4seo_get_subpage_url($ai4seo_nice_post_type, array("ai4seo_page" => $ai4seo_current_page));
-$ai4seo_refresh_button = ai4seo_get_small_button_tag($ai4seo_this_plugin_page_url, "rotate", __("Refresh page", "ai-for-seo"));
-
-// execute cron job sooner link
-$ai4seo_execute_sooner_text_link_url = ai4seo_get_subpage_url($ai4seo_nice_post_type, array("ai4seo-execute-cron-job-sooner" => true, "ai4seo_page" => $ai4seo_current_page));
-$ai4seo_execute_sooner_button = ai4seo_get_small_button_tag($ai4seo_execute_sooner_text_link_url, "bolt", __("Execute sooner!", "ai-for-seo"));
-
 // Define variable for the label of the failed-attributes-generations-link
 $ai4seo_retry_all_failed_attachment_attributes_generations_link_label = "<span class='ai4seo-retry-failed'>" . __("Retry all failed media attributes generations", "ai-for-seo") . "</span><span class='ai4seo-retry-failed-mobile'>" . __("Retry all failed", "ai-for-seo") . "</span>";
 
 // retry all failed attachment attributes generations link
 $ai4seo_retry_all_failed_attachment_attributes_generations_link_tag = ai4seo_get_small_button_tag("#", "rotate", $ai4seo_retry_all_failed_attachment_attributes_generations_link_label, "", "ai4seo_retry_all_failed_attachment_attributes(this); return false;");
 
-$ai4seo_consider_purchasing_more_credits_link_url = ai4seo_get_subpage_url();
-$ai4seo_consider_purchasing_more_credits_link_tag = ai4seo_get_small_button_tag($ai4seo_consider_purchasing_more_credits_link_url, "circle-plus", __("Get more Credits", "ai-for-seo"), "ai4seo-success-button");
+$ai4seo_consider_purchasing_more_credits_link_tag = ai4seo_get_small_button_tag('#', "circle-plus", __("Get more Credits", "ai-for-seo"), "ai4seo-success-button", 'ai4seo_close_all_modals();ai4seo_open_get_more_credits_modal();');
 
 $ai4seo_bulk_generation_order = ai4seo_get_setting(AI4SEO_SETTING_BULK_GENERATION_ORDER);
 $ai4seo_bulk_generation_new_or_existing_filter = ai4seo_get_setting(AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER);
 $ai4seo_bulk_generation_new_or_existing_filter_reference_timestamp = ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME);
-$ai4seo_generate_media_attributes_for_fully_covered_entries = ai4seo_get_setting(AI4SEO_SETTING_GENERATE_ATTACHMENT_ATTRIBUTES_FOR_FULLY_COVERED_ENTRIES);
-
-if ($ai4seo_generate_media_attributes_for_fully_covered_entries) {
-    $ai4seo_generated_media_attributes_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_GENERATED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME);
-} else {
-    $ai4seo_generated_media_attributes_post_ids = array();
-}
 
 $ai4seo_active_attachment_attributes = ai4seo_get_active_attachment_attributes();
-$ai4seo_active_attachment_attribute_names = array();
-
-foreach (AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS AS $ai4seo_this_attachment_attribute_identifier => $ai4seo_this_attachment_attribute_details) {
-    if (in_array($ai4seo_this_attachment_attribute_identifier, $ai4seo_active_attachment_attributes)) {
-        $ai4seo_active_attachment_attribute_names[] = $ai4seo_this_attachment_attribute_details["name"];
-    }
-}
+$ai4seo_active_attachment_attribute_names = ai4seo_get_active_attachment_attributes_names($ai4seo_active_attachment_attributes);
+$ai4seo_approximate_cost_per_attachment_post = ai4seo_calculate_attachment_attributes_credits_cost_per_attachment_post();
 
 
 // ___________________________________________________________________________________________ \\
@@ -176,14 +246,23 @@ foreach (AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS AS $ai4seo_this_attachment_attribu
 
 if (isset($ai4seo_import_nextgen_gallery_button) && $ai4seo_import_nextgen_gallery_button) {
     echo "<div class='ai4seo-buttons-wrapper'>";
-        echo ai4seo_wp_kses($ai4seo_import_nextgen_gallery_button);
+        ai4seo_echo_wp_kses($ai4seo_import_nextgen_gallery_button);
     echo "</div>";
 }
+
+ai4seo_echo_wp_kses($ai4seo_filter_form_html);
 
 // Stop script if no posts have been found -> show message and stop page rendering
 if (!$ai4seo_all_attachment_posts) {
     echo '<p>' . esc_html__('No relevant media found.', "ai-for-seo") . '</p>';
     return;
+}
+
+if (ai4seo_is_plugin_or_theme_active(AI4SEO_THIRD_PARTY_PLUGIN_WPML)) {
+    echo "<p>";
+        echo "<strong>" . esc_html__("Heads up:", "ai-for-seo") . "</strong> ";
+        echo esc_html__("Your images appear on different language versions of your website. Therefore, each image needs to be analyzed for each language separately to ensure optimal SEO performance across all languages.", "ai-for-seo");
+    echo "</p>";
 }
 
 
@@ -201,12 +280,14 @@ echo "<table class='widefat striped table-view-list attachments ai4seo-posts-tab
                 echo esc_html__("Title", "ai-for-seo");
             echo "</span>";
 
-            echo " <span style='font-size: smaller'>(" . esc_html(implode(", ", $ai4seo_active_attachment_attribute_names)) . ")</span>";
+            if ($ai4seo_active_attachment_attribute_names) {
+                echo " <span style='font-size: smaller'>(" . esc_html(implode(", ", $ai4seo_active_attachment_attribute_names)) . ")</span>";
+            }
 
             // RESET ALL FAILED ATTACHMENT ATTRIBUTES GENERATION
             if (count($ai4seo_failed_attributes_attachment_post_ids)) {
                 echo "<div class='ai4seo-table-title-button'>";
-                echo ai4seo_wp_kses($ai4seo_retry_all_failed_attachment_attributes_generations_link_tag);
+                ai4seo_echo_wp_kses($ai4seo_retry_all_failed_attachment_attributes_generations_link_tag);
                 echo "</div>";
             }
         echo "</th>";
@@ -244,11 +325,7 @@ echo "<table class='widefat striped table-view-list attachments ai4seo-posts-tab
             $ai4seo_this_attachment_attributes_is_not_covered = false;
         }
 
-        if ($ai4seo_generate_media_attributes_for_fully_covered_entries) {
-            $ai4seo_this_attachment_attributes_is_not_finished = !in_array($ai4seo_this_post_attachment_id, $ai4seo_generated_media_attributes_post_ids);
-        } else {
-            $ai4seo_this_attachment_attributes_is_not_finished = ($ai4seo_this_attachment_attribute_coverage_percentage < 100);
-        }
+        $ai4seo_this_attachment_attributes_is_not_finished = ($ai4seo_this_attachment_attribute_coverage_percentage < 100);
 
         $ai4seo_is_attachment_post_failed = in_array($ai4seo_this_post_attachment_id, $ai4seo_current_page_failed_to_fill_attachment_post_ids);
         // check if filling is in progress
@@ -273,7 +350,7 @@ echo "<table class='widefat striped table-view-list attachments ai4seo-posts-tab
         }
 
         // if the user has not enough credits to fill the attachment attributes
-        if ($ai4seo_is_attachment_post_waiting_to_get_scheduled && $ai4seo_current_credits_balance < AI4SEO_MIN_CREDITS_BALANCE) {
+        if ($ai4seo_is_attachment_post_waiting_to_get_scheduled && $ai4seo_current_credits_balance < $ai4seo_approximate_cost_per_attachment_post) {
             $ai4seo_is_attachment_post_pending = false;
             $ai4seo_is_attachment_post_waiting_to_get_scheduled = false;
             $ai4seo_is_insufficient_credits = true;
@@ -299,7 +376,7 @@ echo "<table class='widefat striped table-view-list attachments ai4seo-posts-tab
             $ai4seo_preview_image_url = wp_get_attachment_image_url($ai4seo_this_post_attachment_id, array(48, 48));
 
             if (!$ai4seo_preview_image_url) {
-                $ai4seo_preview_image_url = $ai4seo_this_attachment->guid ?? "";
+                $ai4seo_preview_image_url = $ai4seo_this_post_link;
             }
         }
 
@@ -349,32 +426,34 @@ echo "<table class='widefat striped table-view-list attachments ai4seo-posts-tab
 
                                 // execute sooner link
                                 if ($ai4seo_next_cron_job_call_diff >= 70) {
-                                    echo " " . ai4seo_wp_kses($ai4seo_execute_sooner_button);
+                                    echo " ";
+                                    ai4seo_echo_wp_kses($ai4seo_execute_sooner_button);
                                 } else {
-                                    echo " " . ai4seo_wp_kses($ai4seo_refresh_button);
+                                    echo " ";
+                                    ai4seo_echo_wp_kses($ai4seo_refresh_button);
                                 }
                             echo "</div>";
                         } else {
                             echo "<div class='ai4seo-sub-info'>";
                                 echo esc_html__("Pending", "ai-for-seo") . "... ";
                                 echo "(" . esc_html__("I'm probably optimizing a different entry.", "ai-for-seo") . ") ";
-                                echo ai4seo_wp_kses($ai4seo_refresh_button);
+                                ai4seo_echo_wp_kses($ai4seo_refresh_button);
                             echo "</div>";
                         }
                     } else if ($ai4seo_is_attachment_post_pending) {
                         echo "<div class='ai4seo-sub-info'>";
                             echo esc_html__("Processing", "ai-for-seo") . "... ";
-                            echo ai4seo_wp_kses($ai4seo_refresh_button);
+                            ai4seo_echo_wp_kses($ai4seo_refresh_button);
                         echo "</div>";
                     } else if ($ai4seo_is_insufficient_credits) {
                         echo "<div class='ai4seo-sub-info ai4seo-red-message'>";
                             echo esc_html__("Insufficient Credits", "ai-for-seo") . ". ";
-                            echo ai4seo_wp_kses($ai4seo_consider_purchasing_more_credits_link_tag);
+                            ai4seo_echo_wp_kses($ai4seo_consider_purchasing_more_credits_link_tag);
                         echo "</div>";
                     } else if ($ai4seo_is_attachment_post_failed && $ai4seo_this_attachment_attributes_is_not_finished) {
                         echo "<div class='ai4seo-seo-data-not-covered-message'>";
                             echo "<span>" . esc_html__("Failed to automatically fill media attributes.", "ai-for-seo") . "</span> ";
-                            echo ai4seo_wp_kses(ai4seo_get_small_button_tag("#", "arrow-up-right-from-square", __("Try it manually", "ai-for-seo"), "", "ai4seo_open_attachment_attributes_editor_modal(\"" . esc_html($ai4seo_this_post_attachment_id) . "\");"));
+                            ai4seo_echo_wp_kses(ai4seo_get_small_button_tag("#", "arrow-up-right-from-square", __("Try it manually", "ai-for-seo"), "", "ai4seo_open_attachment_attributes_editor_modal(\"" . esc_html($ai4seo_this_post_attachment_id) . "\");"));
                         echo "</div>";
                     } else if ($ai4seo_is_excluded_by_new_or_existing_filter && $ai4seo_this_attachment_attributes_is_not_finished) {
                         echo "<div class='ai4seo-sub-info'>";
@@ -399,7 +478,9 @@ echo "<table class='widefat striped table-view-list attachments ai4seo-posts-tab
 
             // Actions
             echo "<td>";
-                echo ai4seo_wp_kses(ai4seo_get_edit_attachment_attributes_button($ai4seo_this_attachment->ID));
+                if ($ai4seo_active_attachment_attributes) {
+                    ai4seo_echo_wp_kses(ai4seo_get_edit_attachment_attributes_button($ai4seo_this_post_attachment_id, $ai4seo_current_attachment_post_ids));
+                }
             echo "</td>";
         echo "</tr>";
     }
@@ -407,7 +488,14 @@ echo "</table>";
 echo "</div>";
 
 // Pagination
-$ai4seo_pagination_base_argument = ai4seo_get_subpage_url($ai4seo_nice_post_type, array("ai4seo_page" => "%#%"));
+$ai4seo_pagination_base_argument = add_query_arg(
+    array(
+        'page'             => AI4SEO_PLUGIN_IDENTIFIER,
+        'ai4seo_subpage'   => $ai4seo_nice_post_type, // e.g. 'media'
+        'ai4seo_page'      => '%#%', // placeholder for paginate_links()
+    ),
+    admin_url( 'admin.php' )
+);
 $ai4seo_total_pages = max(1, $ai4seo_total_pages);
 $ai4seo_current_page = max(1, $ai4seo_current_page);
 $ai4seo_pagination_base_argument = $ai4seo_pagination_base_argument ?: '%_%'; // Default base if not defined
@@ -420,13 +508,15 @@ $ai4seo_pagination_arguments = array(
     "mid_size" => 0,
     "prev_text" => "&larr; " . __("Previous", "ai-for-seo"),
     "next_text" => __("Next", "ai-for-seo") . " &rarr;",
-    "add_args" => false,
+    "add_args" => ($ai4seo_filter_query_args ?: false),
 );
 
 $ai4seo_pagination_links = paginate_links($ai4seo_pagination_arguments);
 
 if (!empty($ai4seo_pagination_links)) {
+    $ai4seo_pagination_links = ai4seo_normalize_pagination_links($ai4seo_pagination_links);
+
     echo "<div class='ai4seo-pagination'>";
-    echo wp_kses_post($ai4seo_pagination_links);
+        ai4seo_echo_wp_kses($ai4seo_pagination_links);
     echo "</div>";
 }

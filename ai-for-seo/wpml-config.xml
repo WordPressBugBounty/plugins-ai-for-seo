@@ -1,9 +1,11 @@
 <wpml-config>
     <custom-fields>
+        <custom-field action="translate">_ai4seo_2_focus-keyphrase</custom-field>
         <custom-field action="translate">_ai4seo_2_facebook-title</custom-field>
         <custom-field action="translate">_ai4seo_2_facebook-description</custom-field>
         <custom-field action="translate">_ai4seo_2_meta-title</custom-field>
         <custom-field action="translate">_ai4seo_2_meta-description</custom-field>
+        <custom-field action="translate">_ai4seo_2_keywords</custom-field>
         <custom-field action="translate">_ai4seo_2_twitter-title</custom-field>
         <custom-field action="translate">_ai4seo_2_twitter-description</custom-field>
     </custom-fields>

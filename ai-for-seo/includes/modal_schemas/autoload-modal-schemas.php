@@ -35,7 +35,6 @@ if ($is_user_inside_plugin_admin_pages) {
         }
 
         if ($ai4seo_active_plugin_page == "dashboard" || $ai4seo_active_plugin_page == "account") {
-            $ai4seo_modal_schemas[] = "get-more-credits";
             $ai4seo_modal_schemas[] = "select-credits-pack";
             $ai4seo_modal_schemas[] = "customize-pay-as-you-go";
         }
@@ -47,6 +46,8 @@ if ($is_user_inside_plugin_admin_pages) {
         if ($ai4seo_active_plugin_page == "settings") {
             $ai4seo_modal_schemas[] = "export-import-settings";
         }
+
+        $ai4seo_modal_schemas[] = "get-more-credits";
     }
 }
 

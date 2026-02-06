@@ -28,12 +28,18 @@ $ai4seo_help_page_url = ai4seo_get_subpage_url("help");
 $ai4seo_active_plugin_page = ai4seo_get_active_subpage();
 $ai4seo_current_post_type = ai4seo_get_active_post_type_subpage();
 
+$ai4seo_active_attachment_attributes = ai4seo_get_active_attachment_attributes();
 $ai4seo_supported_post_types = ai4seo_get_supported_post_types();
 
 if ($ai4seo_is_dashboard_open) {
     $ai4seo_unread_notifications_count = 0;
 } else {
-    $ai4seo_unread_notifications_count = (int) ai4seo_get_num_unread_notification();
+    $ai4seo_unread_notifications_count = ai4seo_get_num_unread_notification();
+}
+
+// maybe perform a performance analysis, do it here as we rely on a fully loaded WP environment
+if ($ai4seo_is_dashboard_open) {
+    ai4seo_check_for_performance_analysis();
 }
 
 
@@ -61,15 +67,22 @@ if ($ai4seo_is_dashboard_open) {
 if (isset($_GET["ai4seo-just-purchased"]) || isset($_GET["amp;ai4seo-just-purchased"])) {
     ai4seo_update_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_JUST_PURCHASED_SOMETHING_TIME, time());
 
-    // todo: auto-check via ajax and then reload
-    // todo: check if credits have arrived
     // --- JAVASCRIPT --------------------------------------------------------- \\
     ?><script type="text/javascript">
         jQuery(function() {
             // open modal
             ai4seo_open_generic_success_notification_modal(
-                "<?=esc_js(esc_html__("Thank you for your purchase! Your credits will be added to your dashboard shortly.", "ai-for-seo"));?>",
-                "<button type='button' class='ai4seo-button ai4seo-inactive-button ai4seo-inactive-countdown-button' data-time-left='10' onclick='window.location=\"<?=esc_js(ai4seo_get_subpage_url("dashboard", array("ai4seo_force_sync_account" => "true")))?>\"' target='_self'><?=esc_js(esc_html__("Refresh", "ai-for-seo"))?></button>");
+                "<?=esc_js(esc_html__("Your Credits will appear on your dashboard shortly.", "ai-for-seo"))?>"
+                + "<br><br><?=esc_js(esc_html__("Please wait a moment and then click the button below to refresh your Credits balance.", "ai-for-seo"))?>",
+                "<button type='button' class='ai4seo-button ai4seo-inactive-button ai4seo-inactive-countdown-button' data-time-left='5' onclick='ai4seo_refresh_robhub_account(this, { check_for_purchase: true }); return false;'>"
+                + "<?=esc_js(esc_html__("Refresh Credits Balance", "ai-for-seo"))?>"
+                + "</button>",
+                {
+                    headline: "<?=esc_js(esc_html__("Thank you for your purchase!", "ai-for-seo"))?>",
+                    close_on_outside_click: false,
+                    add_close_button: false,
+                }
+            );
         });
     </script><?php
     // ------------------------------------------------------------------------ \\
@@ -83,7 +96,7 @@ if (isset($_GET["ai4seo-just-purchased"]) || isset($_GET["amp;ai4seo-just-purcha
 echo "<div class='ai4seo-mobile-top-bar'>";
     // toggle button
     echo "<button class='ai4seo-mobile-top-bar-toggle-button' onclick='ai4seo_toggle_sidebar();'>";
-        echo ai4seo_wp_kses(ai4seo_get_svg_tag("bars-sort"));
+        ai4seo_echo_wp_kses(ai4seo_get_svg_tag("bars-sort"));
     echo "</button>";
 
         // Main logo
@@ -141,24 +154,26 @@ echo "<div class='wrap ai4seo-wrap'>";
                 $ai4seo_this_page_url = ai4seo_get_post_type_page_url($ai4seo_this_post_type);
 
                 echo "<a href='" . esc_url($ai4seo_this_page_url) . "' class='nav-tab ai4seo-menu-item" . ($ai4seo_this_page_is_active ? " nav-tab-active ai4seo-active-menu-item" : "") . "'>";
-                    echo ai4seo_wp_kses($ai4seo_this_menu_item_icon);
+                    ai4seo_echo_wp_kses($ai4seo_this_menu_item_icon);
                     echo "<div>";
                         echo esc_html($ai4seo_this_menu_item_label);
                     echo "</div>";
                 echo "</a>";
             }
 
-            // Media page
-            echo "<a href='" . esc_url($ai4seo_media_page_url) . "' class='nav-tab ai4seo-menu-item" . ($ai4seo_active_plugin_page == "media" ? " nav-tab-active ai4seo-active-menu-item" : "") . "'>";
-                echo ai4seo_wp_kses(ai4seo_get_dashicon_tag_for_navigation("attachment"));
-                echo "<span>";
-                    echo esc_html(_n("Media", "Media", 2, "ai-for-seo"));
-                echo "</span>";
-            echo "</a>";
+            if ($ai4seo_active_attachment_attributes) {
+                // Media page
+                echo "<a href='" . esc_url($ai4seo_media_page_url) . "' class='nav-tab ai4seo-menu-item" . ($ai4seo_active_plugin_page == "media" ? " nav-tab-active ai4seo-active-menu-item" : "") . "'>";
+                    ai4seo_echo_wp_kses(ai4seo_get_dashicon_tag_for_navigation("attachment"));
+                    echo "<span>";
+                        echo esc_html(_n("Media", "Media", 2, "ai-for-seo"));
+                    echo "</span>";
+                echo "</a>";
+            }
 
             // Account page
             echo "<a href='" . esc_url($ai4seo_account_page_url) . "' class='nav-tab ai4seo-menu-item" . ($ai4seo_active_plugin_page == "account" ? " nav-tab-active ai4seo-active-menu-item" : "") . "'>";
-                echo ai4seo_wp_kses(ai4seo_get_svg_tag("key", "", "ai4seo-menu-item-icon"));
+                ai4seo_echo_wp_kses(ai4seo_get_svg_tag("key", "", "ai4seo-menu-item-icon"));
                 echo "<span>";
                     echo esc_html__("Account", "ai-for-seo");
                 echo "</span>";
@@ -269,6 +284,12 @@ echo "<div class='wrap ai4seo-wrap'>";
             echo "<pre>FINAL WITH CONTEXT >" . print_r(htmlspecialchars($ai4seo_condensed_post_content_from_database), true) . "<</pre>";
             unset($ai4seo_condensed_post_content_from_database, $ai4seo_debug_post_id);
         }
+
+        // DEBUG ai4seo_debug_posts_table_analysis
+        if (isset($_GET["ai4seo_debug_posts_table_analysis"]) && $_GET["ai4seo_debug_posts_table_analysis"]) {
+            ai4seo_try_start_posts_table_analysis(true, true);
+        }
+
 
         // === CONTENT PAGES =========================================================================== \\
 

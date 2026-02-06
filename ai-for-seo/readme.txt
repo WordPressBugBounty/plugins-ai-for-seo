@@ -1,87 +1,115 @@
-=== AI for SEO - Bulk Generate Metadata, Alt Text, Image Titles, Captions, Descriptions ===
+=== AI for SEO – Bulk Generate Focus Keyphrases, Metadata, Alt Text (SEO Autopilot) ===
+Tags: seo, ai, google search console, alt text, bulk
 Contributors: spacecodes
 Donate link: https://spa.ce.codes
-Tags: AI, SEO, Metadata, Alt text, Bulk
 Requires at least: 4.7
 Tested up to: 6.8.3
-Stable tag: 2.1.6
+Stable tag: 2.2.5
 Requires PHP: 7.4
 License: GPLv2 or later (or compatible)
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Generate all your metadata, image alt text, titles, captions, and descriptions with just one click. White-label this plugin for your SEO or web agency
+Lightweight SEO Autopilot that works with Yoast SEO, Rank Math, SEOPress, WooCommerce etc. to bulk-generate keyphrases, meta tags, alt text and more.
 
 == Description ==
-*AI for SEO* helps your website **rank higher in search results**, driving more clicks, visitors, sales, and leads. It provides simple yet powerful AI-driven tools to enhance your SEO efforts.
+*AI for SEO* is an **alt text & metadata bulk generator** with **SEO Autopilot**, optimize pages, posts, products, and images automatically. Built for WooCommerce SEO and high-volume sites.
 
-**Automatically syncs** all AI-generated metadata with popular SEO plugins, including *Yoast SEO*, *Rank Math*, *SEOPress*, *All in One SEO*, *Slim SEO*, *SEO Simple Pack*, *Squirrly SEO*, *The SEO Framework*, and *Blog2Social*, making *AI for SEO* the perfect companion for your SEO strategy.
+Sync generated focus keyphrases, meta titles, meta descriptions and social-media tags to your existing stack (Yoast SEO, Rank Math, SEOPress, and others). Use ‘Generate with AI’ buttons where you work: Block Editor (Gutenberg), Media Library, Elementor, BeTheme’s BeBuilder, or the top admin bar. Think of *AI for SEO* as your SEO Copilot wherever you edit.
 
-*AI for SEO* adds 'Generate with AI' buttons in various locations within *WordPress*, including the default editor, your *Media Library*, *Yoast SEO*, *Elementor*, and *BeTheme's BeBuilder*.
+Achieve better metadata and alt text results than with ChatGPT. *AI for SEO* understands your entire website and uses expertly crafted SEO prompts designed to drive real search traffic.
 
-**Bulk generate** all your metadata—including alt text, image titles, captions, and descriptions—and automatically generate them for new content, keeping your SEO up-to-date.
+**Image SEO at scale:** Create alt text, image titles, captions, and descriptions across your library (jpg, png, gif, webp, avif).
 
-*AI for SEO* assists in meeting the requirements of the **European Accessibility Act (EAA)** by generating alt text for all images on your website. This improves accessibility for all users, including those with visual impairments, ensuring a more inclusive web experience.
+**Accessibility-ready:** Helps meet European Accessibility Act (EAA) requirements by automatically generating missing alt text for a more inclusive experience.
 
-**Free to use** for almost all small and mid-sized websites! If your balance drops below 100 credits, we’ll automatically add 5 **free credits** to your account every day, giving you full access to all AI for SEO features at no cost.
+**Free for most small/medium sites:** If your balance falls below 100 Credits, we add 5 free Credits daily, so you can keep generating at no cost.
 
 = 🚀 How to Get Started =
-1. **Access the Dashboard**:
-   - Navigate to *AI for SEO* in the main menu of your WordPress backend.
-   - Here, you’ll find statistics and an overview of all your content that may need improvement to rank higher in Web Search results.
+1. **Open the Dashboard:** Go to 'AI for SEO' to view statistics about your current SEO coverage.
+2. **Review your content:** Open 'Pages', 'Posts', 'Products', or 'Media' and check its SEO status.
+3. **Set up Autopilot:** Click 'Set up SEO Autopilot', choose content types (Pages/Posts/Products/Media), and start bulk generation.
+4. **Get a first win (optional):** In the 'Media Library', click 'Generate with AI' on one image to create optimized alt text within seconds.
+5. **Fine-tune manually:** Use 'Generate with AI' buttons or the top admin-bar 'AI for SEO' button to open the Metadata Editor for any page or post.
+6. **Sync with your SEO plugin (optional):** In 'Settings' → 'Sync 'AI for SEO' Changes', select Yoast SEO, Rank Math, SEOPress or many more to keep fields updated.
 
-2. **Check Your Content**:
-   - Visit any of the content pages (Pages, Posts, Products, Media, etc.) to review your content, and it's SEO status/coverage.
-
-3. **Automate Generation**:
-   - Click on 'Activate bulk generation' to allow our AI to optimize your content for you.
-
-4. **Manual Fine-Tuning**:
-   - Use the edit buttons next to each piece of content to manually fine-tune your SEO data as needed.
-
-5. **Additional Tips**:
-   - For more information and a detailed step-by-step guide, navigate to Help > Getting Started > First Steps in the plugin menu.
-
-**Need Help?** For support with initial setup, contact us at [info@aiforseo.ai](mailto:info@aiforseo.ai).
+For a step-by-step guide, see 'Help' → 'Getting Started' → 'First Steps'.
+Need help? Email [info@aiforseo.ai](mailto:info@aiforseo.ai).
 
 = 💸 100% Risk-Free Money-Back Guarantee! =
-During the first 14 days after the purchase of YOUR FIRST subscription (Basic, Pro or Premium) or Credits Pack, if *AI for SEO* isn’t the best fit, simply reach out at [info@aiforseo.ai](mailto:info@aiforseo.ai)!
-We’ll happily refund 100% of your money. No questions asked!
+Within 14 days of your **first** purchase (subscription: Basic/Pro/Premium, or **Credits Pack**), if *AI for SEO* isn’t a fit, email [info@aiforseo.ai](mailto:info@aiforseo.ai).
+We’ll refund 100%, no questions asked.
 
 = 🔌 Editor integrations =
-You can create metadata for your pages, posts, and products and more directly in the following editors:
+Create and edit metadata right where you work, no context switching.
 
-- WordPress editor
-- Yoast SEO
-- Elementor
-- BeTheme's BeBuilder
+- **Block Editor (Gutenberg)**
+- **Media Library** (image attributes)
+- **Elementor**
+- **BeTheme BeBuilder**
+- **Yoast SEO Settings**
 
-We added 'Generate with AI' buttons to these editors, making it easy to create SEO-relevant metadata with just one click.
-Additionally, when viewing or editing any content, you can click on the *AI for SEO* button in the top admin bar to access the metadata generation tool.
+We add 'Generate with AI' buttons in these editors so you can create SEO titles, descriptions, and image attributes in one click. It’s like having an SEO Copilot inside each editor.
+You can also click the *AI for SEO* button in the top admin bar to open the Metadata Editor from any page or post.
 
 = 🎯 Key Features =
-✅ **Automated Metadata Generation:** Easily generate and fine-tune SEO metadata for any content on your website.
-✅ **Automatic Updates:** Automatically generate metadata for new content as it’s created, keeping your SEO up-to-date.
-✅ **Alt Text Generation**: Generate alt text, titles, captions, and descriptions for all images on your website (jpg, png, gif, webp or avif), either directly in the media library or automatically.
-✅ **Progress Tracking**: Monitor the progress of your SEO optimization directly from the plugin's dashboard.
-✅ **WooCommerce Compatibility:** Effortlessly optimize your WooCommerce product pages to attract more valuable buyers from search engines.
-✅ **Free Plan Available**: Get started with no credit card required. In addition, we provide you with free daily Credits.
-✅ **Credit Rollover**: Unused Credits carry over to the next month.
-✅ **One Account - Many Websites**: Use your subscription or Credits Packs on any number of websites.
+✅ **SEO Autopilot (bulk):** Automatically generate and refresh metadata for new and existing content.
+✅ **Alt text & image attributes:** Create alt text, titles, captions, and descriptions site-wide (jpg/png/gif/webp/avif).
+✅ **WooCommerce SEO:** Optimize product metadata to attract higher-intent buyers from search.
+✅ **Sync with your SEO plugin:** Keep fields updated in Yoast, Rank Math, SEOPress, and others.
+✅ **Edit where you work:** ‘Generate with AI’ in the Block Editor (Gutenberg), Media Library, Elementor, BeBuilder, and Yoast SEO. An SEO Copilot embedded in your workflow.
+✅ **Accessibility-ready:** Helps meet European Accessibility Act (EAA) requirements by automatically generating missing alt text for a more inclusive experience.
+✅ **Progress tracking:** Monitor coverage and recent activity from the dashboard.
+✅ **For agencies & teams:** White-label, incognito mode, export/import settings, multi-site support.
+✅ **Flexible credits:** Free daily Credits for low balances, plus rollover and Credits Packs.
+✅ **One account, many websites:** Share subscriptions or Credits Packs across any number of sites.
+
+= 🔗 Integrations & Compatibility =
+*AI for SEO* works with leading SEO plugins, page builders, e-commerce, multilingual tools, galleries, and popular themes, so you can generate and sync metadata where you already work. *AI for SEO* is designed to work alongside these plugins and themes, not replace them, so your existing setup continues to function normally while *AI for SEO* generates and syncs the SEO data.
+See the list below for confirmed compatibility.
+✅ Yoast SEO
+✅ Rank Math
+✅ All in One SEO
+✅ SEO Simple Pack
+✅ SEOPress
+✅ Slim SEO
+✅ Squirrly SEO
+✅ The SEO Framework
+✅ Blog2Social
+✅ SEOKEY
+✅ WPML
+✅ BeTheme
+✅ Elementor
+✅ WooCommerce
+✅ NextGen Gallery
+✅ MemberPress
+✅ Divi
+
+If your favorite plugin or theme isn’t listed, please email us the name, URL, and the fields you’d like to sync, we prioritize new compatibility based on demand: [info@aiforseo.ai](mailto:info@aiforseo.ai)
+Focus keyphrases and meta tags are automatically imported from Yoast SEO, Rank Math, and other supported plugins. You can review, modify, and regenerate this data at any time, then sync it back to your preferred SEO plugin.
 
 == Installation ==
 
-Install like you would install any other WordPress plugin.
+Install like any other WordPress plugin.
 
-Dashboard Method:
+**Dashboard (search)**
+1. Log in to WordPress and go to 'Plugins → Add New'.
+2. Search for *AI for SEO* and select the plugin.
+3. Click 'Install', then 'Activate'.
 
-1. Login to your WordPress admin and go to Plugins -> Add New
-2. Type *AI for SEO* in the search bar and select this plugin
-3. Click 'Install', and then 'Activate Plugin'
+**Dashboard (upload a ZIP)**
+1. Download the plugin ZIP.
+2. In WordPress go to 'Plugins → Add New → Upload Plugin'.
+3. 'Choose File' → select the ZIP → 'Install Now' → 'Activate'.
 
-Upload Method:
+**Manual upload (FTP/SFTP)**
+1. Unzip the archive and upload the 'ai-for-seo' folder to 'wp-content/plugins/'.
+2. In WordPress, go to 'Plugins' and click 'Activate' for *AI for SEO*.
 
-1. Unzip the plugin and upload the 'ai-for-seo' folder to your 'wp-content/plugins' directory
-2. Activate the plugin through the Plugins' menu in WordPress
+**WP-CLI (advanced)**
+wp plugin install ai-for-seo --activate
+
+**After activation**
+Open 'AI for SEO' in the admin menu to view your SEO coverage and click 'Set up SEO Autopilot' to start bulk generation.
 
 
 == Screenshots ==
@@ -99,237 +127,112 @@ Upload Method:
 = Can I use *AI for SEO* alongside another SEO plugin? =
 Yes, *AI for SEO* is compatible with all major SEO plugins. The metadata generated by *AI for SEO* can be synchronized with popular plugins such as Yoast SEO, Rank Math, SEOPress, All in One SEO, Slim SEO, SEO Simple Pack, Squirrly SEO, The SEO Framework, and Blog2Social. This ensures your metadata remains up-to-date and seamlessly integrates with your preferred SEO tool.
 
-= How do I activate the synchronization with another SEO plugin? =
-To enable synchronization with another SEO plugin:
-- Navigate to the plugin settings and locate the 'Sync 'AI for SEO' Changes:' section.
-- Check the box next to your desired SEO plugin to activate syncing.
-If you're using the SEO Autopilot (bulk generation) feature, make sure the relevant meta tags are enabled in the 'Overwrite Existing Metadata (SEO Autopilot Only):' section to replace outdated data within your existing SEO plugin.
-
-= What are the benefits of providing SEO metadata for my website? =
-Providing SEO metadata helps search engines better understand your content, which can lead to higher rankings in search results. This improvement in visibility can drive more clicks, visitors, sales, and leads to your website.
-
-= What are the benefits of providing alt text, titles, captions, and descriptions for images on my website? =
-Including image metadata helps search engines better interpret your images, potentially boosting your rankings in image search results and the overall quality of your website. In addition, it also shows your commitment to accessibility, catering to a wider audience and complying with accessibility standards.
+= How do I avoid duplicate meta tags with other SEO plugins? =
+Use the output mode in Settings. Choose between Disable, Force, Replace (default), or Complement existing meta tags to match your setup with Yoast, Rank Math, SEOPress, etc.
 
 = Will the AI tool automatically analyze my content? =
 Yes, the AI tool will generate SEO-relevant data based on the content of the selected page, blog post or media file.
 
-= How can I automate the process of generating metadata for my website? =
-You can automate the generation of metadata by selecting the desired content type within the 'Set up SEO Autopilot' modal. This modal can be accessed by clicking the 'Set up SEO Autopilot'-button within the 'SEO Autopilot (Bulk Generation)'-section on the *AI for SEO* dashboard of your WordPress website.
-
-= How can I automate the process of generating alt text, titles, captions, and descriptions for images on my website? =
-You can automate the generation of alt text, titles, captions, and descriptions for images by selecting 'Media files' within the 'Set up SEO Autopilot' modal. This modal can be accessed by clicking the 'Set up SEO Autopilot'-button within the 'SEO Autopilot (Bulk Generation)'-section on the *AI for SEO* dashboard of your WordPress website.
-
-= Can I turn off the automation feature after I've activated it? =
-Yes, simply deactivate the checkbox next to the desired content type within the 'Set up SEO Autopilot' modal. This modal can be accessed by clicking the 'Set up SEO Autopilot'-button within the 'SEO Autopilot (Bulk Generation)'-section on the *AI for SEO* dashboard of your WordPress website. If you would like to disable the automation for every content type entirely you can click the 'Stop SEO Autopilot' link within the 'SEO Autopilot (Bulk Generation)'-section on the *AI for SEO* dashboard of your WordPress website.
-
-= Does the SEO Autopilot (bulk generation) feature work for new content? =
-Yes! You can decide exactly how the SEO Autopilot behaves. By default, the plugin will automatically generate metadata and media attributes for both new and existing content. However, you can now customize this behavior using three available options:
-New entries and existing entries
-New entries only
-Existing entries only
-
-You can change these settings anytime via the 'Set Up SEO Autopilot' modal. Just click the 'Set up SEO Autopilot' button in the 'SEO Autopilot (Bulk Generation)' section on your *AI for SEO* dashboard.
-
-= Will the SEO Autopilot (bulk generation) feature affect existing data (meta-title, meta-description, etc.)? =
-Not by default. However, you can enable the 'Overwrite Existing Metadata (SEO Autopilot Only)'-option in the settings if needed.
-
-= Is there any way to control what meta tags are outputted? =
-Yes, in the 'Meta Tag Inclusion:'-section of the settings, you can choose to include or exclude specific meta tags from the header output generated by our plugin. This gives you full control to customize the meta tags based on your specific requirements.
+= Will *AI for SEO* overwrite my existing metadata or media attributes? =
+Not unless you enable it. By default, we don’t overwrite existing data. You can explicitly allow overwriting (and even include “complete” entries) in Settings.
 
 = Can I choose which media attributes the plugin should generate? =
 Yes, *AI for SEO* lets you decide which media attributes (like 'alt text' or 'title') should be generated. You can configure this in the 'Active Media Attributes:' section of the settings to match your content needs. Simply select the desired attributes and the SEO Autopilot will generate the data accordingly.
 
-= How can I retry all failed metadata generations with just one click? =
-You can find the 'Retry all failed' button in any content page (e.g. Pages, Posts or media). This allows you to retry all failed metadata generations with a single click, saving you time and effort. Please note that this button will only be displayed if at least one error has occurred.
-
-= Why is the automatic metadata or media attributes generation pending? =
-We use WordPress's internal task scheduler to manage automatic generation efficiently. This helps prevent overloading your server with too many simultaneous tasks.
-
-If you see a 'Pending' status in the 'SEO coverage' column, it means one of two things:
-
-1. The plugin is waiting for the next scheduled task to run (typically within 1-5 minutes).
-2. The plugin is currently generating data for other entries.
-
-You can check the *AI for SEO* dashboard to see if any generation is in progress for other items. If many items are pending, it may take longer to process them all.
-
-Rest assured, the plugin will automatically generate data for all pending items over time. If you need immediate results, you can use the manual generation option for specific items.
-
-= How do I navigate to the page I want to edit for SEO? =
-You can navigate to the page or post you want to edit through the normal editor, using a page builder like Elementor, or by opening the page directly in the frontend.
-
-= Where is the *AI for SEO* metadata editor located? =
-You can find the *AI for SEO* button in the top admin-bar. Clicking on this will open up the metadata editor where you can modify or generate metadata.
-
-= How can I generate or edit metadata? =
-After opening *AI for SEO*'s Metadata Editor, you can either edit the existing metadata manually or generate new metadata using the 'Generate with AI' buttons.
-
-= Is there an alternate way to access *AI for SEO*'s Metadata Editor? =
-Yes, alternatively, you can go to the 'Pages' or 'Posts' page within the *AI for SEO* plugin. From there, you can browse through your pages and posts, and choose the ones you want to edit.
-
-= What editors are supported? =
-We currently support Elementor, BeTheme (Muffin-Builder / Be-Builder) and the standard editor. We are working on supporting more editors.
-
-= Are Credits renewed in the Free plan? =
-The free plan renews on a daily basis. You will receive 5 free Credits every day if your balance falls below 100 Credits, allowing you to continue using the basic features of the plugin at no cost.
-
-= What do I need to do to receive the free daily Credits? =
-You don't need to do anything—they'll be automatically added to your account every day if your balance falls below 100 Credits. Just make sure the plugin remains active on your website.
-
-= Will I still receive the free daily Credits if I'm on a paid subscription? =
-Yes, you'll continue to receive the free daily Credits even if you're on a paid subscription if your balance falls below 100 Credits. These Credits are in addition to those included in your subscription.
-
 = How are Credits consumed in the *AI for SEO* plugin? =
-Credits are consumed when the AI generates metadata or media attributes for your content entries. Each generation costs 5 Credits, regardless of the content's word count or image size.
-Please note that Credits are not consumed when you manually edit the metadata or media attributes. Also, Credits-wise, it does not make a difference if you only generate metadata for a single field (e.g., the title) or for all fields at once.
-
-= Can I try the *AI for SEO* plugin without purchasing a subscription? =
-Yes, the free plan provides you with 100 Credits, allowing you to experiment with AI-generated SEO content without any cost. In addition, we provide you with 5 free Credits every day if your balance falls below 100 Credits.
-
-= How many Credits do I get with the Basic, Pro, and Premium subscriptions? =
-- The Basic subscription grants you 500 Credits per month, suitable for smaller websites or blogs. It covers up to ~100 content posts/pages/products/images/etc. per month.
-- The Pro subscription grants you 1500 Credits per month, designed for professionals who need more extensive SEO capabilities. It covers up to ~300 posts/pages/products/images/etc. per month.
-- The Premium subscription grants you 5000 Credits per month, ideal for businesses that require substantial SEO support and features. It covers up to ~1000 posts/pages/products/images/etc. per month.
-
-= How do I choose the right subscription for my needs? =
-You should choose a subscription based on the number of Credits you need for generating SEO content:
-- The free plan is great for experimentation. It covers up to ~20 posts/pages/products/images/etc.
-- The Basic subscription is suitable for smaller websites or blogs. It covers up to ~100 posts/pages/products/images/etc. per month.
-- The Pro subscription is designed for professionals who need more extensive SEO capabilities. It covers up to ~300 posts/pages/products/images/etc. per month.
-- The Premium subscription is ideal for businesses that require substantial SEO support and features. It covers up to ~1000 posts/pages/products/images/etc. per month.
-- If you have a shop with many products or a large blog, please contact us to discuss a custom plan tailored to your needs at [info@aiforseo.ai](mailto:info@aiforseo.ai). We are currently offering a 30% discount on all custom plans!
-
-= How do I change or cancel my subscription? =
-You can change or cancel your subscription at any time by going to the *AI for SEO* dashboard page and clicking on the 'Get more Credits' button within the 'Credits' section. Once the 'How to get more Credits' modal is open you can then click on the 'Manage subscription' button within the 'Subscription' section of the modal. Alternatively you can change your subscription by following this link: https://aiforseo.ai/cancel-plan.
-You'll be redirected to Stripe, our invoice partner. Please follow the instructions on the Stripe website to change or cancel your subscription.
-
-= Can I upgrade or downgrade my subscription? =
-You can change or cancel your subscription at any time by going to the *AI for SEO* dashboard page and clicking on the 'Get more Credits' button within the 'Credits' section. Once the 'How to get more Credits' modal is open you can then click on the 'Manage subscription' button within the 'Subscription' section of the modal. Alternatively you can change your subscription by following this link: https://aiforseo.ai/manage-plan.
-You'll be redirected to Stripe, our invoice partner. Please follow the instructions on the Stripe website to change your subscription.
-
-= What should I do if I lose my license key? =
-If you’ve lost your license key, don’t worry. Simply go to AI for SEO > Account, click on "Lost your license data?", and follow the steps shown.
-
-= Does *AI for SEO* support Multi-Site installations? =
-Yes, *AI for SEO* fully supports Multi-Site installations. Simply purchase a subscription on your primary website and use the same license owner and license key across all your sub-sites.
-
-= Can I use my already purchased subscription or Credits Packs on another website? =
-Yes, you can use your existing subscription and Credits Packs on another website. Simply enter the same license holder and the license key on the new website under AI for SEO > Account. You can link any number of websites together. All linked websites share the same pool of Credits and various settings. You can even export and import settings between linked websites using the 'Export/Import Settings' button in the plugin settings.
+Credits are used when *AI for SEO* generates metadata for your content (posts, pages, products, media files etc.). The amount of Credits required depends on the selected active meta tags and media attributes (see Settings).
 
 = Do unused Credits expire at the end of the month? =
 No, any unused Credits will roll over to the next month, allowing you to fully utilize your Credits without losing them at the end of each billing cycle.
 
-= I can't remove the AI-generated text within the Yoast SEO plugin =
-We are currently working on fixing this issue. As a workaround, we recommend saving the generated data and reloading the page before applying changes to the generated data.
+= Can I try the *AI for SEO* plugin without purchasing a subscription? =
+Yes, the free plan provides you with 100 Credits, allowing you to experiment with AI-generated SEO content without any cost. In addition, we provide you with 5 free Credits every day if your balance falls below 100 Credits.
 
-= How do I edit metadata in Elementor with *AI for SEO*? =
-1. Open the page or post you want to edit in Elementor.
-2. Click the settings button (cog icon) at the top of the Elementor header to reveal the page or post settings.
-3. In the settings section, click on the 'Show all SEO settings' button to open *AI for SEO*'s Metadata Editor. Here, you can adjust the metadata manually or generate new metadata using AI-driven algorithms.
-
-= How do I edit SEO settings in BeBuilder with *AI for SEO*? =
-1. Open the page or post you want to edit in BeBuilder, the page-building tool within the BeTheme framework.
-2. Click on the page options button on the left side of the BeBuilder navigation, then scroll down to the SEO section.
-3. Click on the 'Show all SEO settings' button within the SEO section to open *AI for SEO*'s Metadata Editor. Here, you can access and manipulate the metadata using AI-driven algorithms.
-
-= Is AI-generated SEO-content harmful to my SEO-ranking? =
-Currently, Google's stance on the use of AI or automation in content creation is generally permissive, as indicated in a Google Developers blog post from February 2023. They state that appropriate use of AI or automation is not against their guidelines. More information can be found at https://developers.google.com/search/blog/2023/02/google-search-and-ai-content.
-
-= Will *AI for SEO* slow down my website? =
-The plugin is optimized for maximum performance and we are not aware of any noticeable performance effects on the backend or the frontend.
-
-= Can you add feature x, y or z to the plugin? =
-We are always open to suggestions and feedback. Please email us at [info@aiforseo.ai](mailto:info@aiforseo.ai) with your suggestions.
+= When should I choose a Subscription, Credit Packs, or Pay-As-You-Go? =
+1. Choose **Subscription** if you want ongoing features and steady Credits. Subscriptions unlock advanced generation options and provide a continuous flow of Credits for new content over time.
+2. Choose **Credit Packs** for one-time top-ups when you need a larger burst of generations. Credit Packs are ideal as an add-on to an active subscription when you temporarily need more Credits.
+3. Choose <strong>PAYG (Pay-As-You-Go)</strong> if you prefer automatic top-ups. When your balance falls below 100 Credits, new Credits are added to your account automatically by purchasing a package you selected in advance.
 
 = Does *AI for SEO* support multi-language websites? =
 Yes, the plugin does support multi-language websites. The plugin also supports the WPML-plugin through which you can generate metadata and media attributes for all available languages separately.
 
-= What is the recommended cron job setting for WordPress? =
-The best setup is to use a cronjob outside the WordPress cron system (external cron job, either on your own server or through a third-party service) that runs every minute. This ensures that the SEO Autopilot and scheduled tasks run smoothly without being dependent on WordPress's internal cron system, which may not execute reliably on low-traffic sites.
-
-= I use WordPress’s internal cron system (WP-Cron). What should I consider? =
-If possible, switch to a cron job system outside the WordPress cron system (external cron job, either on your own server or through a third-party service) that runs every minute. If this is not an option and you experience slow SEO Autopilot, consider increasing the SEO Autopilot Duration setting (Settings > Experimental > SEO Autopilot Duration) to allow more processing time per batch.
-
-= I use an external cron job system, but I can only run the cron job every 2+ minutes or less frequently. What should I do? =
-If your external cron job runs less frequently than once per minute, we recommend increasing the *SEO Autopilot Duration* setting (Settings > Experimental > SEO Autopilot Duration). This allows each cycle to handle more tasks at once, compensating for the lower execution frequency.
-
-= The SEO Autopilot ignored some entries or marked them as already completed. What can I do? =
-By default, the SEO Autopilot skips entries with a complete set of metadata or media attributes, assuming they are optimized.
-
-If you want to regenerate metadata or media attributes even for entries that are marked as complete:
-
-Enable "Include Complete Entries When Overwriting (SEO Autopilot Only)" in the Metadata section.
-Enable "Include Complete Entries When Overwriting (SEO Autopilot Only)" in the Media Attributes section.
-You can find these options in the plugin settings. This will force the SEO Autopilot to overwrite all existing metadata and media attributes, even if they are already set.
-
-= What can I do if alt text is missing on images? =
-If you notice that alt text is missing on images, it may be due to your theme or other plugins not properly outputting the alt text stored in the database. In such cases, you can enable the 'Render-Level Alt Text Injection' setting in the plugin settings. This feature injects alt text directly at the render level, ensuring that images display the correct alt text and improving accessibility and SEO compliance.
-
-= What is the 'Render-Level Alt Text Injection' setting and why should I use it? =
-The 'Render-Level Alt Text Injection' setting ensures that images on your website always display the correct alt text, even when your theme or other plugins fail to properly output the alt text stored in the database. When enabled, *AI for SEO* will inject alt text directly at the render level, helping to improve accessibility and SEO compliance. This setting is particularly useful if you experience issues with missing alt text on images due to theme or plugin limitations. It is enabled by default and can be found in the plugin settings.
-
-= I see old data in the plugin while generating metadata or media attributes. What can I do? =
-If you notice outdated data appearing while generating metadata or media attributes, try the following steps:
-
-1. Reset Cache – This will clear stored data and force the plugin to create new temporary data (cache).
-2. If the issue persists, Reset Environmental Variables – This can help resolve cases where incorrect internal values are affecting data processing.
-
-You can find both options under Help > Troubleshooting > Reset Plugin.
-
-= How can I reset the plugin settings to their default values? =
-If you want to revert the plugin settings to their default state: Use the Reset Settings option under Help > Troubleshooting > Reset Plugin. This will restore all settings to their original values but will not delete generated metadata or media attributes.
-
-= I want to uninstall the plugin and remove all generated data. How can I do this? =
-If you want to fully remove all generated metadata and plugin data before uninstalling:
-
-1. Go to Help > Troubleshooting > Reset Plugin and select every checkbox.
-2. Deactivate and uninstall the plugin.
-
-Note: Media Attributes and synced metadata (to third-party SEO plugins) cannot be removed or undone by the reset. You will need to manually update or remove them in their respective editors.
-
-= Will all the generated texts disappear if I uninstall the plugin? =
-It depends on how the metadata is stored and used. If *AI for SEO* has synchronized the generated metadata with a third-party SEO plugin like Yoast SEO, Rank Math, SEOPress, or similar, then the metadata will remain even after uninstalling *AI for SEO*. You can check and enable synchronization in your *AI for SEO* settings.
-
-However, if synchronization was not enabled, and *AI for SEO* was solely responsible for outputting meta tags on your site, then those tags will no longer be generated once the plugin is deactivated or uninstalled.
-
-= I used the wrong settings for manual or bulk generation (e.g., wrong language or missing sync with other SEO plugins). What can I do? =
-If you generated metadata or media attributes with incorrect settings, follow these steps:
-
-1. Use "Reset Generated Data" under Help > Troubleshooting > Reset Plugin to remove all generated metadata. Media files are marked as "not generated" and can be reprocessed again.
-2. If the generated metadata was already synced with a third-party SEO plugin, consider enabling: "Include Complete Entries When Overwriting (SEO Autopilot Only)" in the Metadata section.
-3. If you generated media attributes, consider enabling: "Include Complete Entries When Overwriting (SEO Autopilot Only)" in the Media Attributes section.
-These settings will allow the plugin to regenerate and overwrite metadata and media attributes, even for entries that were previously marked as complete.
-
-= I use the NextGen Gallery plugin — how do I generate media attributes for my images? =
-To import all images from the NextGen Gallery into AI for SEO, click the Import button in the Media section. Once imported, you can generate alt text, titles, captions, and descriptions for these images using the plugin. All changes will automatically sync with the NextGen Gallery plugin.
-
-# I do not see generated alt text on the front page. What can I do?
-If you generated alt text but it does not appear on the front page, try:
-1. Go to Settings > Show Advanced Settings > Troubleshooting. Enable "Alt Text Injection", save, then check again.
-2. Optionally enable "Image Title Injection" to add a tooltip on hover.
-3. Clear caches (plugin/theme cache, page cache, CDN) so updated attributes render on cached pages.
-4. Ensure images are real <img> tags. Background images set via CSS cannot have alt text.
-
-# Generating alt text fails. Should I switch "Image Upload Method" to "Data"?
-If you see errors while generating alt text or other media attributes, switch the upload method:
-1. Go to Settings > Show Advanced Settings > Troubleshooting. Set "Image Upload Method" to "Data".
-2. Save settings and retry generation (Alt Text, Title, Caption).
-3. Why this helps: Some CDNs, firewalls, or hosts (e.g. Cloudflare, signed URLs, private media paths) block direct URL fetching. "Data" sends the image bytes instead of a public URL and is often more reliable.
-4. If issues persist, clear all caches and confirm the image is a real <img> tag, not a CSS background.
+= Does *AI for SEO* support Multi-Site installations? =
+Yes, *AI for SEO* fully supports Multi-Site installations. Simply purchase a subscription on your primary website and use the same license owner and license key across all your sub-sites.
 
 = Can I use *AI for SEO* on a staging or local development site? =
-Yes, you can use *AI for SEO* on staging or local development sites. However, please note that each installation requires its own license and Credits. You can link multiple sites together using the same license holder and license key, allowing them to share the same pool of Credits and various settings.
+Yes, you can use *AI for SEO* on staging or local development sites.
 
-= I cannot access the plugin due to incognito mode restriction. What can I do? =
-If you cannot access the plugin due to incognito mode restriction, follow these steps:
+= What editors are supported? =
+*AI for SEO* supports most editors and themes. For extra convenience, we've added dedicated “Generate with AI” buttons in Elementor, BeTheme (Muffin-Builder / Be-Builder), and the standard editor. You can also generate metadata directly from the plugin dashboard, the metadata editor, or SEO Autopilot without using any page builder.
 
-1. Adjust this URL by replacing [YOUR_WEBSITE] with your actual website URL and open it in your browser to temporarily bypass the restriction:
-   https://[YOUR_WEBSITE]/wp-admin/admin.php?page=ai-for-seo&ai4seo_subpage=account&ai4seo_debug_bypass_incognito_mode=true
-2. Disable incognito mode and save your settings.
-3. If needed, you may enable incognito mode again after saving.
+= Can I link multiple sites and share credits/settings? =
+Yes. Enter the same license owner + key under *AI for SEO* > Account on each website to link them. Linked websites share the same credits pool, and you can export/import settings between them. Works with Multisite and staging.
+
+= I’m an agency with multiple client websites. How do I set things up? =
+1. We recommend setting up your agency *AI for SEO* account via a primary site (e.g., your agency site) and purchasing a subscription there. Alternatively, you can purchase directly on our website: https://aiforseo.ai/pricing
+2. After purchasing a subscription, you receive your license owner and key by email and they are also visible in your *AI for SEO* Account area.
+3. Install the *AI for SEO* plugin on each client website you manage. Go to *AI for SEO* > Account on each website.
+4. Enter the **same license owner + key** to link them to the same account. Linked websites share the same subscription and Credits pool.
+
+= Does *AI for SEO* collect or store my content? =
+*AI for SEO* sends only the text needed to generate metadata to our AI service. We don’t add tracking scripts to your site, and we don’t publish your content. You can review privacy options (generator hints, white-label, incognito) under *AI for SEO* > Account > Privacy & Agreements.
+
+= Can I control who can use *AI for SEO* in my WordPress? =
+Yes. In Settings, you can restrict access by user role. Agencies can also use Incognito and White-Label options in *AI for SEO* > Account.
+
+= Is AI-generated SEO-content harmful to my SEO-ranking? =
+Currently, Google's stance on the use of AI or automation in content creation is generally permissive, as indicated in a Google Developers blog post from February 2023. They state that appropriate use of AI or automation is not against their guidelines. More information can be found at [https://developers.google.com/search/blog/2023/02/google-search-and-ai-content](https://developers.google.com/search/blog/2023/02/google-search-and-ai-content).
+
+= Will all the generated data disappear if I uninstall the plugin? =
+It depends on how the metadata is stored and used. If *AI for SEO* has synchronized the generated metadata with a third-party SEO plugin like Yoast SEO, RankMath, SEOPress, or similar, then the metadata will remain even after uninstalling *AI for SEO*. You can check and enable synchronization in your *AI for SEO* settings. However, if synchronization was not enabled during generation, then those meta tags will disappear once the plugin is deactivated or uninstalled.
+
+= Can you add feature x, y or z to the plugin? =
+We are always open to suggestions and feedback. Please email us at [info@aiforseo.ai](mailto:info@aiforseo.ai) with your suggestions.
 
 
 == Changelog ==
+
+= 2.2.5 =
+* Added an advanced setting to adjust the Focus Keyphrase behavior during SEO Autopilot when existing metadata is present.
+* Bug Fixes & Maintenance: Fixed 4 minor bugs and implemented 2 usability improvements, and resolved 2 security issues.
+
+= 2.2.4 =
+* Bug Fixes & Maintenance: Fixed 5 minor bugs and implemented 3 usability improvements.
+
+= 2.2.3 =
+* Bug Fixes & Maintenance: Fixed 7 minor bugs and implemented 2 usability improvements.
+
+= 2.2.2 =
+* Bug Fixes & Maintenance: Fixed 9 minor bugs, implemented 3 usability improvements, and resolved 2 security issues.
+
+= 2.2.1 =
+* Bug Fixes & Maintenance: Fixed 5 minor bugs.
+
+= 2.2.0 =
+* Changed how Credits are consumed. Credits are now charged per generated field instead of per entry. Use the “Active Meta Tags” and “Active Media Attributes” settings to control which fields are generated and how many Credits each action requires.
+* Added Focus Keyphrase generation, editing, and syncing for Yoast SEO and RankMath.
+* Added Meta Keywords generation, editing, and front-end output.
+* Added WooCommerce price inclusion modes for AI-generated metadata (Never, Fixed Price, Dynamic Price).
+* Added additional “Generate with AI” buttons inside the Gutenberg editor when RankMath is active.
+* Added “Generate with AI” buttons for Focus Keyphrase (Yoast SEO) and Focus Keyword (RankMath) inside their editors.
+* Added a filter bar to the Posts and Media views including SEO-status filters and a text search.
+* Added placeholder support for prefixes and suffixes across all syntaxes ({TITLE}, [TITLE], %%TITLE%% and their placeholder variants).
+* Added a setting to include existing values when generating metadata and media attributes (Basic Plan+).
+* Added a setting to enable enhanced entity recognition for media attributes (Pro Plan+).
+* Added a setting to enable advanced celebrity face recognition for media attributes (Premium Plan+).
+* Added configurable meta tag fallback rules to reuse existing values when no generated data is available.
+* Added a toggle to control JavaScript-based alt text injection separately from render-level injection.
+* Added a troubleshooting toggle to pause database refresh operations during debugging.
+* Added the “Active Meta Tags” setting to control which meta tags the plugin should generate.
+* Added the “Active Post Types” setting to define which post types the plugin should process.
+* Added a reminder and one-click removal option for previously generated SEO-relevant data within the SEO Autopilot modal.
+* Added a “Generate Data for X Empty Fields” button in the Metadata and Media Attribute Editors.
+* Added a “Save & edit next” button in the Metadata and Media Attribute Editors for faster sequential editing.
+* Added a “Retry all failed” quick action to the Dashboard when failed entries are detected.
+* Added Credits badges across the plugin UI to indicate the cost of generation actions.
+* Added an “SEO-Expert Concierge” card to the Dashboard with direct contact options.
+* Submit and Abort buttons are now sticky for easier access during editing.
+* Bug Fixes & Maintenance: Fixed 21 minor bugs, implemented 29 usability improvements, implemented 35 stability improvements, and resolved 8 security issues.
 
 = 2.1.6 =
 * Added compatibility with WordPress 6.8.3

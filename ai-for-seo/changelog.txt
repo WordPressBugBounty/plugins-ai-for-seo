@@ -1,5 +1,47 @@
 == Changelog ==
 
+= 2.2.5 =
+* Added an advanced setting to adjust the Focus Keyphrase behavior during SEO Autopilot when existing metadata is present.
+* Bug Fixes & Maintenance: Fixed 4 minor bugs and implemented 2 usability improvements, and resolved 2 security issues.
+
+= 2.2.4 =
+* Bug Fixes & Maintenance: Fixed 5 minor bugs and implemented 3 usability improvements.
+
+= 2.2.3 =
+* Bug Fixes & Maintenance: Fixed 7 minor bugs and implemented 2 usability improvements.
+
+= 2.2.2 =
+* Bug Fixes & Maintenance: Fixed 9 minor bugs, implemented 3 usability improvements, and resolved 2 security issues.
+
+= 2.2.1 =
+* Bug Fixes & Maintenance: Fixed 5 minor bugs.
+
+= 2.2.0 =
+* Changed how Credits are consumed. Credits are now charged per generated field instead of per entry. Use the “Active Meta Tags” and “Active Media Attributes” settings to control which fields are generated and how many Credits each action requires.
+* Added Focus Keyphrase generation, editing, and syncing for Yoast SEO and RankMath.
+* Added Meta Keywords generation, editing, and front-end output.
+* Added WooCommerce price inclusion modes for AI-generated metadata (Never, Fixed Price, Dynamic Price).
+* Added additional “Generate with AI” buttons inside the Gutenberg editor when RankMath is active.
+* Added “Generate with AI” buttons for Focus Keyphrase (Yoast SEO) and Focus Keyword (RankMath) inside their editors.
+* Added a filter bar to the Posts and Media views including SEO-status filters and a text search.
+* Added placeholder support for prefixes and suffixes across all syntaxes ({TITLE}, [TITLE], %%TITLE%% and their placeholder variants).
+* Added a setting to include existing values when generating metadata and media attributes (Basic Plan+).
+* Added a setting to enable enhanced entity recognition for media attributes (Pro Plan+).
+* Added a setting to enable advanced celebrity face recognition for media attributes (Premium Plan+).
+* Added configurable meta tag fallback rules to reuse existing values when no generated data is available.
+* Added a toggle to control JavaScript-based alt text injection separately from render-level injection.
+* Added a troubleshooting toggle to pause database refresh operations during debugging.
+* Added the “Active Meta Tags” setting to control which meta tags the plugin should generate.
+* Added the “Active Post Types” setting to define which post types the plugin should process.
+* Added a reminder and one-click removal option for previously generated SEO-relevant data within the SEO Autopilot modal.
+* Added a “Generate Data for X Empty Fields” button in the Metadata and Media Attribute Editors.
+* Added a “Save & edit next” button in the Metadata and Media Attribute Editors for faster sequential editing.
+* Added a “Retry all failed” quick action to the Dashboard when failed entries are detected.
+* Added Credits badges across the plugin UI to indicate the cost of generation actions.
+* Added an “SEO-Expert Concierge” card to the Dashboard with direct contact options.
+* Submit and Abort buttons are now sticky for easier access during editing.
+* Bug Fixes & Maintenance: Fixed 21 minor bugs, implemented 29 usability improvements, implemented 35 stability improvements, and resolved 8 security issues.
+
 = 2.1.6 =
 * Added compatibility with WordPress 6.8.3
 * Bug Fixes & Maintenance: Fixed 2 minor bugs.

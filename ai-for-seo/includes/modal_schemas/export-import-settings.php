@@ -33,7 +33,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
     echo "<div class='card ai4seo-form-section'>";
         // Headline
         echo "<h2>";
-            echo ai4seo_wp_kses(ai4seo_get_svg_tag("file-arrow-down"));
+            ai4seo_echo_wp_kses(ai4seo_get_svg_tag("file-arrow-down"));
             echo esc_html__("Export Settings", "ai-for-seo");
         echo "</h2>";
 
@@ -52,7 +52,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
     echo "<div class='card ai4seo-form-section'>";
         // Headline
         echo "<h2>";
-            echo ai4seo_wp_kses(ai4seo_get_svg_tag("file-arrow-up"));
+            ai4seo_echo_wp_kses(ai4seo_get_svg_tag("file-arrow-up"));
             echo esc_html__("Import Settings", "ai-for-seo");
         echo "</h2>";
 
@@ -95,7 +95,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
         echo "<div class='ai4seo-form-item'>";
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                 echo "<button type='button' onclick='ai4seo_init_import_settings();' id='ai4seo-import-settings-button' class='button ai4seo-button ai4seo-submit-button'>";
-                    echo esc_html__("Import Settings", "ai-for-seo");
+                    echo esc_html__("Show Preview", "ai-for-seo");
                 echo "</button>";
                 echo "<p class='ai4seo-form-item-description'>" . esc_html__("Upload a previously exported settings file and choose which settings to import.", "ai-for-seo") . "</p>";
             echo "</div>";

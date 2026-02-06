@@ -1,7 +1,7 @@
 <?php
 /**
- * Required by save-everything.php.
- * Updates given settings from $ai4seo_post_parameter in bulk
+ * Required by ai-for-seo-php > save-everything() function. This file is required INSIDE that function.
+ * Updates given settings from $upcoming_save_anything_updates in bulk
  *
  * @since 2.0.0
  */
@@ -14,11 +14,31 @@ if (!ai4seo_can_manage_this_plugin()) {
     return;
 }
 
-if (!isset($ai4seo_post_parameter)) {
+# note: $upcoming_save_anything_updates is already sanitized in ai4seo_save_anything()
+if (!isset($upcoming_save_anything_updates)) {
     return;
 }
 
 global $ai4seo_settings;
+
+
+// ___________________________________________________________________________________________ \\
+// === PRE CHANGE SETTINGS =================================================================== \\
+// ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
+
+// Normalize active post type selection (UI shows active types, setting stores disabled ones).
+if (isset($upcoming_save_anything_updates[AI4SEO_SETTING_DISABLED_POST_TYPES])) {
+    $ai4seo_submitted_active_post_types = $upcoming_save_anything_updates[AI4SEO_SETTING_DISABLED_POST_TYPES];
+
+    if (!is_array($ai4seo_submitted_active_post_types)) {
+        $ai4seo_submitted_active_post_types = $ai4seo_submitted_active_post_types ? array($ai4seo_submitted_active_post_types) : array();
+    }
+
+    $ai4seo_available_post_types = ai4seo_get_supported_post_types(false);
+    $ai4seo_disabled_post_types = array_values(array_diff($ai4seo_available_post_types, $ai4seo_submitted_active_post_types));
+
+    $upcoming_save_anything_updates[AI4SEO_SETTING_DISABLED_POST_TYPES] = $ai4seo_disabled_post_types;
+}
 
 
 // ___________________________________________________________________________________________ \\
@@ -29,13 +49,13 @@ $ai4seo_new_settings = array();
 $ai4seo_recent_setting_changes = array();
 
 foreach (AI4SEO_DEFAULT_SETTINGS as $ai4seo_this_setting_name => $ai4seo_this_default_setting_value) {
-    // Check if $ai4seo_post_parameter-entry exists for this setting
-    if (!isset($ai4seo_post_parameter[$ai4seo_this_setting_name])) {
+    // Check if $upcoming_save_anything_updates-entry exists for this setting
+    if (!isset($upcoming_save_anything_updates[$ai4seo_this_setting_name])) {
         continue;
     }
 
     $ai4seo_this_old_setting_value = $ai4seo_settings[$ai4seo_this_setting_name];
-    $ai4seo_this_new_setting_value = $ai4seo_post_parameter[$ai4seo_this_setting_name];
+    $ai4seo_this_new_setting_value = $upcoming_save_anything_updates[$ai4seo_this_setting_name];
 
     // is equal to old setting -> ignore it
     if ($ai4seo_this_new_setting_value == $ai4seo_this_old_setting_value) {
@@ -73,16 +93,22 @@ if ($ai4seo_recent_setting_changes) {
 // === SPECIAL POST-SAVE HANDLING ============================================================ \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
-// are there changes to the AI4SEO_SETTING_ACTIVE_ATTACHMENT_ATTRIBUTES setting? perform a full refresh of all posts' SEO coverage
-if (isset($ai4seo_recent_setting_changes[AI4SEO_SETTING_ACTIVE_ATTACHMENT_ATTRIBUTES])) {
-    ai4seo_refresh_all_posts_seo_coverage();
-}
+// for some settings we need to trigger a posts table analysis after saving the settings
+$ai4seo_analysis_trigger_settings = [
+    AI4SEO_SETTING_ACTIVE_META_TAGS,
+    AI4SEO_SETTING_ACTIVE_ATTACHMENT_ATTRIBUTES,
+    AI4SEO_SETTING_GENERATE_METADATA_FOR_FULLY_COVERED_ENTRIES,
+    AI4SEO_SETTING_GENERATE_ATTACHMENT_ATTRIBUTES_FOR_FULLY_COVERED_ENTRIES,
+    AI4SEO_SETTING_DISABLED_POST_TYPES,
+    AI4SEO_SETTING_OVERWRITE_EXISTING_METADATA,
+    AI4SEO_SETTING_OVERWRITE_EXISTING_ATTACHMENT_ATTRIBUTES,
+];
 
-// if AI4SEO_SETTING_GENERATE_METADATA_FOR_FULLY_COVERED_ENTRIES or AI4SEO_SETTING_GENERATE_ATTACHMENT_ATTRIBUTES_FOR_FULLY_COVERED_ENTRIES
-// is different from the new value, we need to run ai4seo_analyze_plugin_performance()
-if (isset($ai4seo_recent_setting_changes[AI4SEO_SETTING_GENERATE_METADATA_FOR_FULLY_COVERED_ENTRIES])
-    || isset($ai4seo_recent_setting_changes[AI4SEO_SETTING_GENERATE_ATTACHMENT_ATTRIBUTES_FOR_FULLY_COVERED_ENTRIES])) {
-    ai4seo_analyze_plugin_performance();
+foreach ( $ai4seo_analysis_trigger_settings as $ai4seo_this_setting_key ) {
+    if ( isset( $ai4seo_recent_setting_changes[ $ai4seo_this_setting_key ] ) ) {
+        ai4seo_try_start_posts_table_analysis( true );
+        break;
+    }
 }
 
 
@@ -98,20 +124,6 @@ if (isset($ai4seo_recent_setting_changes[AI4SEO_SETTING_ENABLE_INCOGNITO_MODE]))
     } else {
         ai4seo_update_setting(AI4SEO_SETTING_INCOGNITO_MODE_USER_ID, "0");
     }
-}
-
-
-// === ACTIVE ATTACHMENT ATTRIBUTES CHANGED -> REFRESH ALL POSTS SEO COVERAGE ======================================== \\
-
-if (isset($ai4seo_recent_setting_changes[AI4SEO_SETTING_ACTIVE_ATTACHMENT_ATTRIBUTES])) {
-    ai4seo_refresh_all_posts_seo_coverage();
-}
-
-
-// === GENERATE METADATA FOR FULLY COVERED ENTRIES OR GENERATE ATTACHMENT ATTRIBUTES FOR FULLY COVERED ENTRIES CHANGED -> ANALYZE PLUGIN PERFORMANCE \\
-
-if (isset($ai4seo_recent_setting_changes[AI4SEO_SETTING_GENERATE_METADATA_FOR_FULLY_COVERED_ENTRIES]) || isset($ai4seo_recent_setting_changes[AI4SEO_SETTING_GENERATE_ATTACHMENT_ATTRIBUTES_FOR_FULLY_COVERED_ENTRIES])) {
-    ai4seo_analyze_plugin_performance();
 }
 
 
@@ -145,13 +157,11 @@ if (isset($ai4seo_recent_setting_changes[AI4SEO_SETTING_ENABLED_BULK_GENERATION_
         ai4seo_update_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_SEO_AUTOPILOT_SET_UP_TIME, time());
     }
 
-    // for all just disabled post types, remove all pending post ids and refresh the generation status summary
+    // for all just disabled post types, remove all pending post ids
     if ($ai4seo_just_disabled_post_types) {
         foreach($ai4seo_just_disabled_post_types AS $ai4seo_just_disabled_post_type) {
             ai4seo_remove_all_post_ids_by_post_type_and_generation_status($ai4seo_just_disabled_post_type, AI4SEO_PENDING_METADATA_POST_IDS_OPTION_NAME);
         }
-
-        ai4seo_refresh_all_posts_generation_status_summary();
     }
 }
 
@@ -168,7 +178,7 @@ if (isset($ai4seo_recent_setting_changes[AI4SEO_SETTING_BULK_GENERATION_NEW_OR_E
 
 // === SEND PAY-AS-YOU-GO SETTINGS TO ROBHUB ======================================================================== \\
 
-if (isset($ai4seo_post_parameter[AI4SEO_SETTING_PAYG_ENABLED]) && $ai4seo_post_parameter[AI4SEO_SETTING_PAYG_ENABLED]) {
+if (isset($upcoming_save_anything_updates[AI4SEO_SETTING_PAYG_ENABLED]) && $upcoming_save_anything_updates[AI4SEO_SETTING_PAYG_ENABLED]) {
     $ai4seo_sent_pay_as_you_go_settings_response = ai4seo_send_pay_as_you_go_settings();
 
     if ($ai4seo_sent_pay_as_you_go_settings_response === false) {

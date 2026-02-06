@@ -24,7 +24,9 @@ $ai4seo_all_categories = array(
 );
 
 // get mode (preview or execute)
-$ai4seo_import_mode = isset($_REQUEST['ai4seo_import_mode']) && $_REQUEST['ai4seo_import_mode'] === 'execute' ? 'execute' : 'preview';
+if (!isset($ai4seo_import_mode)) {
+    $ai4seo_import_mode = isset($_REQUEST['ai4seo_import_mode']) && $_REQUEST['ai4seo_import_mode'] === 'execute' ? 'execute' : 'preview';
+}
 
 // get categories to import
 $ai4seo_import_categories = isset($_REQUEST['ai4seo_import_categories']) ? ai4seo_deep_sanitize((array) $_REQUEST['ai4seo_import_categories']) : array();
@@ -208,19 +210,22 @@ if ($ai4seo_import_mode === 'preview') {
         if ($ai4seo_we_got_valid_changes) {
             if (!empty($ai4seo_invalid_settings) || $ai4seo_got_unknown_category_entries) {
                 echo "<div class='ai4seo-medium-gap'>";
-                echo ai4seo_wp_kses(ai4seo_get_svg_tag("triangle-exclamation")) . " ";
+                ai4seo_echo_wp_kses(ai4seo_get_svg_tag("triangle-exclamation"));
+                echo " ";
                 echo esc_html__("ATTENTION: Some settings are invalid or belong to unknown categories and cannot be imported. However, the valid settings can be imported.", "ai-for-seo");
                 echo "</div>";
             }
         } else {
             echo "<div class='ai4seo-medium-gap'>";
-                echo ai4seo_wp_kses(ai4seo_get_svg_tag("circle-check")) . " ";
+                ai4seo_echo_wp_kses(ai4seo_get_svg_tag("circle-check"));
+                echo " ";
                 echo esc_html__("Your settings are up-to-date and no changes were detected.", "ai-for-seo");
             echo "</div>";
         }
     } else {
         echo "<div class='ai4seo-medium-gap'>";
-            echo ai4seo_wp_kses(ai4seo_get_svg_tag("triangle-exclamation")) . " ";
+            ai4seo_echo_wp_kses(ai4seo_get_svg_tag("triangle-exclamation"));
+            echo " ";
             echo esc_html__("No valid settings found for import.", "ai-for-seo");
         echo "</div>";
     }
@@ -256,7 +261,9 @@ if ($ai4seo_import_mode === 'preview') {
                 break;
         }
 
-        echo "<h3 style='margin-top: 3rem;'>" . ai4seo_wp_kses($this_label) . "</h3>";
+        echo "<h3 style='margin-top: 3rem;'>";
+            ai4seo_echo_wp_kses($this_label);
+        echo "</h3>";
         echo "<ul>";
 
         $ai4seo_this_got_any_valid_changes = false;
@@ -270,7 +277,9 @@ if ($ai4seo_import_mode === 'preview') {
 
             // invalid settings are shown with a strikethrough
             if ($ai4seo_is_unknown_category || in_array($ai4seo_this_setting_name, $ai4seo_invalid_settings)) {
-                echo "<li style='text-decoration: line-through; color: red;'>- " . ai4seo_wp_kses(ai4seo_get_svg_tag("triangle-exclamation")) . " ";
+                echo "<li style='text-decoration: line-through; color: red;'>- ";
+                ai4seo_echo_wp_kses(ai4seo_get_svg_tag("triangle-exclamation"));
+                echo " ";
             } else {
                 $ai4seo_this_got_any_valid_changes = true;
                 echo "<li>- ";
@@ -287,10 +296,10 @@ if ($ai4seo_import_mode === 'preview') {
 
             echo "<strong>" . esc_html($ai4seo_this_setting_name) . ":</strong> ";
             echo "<span style='color: #888; text-decoration: line-through;'>";
-                echo ai4seo_wp_kses($ai4seo_this_current_setting_value);
+                ai4seo_echo_wp_kses($ai4seo_this_current_setting_value);
             echo "</span> → ";
 
-            echo ai4seo_wp_kses($ai4seo_this_setting_new_value);;
+            ai4seo_echo_wp_kses($ai4seo_this_setting_new_value);
 
             echo "</li>";
         }
@@ -299,7 +308,8 @@ if ($ai4seo_import_mode === 'preview') {
 
         if (!$ai4seo_this_got_any_valid_changes) {
             echo "<div class='ai4seo-medium-gap'>";
-            echo ai4seo_wp_kses(ai4seo_get_svg_tag("circle-check")) . " ";
+            ai4seo_echo_wp_kses(ai4seo_get_svg_tag("circle-check"));
+            echo " ";
             echo esc_html__("No changes were detected in this settings category.", "ai-for-seo");
             echo "</div>";
         }
@@ -309,11 +319,12 @@ if ($ai4seo_import_mode === 'preview') {
     echo "<div class='ai4seo-modal-footer ai4seo-buttons-wrapper'>";
         // abort button
         echo "<button type='button' onclick='ai4seo_close_modal_by_child(this)' class='button ai4seo-button ai4seo-abort-button ai4seo-big-button'>" . esc_html__("Abort", "ai-for-seo") . "</button>";
-    if ($ai4seo_we_got_valid_changes) {
-        echo "<button type='button' onclick='ai4seo_execute_import_settings(this);' class='button ai4seo-button ai4seo-submit-button ai4seo-big-button'>";
-            echo esc_html__("Import Settings", "ai-for-seo");
-        echo "</button>";
-    }
+
+        if ($ai4seo_we_got_valid_changes) {
+            echo "<button type='button' onclick='ai4seo_execute_import_settings(this);' class='button ai4seo-button ai4seo-submit-button ai4seo-big-button'>";
+                echo esc_html__("Import Settings", "ai-for-seo");
+            echo "</button>";
+        }
     echo "</div>";
 
     return;
@@ -325,6 +336,8 @@ if ($ai4seo_import_mode === 'preview') {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 if ($ai4seo_import_mode === 'execute') {
+    $ai4seo_upcoming_updates = array();
+
     if (!$ai4seo_we_got_valid_settings) {
         ai4seo_send_json_error(esc_html__("No valid settings found for import.", "ai-for-seo"), 8137725);
     }
@@ -337,10 +350,10 @@ if ($ai4seo_import_mode === 'execute') {
     foreach ($ai4seo_new_and_validated_changes as $ai4seo_this_setting_name => $ai4seo_this_new_and_validated_change) {
         // Update the setting with the new value
         $ai4seo_this_setting_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
-        $_POST[$ai4seo_this_setting_name] = $ai4seo_this_new_and_validated_change['new'];
+        $ai4seo_upcoming_updates[$ai4seo_this_setting_name] = $ai4seo_this_new_and_validated_change['new'];
     }
 
-    ai4seo_save_anything();
+    ai4seo_save_anything($ai4seo_upcoming_updates);
 
     return;
 }

@@ -13,6 +13,8 @@ if (!ai4seo_can_manage_this_plugin()) {
     return;
 }
 
+require_once __DIR__ . '/list-filters.php';
+
 
 // ___________________________________________________________________________________________ \\
 // === PREPARE =============================================================================== \\
@@ -24,7 +26,7 @@ $ai4seo_post_type = ai4seo_get_active_post_type_subpage();
 
 if (!in_array($ai4seo_post_type, $ai4seo_supported_post_types)) {
     echo "Unknown post type: " . esc_html($ai4seo_post_type);
-    $ai4seo_post_type = "post";
+    return;
 }
 
 $ai4seo_translated_post_type = ai4seo_get_post_type_translation($ai4seo_post_type);
@@ -45,26 +47,24 @@ if (isset($_GET["ai4seo-execute-cron-job-sooner"]) && $_GET["ai4seo-execute-cron
     ai4seo_inject_additional_cronjob_call(AI4SEO_BULK_GENERATION_CRON_JOB_NAME);
 }
 
-// collect some admin links and buttons
-$ai4seo_this_plugin_page_url = ai4seo_get_post_type_page_url($ai4seo_post_type, $ai4seo_current_page);
-$ai4seo_refresh_button = ai4seo_get_small_button_tag($ai4seo_this_plugin_page_url, "rotate", __("Refresh page", "ai-for-seo"));
-
-// execute cron job sooner link
-$ai4seo_execute_sooner_button_url = ai4seo_get_post_type_page_url($ai4seo_post_type, $ai4seo_current_page, array("ai4seo-execute-cron-job-sooner" => true));
-$ai4seo_execute_sooner_button = ai4seo_get_small_button_tag($ai4seo_execute_sooner_button_url, "bolt", __("Execute sooner!", "ai-for-seo"));
-
 // Define variable for the label of the failed-metadata-generations-link
 $ai4seo_retry_all_failed_metadata_generations_link_label = "<span class='ai4seo-retry-failed'>" . __("Retry all failed metadata generations", "ai-for-seo") . "</span><span class='ai4seo-retry-failed-mobile'>" . __("Retry all failed", "ai-for-seo") . "</span>";
 
 // retry all failed metadata generations link
 $ai4seo_retry_all_failed_metadata_generations_link_tag = ai4seo_get_small_button_tag("#", "rotate", $ai4seo_retry_all_failed_metadata_generations_link_label, "", "ai4seo_retry_all_failed_metadata(this, '" . esc_js($ai4seo_post_type) . "'); return false;");
 
-$ai4seo_consider_purchasing_more_credits_link_url = ai4seo_get_subpage_url();
-$ai4seo_consider_purchasing_more_credits_link_tag = ai4seo_get_small_button_tag($ai4seo_consider_purchasing_more_credits_link_url, "circle-plus", __("Get more Credits", "ai-for-seo"), "ai4seo-success-button");
+$ai4seo_consider_purchasing_more_credits_link_tag = ai4seo_get_small_button_tag('#', "circle-plus", __("Get more Credits", "ai-for-seo"), "ai4seo-success-button", 'ai4seo_close_all_modals();ai4seo_open_get_more_credits_modal();');
 
 // get value for bulk toggle checkbox
 $ai4seo_is_bulk_generation_activated = ai4seo_is_bulk_generation_enabled($ai4seo_post_type);
 $ai4seo_is_bulk_generation_checked_phrase = ($ai4seo_is_bulk_generation_activated ? "checked" : "");
+
+$ai4seo_pending_metadata_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_PENDING_METADATA_POST_IDS_OPTION_NAME);
+$ai4seo_processing_metadata_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_PROCESSING_METADATA_POST_IDS_OPTION_NAME);
+$ai4seo_all_failed_metadata_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_FAILED_METADATA_POST_IDS_OPTION_NAME);
+
+$ai4seo_missing_metadata_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_MISSING_METADATA_POST_IDS_OPTION_NAME);
+$ai4seo_fully_covered_metadata_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_FULLY_COVERED_METADATA_POST_IDS_OPTION_NAME);
 
 
 // ___________________________________________________________________________________________ \\
@@ -78,17 +78,96 @@ $ai4seo_posts_query_arguments = array(
     "posts_per_page" => 20,
     "orderby" => "ID",
     "order" => "DESC",
-    "paged" => $ai4seo_current_page,
 );
 
-// Fire query
-$ai4seo_post_data = new WP_Query($ai4seo_posts_query_arguments);
+$ai4seo_filter_context = ai4seo_setup_content_type_filters(array(
+    'form_action' => ai4seo_get_post_type_page_url($ai4seo_post_type, 1),
+    'post_types' => array($ai4seo_post_type),
+    'post_status' => array('publish', 'future'),
+    'per_page' => 20,
+));
 
-// Define variable for the posts that were found
-$ai4seo_all_posts = $ai4seo_post_data->posts ?? array();
-$ai4seo_total_pages = (int) ($ai4seo_post_data->max_num_pages ?? 1);
+$ai4seo_filter_form_html = $ai4seo_filter_context['html'];
+$ai4seo_filter_status = $ai4seo_filter_context['filter_status'];
+$ai4seo_filter_text = $ai4seo_filter_context['filter_text'];
+$ai4seo_search_ids = $ai4seo_filter_context['search_ids'];
+$ai4seo_items_per_page = (int) $ai4seo_filter_context['per_page'];
 
-unset($ai4seo_post_data);
+if ($ai4seo_items_per_page < 1) {
+    $ai4seo_items_per_page = 20;
+}
+
+$ai4seo_filter_query_args = array();
+
+if (!empty($ai4seo_filter_context['query_args'])) {
+    foreach ($ai4seo_filter_context['query_args'] as $ai4seo_query_key => $ai4seo_query_value) {
+        $ai4seo_filter_query_args[sanitize_key($ai4seo_query_key)] = sanitize_text_field($ai4seo_query_value);
+    }
+}
+
+if (is_array($ai4seo_search_ids)) {
+    $ai4seo_candidate_post_ids = $ai4seo_search_ids;
+} else {
+    $ai4seo_candidate_arguments = $ai4seo_posts_query_arguments;
+    $ai4seo_candidate_arguments['fields'] = 'ids';
+    $ai4seo_candidate_arguments['posts_per_page'] = -1;
+    $ai4seo_candidate_arguments['no_found_rows'] = true;
+    $ai4seo_candidate_post_ids = get_posts($ai4seo_candidate_arguments);
+}
+
+$ai4seo_candidate_post_ids = array_values(array_unique(array_map('intval', (array) $ai4seo_candidate_post_ids)));
+rsort($ai4seo_candidate_post_ids, SORT_NUMERIC);
+
+$ai4seo_search_status_map = array(
+    'complete' => $ai4seo_fully_covered_metadata_post_ids,
+    'missing' => $ai4seo_missing_metadata_post_ids,
+    'failed' => $ai4seo_all_failed_metadata_post_ids,
+    'processing' => array_merge($ai4seo_pending_metadata_post_ids, $ai4seo_processing_metadata_post_ids),
+);
+
+$ai4seo_filtered_candidate_post_ids = ai4seo_filter_post_ids_by_status($ai4seo_candidate_post_ids, $ai4seo_filter_status, $ai4seo_search_status_map);
+$ai4seo_filtered_candidate_post_ids = array_values(array_unique(array_map('intval', $ai4seo_filtered_candidate_post_ids)));
+
+$ai4seo_total_items = count($ai4seo_filtered_candidate_post_ids);
+$ai4seo_total_pages = $ai4seo_total_items ? (int) ceil($ai4seo_total_items / $ai4seo_items_per_page) : 1;
+
+if ($ai4seo_total_pages < 1) {
+    $ai4seo_total_pages = 1;
+}
+
+if ($ai4seo_current_page > $ai4seo_total_pages) {
+    $ai4seo_current_page = $ai4seo_total_pages;
+}
+
+if ($ai4seo_current_page < 1) {
+    $ai4seo_current_page = 1;
+}
+
+$ai4seo_offset = ($ai4seo_current_page - 1) * $ai4seo_items_per_page;
+$ai4seo_current_page_post_ids = array_slice($ai4seo_filtered_candidate_post_ids, $ai4seo_offset, $ai4seo_items_per_page);
+
+$ai4seo_all_posts = array();
+
+if ($ai4seo_current_page_post_ids) {
+    $ai4seo_posts_query_arguments['post__in'] = $ai4seo_current_page_post_ids;
+    $ai4seo_posts_query_arguments['orderby'] = 'post__in';
+    $ai4seo_posts_query_arguments['order'] = 'DESC';
+    $ai4seo_posts_query_arguments['posts_per_page'] = count($ai4seo_current_page_post_ids);
+
+    $ai4seo_post_data = new WP_Query($ai4seo_posts_query_arguments);
+    $ai4seo_all_posts = $ai4seo_post_data->posts ?? array();
+    unset($ai4seo_post_data);
+}
+
+$ai4seo_this_plugin_page_url = ai4seo_get_post_type_page_url($ai4seo_post_type, $ai4seo_current_page, $ai4seo_filter_query_args);
+$ai4seo_refresh_button = ai4seo_get_small_button_tag($ai4seo_this_plugin_page_url, "rotate", __("Refresh page", "ai-for-seo"));
+
+$ai4seo_execute_sooner_button_url = ai4seo_get_post_type_page_url(
+    $ai4seo_post_type,
+    $ai4seo_current_page,
+    array_merge($ai4seo_filter_query_args, array("ai4seo-execute-cron-job-sooner" => true))
+);
+$ai4seo_execute_sooner_button = ai4seo_get_small_button_tag($ai4seo_execute_sooner_button_url, "bolt", __("Execute sooner!", "ai-for-seo"));
 
 // fetch all post ids from this page
 $ai4seo_current_post_ids = array_map(function ($post) {
@@ -96,14 +175,7 @@ $ai4seo_current_post_ids = array_map(function ($post) {
 }, $ai4seo_all_posts);
 
 // get percentage of active metadata for all posts
-$ai4seo_percentage_of_active_metadata_by_post_ids = ai4seo_read_percentage_of_active_metadata_by_post_ids($ai4seo_current_post_ids);
-
-// look for post ids that are scheduled by the cron jobs to process metadata
-$ai4seo_pending_metadata_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_PENDING_METADATA_POST_IDS_OPTION_NAME);
-$ai4seo_processing_metadata_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_PROCESSING_METADATA_POST_IDS_OPTION_NAME);
-
-// look for failed to fill post ids
-$ai4seo_all_failed_metadata_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_FAILED_METADATA_POST_IDS_OPTION_NAME);
+$ai4seo_percentage_of_active_metadata_by_post_ids = ai4seo_read_percentage_of_available_metadata_by_post_ids($ai4seo_current_post_ids);
 
 // read all key phrases for all posts in $ai4seo_this_page_post_ids
 $ai4seo_third_party_seo_plugin_key_phrases = ai4seo_read_third_party_seo_plugin_key_phrases($ai4seo_current_post_ids);
@@ -123,6 +195,7 @@ $ai4seo_num_failed_to_fill_this_post_type = ai4seo_get_num_generation_status_and
 
 // remove entries from $ai4seo_failed_to_fill_post_ids that are not on this page
 $ai4seo_current_page_failed_to_fill_post_ids = array();
+
 if ($ai4seo_all_posts) {
     foreach ($ai4seo_all_posts AS $ai4seo_this_post) {
         if (in_array($ai4seo_this_post->ID, $ai4seo_all_failed_metadata_post_ids)) {
@@ -134,13 +207,10 @@ $ai4seo_all_failed_metadata_post_ids = $ai4seo_current_page_failed_to_fill_post_
 
 $ai4seo_bulk_generation_new_or_existing_filter = ai4seo_get_setting(AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER);
 $ai4seo_bulk_generation_new_or_existing_filter_reference_timestamp = ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME);
-$ai4seo_generate_metadata_for_fully_covered_entries = ai4seo_get_setting(AI4SEO_SETTING_GENERATE_METADATA_FOR_FULLY_COVERED_ENTRIES);
 
-if ($ai4seo_generate_metadata_for_fully_covered_entries) {
-    $ai4seo_generated_metadata_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_GENERATED_METADATA_POST_IDS_OPTION_NAME);
-} else {
-    $ai4seo_generated_metadata_post_ids = array();
-}
+$ai4seo_active_meta_tags = ai4seo_get_active_meta_tags();
+$ai4seo_active_meta_tags_names = ai4seo_get_active_meta_tags_names($ai4seo_active_meta_tags);
+$ai4seo_metadata_credits_costs_per_post = ai4seo_calculate_metadata_credits_cost_per_post();
 
 
 // ___________________________________________________________________________________________ \\
@@ -148,6 +218,8 @@ if ($ai4seo_generate_metadata_for_fully_covered_entries) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 // === TABLE WITH ALL POSTS ================================================================== \\
+
+ai4seo_echo_wp_kses($ai4seo_filter_form_html);
 
 // Stop script if no posts have been found -> show message and stop page rendering
 if (!$ai4seo_all_posts) {
@@ -167,6 +239,10 @@ echo "<table class='widefat striped table-view-list pages ai4seo-posts-table'>";
         echo "<th>";
             echo esc_html__("Metadata coverage", "ai-for-seo");
 
+            if ($ai4seo_active_meta_tags_names) {
+                echo " <span style='font-size: smaller'>(" . esc_html(implode(", ", $ai4seo_active_meta_tags_names)) . ")</span>";
+            }
+
             echo "<span class='ai4seo-visible-on-mobile'> / ";
                 echo esc_html__("Title and key phrase", "ai-for-seo");
             echo "</span>";
@@ -174,7 +250,7 @@ echo "<table class='widefat striped table-view-list pages ai4seo-posts-table'>";
             // RESET ALL FAILED METADATA GENERATION
             if (($ai4seo_num_failed_to_fill_this_post_type || $ai4seo_current_page_failed_to_fill_post_ids)) {
                 echo "<div class='ai4seo-table-title-button'>";
-                echo ai4seo_wp_kses($ai4seo_retry_all_failed_metadata_generations_link_tag);
+                ai4seo_echo_wp_kses($ai4seo_retry_all_failed_metadata_generations_link_tag);
                 echo "</div>";
             }
         echo "</th>";
@@ -204,12 +280,13 @@ echo "<table class='widefat striped table-view-list pages ai4seo-posts-table'>";
         }
 
         // this post meta coverage summary
-        $ai4seo_this_active_metadata_coverage_percentage = $ai4seo_percentage_of_active_metadata_by_post_ids[$ai4seo_this_post_id] ?? 0;
-        if ($ai4seo_generate_metadata_for_fully_covered_entries) {
-            $ai4seo_this_metadata_generation_is_not_finished = !in_array($ai4seo_this_post_id, $ai4seo_generated_metadata_post_ids);
+        if ($ai4seo_active_meta_tags) {
+            $ai4seo_this_active_metadata_coverage_percentage = $ai4seo_percentage_of_active_metadata_by_post_ids[$ai4seo_this_post_id] ?? 0;
         } else {
-            $ai4seo_this_metadata_generation_is_not_finished = ($ai4seo_this_active_metadata_coverage_percentage < 100);
+            $ai4seo_this_active_metadata_coverage_percentage = 100;
         }
+
+        $ai4seo_this_metadata_generation_is_not_finished = !in_array($ai4seo_this_post_id, $ai4seo_fully_covered_metadata_post_ids);
         $ai4seo_this_post_is_failed_to_fill = in_array($ai4seo_this_post_id, $ai4seo_current_page_failed_to_fill_post_ids);
 
         // check if filling is in progress
@@ -234,7 +311,7 @@ echo "<table class='widefat striped table-view-list pages ai4seo-posts-table'>";
         }
 
         // if the user has not enough credits to fill the metadata
-        if ($ai4seo_is_post_waiting_to_get_scheduled && $ai4seo_current_credits_balance < AI4SEO_MIN_CREDITS_BALANCE) {
+        if ($ai4seo_is_post_waiting_to_get_scheduled && $ai4seo_current_credits_balance < $ai4seo_metadata_credits_costs_per_post) {
             $ai4seo_is_post_pending = false;
             $ai4seo_is_post_waiting_to_get_scheduled = false;
             $ai4seo_is_insufficient_credits = true;
@@ -276,73 +353,87 @@ echo "<table class='widefat striped table-view-list pages ai4seo-posts-table'>";
 
             // Generation Coverage
             echo "<td class='ai4seo-generation-coverage'>";
-                // output progress bar
-                echo "<div id='ai4seo-seo-coverage-progress-bar-" . esc_attr($ai4seo_this_post_id) . "' class='ai4seo-seo-coverage-progress-bar" . ($ai4seo_is_post_pending ? " ai4seo-green-animated-progress-bar" : ($ai4seo_is_post_waiting_to_get_scheduled ? " ai4seo-gray-animated-progress-bar" : "")) . ($ai4seo_this_metadata_generation_is_not_finished ? " ai4seo-progress-bar-not-finished" : " ai4seo-progress-bar-finished") . "'>";
-                    echo "<div class='ai4seo-seo-coverage-inner-progress-bar' style='width: " . esc_attr($ai4seo_this_active_metadata_coverage_percentage) . "%'></div>";
-                echo "</div>";
+                if ($ai4seo_active_meta_tags) {
+                    // output progress bar
+                    echo "<div id='ai4seo-seo-coverage-progress-bar-" . esc_attr($ai4seo_this_post_id) . "' class='ai4seo-seo-coverage-progress-bar" . ($ai4seo_is_post_pending ? " ai4seo-green-animated-progress-bar" : ($ai4seo_is_post_waiting_to_get_scheduled ? " ai4seo-gray-animated-progress-bar" : "")) . ($ai4seo_this_metadata_generation_is_not_finished ? " ai4seo-progress-bar-not-finished" : " ai4seo-progress-bar-finished") . "'>";
+                        echo "<div class='ai4seo-seo-coverage-inner-progress-bar' style='width: " . esc_attr($ai4seo_this_active_metadata_coverage_percentage) . "%'></div>";
+                    echo "</div>";
 
-                if ($ai4seo_is_post_waiting_to_get_scheduled || $ai4seo_is_waiting_for_cron_job) {
-                    if ($ai4seo_is_waiting_for_cron_job) {
-                        echo "<div class='ai4seo-sub-info'>" . esc_html__("Pending", "ai-for-seo") . "... ";
-                            if ($ai4seo_next_cron_job_call_diff >= 60) {
-                                echo sprintf(esc_html__("The task is set to run in less than %u minutes.", "ai-for-seo"), esc_html($ai4seo_next_cron_job_call_diff / 60));
-                            } else {
-                                echo esc_html__("Task is scheduled to execute any moment.", "ai-for-seo");
-                            }
+                    if ($ai4seo_is_post_waiting_to_get_scheduled || $ai4seo_is_waiting_for_cron_job) {
+                        if ($ai4seo_is_waiting_for_cron_job) {
+                            echo "<div class='ai4seo-sub-info'>" . esc_html__("Pending", "ai-for-seo") . "... ";
+                                if ($ai4seo_next_cron_job_call_diff >= 60) {
+                                    echo sprintf(esc_html__("The task is set to run in less than %u minutes.", "ai-for-seo"), esc_html($ai4seo_next_cron_job_call_diff / 60));
+                                } else {
+                                    echo esc_html__("Task is scheduled to execute any moment.", "ai-for-seo");
+                                }
 
-                            // execute sooner link
-                            if ($ai4seo_next_cron_job_call_diff >= 70) {
-                                echo " " . ai4seo_wp_kses($ai4seo_execute_sooner_button);
-                            } else {
-                                echo " " . ai4seo_wp_kses($ai4seo_refresh_button);
-                            }
-                        echo "</div>";
-                    } else {
+                                // execute sooner link
+                                if ($ai4seo_next_cron_job_call_diff >= 70) {
+                                    echo " ";
+                                    ai4seo_echo_wp_kses($ai4seo_execute_sooner_button);
+                                } else {
+                                    echo " ";
+                                    ai4seo_echo_wp_kses($ai4seo_refresh_button);
+                                }
+                            echo "</div>";
+                        } else {
+                            echo "<div class='ai4seo-sub-info'>";
+                                echo esc_html__("Pending", "ai-for-seo") . "... ";
+                                echo "(" . sprintf(esc_html__("I'm probably optimizing a different entry.", "ai-for-seo"), esc_html($ai4seo_post_type)). ")";
+                                echo " ";
+                                ai4seo_echo_wp_kses($ai4seo_refresh_button);
+                            echo "</div>";
+                        }
+                    } else if ($ai4seo_is_post_pending) {
                         echo "<div class='ai4seo-sub-info'>";
-                            echo esc_html__("Pending", "ai-for-seo") . "... ";
-                            echo "(" . sprintf(esc_html__("I'm probably optimizing a different entry.", "ai-for-seo"), esc_html($ai4seo_post_type)). ")";
-                            echo " " . ai4seo_wp_kses($ai4seo_refresh_button);
+                            echo esc_html__("Processing", "ai-for-seo") . "...";
+                            echo " ";
+                            ai4seo_echo_wp_kses($ai4seo_refresh_button);
+                        echo "</div>";
+                    } else if ($ai4seo_is_insufficient_credits) {
+                        echo "<div class='ai4seo-sub-info ai4seo-red-message'>";
+                            echo esc_html__("Insufficient Credits", "ai-for-seo") . ".";
+                            echo " ";
+                            ai4seo_echo_wp_kses($ai4seo_consider_purchasing_more_credits_link_tag);
+                        echo "</div>";
+                    } else if ($ai4seo_this_post_is_failed_to_fill && $ai4seo_this_metadata_generation_is_not_finished) {
+                        echo "<div class='ai4seo-seo-data-not-covered-message'>";
+                            echo "<span>" . esc_html__("Failed to automatically fill metadata.", "ai-for-seo") . "</span>";
+                            echo " ";
+                            ai4seo_echo_wp_kses(ai4seo_get_small_button_tag("#", "arrow-up-right-from-square", __("Try it manually", "ai-for-seo"), "", "ai4seo_open_metadata_editor_modal(\"" . esc_js($ai4seo_this_post_id) . "\");"));
+                        echo "</div>";
+                    } else if ($ai4seo_is_excluded_by_new_or_existing_filter && $ai4seo_this_metadata_generation_is_not_finished) {
+                        echo "<div class='ai4seo-sub-info'>";
+                            echo esc_html__("Excluded by 'New or existing entries' filter.", "ai-for-seo");
                         echo "</div>";
                     }
-                } else if ($ai4seo_is_post_pending) {
+
+                    // Title display for mobile version
+                    echo "<div class='ai4seo-visible-on-mobile'>";
+                        echo "<strong>";
+                            echo "<a href='" . esc_attr($ai4seo_single_post_link) . "' target='_blank' class='ai4seo-table-content-link'>";
+                                echo esc_html($ai4seo_single_post_title);
+                            echo "</a>";
+
+                            if (isset($ai4seo_third_party_seo_plugin_key_phrases[$ai4seo_this_post_id])) {
+                                echo " <span class='ai4seo-key-phrase'>(" . esc_html($ai4seo_third_party_seo_plugin_key_phrases[$ai4seo_this_post_id]) . ")</span>";
+                            }
+                        echo "</strong>";
+                    echo "</div>";
+                } else {
                     echo "<div class='ai4seo-sub-info'>";
-                        echo esc_html__("Processing", "ai-for-seo") . "...";
-                        echo " " . ai4seo_wp_kses($ai4seo_refresh_button);
-                    echo "</div>";
-                } else if ($ai4seo_is_insufficient_credits) {
-                    echo "<div class='ai4seo-sub-info ai4seo-red-message'>";
-                        echo esc_html__("Insufficient Credits", "ai-for-seo") . ".";
-                        echo " " . ai4seo_wp_kses($ai4seo_consider_purchasing_more_credits_link_tag);
-                    echo "</div>";
-                } else if ($ai4seo_this_post_is_failed_to_fill && $ai4seo_this_metadata_generation_is_not_finished) {
-                    echo "<div class='ai4seo-seo-data-not-covered-message'>";
-                        echo "<span>" . esc_html__("Failed to automatically fill metadata.", "ai-for-seo") . "</span>";
-                        echo " " . ai4seo_wp_kses(ai4seo_get_small_button_tag("#", "arrow-up-right-from-square", __("Try it manually", "ai-for-seo"), "", "ai4seo_open_metadata_editor_modal(\"" . esc_js($ai4seo_this_post_id) . "\");"));
-                    echo "</div>";
-                } else if ($ai4seo_is_excluded_by_new_or_existing_filter && $ai4seo_this_metadata_generation_is_not_finished) {
-                    echo "<div class='ai4seo-sub-info'>";
-                        echo esc_html__("Excluded by 'New or existing entries' filter.", "ai-for-seo");
+                        echo esc_html__("No active meta tags.", "ai-for-seo");
                     echo "</div>";
                 }
-
-                // Title display for mobile version
-                echo "<div class='ai4seo-visible-on-mobile'>";
-                    echo "<strong>";
-                        echo "<a href='" . esc_attr($ai4seo_single_post_link) . "' target='_blank' class='ai4seo-table-content-link'>";
-                            echo esc_html($ai4seo_single_post_title);
-                        echo "</a>";
-
-                        if (isset($ai4seo_third_party_seo_plugin_key_phrases[$ai4seo_this_post_id])) {
-                            echo " <span class='ai4seo-key-phrase'>(" . esc_html($ai4seo_third_party_seo_plugin_key_phrases[$ai4seo_this_post_id]) . ")</span>";
-                        }
-                    echo "</strong>";
-                echo "</div>";
             echo "</td>";
 
             // Post-Edit-Link
             echo "<td>";
                 // Edit-Link
-                echo ai4seo_wp_kses(ai4seo_get_edit_metadata_button($ai4seo_this_post_id));
+                if ($ai4seo_active_meta_tags) {
+                    ai4seo_echo_wp_kses(ai4seo_get_edit_metadata_button($ai4seo_this_post_id, $ai4seo_current_post_ids));
+                }
             echo "</td>";
         echo "</tr>";
     }
@@ -350,7 +441,16 @@ echo "</table>";
 echo "</div>";
 
 // Pagination
-$ai4seo_pagination_base_argument = ai4seo_get_post_type_page_url($ai4seo_post_type, 0);
+$ai4seo_pagination_base_argument = add_query_arg(
+    array(
+        'page'             => AI4SEO_PLUGIN_IDENTIFIER,
+        'ai4seo_subpage'   => AI4SEO_POST_TYPES_PLUGIN_PAGE_NAME, // e.g. 'post'
+        'ai4seo_post_type' => $ai4seo_post_type,
+        'ai4seo_page'      => '%#%', // placeholder for paginate_links()
+    ),
+    admin_url( 'admin.php' )
+);
+
 $ai4seo_total_pages = max(1, $ai4seo_total_pages);
 $ai4seo_current_page = max(1, $ai4seo_current_page);
 $ai4seo_pagination_base_argument = $ai4seo_pagination_base_argument ?: '%_%'; // Default base if not defined
@@ -363,13 +463,15 @@ $ai4seo_pagination_arguments = array(
     "mid_size" => 0,
     "prev_text" => "&larr; " . __("Previous", "ai-for-seo"),
     "next_text" => __("Next", "ai-for-seo") . " &rarr;",
-    "add_args" => false,
+    "add_args" => ($ai4seo_filter_query_args ?: false),
 );
 
 $ai4seo_pagination_links = paginate_links($ai4seo_pagination_arguments);
 
 if (!empty($ai4seo_pagination_links)) {
+    $ai4seo_pagination_links = ai4seo_normalize_pagination_links($ai4seo_pagination_links);
+
     echo "<div class='ai4seo-pagination'>";
-    echo wp_kses_post($ai4seo_pagination_links);
+        ai4seo_echo_wp_kses($ai4seo_pagination_links);
     echo "</div>";
 }

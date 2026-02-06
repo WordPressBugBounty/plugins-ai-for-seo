@@ -71,7 +71,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
         $tos_content = get_tos_content();
 
         if ($tos_content) {
-            echo ai4seo_wp_kses($tos_content);
+            ai4seo_echo_wp_kses($tos_content);
         } else {
             echo "<p>" . esc_html__("The Terms of Service could not be loaded. Please try again later.", "ai-for-seo") . "</p>";
         }
@@ -93,7 +93,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
             echo "<div class='ai4seo-tos-checkbox'>";
                 echo "<input type='checkbox' class='ai4seo-accept-enhanced-reporting-checkbox' id='ai4seo-accept-enhanced-reporting-checkbox' name='ai4seo-accept-enhanced-reporting-checkbox' value='1'>";
                 echo "<label for='ai4seo-accept-enhanced-reporting-checkbox'><strong>" . esc_html__("I agree to share extended data to support the ongoing development of the plugin. I may opt out at any time.", "ai-for-seo") . " (" . esc_html__("optional", "ai-for-seo") . ")" . "</strong></label>";
-                echo ai4seo_wp_kses(ai4seo_get_icon_with_tooltip_tag($ai4seo_extended_data_collection_tooltip_text));
+                ai4seo_echo_wp_kses(ai4seo_get_icon_with_tooltip_tag($ai4seo_extended_data_collection_tooltip_text));
             echo "</div>";
         }
     echo "</div>";
