@@ -39,9 +39,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
 
         echo "<div class='ai4seo-form-item'>";
             echo "<div class='ai4seo-form-item-input-wrapper'>";
-                echo "<button type='button' onclick='ai4seo_init_export_settings();' id='ai4seo-export-settings-button' class='button ai4seo-button ai4seo-submit-button'>";
-                    echo esc_html__("Save Changes & Export Settings", "ai-for-seo");
-                echo "</button>";
+                ai4seo_echo_wp_kses(ai4seo_get_button_tag(esc_html__("Save Changes & Export Settings", "ai-for-seo"), "ai4seo-export-settings-button", "ai4seo_init_export_settings();"));
                 echo "<div class='ai4seo-medium-gap'></div>";
                 echo "<p class='ai4seo-form-item-description'>" . esc_html__("Download your current plugin settings as a JSON file for backup or transfer to another site.", "ai-for-seo") . "</p>";
             echo "</div>";
@@ -58,12 +56,12 @@ echo "<div class='ai4seo-modal-schema-content'>";
 
         // File
         echo "<div class='ai4seo-form-item'>";
-            echo "<label for='ai4seo-import-file'>";
-                echo esc_html__("Select Settings File (e.g. ai4seo-settings-XXX.json)", "ai-for-seo");
-            echo "</label>";
-            echo "<div class='ai4seo-form-item-input-wrapper'>";
+            echo "<div style='margin-bottom: 10px; font-weight: bold;'>";
+                echo esc_html__("Select Settings File (e.g. sooz-settings-XXX.json)", "ai-for-seo");
+            echo "</div>";
 
-                // File input
+            // File input
+            echo "<div class='ai4seo-form-item-input-wrapper'>";
                 echo "<input type='file' id='ai4seo-import-file' accept='.json' class='ai4seo-file-input' />";
             echo "</div>";
         echo "</div>";
@@ -94,9 +92,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
         // button to import settings
         echo "<div class='ai4seo-form-item'>";
             echo "<div class='ai4seo-form-item-input-wrapper'>";
-                echo "<button type='button' onclick='ai4seo_init_import_settings();' id='ai4seo-import-settings-button' class='button ai4seo-button ai4seo-submit-button'>";
-                    echo esc_html__("Show Preview", "ai-for-seo");
-                echo "</button>";
+                ai4seo_echo_wp_kses(ai4seo_get_submit_button_tag(esc_html__("Show Preview", "ai-for-seo"), "ai4seo-import-settings-button ai4seo-start-inactive", "ai4seo_init_import_settings();"));
                 echo "<p class='ai4seo-form-item-description'>" . esc_html__("Upload a previously exported settings file and choose which settings to import.", "ai-for-seo") . "</p>";
             echo "</div>";
         echo "</div>";
@@ -109,7 +105,5 @@ echo "</div>";
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 echo "<div class='ai4seo-modal-schema-footer'>";
-    echo "<button type='button' onclick='ai4seo_close_modal_from_schema(\"export-import-settings\");' class='button ai4seo-button ai4seo-abort-button'>";
-        echo esc_html__("Close", "ai-for-seo");
-    echo "</button>";
+    ai4seo_echo_wp_kses(ai4seo_get_modal_close_button_tag());
 echo "</div>";

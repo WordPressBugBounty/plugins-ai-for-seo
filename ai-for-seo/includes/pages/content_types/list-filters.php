@@ -28,6 +28,7 @@ if (!function_exists('ai4seo_setup_content_type_filters')) {
      * @return array {
      *     @type string $filter_text      The active text filter.
      *     @type string $filter_status    The active status filter.
+     *     @type string $filter_language  The active language filter (WPML only).
      *     @type array  $status_options   Available status filter options.
      *     @type array  $search_ids       Post IDs matched by the text filter. `null` when no text filter is active.
      *     @type int    $per_page         Items per page.
@@ -47,6 +48,8 @@ if (!function_exists('ai4seo_setup_content_type_filters')) {
             'search_file_meta' => false,
             'per_page' => 20,
             'hidden_fields' => array(),
+            'nonce_action' => 'ai4seo_content_type_filter_form',
+            'nonce_name' => 'ai4seo_content_type_filter_nonce',
         );
 
         $args = array_merge($defaults, $args);
@@ -59,14 +62,65 @@ if (!function_exists('ai4seo_setup_content_type_filters')) {
             'processing' => __('Processing', 'ai-for-seo'),
         );
 
-        $raw_text = isset($_GET['ai4seo_filter_text']) ? ai4seo_wp_unslash($_GET['ai4seo_filter_text']) : '';
+        $language_options = array();
+        $filter_language = '';
+
+        if (ai4seo_is_plugin_or_theme_active(AI4SEO_THIRD_PARTY_PLUGIN_WPML)) {
+            $wpml_active_languages = apply_filters('wpml_active_languages', null, array('skip_missing' => 0));
+
+            if (is_array($wpml_active_languages)) {
+                foreach ($wpml_active_languages as $wpml_language_code => $wpml_language_data) {
+                    $this_language_code = sanitize_key($wpml_language_code);
+                    $this_language_label = isset($wpml_language_data['translated_name']) ? sanitize_text_field($wpml_language_data['translated_name']) : $this_language_code;
+
+                    if ($this_language_code === '') {
+                        continue;
+                    }
+
+                    $language_options[$this_language_code] = $this_language_label;
+                }
+            }
+        }
+
+        $nonce_action = sanitize_key((string) $args['nonce_action']);
+        if ($nonce_action === '') {
+            $nonce_action = 'ai4seo_content_type_filter_form';
+        }
+
+        $nonce_name = sanitize_key((string) $args['nonce_name']);
+        if ($nonce_name === '') {
+            $nonce_name = 'ai4seo_content_type_filter_nonce';
+        }
+
+        $is_filter_request = isset($_GET['ai4seo_filter_text'])
+            || isset($_GET['ai4seo_filter_status'])
+            || isset($_GET['ai4seo_filter_language']);
+
+        $raw_nonce = isset($_GET[$nonce_name]) ? wp_unslash($_GET[$nonce_name]) : '';
+        $filter_nonce = sanitize_text_field($raw_nonce);
+        $is_filter_nonce_valid = $is_filter_request && wp_verify_nonce($filter_nonce, $nonce_action);
+
+        $raw_text = isset($_GET['ai4seo_filter_text']) ? wp_unslash($_GET['ai4seo_filter_text']) : '';
         $filter_text = sanitize_text_field($raw_text);
 
-        $raw_status = isset($_GET['ai4seo_filter_status']) ? ai4seo_wp_unslash($_GET['ai4seo_filter_status']) : 'all';
+        $raw_status = isset($_GET['ai4seo_filter_status']) ? wp_unslash($_GET['ai4seo_filter_status']) : 'all';
         $filter_status = sanitize_key($raw_status);
 
         if (!array_key_exists($filter_status, $allowed_statuses)) {
             $filter_status = 'all';
+        }
+
+        $raw_language = isset($_GET['ai4seo_filter_language']) ? wp_unslash($_GET['ai4seo_filter_language']) : '';
+        $filter_language = sanitize_text_field($raw_language);
+
+        if (!isset($language_options[$filter_language])) {
+            $filter_language = '';
+        }
+
+        if ($is_filter_request && !$is_filter_nonce_valid) {
+            $filter_text = '';
+            $filter_status = 'all';
+            $filter_language = '';
         }
 
         $per_page = (int) $args['per_page'];
@@ -76,10 +130,18 @@ if (!function_exists('ai4seo_setup_content_type_filters')) {
 
         $search_ids = null;
 
+        static $request_sql_cache = array();
+        static $request_meta_sql_cache = array();
+
         if ($filter_text !== '') {
             $post_types = array_map('sanitize_key', (array) $args['post_types']);
             $post_status = array_map('sanitize_key', (array) $args['post_status']);
             $post_mime_types = array_map('sanitize_text_field', (array) $args['post_mime_types']);
+
+            // Hard cap dynamic filter arrays to avoid oversized IN(...) clauses.
+            $post_types = array_slice( $post_types, 0, 256 );
+            $post_status = array_slice( $post_status, 0, 256 );
+            $post_mime_types = array_slice( $post_mime_types, 0, 256 );
 
             $sql_parts = array();
             $sql_values = array();
@@ -132,13 +194,28 @@ if (!function_exists('ai4seo_setup_content_type_filters')) {
                 $prepared_sql = call_user_func_array(array($wpdb, 'prepare'), array_merge(array($sql), $sql_values));
             }
 
-            $search_ids = $wpdb->get_col($prepared_sql);
+            if (isset($request_sql_cache[$prepared_sql])) {
+                $search_ids = $request_sql_cache[$prepared_sql];
+            } else {
+                $search_ids = $wpdb->get_col($prepared_sql);
+
+                if ( $wpdb->last_error ) {
+                    ai4seo_debug_message(984321701, 'Database error: ' . $wpdb->last_error);
+                    $search_ids = array();
+                }
+
+                $request_sql_cache[$prepared_sql] = $search_ids;
+            }
 
             if (!is_array($search_ids)) {
                 $search_ids = array();
             }
 
             $search_ids = array_map('intval', $search_ids);
+
+            if ($filter_language !== '') {
+                $search_ids = ai4seo_filter_post_ids_by_language($search_ids, $filter_language);
+            }
 
             if (!empty($args['search_file_meta'])) {
                 $meta_sql_parts = array();
@@ -177,11 +254,27 @@ if (!function_exists('ai4seo_setup_content_type_filters')) {
                 $meta_sql .= ' ORDER BY p.ID DESC';
 
                 $prepared_meta_sql = call_user_func_array(array($wpdb, 'prepare'), array_merge(array($meta_sql), $meta_values));
-                $meta_ids = $wpdb->get_col($prepared_meta_sql);
+
+                if (isset($request_meta_sql_cache[$prepared_meta_sql])) {
+                    $meta_ids = $request_meta_sql_cache[$prepared_meta_sql];
+                } else {
+                    $meta_ids = $wpdb->get_col($prepared_meta_sql);
+
+                    if ( $wpdb->last_error ) {
+                        ai4seo_debug_message(984321702, 'Database error: ' . $wpdb->last_error);
+                        $meta_ids = array();
+                    }
+
+                    $request_meta_sql_cache[$prepared_meta_sql] = $meta_ids;
+                }
 
                 if ($meta_ids) {
                     $meta_ids = array_map('intval', $meta_ids);
                     $search_ids = array_values(array_unique(array_merge($search_ids, $meta_ids)));
+
+                    if ($filter_language !== '') {
+                        $search_ids = ai4seo_filter_post_ids_by_language($search_ids, $filter_language);
+                    }
                 }
             }
         }
@@ -194,6 +287,14 @@ if (!function_exists('ai4seo_setup_content_type_filters')) {
 
         if ($filter_status !== 'all') {
             $active_query_args['ai4seo_filter_status'] = $filter_status;
+        }
+
+        if ($filter_language !== '') {
+            $active_query_args['ai4seo_filter_language'] = $filter_language;
+        }
+
+        if (!empty($active_query_args) && $is_filter_nonce_valid) {
+            $active_query_args[$nonce_name] = $filter_nonce;
         }
 
         $form_action_url = trim((string) $args['form_action']);
@@ -224,6 +325,11 @@ if (!function_exists('ai4seo_setup_content_type_filters')) {
         }
 
         $hidden_fields = $action_hidden_fields;
+
+        $current_wpml_lang = isset($_GET['lang']) ? sanitize_text_field(wp_unslash($_GET['lang'])) : '';
+        if ($current_wpml_lang !== '') {
+            $hidden_fields['lang'] = $current_wpml_lang;
+        }
 
         if (!empty($args['hidden_fields']) && is_array($args['hidden_fields'])) {
             foreach ($args['hidden_fields'] as $field_name => $field_value) {
@@ -257,15 +363,27 @@ if (!function_exists('ai4seo_setup_content_type_filters')) {
 
         $form_classes = 'ai4seo-filter-bar';
         $status_options_html = '';
+        $language_options_html = '';
 
         foreach ($allowed_statuses as $status_key => $status_label) {
             $status_options_html .= '<option value="' . esc_attr($status_key) . '"' . selected($filter_status, $status_key, false) . '>' . esc_html($status_label) . '</option>';
         }
 
+        if ($language_options) {
+            $language_options_html .= '<option value="">' . esc_html__('All languages', 'ai-for-seo') . '</option>';
+
+            foreach ($language_options as $language_code => $language_label) {
+                $language_options_html .= '<option value="' . esc_attr($language_code) . '"' . selected($filter_language, $language_code, false) . '>' . esc_html($language_label) . '</option>';
+            }
+        }
+
         $reset_url = $args['form_action'] !== '' ? $args['form_action'] : $form_action_url;
 
-        $filter_form_html = '<form method="get" action="' . esc_url($form_action_url) . '" class="' . esc_attr($form_classes) . '">' 
+        $nonce_field_html = wp_nonce_field($nonce_action, $nonce_name, true, false);
+
+        $filter_form_html = '<form method="get" action="' . esc_url($form_action_url) . '" class="' . esc_attr($form_classes) . '">'
             . $hidden_fields_html
+            . $nonce_field_html
             . '<div class="ai4seo-filter-bar__fields">'
             . '<label class="ai4seo-filter-bar__label">'
             . esc_html__('Search', 'ai-for-seo')
@@ -274,12 +392,21 @@ if (!function_exists('ai4seo_setup_content_type_filters')) {
             . '<label class="ai4seo-filter-bar__label">'
             . esc_html__('Status', 'ai-for-seo')
             . '<select class="ai4seo-textfield" autocomplete="off" name="ai4seo_filter_status">' . $status_options_html . '</select>'
-            . '</label>'
-            . '<div class="ai4seo-filter-bar__actions">'
-            . '<button type="submit" class="button ai4seo-button" onclick="ai4seo_add_loading_html_to_element(this); ai4seo_show_full_page_loading_screen();">' . esc_html__('Apply Filters', 'ai-for-seo') . '</button>';
+            . '</label>';
 
-        if ($filter_text !== '' || $filter_status !== 'all') {
-            $filter_form_html .= ' <a class="button ai4seo-button ai4seo-abort-button" href="' . esc_url($reset_url) . '" onclick="ai4seo_add_loading_html_to_element(this); ai4seo_show_full_page_loading_screen();">' . esc_html__('Reset', 'ai-for-seo') . '</a>';
+        if ($language_options_html !== '') {
+            $filter_form_html .= '<label class="ai4seo-filter-bar__label">'
+                . esc_html__('Language', 'ai-for-seo')
+                . '<select class="ai4seo-textfield" autocomplete="off" name="ai4seo_filter_language">' . $language_options_html . '</select>'
+                . '</label>';
+        }
+
+        $filter_form_html .= ''
+            . '<div class="ai4seo-filter-bar__actions">'
+            . ai4seo_get_button_tag(esc_html__('Apply Filters', 'ai-for-seo'), "", "ai4seo_add_loading_html_to_element(this); ai4seo_show_full_page_loading_screen(); jQuery(this).closest(\"form\").submit();");
+
+        if ($filter_text !== '' || $filter_status !== 'all' || $filter_language !== '') {
+            $filter_form_html .= ai4seo_get_a_tag_icon_button_tag($reset_url, "", "", "", esc_html__('Reset', 'ai-for-seo'), "ai4seo-abort-button", "ai4seo_add_loading_html_to_element(this); ai4seo_show_full_page_loading_screen();");
         }
 
         $filter_form_html .= '</div>'
@@ -289,6 +416,7 @@ if (!function_exists('ai4seo_setup_content_type_filters')) {
         return array(
             'filter_text' => $filter_text,
             'filter_status' => $filter_status,
+            'filter_language' => $filter_language,
             'status_options' => $allowed_statuses,
             'search_ids' => $search_ids,
             'per_page' => $per_page,
@@ -326,6 +454,40 @@ if (!function_exists('ai4seo_filter_post_ids_by_status')) {
 
         foreach ($candidate_ids as $candidate_id) {
             if (in_array($candidate_id, $status_ids, true)) {
+                $filtered_ids[] = $candidate_id;
+            }
+        }
+
+        return $filtered_ids;
+    }
+}
+
+if (!function_exists('ai4seo_filter_post_ids_by_language')) {
+    /**
+     * Filters a list of candidate IDs by the selected language (currently WPML-aware).
+     *
+     * @param array  $candidate_ids Candidate IDs respecting the current query.
+     * @param string $language_code Language code to keep. Empty string keeps all IDs.
+     * @return array Filtered IDs preserving the original order.
+     */
+    function ai4seo_filter_post_ids_by_language(array $candidate_ids, string $language_code): array
+    {
+        if ($language_code === '') {
+            return $candidate_ids;
+        }
+
+        $filtered_ids = array();
+
+        foreach ($candidate_ids as $candidate_id) {
+            $candidate_id = (int) $candidate_id;
+
+            if ($candidate_id <= 0) {
+                continue;
+            }
+
+            $candidate_language_code = ai4seo_get_post_language_code_by_multilanguage_plugins($candidate_id);
+
+            if ($candidate_language_code === $language_code) {
                 $filtered_ids[] = $candidate_id;
             }
         }

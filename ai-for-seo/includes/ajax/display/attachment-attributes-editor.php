@@ -25,7 +25,7 @@ global $ai4seo_allowed_image_mime_types;
 
 // Make sure that input-fields exist
 if (!defined('AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS')) {
-    ai4seo_send_json_error(esc_html__("An error occurred! Please check your settings or contact the plugin developer.", "ai-for-seo"), 221920824);
+    ai4seo_send_ajax_error(esc_html__("An error occurred! Please check your settings or contact the plugin developer.", "ai-for-seo"), 221920824);
 }
 
 // Get sanitized post id parameter
@@ -33,7 +33,7 @@ $ai4seo_this_attachment_post_id = absint($_REQUEST["attachment_post_id"] ?? 0);
 
 // validate post id
 if ($ai4seo_this_attachment_post_id <= 0) {
-    ai4seo_send_json_error(esc_html__("Post id is invalid.", "ai-for-seo"), 291920824);
+    ai4seo_send_ajax_error(esc_html__("Post id is invalid.", "ai-for-seo"), 291920824);
 }
 
 // get sanitized all_post_ids parameter
@@ -54,7 +54,7 @@ if ($ai4seo_all_attachment_post_ids) {
 $ai4seo_this_attachment_post = get_post($ai4seo_this_attachment_post_id);
 
 if (!$ai4seo_this_attachment_post) {
-    ai4seo_send_json_error(esc_html__("Attachment Post not found.", "ai-for-seo"), 57177525);
+    ai4seo_send_ajax_error(esc_html__("Attachment Post not found.", "ai-for-seo"), 57177525);
 }
 
 
@@ -93,17 +93,18 @@ $ai4seo_settings_url = ai4seo_get_subpage_url("settings");
 // HEADLINE
 echo "<div class='ai4seo-modal-headline'>";
     echo "<div class='ai4seo-modal-headline-icon'>";
-        echo "<img src='" . esc_url(ai4seo_get_ai_for_seo_logo_url("64x64")) . "' />";
+        ai4seo_echo_wp_kses(ai4seo_get_sooz_logo_image_tag());
     echo "</div>";
 
-    echo esc_html(AI4SEO_PLUGIN_NAME) . " - " . esc_html__("Media Attributes Editor", "ai-for-seo");
+    echo esc_html__("Media Attributes Editor", "ai-for-seo");
 echo "</div>";
 
 echo "<div class='ai4seo-modal-sub-headline'>";
 
 ai4seo_echo_wp_kses(
     sprintf(
-        __("Manage media attributes for <b>%s</b> (#%d)", "ai-for-seo"),
+        /* translators: 1: Attachment title. 2: Attachment ID. */
+        __('Manage media attributes for <b>%1$s</b> (#%2$d)', 'ai-for-seo'),
         $ai4seo_this_post_attachment_attributes["title"],
         $ai4seo_this_attachment_post_id
     )
@@ -114,7 +115,7 @@ echo "</div>";
 if (!$ai4seo_active_attachment_attributes) {
     echo esc_html(__("No media attributes are active. Please activate at least one media attribute in the plugin settings to manage media attributes.", "ai-for-seo"));
     echo "<br><br>";
-    ai4seo_echo_wp_kses(ai4seo_get_button_text_link_tag($ai4seo_settings_url, "gear", __("Settings", "ai-for-seo"), "ai4seo-primary-button"));
+    ai4seo_echo_wp_kses(ai4seo_get_a_tag_icon_button_tag($ai4seo_settings_url, "", "", "gear", __("Settings", "ai-for-seo"), "ai4seo-primary-button"));
     return;
 }
 
@@ -144,12 +145,12 @@ echo "<div class='ai4seo-form ai4seo-editor-form'>";
 
         // Make sure that required value-entries exist
         if (!isset($ai4seo_this_attachment_attribute_details["name"]) || !isset($ai4seo_this_attachment_attribute_details["input-type"]) || !isset($ai4seo_this_attachment_attribute_details["hint"])) {
-            error_log("AI for SEO: Missing required details for media attribute: " . $ai4seo_this_attachment_attribute_identifier . " - post id: " . $ai4seo_this_attachment_post_id);
+            ai4seo_debug_message(371217325, 'Missing required details for media attribute: ' . $ai4seo_this_attachment_attribute_identifier . ' - post id: ' . $ai4seo_this_attachment_post_id);
             continue;
         }
 
         if (!isset($ai4seo_this_post_attachment_attributes[$ai4seo_this_attachment_attribute_identifier])) {
-            error_log("AI for SEO: Media Attributes: Missing value for attribute: " . $ai4seo_this_attachment_attribute_identifier . " - post id: " . $ai4seo_this_attachment_post_id);
+            ai4seo_debug_message(381217325, 'Media Attributes: Missing value for attribute: ' . $ai4seo_this_attachment_attribute_identifier . ' - post id: ' . $ai4seo_this_attachment_post_id);
             continue;
         }
 
@@ -204,7 +205,8 @@ echo "<div class='ai4seo-form ai4seo-editor-form'>";
             echo "<div class='ai4seo-yellow-message' style='margin-top: 10px;'>";
                 ai4seo_echo_wp_kses(
                     sprintf(
-                        __("<strong>Note:</strong> The following media attributes are currently inactive and not shown in this editor: %s. You can activate them in the <a href='%s' target='_blank'>plugin settings</a>.", "ai-for-seo"),
+                        /* translators: 1: Comma-separated list of media attributes. 2: URL to plugin settings. */
+                        __('<strong>Note:</strong> The following media attributes are currently inactive and not shown in this editor: %1$s. You can activate them in the <a href="%2$s" target="_blank">plugin settings</a>.', 'ai-for-seo'),
                         "<strong>" . esc_html(implode(", ", $ai4seo_skipped_attachment_attributes)) . "</strong>",
                         esc_url($ai4seo_settings_url)
                     )
@@ -216,12 +218,12 @@ echo "<div class='ai4seo-form ai4seo-editor-form'>";
     // === BUTTONS ROW ================================================================================= \\
 
     echo "<div class='ai4seo-modal-footer ai4seo-buttons-wrapper'>";
-        echo "<button type='button' onclick='ai4seo_close_modal_by_child(this);' class='button ai4seo-button ai4seo-abort-button ai4seo-big-button'>" . esc_html__("Abort", "ai-for-seo") . "</button>";
+        ai4seo_echo_wp_kses(ai4seo_get_modal_close_button_tag(esc_html__("Abort", "ai-for-seo"), "ai4seo-big-button"));
 
         if ($ai4seo_next_attachment_post_id) {
-            echo "<button type='button' onclick='ai4seo_save_anything(jQuery(this), ai4seo_validate_attachment_attributes_editor_inputs, function() { ai4seo_open_attachment_attributes_editor_modal(" . esc_js($ai4seo_next_attachment_post_id) . ", " . esc_js(json_encode($ai4seo_all_attachment_post_ids)) . "); });' class='button ai4seo-button ai4seo-big-button ai4seo-lockable'>" . esc_html__("Save & edit next", "ai-for-seo") . "</button>";
+            ai4seo_echo_wp_kses(ai4seo_get_button_tag(esc_html__("Save & edit next", "ai-for-seo"), "ai4seo-big-button ai4seo-lockable", "ai4seo_save_anything(jQuery(this), ai4seo_validate_attachment_attributes_editor_inputs, function() { ai4seo_open_attachment_attributes_editor_modal(" . esc_js($ai4seo_next_attachment_post_id) . ", " . esc_js(json_encode($ai4seo_all_attachment_post_ids)) . "); });"));
         }
 
-        echo "<button type='button' onclick='ai4seo_save_anything(jQuery(this), ai4seo_validate_attachment_attributes_editor_inputs, function() { ai4seo_safe_page_load(); });' class='button ai4seo-button ai4seo-submit-button ai4seo-big-button ai4seo-lockable'>" . esc_html__("Save changes", "ai-for-seo") . "</button>";
+        ai4seo_echo_wp_kses(ai4seo_get_submit_button_tag(esc_html__("Save changes", "ai-for-seo"), "ai4seo-big-button ai4seo-lockable ai4seo-start-inactive", "ai4seo_save_anything(jQuery(this), ai4seo_validate_attachment_attributes_editor_inputs, function() { ai4seo_safe_page_load(); });"));
     echo "</div>";
 echo "</div>";

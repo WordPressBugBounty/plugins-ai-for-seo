@@ -42,6 +42,8 @@ if ($ai4seo_is_dashboard_open) {
     ai4seo_check_for_performance_analysis();
 }
 
+$ai4seo_debug_output_mode = ai4seo_get_setting(AI4SEO_SETTING_DEBUG_OUTPUT_MODE);
+
 
 // ___________________________________________________________________________________________ \\
 // === OUTPUT: STYLES ======================================================================== \\
@@ -72,13 +74,13 @@ if (isset($_GET["ai4seo-just-purchased"]) || isset($_GET["amp;ai4seo-just-purcha
         jQuery(function() {
             // open modal
             ai4seo_open_generic_success_notification_modal(
-                "<?=esc_js(esc_html__("Your Credits will appear on your dashboard shortly.", "ai-for-seo"))?>"
-                + "<br><br><?=esc_js(esc_html__("Please wait a moment and then click the button below to refresh your Credits balance.", "ai-for-seo"))?>",
+                "<?php echo esc_js(esc_html__("Your Credits will appear on your dashboard shortly.", "ai-for-seo")) ?>"
+                + "<br><br><?php echo esc_js(esc_html__("Please wait a moment and then click the button below to refresh your Credits balance.", "ai-for-seo")) ?>",
                 "<button type='button' class='ai4seo-button ai4seo-inactive-button ai4seo-inactive-countdown-button' data-time-left='5' onclick='ai4seo_refresh_robhub_account(this, { check_for_purchase: true }); return false;'>"
-                + "<?=esc_js(esc_html__("Refresh Credits Balance", "ai-for-seo"))?>"
+                + "<?php echo esc_js(esc_html__("Refresh Credits Balance", "ai-for-seo")) ?>"
                 + "</button>",
                 {
-                    headline: "<?=esc_js(esc_html__("Thank you for your purchase!", "ai-for-seo"))?>",
+                    headline: "<?php echo esc_js(esc_html__("Thank you for your purchase!", "ai-for-seo")) ?>",
                     close_on_outside_click: false,
                     add_close_button: false,
                 }
@@ -99,16 +101,16 @@ echo "<div class='ai4seo-mobile-top-bar'>";
         ai4seo_echo_wp_kses(ai4seo_get_svg_tag("bars-sort"));
     echo "</button>";
 
-        // Main logo
-        echo "<div class='ai4seo-top-bar-headline'>";
-            echo "<img src='" . esc_url(ai4seo_get_ai_for_seo_logo_url("64x64")) . "' alt='" . esc_attr(AI4SEO_PLUGIN_NAME) . "' class='ai4seo-logo' />";
-            echo esc_html(AI4SEO_PLUGIN_NAME);
-            //echo " <span class='ai4seo-sidebar-version-number'>v" . esc_html(AI4SEO_PLUGIN_VERSION_NUMBER) . "</span>";
+    // Main logo
+    echo "<div class='ai4seo-top-bar-headline'>";
+        echo "<a href='" . esc_url($ai4seo_dashboard_url) . "' >";
+            ai4seo_echo_wp_kses(ai4seo_get_sooz_logo_image_tag());
+        echo "</a>";
 
-            if (ai4seo_robhub_api()->are_we_using_local_api()) {
-                echo "<div class='ai4seo-local-mode-hint ai4seo-blink-animation'>[LOCAL MODE]</div>";
-            }
-        echo "</div>";
+        if (ai4seo_robhub_api()->are_we_using_local_api()) {
+            echo "<div class='ai4seo-local-mode-hint ai4seo-blink-animation'>[LOCAL MODE]</div>";
+        }
+    echo "</div>";
 echo "</div>";
 
 echo "<div class='wrap ai4seo-wrap'>";
@@ -122,8 +124,9 @@ echo "<div class='wrap ai4seo-wrap'>";
 
         // Main logo
         echo "<div class='ai4seo-sidebar-headline'>";
-            echo "<img src='" . esc_url(ai4seo_get_ai_for_seo_logo_url("64x64")) . "' alt='" . esc_attr(AI4SEO_PLUGIN_NAME) . "' class='ai4seo-logo' />";
-            echo esc_html(AI4SEO_PLUGIN_NAME);
+            echo "<a href='" . esc_url($ai4seo_dashboard_url) . "'>";
+                ai4seo_echo_wp_kses(ai4seo_get_sooz_logo_image_tag('sooz-with-ai-for-seo'));
+            echo "</a>";
 
             if (ai4seo_robhub_api()->are_we_using_local_api()) {
                 echo "<div class='ai4seo-local-mode-hint ai4seo-blink-animation'>[LOCAL MODE]</div>";
@@ -221,11 +224,14 @@ echo "<div class='wrap ai4seo-wrap'>";
 
     echo "<div class='ai4seo-content-wrapper'>";
 
-        // hide all other notices
-        echo "<div class='ai4seo-hidden-notices-area'>";
+        if ($ai4seo_debug_output_mode !== 'notice') {
+            // hide all other notices
+            echo "<div class='ai4seo-hidden-notices-area'>";
+                echo "<h1 style='display: none;'>" . esc_html(AI4SEO_PLUGIN_NAME) . "</h1>";
+            echo "</div>";
+        } else {
             echo "<h1 style='display: none;'>" . esc_html(AI4SEO_PLUGIN_NAME) . "</h1>";
-        echo "</div>";
-
+        }
 
         // === CHECK FOR NEW TOS ===================================================================== \\
 
@@ -235,7 +241,7 @@ echo "<div class='wrap ai4seo-wrap'>";
             echo "<center>";
                 echo "<div class='ai4seo-tos-notice'>";
                     echo "<p>" . esc_html__("Please accept our Terms of Service to proceed with using this plugin.", "ai-for-seo") . "</p>";
-                    echo "<a href='" . esc_url(ai4seo_get_subpage_url()) . "' class='button ai4seo-button ai4seo-success-button'>" . esc_html__("Show terms of service", "ai-for-seo") . "</a>";
+                    ai4seo_echo_wp_kses(ai4seo_get_a_tag_icon_button_tag(ai4seo_get_subpage_url(), "", "", "", esc_html__("Show terms of service", "ai-for-seo"), "ai4seo-primary-button"));
                 echo "</div>";
             echo "</div>";
             return;
@@ -248,8 +254,8 @@ echo "<div class='wrap ai4seo-wrap'>";
         if (isset($_GET["ai4seo_debug_generate_cronjob"]) && $_GET["ai4seo_debug_generate_cronjob"]) {
             $ai4seo_cron_job_status = ai4seo_get_cron_job_status(AI4SEO_BULK_GENERATION_CRON_JOB_NAME);
             $ai4seo_cron_job_status_update_time = ai4seo_get_cron_job_status_update_time(AI4SEO_BULK_GENERATION_CRON_JOB_NAME);
-            echo "<pre>>" . print_r($ai4seo_cron_job_status, true) . "<</pre>";
-            echo "<pre>>" . print_r(ai4seo_format_unix_timestamp($ai4seo_cron_job_status_update_time), true) . "<</pre>";
+            ai4seo_debug_message(478684129, ai4seo_stringify($ai4seo_cron_job_status));
+            ai4seo_debug_message(819232188, ai4seo_stringify(ai4seo_format_unix_timestamp($ai4seo_cron_job_status_update_time)));
             ai4seo_automated_generation_cron_job(true);
         }
 
@@ -281,7 +287,7 @@ echo "<div class='wrap ai4seo-wrap'>";
 
             ai4seo_add_post_context($ai4seo_debug_post_id, $ai4seo_condensed_post_content_from_database);
 
-            echo "<pre>FINAL WITH CONTEXT >" . print_r(htmlspecialchars($ai4seo_condensed_post_content_from_database), true) . "<</pre>";
+            ai4seo_debug_message(658418123, "FINAL WITH CONTEXT >" . ai4seo_stringify(htmlspecialchars($ai4seo_condensed_post_content_from_database)));
             unset($ai4seo_condensed_post_content_from_database, $ai4seo_debug_post_id);
         }
 
@@ -314,7 +320,7 @@ echo "<div class='wrap ai4seo-wrap'>";
                 require_once(ai4seo_get_includes_pages_path("account.php"));
                 break;
             default:
-                echo "Unknown AI for SEO page. Please contact the plugin developer. #2406232005";
+                echo "Unknown SOOZ - AI for SEO page. Please contact the plugin developer. #2406232005";
         }
 
         // gap

@@ -42,12 +42,6 @@ $ai4seo_setting_display_source_code_notes = ai4seo_get_setting(AI4SEO_SETTING_AD
 $ai4seo_setting_source_code_notes_content_start = ai4seo_get_setting(AI4SEO_SETTING_META_TAGS_BLOCK_STARTING_HINT);
 $ai4seo_setting_source_code_notes_content_end = ai4seo_get_setting(AI4SEO_SETTING_META_TAGS_BLOCK_ENDING_HINT);
 
-// Remove slashes from white-label text-fields
-$ai4seo_setting_plugin_name = stripslashes($ai4seo_setting_plugin_name);
-$ai4seo_setting_plugin_description = stripslashes($ai4seo_setting_plugin_description);
-$ai4seo_setting_source_code_notes_content_start = stripslashes($ai4seo_setting_source_code_notes_content_start);
-$ai4seo_setting_source_code_notes_content_end = stripslashes($ai4seo_setting_source_code_notes_content_end);
-
 $ai4seo_current_credits_balance = ai4seo_robhub_api()->get_credits_balance();
 
 $ai4seo_robhub_subscription_plan = $ai4seo_robhub_subscription["plan"] ?? "free";
@@ -62,7 +56,7 @@ $ai4seo_has_purchased_something = (bool) ai4seo_read_environmental_variable(AI4S
 // === OUTPUT ================================================================================ \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
-echo "<div class='ai4seo-form'>";
+echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
     // ___________________________________________________________________________________________ \\
     // === LICENSE =============================================================================== \\
@@ -134,7 +128,7 @@ echo "<div class='ai4seo-form'>";
 
                     // Input for the "hidden" license key
                     echo "<div id='ai4seo-visual-license-key-holder'>";
-                        echo "<input type='text' class='ai4seo-textfield ai4seo-element-inactive' autocomplete='off' value='************************************************' readonly='readonly' style='background-color:#eee!important;' />";
+                        echo "<input type='text' class='ai4seo-textfield ai4seo-inactive-element' autocomplete='off' value='************************************************' readonly='readonly' style='background-color:#eee!important;' />";
                     echo "</div>";
 
                     // Button to reveal license-key
@@ -153,26 +147,30 @@ echo "<div class='ai4seo-form'>";
         echo "<hr class='ai4seo-form-item-divider'>";
 
 
-        // === MANAGE CREDITS BUTTON ================================================================= \\
+        // === BUTTONS =========================================================================== \\
 
         echo "<div class='ai4seo-form-item' style='padding-top:0;'>";
             echo "<div class='ai4seo-buttons-wrapper' style='margin-top: 0; margin-bottom: 5px;'>";
                 // Button to show lost-license-instructions
-                ai4seo_echo_wp_kses(ai4seo_get_button_text_link_tag("#", "key-slash", esc_html__("Lost your license data?", "ai-for-seo"), "", "ai4seo_open_lost_key_modal();"));
+                ai4seo_echo_wp_kses(ai4seo_get_icon_button_tag("key-slash", esc_html__("Lost your license data?", "ai-for-seo"), "", "ai4seo_open_lost_key_modal();"));
 
                 // Button to manage subscription if user has an active subscription
                 if (!$ai4seo_user_is_on_free_plan) {
-                    ai4seo_echo_wp_kses(ai4seo_get_button_text_link_tag(AI4SEO_STRIPE_BILLING_URL, "stripe", esc_html__("Manage Subscription", "ai-for-seo"), "", "", "_blank"));
+                    ai4seo_echo_wp_kses(ai4seo_get_a_tag_icon_button_tag(AI4SEO_STRIPE_BILLING_URL, "", "_blank", "stripe", esc_html__("Manage Subscription / Invoices", "ai-for-seo")));
                 }
 
                 // Customize pay-as-you-go
                 if ($ai4seo_has_purchased_something && $ai4seo_is_robhub_account_synced) {
-                    ai4seo_echo_wp_kses(ai4seo_get_button_text_link_tag("#", "sliders", esc_html__("Customize Pay-As-You-Go", "ai-for-seo"), "", "ai4seo_handle_open_customize_payg_modal();"));
+                    ai4seo_echo_wp_kses(ai4seo_get_icon_button_tag("sliders", esc_html__("Customize Pay-As-You-Go", "ai-for-seo"), "", "ai4seo_handle_open_customize_payg_modal();"));
                 }
 
                 // Button to manage credits
                 if ($ai4seo_is_robhub_account_synced) {
-                    ai4seo_echo_wp_kses(ai4seo_get_button_text_link_tag("#", "arrow-up-right-from-square", esc_html__("Get more Credits", "ai-for-seo"), "", "ai4seo_open_get_more_credits_modal();"));
+                    ai4seo_echo_wp_kses(ai4seo_get_icon_button_tag("arrow-up-right-from-square", esc_html__("Get more Credits", "ai-for-seo"), "", "ai4seo_open_get_more_credits_modal();"));
+                }
+
+                if ($ai4seo_show_license_details) {
+                    ai4seo_echo_wp_kses(ai4seo_get_icon_button_tag("trash", esc_html__("Remove License", "ai-for-seo"), "ai4seo-secondary-button", "ai4seo_remove_license(this);"));
                 }
             echo "</div>";
         echo "</div>";
@@ -184,7 +182,6 @@ echo "<div class='ai4seo-form'>";
     // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
     echo "<div class='card ai4seo-form-section'>";
-
 
         // === HEADLINE ============================================================================== \\
 
@@ -199,7 +196,8 @@ echo "<div class='ai4seo-form'>";
         $ai4seo_this_prefixed_input_id = ai4seo_get_prefixed_input_name(AI4SEO_SETTING_ENABLE_INCOGNITO_MODE);
 
         $ai4seo_this_setting_description = sprintf(
-            __("By enabling this checkbox you can hide the plugin from all other users. This means that <strong><u>only you</u> (%s, %s)</strong> will be able to generate data, access and edit plugin settings and see the menu item in the header and the main menu of your website. Please note that the plugin will still be visible in the plugin list to other users. However, you may white-label the appearance using the settings below.", "ai-for-seo"),
+            /* translators: 1: Username, 2: Email Address */
+            __('By enabling this checkbox you can hide the plugin from all other users. This means that <strong><u>only you</u> (%1$s, %2$s)</strong> will be able to generate data, access and edit plugin settings and see the menu item in the header and the main menu of your website. Please note that the plugin will still be visible in the plugin list to other users. However, you may white-label the appearance using the settings below.', 'ai-for-seo'),
             $ai4seo_current_user_username,
             $ai4seo_current_user_email
         );
@@ -231,7 +229,7 @@ echo "<div class='ai4seo-form'>";
             echo "<label for='" . esc_attr($ai4seo_this_prefixed_input_id) . "'>" . esc_html__("White-Label Mode", "ai-for-seo") . ":</label>";
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                 // Input
-                echo "<input type='checkbox' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' class='ai4seo-single-checkbox' onchange='ai4seo_toggle_visibility_on_checkbox(jQuery(this), jQuery(\".ai4seo-white-label-only-container\"))'" . ($ai4seo_setting_enable_white_label ? " checked='checked'" : "") . " /> ";
+                echo "<input type='checkbox' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' class='ai4seo-single-checkbox' onchange='ai4seo_toggle_visibility_on_checkbox(jQuery(this), jQuery(\".ai4seo-white-label-only-container\"));'" . ($ai4seo_setting_enable_white_label ? " checked='checked'" : "") . " /> ";
                 echo esc_html__("Enable White-Label Mode", "ai-for-seo");
 
                 // Description
@@ -256,6 +254,7 @@ echo "<div class='ai4seo-form'>";
             $ai4seo_this_prefixed_input_id = ai4seo_get_prefixed_input_name(AI4SEO_SETTING_INSTALLED_PLUGINS_PLUGIN_NAME);
 
             $ai4seo_this_setting_description = sprintf(
+                /* translators: %s: URL to the installed plugins page */
                 __("Here you can define the plugin name that will be shown on the <a href='%s'>installed plugins page</a> of your website.", "ai-for-seo"),
                 esc_url(admin_url("plugins.php"))
             );
@@ -281,6 +280,7 @@ echo "<div class='ai4seo-form'>";
             $ai4seo_this_prefixed_input_id = ai4seo_get_prefixed_input_name(AI4SEO_SETTING_INSTALLED_PLUGINS_PLUGIN_DESCRIPTION);
 
             $ai4seo_this_setting_description = sprintf(
+                /* translators: %s: URL to the installed plugins page */
                 __("Here you can define the plugin description that will be shown on the <a href='%s'>installed plugins page</a> of your website.", "ai-for-seo"),
                 esc_url(admin_url("plugins.php"))
             );
@@ -311,7 +311,7 @@ echo "<div class='ai4seo-form'>";
                 echo "<label for='" . esc_attr($ai4seo_this_prefixed_input_id) . "'>" . esc_html__("Generator Hints (Source Code)", "ai-for-seo") . ":</label>";
                 echo "<div class='ai4seo-form-item-input-wrapper'>";
                     // Input
-                    echo "<input type='checkbox' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' class='ai4seo-single-checkbox' onchange='ai4seo_toggle_visibility_on_checkbox(jQuery(this), jQuery(\".ai4seo-source-code-adjustments-only-container\"))' " . ($ai4seo_setting_display_source_code_notes ? " checked='checked'" : "") . " /> ";
+                    echo "<input type='checkbox' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' class='ai4seo-single-checkbox' onchange='ai4seo_toggle_visibility_on_checkbox(jQuery(this), jQuery(\".ai4seo-source-code-adjustments-only-container\"));' " . ($ai4seo_setting_display_source_code_notes ? " checked='checked'" : "") . " /> ";
                     echo esc_html__("Add Generator Hints", "ai-for-seo");
 
                     // Description
@@ -396,21 +396,14 @@ echo "<div class='ai4seo-form'>";
 
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                 if (ai4seo_does_user_need_to_accept_tos_toc_and_pp(false)) {
-                    echo "<button type='button' class='button ai4seo-button' onclick='ai4seo_open_modal_from_schema(\"tos\", {modal_css_class: \"ai4seo-tos-modal\", modal_size: \"auto\"})'>";
-                        ai4seo_echo_wp_kses(ai4seo_get_svg_tag("arrow-up-right-from-square"));
-                        echo " ";
-                        echo esc_html__("Show Terms of Service", "ai-for-seo");
-                    echo "</button>";
+                    ai4seo_echo_wp_kses(ai4seo_get_icon_button_tag("arrow-up-right-from-square", esc_html__("Show Terms of Service", "ai-for-seo"), "", "ai4seo_open_modal_from_schema(\"tos\", {modal_css_class: \"ai4seo-tos-modal\", modal_size: \"auto\"});"));
                 } else {
-                    echo "<button type='button' class='button ai4seo-button ai4seo-lockable' onclick='ai4seo_open_ajax_modal(\"ai4seo_show_terms_of_service\", {}, {modal_size: \"small\"})'>";
-                        ai4seo_echo_wp_kses(ai4seo_get_svg_tag("arrow-up-right-from-square"));
-                        echo " ";
-                        echo esc_html__("Show Terms of Service", "ai-for-seo");
-                    echo "</button>";
+                    ai4seo_echo_wp_kses(ai4seo_get_icon_button_tag("arrow-up-right-from-square", esc_html__("Show Terms of Service", "ai-for-seo"), "ai4seo-lockable", "ai4seo_open_ajax_modal(\"ai4seo_show_terms_of_service\", {}, {modal_size: \"small\"});"));
                 }
 
                 echo "<p class='ai4seo-form-item-description'>";
                     $latest_tos_and_toc_and_pp_version = ai4seo_get_latest_tos_and_toc_and_pp_version();
+                    /* translators: %s: Latest version number */
                     echo esc_html(sprintf(__("Current version: %s", "ai-for-seo"), $latest_tos_and_toc_and_pp_version)) . ".<br><br>";
                     ai4seo_echo_wp_kses(ai4seo_get_tos_toc_and_pp_accepted_time_output());
                 echo "</p>";
@@ -445,6 +438,7 @@ echo "<div class='ai4seo-form'>";
                         $ai4seo_readable_revoked_time = ai4seo_format_unix_timestamp($ai4seo_enhanced_reporting_revoke_timestamp);
                         ai4seo_echo_wp_kses(ai4seo_get_svg_tag("square-xmark", "", "ai4seo-16x16-icon ai4seo-red-icon"));
                         echo " ";
+                        /* translators: %s: Revoked time */
                         echo sprintf(esc_html__("Revoked on %s.", "ai-for-seo"), esc_html($ai4seo_readable_revoked_time));
                     } else {
                         ai4seo_echo_wp_kses(ai4seo_get_enhanced_reporting_accepted_time_output());
@@ -453,11 +447,11 @@ echo "<div class='ai4seo-form'>";
             echo "</div>";
         echo "</div>";
     echo "</div>";
-echo "</div>";
 
-// Submit button
-echo "<div class='ai4seo-sticky-buttons-bar'>";
-    echo "<div class='ai4seo-buttons-wrapper'>";
-        echo "<button type='button' onclick='ai4seo_save_anything(jQuery(this), ai4seo_validate_account_inputs);' class='button ai4seo-button ai4seo-submit-button ai4seo-big-button'>" . esc_html__("Save changes", "ai-for-seo") . "</button>";
+    // Submit button
+    echo "<div class='ai4seo-sticky-buttons-bar'>";
+        echo "<div class='ai4seo-buttons-wrapper'>";
+            ai4seo_echo_wp_kses(ai4seo_get_submit_button_tag(esc_html__("Save changes", "ai-for-seo"), "ai4seo-start-inactive ai4seo-big-button", "ai4seo_save_anything(jQuery(this), ai4seo_validate_account_inputs);"));
+        echo "</div>";
     echo "</div>";
 echo "</div>";

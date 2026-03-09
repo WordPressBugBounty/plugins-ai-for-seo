@@ -24,7 +24,7 @@
 :root {
     --ai4seo-green: #21C653;
     --ai4seo-blue: #2271b1;
-    --ai4seo-red: #f50000;
+    --ai4seo-red: #e51010;
     --ai4seo-yellow: #fbca01;
     --ai4seo-gray: #888;
     --ai4seo-gray-dark: #555;
@@ -36,7 +36,7 @@
     --ai4seo-border-light: #dddddd;
     --ai4seo-border: #cccccc;
     --ai4seo-border-muted: #bbbbbb;
-    --ai4seo-off-white: #f9f9f9;
+    --ai4seo-off-white: #fcfcfc;
     --ai4seo-teal: #21a6cf;
     --ai4seo-teal-light: #31b6df;
     --ai4seo-teal-dark: #1196bf;
@@ -46,6 +46,10 @@
     --ai4seo-warning-soft: #ffffde;
     --ai4seo-panel-bg: whitesmoke;
     --ai4seo-wordpress-bg: #f0f0f1;
+    --ai4seo-sooz-ci-blue: #0066aa;
+    --ai4seo-sooz-ci-blue-input: #1177bb;
+    --ai4seo-sooz-ci-blue-input-light: #3399cc;
+    --ai4seo-sooz-ci-blue-input-dark: #005599;
 }
 
 /* ========================================================================== */
@@ -117,7 +121,7 @@
 
 /* type: utility — badge color modifier */
 .ai4seo-blue-bubble {
-    background-color: var(--ai4seo-blue);
+    background-color: var(--ai4seo-sooz-ci-blue);
 }
 
 /* type: utility - badge color modifier */
@@ -191,10 +195,9 @@
     color: #050;
     font-weight: bold;
     font-size: 1.2rem;
-    padding: 6px 15px;
+    padding: 6px 20px;
     background-color: #7d7;
     text-align: left;
-    padding-right: 40px;
     display: inline-block;
     position: relative;
     border-radius: 8px;
@@ -219,7 +222,7 @@
 }
 
 /* type: utility — interaction disable */
-.ai4seo-element-inactive {
+.ai4seo-inactive-element {
     cursor: default !important;
     pointer-events: none !important;
 }
@@ -280,16 +283,6 @@
     border-radius: .5rem;
     width: 100%;
     box-sizing: border-box;
-}
-
-/* type: content — Settings → Automated generation panel */
-.ai4seo-advanced-settings-highlight {
-    background-color: var(--ai4seo-warning) !important;
-}
-
-/* type: content — Settings → Automated generation panel */
-.ai4seo-advanced-settings-highlight:hover {
-    background-color: var(--ai4seo-warning) !important;
 }
 
 /* type: content — Settings → Automated generation panel */
@@ -451,6 +444,26 @@
     background-repeat: no-repeat;
     background-position: center;
     background-size: contain;
+}
+
+.ai4seo-sooz-logo {
+    width: auto;
+    height: 1.2rem;
+    line-height: 1.2rem;
+    fill: var(--ai4seo-sooz-ci-blue) !important;
+    margin-top: -.1rem;
+}
+
+.ai4seo-modal-headline-icon .ai4seo-sooz-logo {
+    width: auto;
+    height: 1.5rem;
+    line-height: 1.5rem;
+    fill: var(--ai4seo-sooz-ci-blue) !important;
+    margin-top: -.4rem;
+}
+
+.column-ai-for-seo .ai4seo-sooz-logo {
+    margin-bottom: -.3rem;
 }
 
 /* -- Icon Size Variations ------------------------------------------------- */
@@ -1121,7 +1134,7 @@ div.ai4seo-recent-plugin-updates-content {
 
 /* type: content — Dashboard → Recent plugin updates */
 div.ai4seo-recent-plugin-updates-content div.ai4seo-recent-plugin-updates-title {
-    margin-top: 1rem;
+    margin-top: 2rem;
     margin-bottom: .5rem;
     margin-left: -1rem;
     padding: .5rem 1rem;
@@ -1247,7 +1260,17 @@ div.ai4seo-recent-plugin-updates-content li::marker {
 
 /* type: module — form layout */
 .ai4seo-form {
+    padding-bottom: 3rem; /* Extra space for bottom-aligned buttons */
+}
 
+/* type: module — form layout */
+.ai4seo-modal-content .ai4seo-form {
+    padding-bottom: 0;
+}
+
+/* type: module — form layout */
+.ai4seo-form+.ai4seo-form {
+    margin-top: -2rem;
 }
 
 /* type: module — form layout */
@@ -1259,7 +1282,7 @@ div.ai4seo-recent-plugin-updates-content li::marker {
 .ai4seo-form-section {
     max-width: 100%;
     margin-top: 0;
-    margin-bottom: 3rem;
+    margin-bottom: 2rem;
     padding: 0 !important;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     border: 1px solid #ccc;
@@ -1292,6 +1315,10 @@ div.ai4seo-recent-plugin-updates-content li::marker {
     margin-right: 15px;
     margin-top: -4px;
     font-size: 28px !important;
+}
+
+.ai4seo-form-section+.ai4seo-button {
+    top: -1rem !important;
 }
 
 /* type: module — form layout */
@@ -1870,12 +1897,18 @@ div.ai4seo-recent-plugin-updates-content li::marker {
 /* ========================================================================== */
 
 /* type: module — layout shell */
-.ai4seo-sidebar-headline img, .ai4seo-top-bar-headline img {
-    width: 2rem;
+.ai4seo-sidebar-headline .ai4seo-sooz-logo {
+    width: 9rem;
+    height: 5rem;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+/* type: module — layout shell */
+.ai4seo-top-bar-headline .ai4seo-sooz-logo {
     height: 2rem;
-    margin-right: 0.5rem;
-    vertical-align: baseline;
-    margin-bottom: -0.4rem;
+    margin-top: 0;
+    margin-bottom: 0;
 }
 
 /* Dashboard */
@@ -2054,7 +2087,8 @@ div.ai4seo-sidebar-headline {
         border-right: 1px solid #ccc;
         box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
         padding-left: 1.5rem;
-        margin-top: -3.5rem;
+        margin-top: -0;
+        padding-top: 1.5rem;
         border-radius: 0 0 .5rem 0;
     }
 
@@ -2331,7 +2365,7 @@ div.ai4seo-credits-number {
     font-size: 4rem;
     font-weight: bold;
     color: black;
-    margin-top: 1rem;
+    margin-top: 2rem;
     height: 4rem;
     line-height: 1;
 }
@@ -2349,6 +2383,10 @@ div.ai4seo-next-free-credits-container {
     margin-top: 1rem;
 }
 
+div.ai4seo-next-free-credits-container .ai4seo-credits-usage-badge {
+    padding: 4px 8px;
+}
+
 /* type: content — Dashboard → Overview layout */
 div.ai4seo-credits-generation-costs-info {
     width: 100%;
@@ -2361,8 +2399,8 @@ div.ai4seo-credits-generation-costs-info {
 }
 
 div.ai4seo-credits-generation-costs-info .ai4seo-credits-usage-badge {
-    font-size: 1rem;
-    padding: 1px 10px;
+    font-size: .95rem;
+    padding: 2px 10px;
 }
 
 /* type: content — Dashboard → Overview layout */
@@ -2442,7 +2480,7 @@ div.ai4seo-get-more-credits-section-big-title {
     color: var(--ai4seo-gray);
     font-style: italic;
     font-weight: bold;
-    font-size: 1.2rem;
+    font-size: 1.2rem !important;
     display: block;
     margin-bottom: .5rem;
 }
@@ -2523,6 +2561,16 @@ span.ai4seo-credits-renewal-info {
     font-size: small;
     color: darkgreen;
 }
+
+/* type: utility — positive number */
+.ai4seo-bigger-green-number {
+    font-size: x-large;
+    color: green !important;
+    font-weight: bold;
+    position: relative;
+    bottom: -3px;
+}
+
 
 /* === CREDITS PACK SELECTION =========================================================================== */
 
@@ -2658,6 +2706,7 @@ div.ai4seo-pay-as-you-go-summary-container {
 
 /* type: module — button */
 .ai4seo-button {
+    position: relative !important;
     font-size: 1rem !important;
     line-height: 1.2rem !important;
     cursor: pointer;
@@ -2684,11 +2733,16 @@ div.ai4seo-pay-as-you-go-summary-container {
 
 /* type: module — button */
 .ai4seo-button svg {
-    fill: #555;
-    margin-top: -2px;
-    margin-right: 8px;
-    width: 18px;
-    height: 18px;
+    fill: var(--ai4seo-gray-dark) !important;
+    margin-top: calc(-1% - 1px);
+    width: auto;
+    height: 1rem;
+    line-height: 1rem;
+}
+
+/* type: module — button */
+.ai4seo-button > svg.ai4seo-button-icon-left {
+    margin-right: .5rem;
 }
 
 /* type: module — button */
@@ -2700,19 +2754,63 @@ div.ai4seo-pay-as-you-go-summary-container {
 }
 
 /* type: module — button */
-.ai4seo-success-button, .ai4seo-submit-button, .ai4seo-primary-button {
-    background-color: var(--ai4seo-teal) !important;
+.ai4seo-submit-button, .ai4seo-primary-button {
+    background-color: var(--ai4seo-sooz-ci-blue-input) !important;
     border-color: #0186af !important;
+    color: var(--ai4seo-white) !important;
+    transform-style: unset !important;
+    transition: background-color .15s ease, color .15s ease;
+}
+
+.ai4seo-submit-button > span, .ai4seo-primary-button > span {
+    color: var(--ai4seo-white) !important;
+}
+
+/* type: module — button */
+.ai4seo-submit-button.ai4seo-inactive-button, .ai4seo-primary-button.ai4seo-inactive-button,
+.ai4seo-submit-button.ai4seo-start-inactive, .ai4seo-primary-button.ai4seo-start-inactive,
+.ai4seo-submit-button.ai4seo-inactive-button:disabled, .ai4seo-primary-button.ai4seo-inactive-button:disabled,
+.ai4seo-submit-button.ai4seo-start-inactive:disabled, .ai4seo-primary-button.ai4seo-start-inactive:disabled {
+    background-color: var(--ai4seo-border) !important;
+    background: var(--ai4seo-border) !important;
+    box-shadow: none !important;
+    transform: none !important;
+    color: var(--ai4seo-muted-text) !important;
+    cursor: not-allowed !important;
+    border-color: var(--ai4seo-border-muted) !important;
+    opacity: .7 !important;
+    pointer-events: none !important;
+}
+
+/* type: module — button */
+.ai4seo-submit-button.ai4seo-inactive-button > span, .ai4seo-primary-button.ai4seo-inactive-button > span,
+.ai4seo-submit-button.ai4seo-start-inactive > span, .ai4seo-primary-button.ai4seo-start-inactive > span,
+.ai4seo-submit-button.ai4seo-inactive-button:disabled > span, .ai4seo-primary-button.ai4seo-inactive-button:disabled > span,
+.ai4seo-submit-button.ai4seo-start-inactive:disabled > span, .ai4seo-primary-button.ai4seo-start-inactive:disabled > span {
+    color: var(--ai4seo-muted-text) !important;
+}
+
+/* type: module — button */
+.ai4seo-submit-button:hover, .ai4seo-primary-button:hover {
+    background-color: var(--ai4seo-sooz-ci-blue-input-light) !important;
+    border-color: var(--ai4seo-sooz-ci-blue-input) !important;
     color: var(--ai4seo-white) !important;
     transform-style: unset !important;
 }
 
 /* type: module — button */
-.ai4seo-success-button:hover, .ai4seo-submit-button:hover, .ai4seo-primary-button:hover {
-    background-color: var(--ai4seo-teal-light) !important;
-    border-color: var(--ai4seo-teal-dark) !important;
-    color: var(--ai4seo-white) !important;
-    transform-style: unset !important;
+.ai4seo-submit-button.ai4seo-inactive-button:hover,
+.ai4seo-primary-button.ai4seo-inactive-button:hover,
+.ai4seo-submit-button.ai4seo-inactive-button:focus,
+.ai4seo-primary-button.ai4seo-inactive-button:focus,
+.ai4seo-submit-button.ai4seo-inactive-button:active,
+.ai4seo-primary-button.ai4seo-inactive-button:active {
+    background-color: var(--ai4seo-border) !important;
+    border-color: var(--ai4seo-border-muted) !important;
+    color: var(--ai4seo-muted-text) !important;
+    box-shadow: none !important;
+    transform: none !important;
+    pointer-events: none !important;
 }
 
 /* type: module — button */
@@ -2722,6 +2820,7 @@ div.ai4seo-pay-as-you-go-summary-container {
     cursor: not-allowed !important;
     border-color: var(--ai4seo-border-muted) !important;
     opacity: .7 !important;
+    pointer-events: none !important;
 }
 
 /* type: module — button */
@@ -2800,7 +2899,7 @@ div.ai4seo-pay-as-you-go-summary-container {
     gap: 1.5rem;
     clear: both;
     flex-wrap: wrap;
-    transition: box-shadow .25s ease, background-color .25s ease;
+    transition: box-shadow .15s ease, background-color .15s ease;
     box-shadow: none;
 }
 
@@ -2815,18 +2914,18 @@ div.ai4seo-pay-as-you-go-summary-container {
 }
 
 /* type: module — button */
-.ai4seo-success-button svg, .ai4seo-submit-button svg, .ai4seo-primary-button svg {
-    fill: #ffffff;
+.ai4seo-button.ai4seo-submit-button svg, .ai4seo-button.ai4seo-primary-button svg {
+    fill: #ffffff !important;
 }
 
 /* type: module — button */
 .ai4seo-abort-button, .ai4seo-secondary-button {
     background-color: transparent !important;
     border-color: transparent !important;
-    color: #6295c8 !important;
+    color: var(--ai4seo-gray-dark) !important;
     transform-style: unset !important;
-    text-decoration: underline !important;
-    box-shadow: none !important;
+    text-decoration: none !important;
+    box-shadow: 0 0 3px 0 rgba(0,0,0,.2) !important
 }
 
 /* type: module — button */
@@ -2844,15 +2943,6 @@ div.ai4seo-pay-as-you-go-summary-container {
 /* type: module — button */
 .ai4seo-secondary-button:hover {
     background-color: var(--ai4seo-teal) !important;
-}
-
-/* type: module — button */
-.ai4seo-disabled-button {
-    background-color: #eee !important;
-    color: #999 !important;
-    border-color: var(--ai4seo-border) !important;
-    cursor: not-allowed !important;
-    pointer-events: none !important;
 }
 
 /* type: module — button */
@@ -2903,7 +2993,7 @@ div.ai4seo-latest-activity-item-buttons {
 }
 
 /* type: module — button */
-div.ai4seo-latest-activity-item-buttons a {
+div.ai4seo-latest-activity-item-buttons a, div.ai4seo-latest-activity-item-buttons button {
     margin-left: .5rem;
 }
 
@@ -2932,11 +3022,16 @@ div.ai4seo-latest-activity-item-buttons a {
 
 /* type: module — button */
 .ai4seo-small-button {
-    font-size: smaller !important;
+    font-size: .8rem !important;
     padding: 5px 10px !important;
     line-height: 100% !important;
     min-height: auto !important;
     box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.5) !important;
+}
+
+.ai4seo-small-button > span {
+    font-size: .8rem !important;
+    line-height: 100% !important;
 }
 
 /* type: module — button */
@@ -2951,6 +3046,16 @@ div.ai4seo-latest-activity-item-buttons a {
     height: 0.7rem;
     margin-top: -2px;
     margin-right: 5px;
+}
+
+/* type: content — Settings → Automated generation panel */
+.ai4seo-advanced-settings-highlight {
+    background-color: var(--ai4seo-warning) !important;
+}
+
+/* type: content — Settings → Automated generation panel */
+.ai4seo-advanced-settings-highlight:hover {
+    background-color: var(--ai4seo-warning) !important;
 }
 
 /* -- Contextual Buttons --------------------------------------------------- */
@@ -2985,11 +3090,6 @@ div.ai4seo-credits-pack-selection-container .ai4seo-credits-pack-show-more-optio
     }
 }
 
-/* type: module — button */
-.ai4seo-editor-form .ai4seo-generate-button .ai4seo-logo {
-    width: 18px !important;
-    height : 18px !important;
-}
 
 /* type: module — button */
 .ai4seo-generate-button {
@@ -3004,6 +3104,15 @@ div.ai4seo-credits-pack-selection-container .ai4seo-credits-pack-show-more-optio
     display: inline-block !important;
     border-radius: 3px !important;
     padding: 5px 15px !important;
+}
+
+.ai4seo-show-all-seo-settings-button {
+    width: 90% !important;
+    margin-left: 5% !important;
+}
+
+.ai4seo-generate-button svg.ai4seo-sooz-logo {
+    fill: var(--ai4seo-sooz-ci-blue) !important;
 }
 
 /* type: module — button */
@@ -3044,14 +3153,12 @@ div.ai4seo-credits-pack-selection-container .ai4seo-credits-pack-show-more-optio
 }
 
 /* type: module — button */
-.ai4seo-generate-button > .ai4seo-logo {
+.ai4seo-generate-button > .ai4seo-sooz-logo {
     position: relative;
-    top: -0.1rem;
-    height: 1.5rem;
-    width: 1.5rem;
+    height: 1.2rem;
     max-width: none;
     max-height: none;
-    margin-right: 0.1rem;
+    margin-left: 0.1rem;
 }
 
 /* type: module — button */
@@ -3063,9 +3170,12 @@ div.ai4seo-credits-pack-selection-container .ai4seo-credits-pack-show-more-optio
 }
 
 /* type: module — button */
-.ai4seo-generate-all-button-wrapper .ai4seo-generate-all-button img {
+.ai4seo-generate-all-button svg {
     display: block;
-    margin: .5em auto 0.5em auto;
+    margin: 1em auto;
+    width: 6rem;
+    height: auto;
+    fill: var(--ai4seo-sooz-ci-blue) !important;
 }
 
 .ai4seo-generate-all-button {
@@ -3076,7 +3186,7 @@ div.ai4seo-credits-pack-selection-container .ai4seo-credits-pack-show-more-optio
 
 .ai4seo-generation-button-credits-usage {
     position: absolute;
-    top: 7px;
+    top: 5px;
     right: 7px;
 }
 
@@ -3097,8 +3207,7 @@ div.ai4seo-credits-pack-selection-container .ai4seo-credits-pack-show-more-optio
     border: 1px solid var(--ai4seo-green);
     box-shadow: 1px 1px 1px rgba(100, 100, 0, 0.5) !important;
     color: var(--ai4seo-dark-text);
-    padding: 0 8px;
-    padding-left: 28px;
+    padding: 0 8px 0 28px;
     border-radius: 10px;
     font-size: 0.8rem;
     font-weight: bold;
@@ -3121,7 +3230,7 @@ div.ai4seo-credits-pack-selection-container .ai4seo-credits-pack-show-more-optio
 /* type: module — button */
 .ai4seo-voucher-code-wrapper .ai4seo-copy-voucher-code-button {
     position: absolute;
-    right: -2px;
+    right: -7px;
     top: -2px;
     border: none !important;
     box-shadow: none !important;
@@ -3140,6 +3249,8 @@ div.ai4seo-credits-pack-selection-container .ai4seo-credits-pack-show-more-optio
 .ai4seo-voucher-code-wrapper .ai4seo-copy-voucher-code-button svg {
     fill: #050 !important;
 }
+
+
 /* ========================================================================== */
 /*  MODALS & NOTIFICATIONS                                                    */
 /* ========================================================================== */
@@ -3248,7 +3359,7 @@ div.ai4seo-credits-pack-selection-container .ai4seo-credits-pack-show-more-optio
 .ai4seo-modal .ai4seo-modal-headline {
     margin-top: 0;
     font-size: 1.6rem;
-    margin-bottom: 2rem;
+    margin-bottom: 1.5rem;
     line-height: 150%;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
 }
@@ -3256,10 +3367,8 @@ div.ai4seo-credits-pack-selection-container .ai4seo-credits-pack-show-more-optio
 /* type: module — icon */
 .ai4seo-modal .ai4seo-modal-headline .ai4seo-modal-headline-icon {
     display: inline-block;
-    height: 1.6rem;
-    margin: 0;
     padding: 0;
-    vertical-align: text-top;
+    margin: 0 .3rem 0 0;
 }
 
 /* type: module — icon */
@@ -3282,8 +3391,9 @@ div.ai4seo-credits-pack-selection-container .ai4seo-credits-pack-show-more-optio
 .ai4seo-modal .ai4seo-modal-close-icon {
     position: absolute;
     top: 1rem;
-    right: 1rem;
+    right: .7rem;
     cursor: pointer;
+    padding: .5rem;
 }
 
 /* type: module — modal */
@@ -3321,7 +3431,7 @@ div.ai4seo-credits-pack-selection-container .ai4seo-credits-pack-show-more-optio
 
 /* type: module — icon */
 .ai4seo-modal .ai4seo-modal-close-icon:hover svg {
-    fill: #303030;
+    fill: #ff3030;
 }
 
 /* type: module — icon */
@@ -3679,7 +3789,7 @@ div.ai4seo-notice li {
 }
 
 /* type: module — icon */
-img.ai4seo-notice-icon {
+.ai4seo-notice .ai4seo-sooz-logo {
     position: absolute;
     left: 11px;
     top: 10px;
@@ -3794,8 +3904,8 @@ div.ai4seo-money-back-guarantee-notice > div.ai4seo-money-back-guarantee-signatu
 }
 
 /* type: module — badge */
-div.ai4seo-recent-plugin-updates-title > .ai4seo-bubble {
-    margin-right: 1rem;
+div.ai4seo-recent-plugin-updates-title > .ai4seo-bubble, div.ai4seo-recent-plugin-updates-title > .ai4seo-blue-bubble {
+    margin-right: .5rem;
 }
 
 @media screen and (max-width: 782px) {
@@ -3929,6 +4039,13 @@ div.ai4seo-recent-plugin-updates-title > .ai4seo-bubble {
     width: 100%;
     max-width: 520px;
     box-sizing: border-box;
+}
+
+/* type: module - help module */
+.ai4seo-help-debug-log-buttons {
+    justify-content: flex-start;
+    margin-top: 1rem;
+    margin-bottom: 1rem;
 }
 
 /* type: module — modal */
@@ -4148,6 +4265,7 @@ div.ai4seo-recent-plugin-updates-title > .ai4seo-bubble {
     }
 }
 
+
 /* ========================================================================== */
 /*  MEDIA & ATTACHMENTS                                                       */
 /* ========================================================================== */
@@ -4166,14 +4284,22 @@ div.ai4seo-recent-plugin-updates-title > .ai4seo-bubble {
 
 /* type: module — button */
 .attachment-info .ai4seo-generate-button.ai4seo-attachment-generate-attributes-button, .attachment-details .ai4seo-generate-button.ai4seo-attachment-generate-attributes-button  {
-    padding: 5px 15px !important;
     margin-bottom: 1em !important;
-    width: calc(80% - 2px) !important;
+    /*width: calc(80% - 2px) !important;*/
     min-width: 200px;
+    max-width: 65%;
     float: right !important;
     margin-right: 2px;
     font-size: small !important;
-    text-align: left;
+}
+
+@media only screen and (max-width: 1180px) {
+    .attachment-info .ai4seo-generate-button.ai4seo-attachment-generate-attributes-button, .attachment-details .ai4seo-generate-button.ai4seo-attachment-generate-attributes-button {
+        width: 99% !important;
+        max-width: 99% !important;
+        float: none !important;
+        text-align: left !important;
+    }
 }
 
 /* type: module — button */
@@ -4954,4 +5080,26 @@ div.ai4seo-bulk-generation-status-animated-logo-container > img.ai4seo-bulk-gene
 
 .ai4seo-toast-info .ai4seo-toast-progress > span, .ai4seo-toast-loading .ai4seo-toast-progress > span {
     background: rgb(13,202,240);
+}
+
+/* type: module — plugin deactivation feedback modal */
+.ai4seo-plugin-deactivation-feedback-message {
+    width: 100%;
+    min-height: 50px;
+    resize: vertical;
+}
+
+.ai4seo-plugin-deactivation-feedback-hint {
+    opacity: 0.35;
+    font-size: 0.9rem;
+    transition: opacity 0.2s ease;
+}
+
+.ai4seo-plugin-deactivation-feedback-modal.ai4seo-feedback-qualified .ai4seo-plugin-deactivation-feedback-hint {
+    opacity: 1;
+    color: green;
+}
+
+.ai4seo-plugin-deactivation-feedback-modal.ai4seo-feedback-qualified .ai4seo-plugin-deactivation-feedback-hint svg {
+    fill: green;
 }

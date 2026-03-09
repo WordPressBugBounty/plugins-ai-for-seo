@@ -25,10 +25,10 @@ $ai4seo_export_data['ai4seo_export_timestamp'] = time();
 $ai4seo_export_data['settings'] = ai4seo_get_all_settings();
 
 // Generate filename with version
-$ai4seo_filename = "ai4seo-settings-" . AI4SEO_PLUGIN_VERSION_NUMBER . ".json";
+$ai4seo_filename = "sooz-settings-" . AI4SEO_PLUGIN_VERSION_NUMBER . ".json";
 
 // Return data for download
-ai4seo_send_json_success(array(
+ai4seo_send_ajax_success(array(
     'settings_data' => $ai4seo_export_data,
     'filename' => $ai4seo_filename
 ));

@@ -19,15 +19,16 @@ if (!ai4seo_can_manage_this_plugin()) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 global $ai4seo_did_run_post_table_analysis;
-$ai4seo_current_utc_hour = (int)gmdate("H");
+$ai4seo_current_utc_hour = (int)ai4seo_gmdate("H");
 $ai4seo_posts_table_analysis_state = ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_STATE);
+$ai4seo_help_page_url = ai4seo_get_subpage_url("help");
 
 
 // === REFRESH BUTTON ======================================================================== \\
 
 // collect some admin links and buttons
 $ai4seo_dashboard_url = ai4seo_get_subpage_url("dashboard");
-$ai4seo_refresh_button = ai4seo_get_small_button_tag($ai4seo_dashboard_url, "rotate", __("Refresh page", "ai-for-seo"), "", "ai4seo_add_loading_html_to_element(this); ai4seo_show_full_page_loading_screen();");
+$ai4seo_refresh_button = ai4seo_get_small_a_tag_icon_button_tag($ai4seo_dashboard_url, "", "", "rotate", __("Refresh page", "ai-for-seo"), "", "ai4seo_add_loading_html_to_element(this); ai4seo_show_full_page_loading_screen();");
 
 
 // === EXECUTE BULK GENERATION SOONER ======================================================== \\
@@ -39,7 +40,7 @@ if (isset($_GET["ai4seo-execute-cron-job-sooner"]) && $_GET["ai4seo-execute-cron
 
 // execute cron job sooner link
 $ai4seo_execute_sooner_text_link_url = ai4seo_get_subpage_url("dashboard", array("ai4seo-execute-cron-job-sooner" => true));
-$ai4seo_execute_sooner_button = ai4seo_get_small_button_tag($ai4seo_execute_sooner_text_link_url, "bolt", __("Execute sooner!", "ai-for-seo"), "", "ai4seo_add_loading_html_to_element(this); ai4seo_show_full_page_loading_screen();");
+$ai4seo_execute_sooner_button = ai4seo_get_small_a_tag_icon_button_tag($ai4seo_execute_sooner_text_link_url, "", "", "bolt", __("Execute sooner!", "ai-for-seo"), "", "ai4seo_add_loading_html_to_element(this); ai4seo_show_full_page_loading_screen();");
 
 
 // === CREDITS BALANCE ======================================================================= \\
@@ -71,6 +72,13 @@ $ai4seo_last_bulk_generation_run_was_long_ago = $ai4seo_last_bulk_generation_upd
 $ai4seo_was_seo_autopilot_set_up_at_least_x_seconds_ago = ai4seo_was_seo_autopilot_set_up_at_least_x_seconds_ago();
 $ai4seo_next_cron_job_call = wp_next_scheduled(AI4SEO_BULK_GENERATION_CRON_JOB_NAME);
 $ai4seo_next_cron_job_call_diff = ($ai4seo_next_cron_job_call ? $ai4seo_next_cron_job_call - time() : 9999999);
+
+
+// === NEW OR EXISTING FILTER =============================================================== \\
+
+// check if we should only generate data for new or existing posts
+$bulk_generation_new_or_existing_filter = ai4seo_get_setting(AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER);
+$bulk_generation_new_or_existing_filter_reference_timestamp = ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME);
 
 
 // === POST TYPES =========================================================================== \\
@@ -121,6 +129,7 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
         $ai4seo_num_processing_posts_by_post_type = ai4seo_get_num_processing_posts_by_post_type();
         $ai4seo_num_missing_posts_by_post_type = ai4seo_get_num_missing_posts_by_post_type();
 
+        /* translators: %s: post type name */
         $ai4seo_retry_all_failed_metadata_generations_link_label = esc_html__("Retry all failed generations for %s", "ai-for-seo");
         $ai4seo_retry_all_failed_attachment_attributes_generations_link_label = esc_html__("Retry all failed media attribute generations", "ai-for-seo");
         $ai4seo_retry_all_failed_metadata_button_tags = array();
@@ -133,7 +142,11 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
                 echo "<div class='ai4seo-dashboard-posts-table-analysis-not-completed-hint'>";
                     ai4seo_echo_wp_kses(ai4seo_get_svg_tag("gear", '', "ai4seo-spinning-icon"));
                     echo " ";
-                    echo esc_html__("AI for SEO is currently analyzing your pages and media files. Please wait.", "ai-for-seo");
+                    echo sprintf(
+                        /* translators: %s: plugin name */
+                        esc_html__("%s is currently analyzing your pages and media files. Please wait.", "ai-for-seo"),
+                        esc_html(AI4SEO_PLUGIN_NAME)
+                    );
                 echo "</div>";
 
                 if (!$ai4seo_heavy_db_operations_disabled && $ai4seo_did_run_post_table_analysis) {
@@ -144,7 +157,7 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
             // refresh performance analysis button
             if (!$ai4seo_heavy_db_operations_disabled && $ai4seo_posts_table_analysis_state === 'completed') {
                 echo "<div class='ai4seo-top-right-refresh-button-wrapper'>";
-                    ai4seo_echo_wp_kses(ai4seo_get_small_button_tag("#", "rotate", __("Refresh", "ai-for-seo"), "", "ai4seo_refresh_dashboard_statistics(this); return false;"));
+                    ai4seo_echo_wp_kses(ai4seo_get_small_icon_button_tag("rotate", __("Refresh", "ai-for-seo"), "", "ai4seo_refresh_dashboard_statistics(this); return false;"));
                 echo "</div>";
             }
 
@@ -156,6 +169,8 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
                 'failed' => ['value' => 0, 'color' => '#dc3545'], // Red
             ];
 
+            $ai4seo_could_output_any_chart = false;
+
             foreach ($ai4seo_all_supported_post_types as $ai4seo_this_post_type) {
                 $ai4seo_this_original_post_type = $ai4seo_this_post_type;
                 $ai4seo_this_num_finished_post_ids = $ai4seo_num_finished_posts_by_post_type[$ai4seo_this_post_type] ?? 0;
@@ -166,16 +181,14 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
 
                 if ($ai4seo_this_num_failed_post_ids > 0) {
                     if ($ai4seo_this_original_post_type === "attachment") {
-                        $ai4seo_retry_all_failed_attachment_attributes_generations_link_tag = ai4seo_get_small_button_tag(
-                            "#",
+                        $ai4seo_retry_all_failed_attachment_attributes_generations_link_tag = ai4seo_get_small_icon_button_tag(
                             "rotate",
                             $ai4seo_retry_all_failed_attachment_attributes_generations_link_label,
                             "ai4seo-ignore-during-dashboard-refresh",
                             "ai4seo_retry_all_failed_attachment_attributes(this); return false;"
                         );
                     } else if (!isset($ai4seo_retry_all_failed_metadata_button_tags[$ai4seo_this_original_post_type])) {
-                        $ai4seo_retry_all_failed_metadata_button_tags[$ai4seo_this_original_post_type] = ai4seo_get_small_button_tag(
-                            "#",
+                        $ai4seo_retry_all_failed_metadata_button_tags[$ai4seo_this_original_post_type] = ai4seo_get_small_icon_button_tag(
                             "rotate",
                             sprintf(
                                 $ai4seo_retry_all_failed_metadata_generations_link_label,
@@ -227,6 +240,8 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
                     continue;
                 }
 
+                $ai4seo_could_output_any_chart = true;
+
                 // attachment -> media workaround
                 if ($ai4seo_this_post_type == "attachment") {
                     $ai4seo_this_post_type = "media";
@@ -238,9 +253,42 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
                 ai4seo_echo_half_donut_chart_with_headline_and_percentage($ai4seo_supported_post_type_label, $ai4seo_chart_values, $ai4seo_this_num_finished_post_ids, $ai4seo_total_value, $ai4seo_posts_table_analysis_state, $ai4seo_this_post_type);
             }
 
-            echo "<div class='ai4seo-chart-legend-container'>";
-                ai4seo_echo_chart_legend($ai4seo_chart_values);
-            echo "</div>";
+            if ($ai4seo_could_output_any_chart) {
+                echo "<div class='ai4seo-chart-legend-container'>";
+                    ai4seo_echo_chart_legend($ai4seo_chart_values);
+                echo "</div>";
+            }
+
+            if (!$ai4seo_could_output_any_chart && $ai4seo_posts_table_analysis_state === 'completed') {
+                echo "<div class='ai4seo-no-data-message ai4seo-red-message' style='margin: 1.5rem; max-width: 800px;'>";
+                    echo esc_html__("Note: No data to display yet. Please review your settings. All entries may currently be excluded from analysis.", "ai-for-seo");
+                echo "</div>";
+            }
+
+            // on active new / existing filter
+            if ($bulk_generation_new_or_existing_filter != "both") {
+                // echo message about the existing filter and that maybe entries are not shown in the stats
+                $ai4seo_new_or_existing_filter_text = "";
+
+                if ($bulk_generation_new_or_existing_filter == "new") {
+                    $ai4seo_new_or_existing_filter_text = sprintf(
+                        /* translators: %s: reference timestamp */
+                        esc_html__("Note: The SEO Autopilot is currently set to only generate data for new content created after %s. Therefore, existing content before this date is not included in the above statistics.", "ai-for-seo"),
+                        esc_html(ai4seo_format_unix_timestamp($bulk_generation_new_or_existing_filter_reference_timestamp))
+                    );
+                } else if ($bulk_generation_new_or_existing_filter == "existing") {
+                    $ai4seo_new_or_existing_filter_text = sprintf(
+                        /* translators: %s: reference timestamp */
+                        esc_html__("Note: The SEO Autopilot is currently set to only generate data for existing content created before %s. Therefore, new content after this date is not included in the above statistics.", "ai-for-seo"),
+                        esc_html(ai4seo_format_unix_timestamp($bulk_generation_new_or_existing_filter_reference_timestamp))
+                    );
+                }
+
+                echo "<div class='ai4seo-dashboard-new-or-existing-filter-note ai4seo-red-message' style='margin: 1.5rem; max-width: 800px;'>";
+                    ai4seo_echo_wp_kses($ai4seo_new_or_existing_filter_text);
+                    ai4seo_echo_wp_kses(" " . esc_html__("You can change this setting in the SEO Autopilot settings.", "ai-for-seo"));
+                echo "</div>";
+            }
 
             // clear both
             echo "<div class='ai4seo-clear-both' style='margin-top: 2rem;'></div>";
@@ -283,7 +331,7 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
 
         // refresh credits balance button
         echo "<div class='ai4seo-top-right-refresh-button-wrapper'>";
-            ai4seo_echo_wp_kses(ai4seo_get_small_button_tag("#", "rotate", __("Refresh", "ai-for-seo"), "", "ai4seo_refresh_robhub_account(this); return false;"));
+            ai4seo_echo_wp_kses(ai4seo_get_small_icon_button_tag("rotate", __("Refresh", "ai-for-seo"), "", "ai4seo_refresh_robhub_account(this); return false;"));
         echo "</div>";
 
         // credits balance
@@ -307,26 +355,41 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
         // next free credits container
         if ($ai4seo_current_credits_balance < $ai4seo_free_plan_credits_amount) {
             echo "<div class='ai4seo-next-free-credits-container'>";
-                ai4seo_echo_wp_kses(sprintf(
-                    __('Next <span class="ai4seo-credits-usage-badge">+%1$s Credits</span> in <strong>%2$s</strong>', 'ai-for-seo'),
-                    esc_html(AI4SEO_DAILY_FREE_CREDITS_AMOUNT),
-                    "<span class='ai4seo-countdown' data-time-left='" . esc_attr($ai4seo_next_free_credits_seconds_left) . "' data-trigger='ai4seo_reload_page'>" . esc_html(ai4seo_format_seconds_to_hhmmss_or_days_hhmmss($ai4seo_next_free_credits_seconds_left)) . "</span>",
-                    esc_html($ai4seo_free_plan_credits_amount)
-                ));
+                $ai4seo_credits_badge_html = sprintf(
+                    '<span class="ai4seo-credits-usage-badge"><span class="ai4seo-bigger-green-number">+%1$s</span> %2$s</span>',
+                    esc_html( AI4SEO_DAILY_FREE_CREDITS_AMOUNT ),
+                    esc_html__( 'Credits', 'ai-for-seo' )
+                );
+
+                $ai4seo_countdown_html = sprintf(
+                    '<span class="ai4seo-countdown ai4seo-ignore-during-dashboard-refresh" data-time-left="%1$s" data-trigger="ai4seo_reload_page">%2$s</span>',
+                    esc_attr( $ai4seo_next_free_credits_seconds_left ),
+                    esc_html( ai4seo_format_seconds_to_hhmmss_or_days_hhmmss( $ai4seo_next_free_credits_seconds_left ) )
+                );
+
+                $time_html = sprintf(
+                    '<strong>%s</strong>',
+                    $ai4seo_countdown_html
+                );
+
+                ai4seo_echo_wp_kses(
+                    sprintf(
+                        /* translators: 1: credits badge HTML, 2: countdown HTML (wrapped in <strong>) */
+                        __( 'Next %1$s in %2$s', 'ai-for-seo' ),
+                        $ai4seo_credits_badge_html,
+                        $time_html
+                    )
+                );
 
                 $ai4seo_free_credits_tooltip = sprintf(
-                    __("We provide you with <strong>%s free Credits each day</strong> if your balance falls below %s Credits. Simply keep using the plugin to receive them automatically.", "ai-for-seo"),
+                    /* translators: 1: number of free credits, 2: free plan credits amount */
+                    __('We provide you with <strong>%1$s free Credits each day</strong> if your balance falls below %2$s Credits. Simply keep using the plugin to receive them automatically.', "ai-for-seo"),
                     esc_html(AI4SEO_DAILY_FREE_CREDITS_AMOUNT),
                     esc_html($ai4seo_free_plan_credits_amount),
                 );
                 ai4seo_echo_wp_kses(ai4seo_get_icon_with_tooltip_tag($ai4seo_free_credits_tooltip));
             echo "</div>";
         }
-
-        // costs breakdown
-        echo "<div class='ai4seo-credits-generation-costs-info'>";
-            ai4seo_echo_cost_breakdown_section($ai4seo_credits_percentage);
-        echo "</div>";
 
         echo "<div class='ai4seo-how-to-get-credits-container'>";
 
@@ -337,18 +400,25 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
                 // Turn Buy credits button
                 echo "<div class='ai4seo-buy-credits-button-container'>";
                     ai4seo_echo_wp_kses(
-                        ai4seo_get_button_text_link_tag("#", "arrow-up-right-from-square", esc_html__("Get more Credits", "ai-for-seo"),
-                            ($ai4seo_current_credits_balance < AI4SEO_BLUE_GET_MORE_CREDITS_BUTTON_THRESHOLD ? "ai4seo-success-button" : ""),
+                        ai4seo_get_icon_button_tag("circle-plus", esc_html__("Get more Credits", "ai-for-seo"),
+                            ($ai4seo_current_credits_balance < AI4SEO_BLUE_GET_MORE_CREDITS_BUTTON_THRESHOLD || $ai4seo_credits_percentage < 100 ? "ai4seo-primary-button" : ""),
                             "ai4seo_open_get_more_credits_modal();")
                     );
                 echo "</div>";
 
             } else {
                 // go to Account Settings
+                echo "<div class='ai4seo-gap'></div>";
+
                 ai4seo_echo_wp_kses(
-                    ai4seo_get_button_text_link_tag(ai4seo_get_subpage_url("account"), "key", esc_html__("Account Settings", "ai-for-seo"), "ai4seo-success-button")
+                    ai4seo_get_a_tag_icon_button_tag(ai4seo_get_subpage_url("account"), "", "", "key", esc_html__("Account Settings", "ai-for-seo"), "ai4seo-primary-button")
                 );
             }
+        echo "</div>";
+
+        // costs breakdown
+        echo "<div class='ai4seo-credits-generation-costs-info'>";
+            ai4seo_echo_cost_breakdown_section($ai4seo_credits_percentage);
         echo "</div>";
 
     echo "</div>";
@@ -377,7 +447,7 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
         echo "</p>";
 
         echo "<p style='text-align:center;'>";
-        ai4seo_echo_wp_kses(ai4seo_get_button_text_link_tag($ai4seo_purchase_plan_url, "circle-up", esc_html__("Secure This Offer", "ai-for-seo"), "ai4seo-success-button"));
+        ai4seo_echo_wp_kses(ai4seo_get_button_text_link_tag($ai4seo_purchase_plan_url, "circle-up", esc_html__("Secure This Offer", "ai-for-seo"), "ai4seo-primary-button"));
         echo "</p>";
         echo "</div>";
     }*/
@@ -393,9 +463,10 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
         // add last cron job call $ai4seo_last_bulk_generation_update_time in readable format
         if ($ai4seo_last_bulk_generation_update_time) {
             $ai4seo_additional_sub_status_text .= " " . sprintf(
-                    esc_html__("Last execution was on %s.", "ai-for-seo"),
-                    esc_html(ai4seo_format_unix_timestamp($ai4seo_last_bulk_generation_update_time, 'auto-miss'))
-                );
+                /* translators: %s: last execution time */
+                esc_html__("Last execution was on %s.", "ai-for-seo"),
+                esc_html(ai4seo_format_unix_timestamp($ai4seo_last_bulk_generation_update_time, 'auto-miss'))
+            );
         } else {
             $ai4seo_additional_sub_status_text .= " " . esc_html__("The SEO Autopilot has never been executed yet.", "ai-for-seo");
         }
@@ -404,8 +475,10 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
         if ($ai4seo_next_cron_job_call_diff >= 10) {
             $ai4seo_next_cron_job_call_diff_minutes = ceil($ai4seo_next_cron_job_call_diff / 60);
             $ai4seo_additional_sub_status_text .= " " . sprintf(
+                /* translators: %s: time until next execution */
                 esc_html__("It should continue in less than %s.", "ai-for-seo"),
                 sprintf(
+                    /* translators: %s: number of minutes */
                     _n("%s minute", "%s minutes", $ai4seo_next_cron_job_call_diff_minutes, "ai-for-seo"),
                     $ai4seo_next_cron_job_call_diff_minutes
                 ),
@@ -429,7 +502,7 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
 
             echo "<div class='ai4seo-bulk-generation-status-container'>";
                 if (!$ai4seo_is_any_bulk_generation_enabled) {
-                    echo "<img src='" . esc_url(ai4seo_get_ai_for_seo_logo_url("256x256")) . "' alt='" . esc_attr__("SEO Autopilot is deactivated", "ai-for-seo") . "' class='ai4seo-bulk-generation-status-inactive-logo'>";
+                    echo "<img src='" . esc_url(ai4seo_get_sooz_logo_url("256x256")) . "' alt='" . esc_attr__("SEO Autopilot is deactivated", "ai-for-seo") . "' class='ai4seo-bulk-generation-status-inactive-logo'>";
 
                     echo "<div class='ai4seo-bulk-generation-status-text'>";
                         echo esc_html__("Off", "ai-for-seo");
@@ -439,17 +512,21 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
                         echo esc_html__("SEO Autopilot has not been set up yet.", "ai-for-seo");
                     echo "</div>";
                 } else if ($ai4seo_posts_table_analysis_state !== 'completed') {
-                    echo "<img src='" . esc_url(ai4seo_get_ai_for_seo_logo_url("256x256")) . "' alt='" . esc_attr__("SEO Autopilot is active, but it is currently waiting for the analysis tasks to finish.", "ai-for-seo") . "' class='ai4seo-bulk-generation-status-active-logo'>";
+                    echo "<img src='" . esc_url(ai4seo_get_sooz_logo_url("256x256")) . "' alt='" . esc_attr__("SEO Autopilot is active, but it is currently waiting for the analysis tasks to finish.", "ai-for-seo") . "' class='ai4seo-bulk-generation-status-active-logo'>";
 
                     echo "<div class='ai4seo-bulk-generation-status-text'>";
                     echo esc_html__("Analyzing...", "ai-for-seo");
                     echo "</div>";
 
                     echo "<div class='ai4seo-bulk-generation-status-subtext'>";
-                    echo esc_html__("AI for SEO is analyzing your pages and media files. Please wait until the analysis is complete.", "ai-for-seo");
+                        echo sprintf(
+                            /* translators: %s: plugin name */
+                            esc_html__("%s is analyzing your pages and media files. Please wait until the analysis is complete.", "ai-for-seo"),
+                            esc_html(AI4SEO_PLUGIN_NAME)
+                        );
                     echo "</div>";
                 } else if (isset($ai4seo_total_num_pending_posts) && $ai4seo_total_num_pending_posts == 0) {
-                    echo "<img src='" . esc_url(ai4seo_get_ai_for_seo_logo_url("256x256")) . "' alt='" . esc_attr__("SEO Autopilot is active but idling", "ai-for-seo") . "' class='ai4seo-bulk-generation-status-active-logo'>";
+                    echo "<img src='" . esc_url(ai4seo_get_sooz_logo_url("256x256")) . "' alt='" . esc_attr__("SEO Autopilot is active but idling", "ai-for-seo") . "' class='ai4seo-bulk-generation-status-active-logo'>";
 
                     echo "<div class='ai4seo-bulk-generation-status-text'>";
                         echo esc_html__("All done & idle", "ai-for-seo");
@@ -459,7 +536,7 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
                         echo esc_html__("Waiting for new entries to process.", "ai-for-seo");
                     echo "</div>";
                 } else if ($ai4seo_insufficient_credits_balance) {
-                    echo "<img src='" . esc_url(ai4seo_get_ai_for_seo_logo_url("256x256")) . "' alt='" . esc_attr__("SEO Autopilot is active but no credits available", "ai-for-seo") . "' class='ai4seo-bulk-generation-status-active-logo'>";
+                    echo "<img src='" . esc_url(ai4seo_get_sooz_logo_url("256x256")) . "' alt='" . esc_attr__("SEO Autopilot is active but no credits available", "ai-for-seo") . "' class='ai4seo-bulk-generation-status-active-logo'>";
 
                     // triangle-exclamation on the top right corner
                     echo "<div class='ai4seo-bulk-generation-status-active-logo-triangle-exclamation'>";
@@ -475,7 +552,7 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
                     echo "</div>";
 
                 } else if ($ai4seo_was_seo_autopilot_set_up_at_least_x_seconds_ago && $ai4seo_last_bulk_generation_run_was_long_ago) {
-                    echo "<img src='" . esc_url(ai4seo_get_ai_for_seo_logo_url("256x256")) . "' alt='" . esc_attr__("SEO Autopilot is active but slow", "ai-for-seo") . "' class='ai4seo-bulk-generation-status-active-logo'>";
+                    echo "<img src='" . esc_url(ai4seo_get_sooz_logo_url("256x256")) . "' alt='" . esc_attr__("SEO Autopilot is active but slow", "ai-for-seo") . "' class='ai4seo-bulk-generation-status-active-logo'>";
 
                     // triangle-exclamation in the top right corner
                     echo "<div class='ai4seo-bulk-generation-status-active-logo-triangle-exclamation'>";
@@ -495,8 +572,8 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
                     echo "</div>";
                 } else if (in_array($ai4seo_bulk_generation_status, ["initiating", "processing", "scheduled", "finished"]) && $ai4seo_last_bulk_generation_update_time && !$ai4seo_last_bulk_generation_run_was_longer_ago_than_bulk_generation_duration) {
                     echo "<div class='ai4seo-bulk-generation-status-animated-logo-container'>";
-                        echo "<img src='" . esc_url(ai4seo_get_ai_for_seo_logo_url("512x512-animated")) . "' class='ai4seo-bulk-generation-status-animated-logo-pulse'>";
-                        echo "<img src='" . esc_url(ai4seo_get_ai_for_seo_logo_url("512x512-animated")) . "' alt='" . esc_attr__("SEO Autopilot is processing", "ai-for-seo") . "' class='ai4seo-bulk-generation-status-animated-logo'>";
+                        echo "<img src='" . esc_url(ai4seo_get_sooz_logo_url("512x512-animated")) . "' class='ai4seo-bulk-generation-status-animated-logo-pulse'>";
+                        echo "<img src='" . esc_url(ai4seo_get_sooz_logo_url("512x512-animated")) . "' alt='" . esc_attr__("SEO Autopilot is processing", "ai-for-seo") . "' class='ai4seo-bulk-generation-status-animated-logo'>";
                     echo "</div>";
 
                     echo "<div class='ai4seo-bulk-generation-status-text' style='color: #444;'>";
@@ -513,7 +590,7 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
                     #    ai4seo_echo_wp_kses(ai4seo_get_svg_tag("triangle-exclamation"));
                     #echo "</div>";
 
-                    echo "<img src='" . esc_url(ai4seo_get_ai_for_seo_logo_url("256x256")) . "' alt='" . esc_attr__("SEO Autopilot is active but not generating", "ai-for-seo") . "' class='ai4seo-bulk-generation-status-active-logo'>";
+                    echo "<img src='" . esc_url(ai4seo_get_sooz_logo_url("256x256")) . "' alt='" . esc_attr__("SEO Autopilot is active but not generating", "ai-for-seo") . "' class='ai4seo-bulk-generation-status-active-logo'>";
 
                     echo "<div class='ai4seo-bulk-generation-status-text' style='color: #444;'>";
                         echo esc_html__("Pending...", "ai-for-seo");
@@ -531,7 +608,7 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
                 // something went wrong, if we wait at least x seconds after setup without any activity
                 } else if (!$ai4seo_was_seo_autopilot_set_up_at_least_x_seconds_ago) {
                     // waiting for task scheduler to start
-                    echo "<img src='" . esc_url(ai4seo_get_ai_for_seo_logo_url("256x256")) . "' alt='" . esc_attr__("SEO Autopilot is waiting for task scheduler to start", "ai-for-seo") . "' class='ai4seo-bulk-generation-status-active-logo'>";
+                    echo "<img src='" . esc_url(ai4seo_get_sooz_logo_url("256x256")) . "' alt='" . esc_attr__("SEO Autopilot is waiting for task scheduler to start", "ai-for-seo") . "' class='ai4seo-bulk-generation-status-active-logo'>";
 
                     echo "<div class='ai4seo-bulk-generation-status-text'>";
                     echo esc_html__("Initializing...", "ai-for-seo");
@@ -546,7 +623,7 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
                     }
                     echo "</div>";
                 } else {
-                    echo "<img src='" . esc_url(ai4seo_get_ai_for_seo_logo_url("256x256")) . "' alt='" . esc_attr__("SEO Autopilot is stuck", "ai-for-seo") . "' class='ai4seo-bulk-generation-status-inactive-logo'>";
+                    echo "<img src='" . esc_url(ai4seo_get_sooz_logo_url("256x256")) . "' alt='" . esc_attr__("SEO Autopilot is stuck", "ai-for-seo") . "' class='ai4seo-bulk-generation-status-inactive-logo'>";
 
                     // triangle-exclamation in the top right corner
                     echo "<div class='ai4seo-bulk-generation-status-active-logo-triangle-exclamation'>";
@@ -574,9 +651,11 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
                 echo "<div class='ai4seo-buttons-wrapper'>";
                     if ($ai4seo_is_any_bulk_generation_enabled) {
                         // stop SEO Autopilot
-                        ai4seo_echo_wp_kses(ai4seo_get_button_text_link_tag("#", "stop-circle", esc_html__("Stop SEO Autopilot", "ai-for-seo"), "ai4seo-abort-button", "ai4seo_stop_bulk_generation(this)"));
+                        ai4seo_echo_wp_kses(ai4seo_get_abort_button_tag("stop-circle", esc_html__("Stop SEO Autopilot", "ai-for-seo"), "", "ai4seo_stop_bulk_generation(this);"));
                     }
-                    ai4seo_echo_wp_kses(ai4seo_get_button_text_link_tag("#", "arrow-up-right-from-square", esc_html__("Set up SEO Autopilot", "ai-for-seo"), "", "ai4seo_open_modal_from_schema(\"seo-autopilot\", {modal_size: \"small\"});"));
+
+                    // setup SEO Autopilot
+                    ai4seo_echo_wp_kses(ai4seo_get_icon_button_tag("paper-plane", esc_html__("Set up SEO Autopilot", "ai-for-seo"), "", "ai4seo_open_modal_from_schema(\"seo-autopilot\", {modal_size: \"small\", unsaved_changes_warnings: true});"));
                 echo "</div>";
             echo "</div>";
 
@@ -609,10 +688,20 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
                             if ($ai4seo_this_latest_activity_entry["timestamp"] ?? 0) {
                                 echo esc_html(ai4seo_format_unix_timestamp($ai4seo_this_latest_activity_entry["timestamp"] ?? 0)) . " - ";
                             }
-
-                            // title
-                            echo esc_html($ai4seo_this_latest_activity_entry["title"] ?? "");
                         echo "</strong>";
+
+                        // title
+                        if (isset($ai4seo_this_latest_activity_entry["title"]) && $ai4seo_this_latest_activity_entry["title"]) {
+                            echo esc_html($ai4seo_this_latest_activity_entry["title"]);
+                        } else if (isset($ai4seo_this_latest_activity_entry["post_id"]) && $ai4seo_this_latest_activity_entry["post_id"]) {
+                            echo sprintf(
+                                /* translators: %s: post ID */
+                                esc_html__("Post ID %s", "ai-for-seo"),
+                                esc_html($ai4seo_this_latest_activity_entry["post_id"])
+                            );
+                        } else {
+                            echo esc_html__("N/A", "ai-for-seo");
+                        }
 
                         echo "<br>";
 
@@ -667,17 +756,17 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
                     echo "<div class='ai4seo-latest-activity-item-buttons'>";
                         // see post / media preview
                         if (isset($ai4seo_this_latest_activity_entry["url"]) && $ai4seo_this_latest_activity_entry["url"]) {
-                            ai4seo_echo_wp_kses(ai4seo_get_button_text_link_tag($ai4seo_this_latest_activity_entry["url"], "eye", "", "", "", "_blank"));
+                            ai4seo_echo_wp_kses(ai4seo_get_a_tag_icon_button_tag($ai4seo_this_latest_activity_entry["url"], "", "_blank", "eye"));
                         }
 
                         if (in_array(($ai4seo_this_latest_activity_entry["post_type"] ?? ""), $ai4seo_supported_attachment_post_types)) {
-                            ai4seo_echo_wp_kses(ai4seo_get_button_text_link_tag("#", "pen-to-square", "", "", "ai4seo_open_attachment_attributes_editor_modal(" . esc_js($ai4seo_this_latest_activity_entry["post_id"]) . ");"));
+                            ai4seo_echo_wp_kses(ai4seo_get_icon_button_tag("pen-to-square", "", "", "ai4seo_open_attachment_attributes_editor_modal(" . esc_js($ai4seo_this_latest_activity_entry["post_id"]) . ");"));
                         } else {
                             if (isset($ai4seo_this_latest_activity_entry["url"]) && $ai4seo_this_latest_activity_entry["url"]) {
                                 # todo: add source code button using ajax modal, and then only showing the header of the page
                                 #ai4seo_echo_wp_kses(ai4seo_get_button_text_link_tag("#", "code", "", "", "ai4seo_open_view_source(\"" . esc_url($ai4seo_this_latest_activity_entry["url"]) . "\")"));
                             }
-                            ai4seo_echo_wp_kses(ai4seo_get_button_text_link_tag("#", "pen-to-square", "", "", "ai4seo_open_metadata_editor_modal(" . esc_js($ai4seo_this_latest_activity_entry["post_id"]) . ");"));
+                            ai4seo_echo_wp_kses(ai4seo_get_icon_button_tag("pen-to-square", "", "", "ai4seo_open_metadata_editor_modal(" . esc_js($ai4seo_this_latest_activity_entry["post_id"]) . ");"));
                         }
                     echo "</div>";
                 echo "</div>";
@@ -690,58 +779,11 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
     echo "</div>";
 
 
-    // === Personal SEO Expert ========================================================================== \\
-
-    echo "<div class='card ai4seo-card ai4seo-ignore-during-dashboard-refresh ai4seo-dashboard-expert-card'>";
-        echo "<h4 style='cursor: pointer; margin-bottom: 0;' onclick='ai4seo_toggle_visibility(jQuery(this).next(), jQuery(this).find(\".ai4seo-caret-down\"), jQuery(this).find(\".ai4seo-caret-up\"), 200);'>";
-            echo esc_html__("Your Personal SEO Expert", "ai-for-seo");
-            echo "<div class='ai4seo-caret-down'>";
-                ai4seo_echo_wp_kses(ai4seo_get_svg_tag("caret-down"));
-            echo "</div>";
-            echo "<div class='ai4seo-caret-up' style='display: none;'>";
-                ai4seo_echo_wp_kses(ai4seo_get_svg_tag("caret-up"));
-            echo "</div>";
-        echo "</h4>";
-
-        # todo: make this dynamic based on real status and availability
-        echo "<div class='ai4seo-dashboard-expert-card-inner'>";
-            echo "<div class='ai4seo-dashboard-expert-avatar' aria-hidden='true'>";
-                echo "<img src='" . esc_url(ai4seo_get_assets_images_url("andre-erbis-at-space-codes.webp")) . "' alt='" . esc_attr__("SEO Expert Avatar", "ai-for-seo") . "'>";
-            echo "</div>";
-
-            echo "<div class='ai4seo-dashboard-expert-content'>";
-                echo "<div class='ai4seo-dashboard-expert-name'>";
-                    echo esc_html__("André Erbis", "ai-for-seo");
-
-                    // online status badge between 2:00 UTC and 13:00 UTC
-                    if ($ai4seo_current_utc_hour >= 2 && $ai4seo_current_utc_hour < 13) {
-                        echo "<div class='ai4seo-online-status-badge' title='" . esc_attr__("Online", "ai-for-seo") . "'>";
-                            echo "<div class='ai4seo-online-status-icon'></div>";
-                            echo esc_html__("Online", "ai-for-seo");
-                        echo "</div>";
-                    }
-                echo "</div>";
-
-                echo "<p>" . esc_html__("Hi, I'm your personal SEO expert!", "ai-for-seo") . "</p>";
-                echo "<p>" . esc_html__("Whether you need help setting up the plugin, planning your SEO strategy, or want to discuss a custom approach, the AI for SEO team and I have you covered.", "ai-for-seo") . "</p>";
-                echo "<p>";
-                    ai4seo_echo_wp_kses(__("Together, we’ll grow your visibility and turn your search goals into real results. Some users report an <strong>increase</strong> in reach and clicks of over <strong>1900%</strong>.", "ai-for-seo"));
-                echo "</p>";
-                echo "<p>";
-                    ai4seo_echo_wp_kses(__("Ready to take your SEO to the next level? <strong>Let’s connect!</strong>", "ai-for-seo"));
-                echo "</p>";
-
-                ai4seo_echo_wp_kses(ai4seo_get_button_text_link_tag("https://aiforseo.ai/contact", "arrow-up-right-from-square", esc_html__("Contact SEO Expert now", "ai-for-seo"), "", "", "_blank"));
-            echo "</div>";
-        echo "</div>";
-    echo "</div>";
-
-
-    // === Money Back Guarantee ========================================================================== \\
+    // === Ask for feedback ========================================================================== \\
 
     echo "<div class='card ai4seo-card ai4seo-ignore-during-dashboard-refresh'>";
         echo "<h4 style='cursor: pointer; margin-bottom: 0;' onclick='ai4seo_toggle_visibility(jQuery(this).next(), jQuery(this).find(\".ai4seo-caret-down\"), jQuery(this).find(\".ai4seo-caret-up\"), 200);'>";
-            echo esc_html__("Guarantee", "ai-for-seo");
+            echo esc_html__("Support & Feedback", "ai-for-seo");
             echo "<div class='ai4seo-caret-down'>";
                 ai4seo_echo_wp_kses(ai4seo_get_svg_tag("caret-down"));
             echo "</div>";
@@ -750,13 +792,60 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
             echo "</div>";
         echo "</h4>";
 
-        echo "<div style='display: none; margin-top: 1.5rem;'>";
-            ai4seo_echo_wp_kses(ai4seo_get_svg_tag("handshake", __("Guarantee", "ai-for-seo"), "ai4seo-handshake-icon"));
+        echo "<div style='margin-top: 1.5rem;'>";
+            // HELP SECTION
+            // icon
+            ai4seo_echo_wp_kses(ai4seo_get_svg_tag("circle-question", __("Help section", "ai-for-seo"), "ai4seo-big-paragraph-icon"));
             echo " ";
-            # todo: hide if not applicable
-            if (true) {
-                ai4seo_output_money_back_guarantee_notice();
-            }
+
+            ai4seo_echo_wp_kses(sprintf(
+                /* translators: %1$s is help section link, %2$s is getting started guide link, %3$s is FAQ link, %4$s is useful links section link */
+                __('Check our <a href="%1$s">help section</a> for a detailed <a href="%2$s">getting started guide</a>, our organized <a href="%3$s">F.A.Q</a> or other <a href="%4$s">useful links</a>.', "ai-for-seo"),
+                esc_url($ai4seo_help_page_url),
+                esc_url($ai4seo_help_page_url . "#ai4seo-getting-started-section"),
+                esc_url($ai4seo_help_page_url . "#ai4seo-faq-section"),
+                esc_url($ai4seo_help_page_url . "#ai4seo-links-section")
+            ));
+
+            // button to help section
+            echo "<div style='margin-left: 2rem; margin-bottom: 2rem; margin-top: 1rem;'>";
+                ai4seo_echo_wp_kses(ai4seo_get_a_tag_icon_button_tag($ai4seo_help_page_url, "", "", "arrow-up-right-from-square", esc_html__("Go to our help section", "ai-for-seo")));
+            echo "</div>";
+
+            // CONTACT US
+            // icon
+            ai4seo_echo_wp_kses(ai4seo_get_svg_tag("comments", __("Contact us", "ai-for-seo"), "ai4seo-big-paragraph-icon"));
+            echo " ";
+
+            ai4seo_echo_wp_kses(sprintf(
+                __("Missing a feature, need assistance, or looking for a quote?", "ai-for-seo") . " " .
+                /* translators: %s is a clickable email address */
+                __("Please <a href='%s' target='blank'>contact us</a>. We offer support in any language.", "ai-for-seo"),
+                esc_url(AI4SEO_OFFICIAL_CONTACT_URL)
+            ));
+
+            // button to contact us
+            echo "<div style='margin-left: 2rem; margin-bottom: 2rem; margin-top: 1rem;'>";
+                ai4seo_echo_wp_kses(ai4seo_get_contact_us_button());
+            echo "</div>";
+
+            // RATE US
+            // icon
+            ai4seo_echo_wp_kses(ai4seo_get_svg_tag("star", __("Rate us", "ai-for-seo"), "ai4seo-big-paragraph-icon"));
+            echo " ";
+
+            //  like our plugin rate us at AI4SEO_OFFICIAL_WORDPRESS_ORG_PAGE
+            ai4seo_echo_wp_kses(sprintf(
+                /* translators: %s is the rate us link */
+                __("Like our plugin and want to support us? Please <a href='%s' target='blank'>rate us</a> on WordPress.org. We appreciate your feedback!", "ai-for-seo"),
+                esc_url(AI4SEO_OFFICIAL_RATE_US_URL)
+            ));
+
+            // button to rate us
+            echo "<div style='margin-left: 2rem; margin-top: 1rem;'>";
+                ai4seo_echo_wp_kses(ai4seo_get_a_tag_icon_button_tag(esc_url(AI4SEO_OFFICIAL_RATE_US_URL), "", "_blank", "arrow-up-right-from-square", esc_html__("Rate us", "ai-for-seo")));
+            echo "</div>";
+
         echo "</div>";
     echo "</div>";
 
@@ -791,16 +880,18 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
                 // Header with date, version, and collapsible functionality
                 echo "<div class='ai4seo-recent-plugin-updates-title" . ($ai4seo_this_is_important_update ? " ai4seo-recent-plugin-updates-important-title" : "") . "' onclick='ai4seo_toggle_visibility(jQuery(this).next(), jQuery(this).find(\".ai4seo-caret-down\"), jQuery(this).find(\".ai4seo-caret-up\"), 200);'>";
                     // title
-                    echo "➢ ";
-
-                    echo "<div class='ai4seo-bubble' style='margin-left: 10px;'>" . esc_html($this_plugin_update_details['version']) . "</div> ";
+                    if ($ai4seo_this_is_important_update) {
+                        echo "<div class='ai4seo-blue-bubble'>" . esc_html($this_plugin_update_details['version']) . "</div> ";
+                    } else {
+                        echo "<div class='ai4seo-bubble'>" . esc_html($this_plugin_update_details['version']) . "</div> ";
+                    }
 
                     echo esc_html($this_plugin_update_details['date'] . " ");
 
                     // Changes count
                     echo "<span class='ai4seo-changes-count'>(" . sprintf(
                         /* translators: %d = number of changes */
-                            _n('%d change', '%d changes', $ai4seo_this_changes_count, 'ai-for-seo'),
+                            esc_html(_n('%d change', '%d changes', $ai4seo_this_changes_count, 'ai-for-seo')),
                             esc_html($ai4seo_this_changes_count)
                         ) . ")</span>";
 
@@ -837,11 +928,65 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
     echo "</div>";
 
 
-    // === Ask for feedback ========================================================================== \\
+    // === Personal SEO Expert ========================================================================== \\
+
+    /*echo "<div class='card ai4seo-card ai4seo-ignore-during-dashboard-refresh ai4seo-dashboard-expert-card'>";
+        echo "<h4 style='cursor: pointer; margin-bottom: 0;' onclick='ai4seo_toggle_visibility(jQuery(this).next(), jQuery(this).find(\".ai4seo-caret-down\"), jQuery(this).find(\".ai4seo-caret-up\"), 200);'>";
+            echo esc_html__("Your Personal SEO Expert", "ai-for-seo");
+            echo "<div class='ai4seo-caret-down'>";
+                ai4seo_echo_wp_kses(ai4seo_get_svg_tag("caret-down"));
+            echo "</div>";
+            echo "<div class='ai4seo-caret-up' style='display: none;'>";
+                ai4seo_echo_wp_kses(ai4seo_get_svg_tag("caret-up"));
+            echo "</div>";
+        echo "</h4>";
+
+        # todo: make this dynamic based on real status and availability
+        echo "<div class='ai4seo-dashboard-expert-card-inner' style='display: none; margin-top: 1.5rem;'>";
+            echo "<div class='ai4seo-dashboard-expert-avatar' aria-hidden='true'>";
+                echo "<img src='" . esc_url(ai4seo_get_assets_images_url("andre-erbis-at-space-codes.webp")) . "' alt='" . esc_attr__("SEO Expert Avatar", "ai-for-seo") . "'>";
+            echo "</div>";
+
+            echo "<div class='ai4seo-dashboard-expert-content'>";
+                echo "<div class='ai4seo-dashboard-expert-name'>";
+                    echo esc_html__("André Erbis", "ai-for-seo");
+
+                    // online status badge between 2:00 UTC and 13:00 UTC
+                    if ($ai4seo_current_utc_hour >= 2 && $ai4seo_current_utc_hour < 13) {
+                        echo "<div class='ai4seo-online-status-badge' title='" . esc_attr__("Online", "ai-for-seo") . "'>";
+                            echo "<div class='ai4seo-online-status-icon'></div>";
+                            echo esc_html__("Online", "ai-for-seo");
+                        echo "</div>";
+                    }
+                echo "</div>";
+
+                echo "<p>" . esc_html__("Hi, I'm your personal SEO expert!", "ai-for-seo") . "</p>";
+                echo "<p>";
+                    echo sprintf(
+                        /* translators: %s: plugin name */
+/*
+                        esc_html__("Whether you need help setting up the plugin, planning your SEO strategy, or want to discuss a custom approach, the %s team and I have you covered.", "ai-for-seo"),
+                        esc_html(AI4SEO_PLUGIN_NAME)
+                    );
+                echo "</p>";
+                echo "<p>";
+                    ai4seo_echo_wp_kses(__("Together, we’ll grow your visibility and turn your search goals into real results. Some users report an <strong>increase</strong> in reach and clicks of over <strong>1900%</strong>.", "ai-for-seo"));
+                echo "</p>";
+                echo "<p>";
+                    ai4seo_echo_wp_kses(__("Ready to take your SEO to the next level? <strong>Let’s connect!</strong>", "ai-for-seo"));
+                echo "</p>";
+
+                ai4seo_echo_wp_kses(ai4seo_get_a_tag_icon_button_tag(AI4SEO_OFFICIAL_CONTACT_URL, "", "_blank", "comments", esc_html__("Start a Conversation", "ai-for-seo")));
+            echo "</div>";
+        echo "</div>";
+    echo "</div>";*/
+
+
+    // === Money Back Guarantee ========================================================================== \\
 
     echo "<div class='card ai4seo-card ai4seo-ignore-during-dashboard-refresh'>";
         echo "<h4 style='cursor: pointer; margin-bottom: 0;' onclick='ai4seo_toggle_visibility(jQuery(this).next(), jQuery(this).find(\".ai4seo-caret-down\"), jQuery(this).find(\".ai4seo-caret-up\"), 200);'>";
-            echo esc_html__("Support & Feedback", "ai-for-seo");
+            echo esc_html__("Guarantee", "ai-for-seo");
             echo "<div class='ai4seo-caret-down'>";
                 ai4seo_echo_wp_kses(ai4seo_get_svg_tag("caret-down"));
             echo "</div>";
@@ -851,63 +996,12 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
         echo "</h4>";
 
         echo "<div style='display: none; margin-top: 1.5rem;'>";
-
-            // HELP SECTION
-            // icon
-            ai4seo_echo_wp_kses(ai4seo_get_svg_tag("circle-question", __("Help section", "ai-for-seo"), "ai4seo-big-paragraph-icon"));
+            ai4seo_echo_wp_kses(ai4seo_get_svg_tag("handshake", __("Guarantee", "ai-for-seo"), "ai4seo-handshake-icon"));
             echo " ";
-
-            ai4seo_echo_wp_kses(sprintf(
-                /* translators: %s is a clickable email address */
-                __("Check our <a href='%s'>help section</a> for a detailed <a href='%s'>getting started guide</a>, our organized <a href='%s'>F.A.Q</a> or other <a href='%s'>useful links</a>.", "ai-for-seo"),
-                esc_url(ai4seo_get_subpage_url("help")),
-                esc_url(ai4seo_get_subpage_url("help") . "#ai4seo-getting-started-section"),
-                esc_url(ai4seo_get_subpage_url("help") . "#ai4seo-faq-section"),
-                esc_url(ai4seo_get_subpage_url("help") . "#ai4seo-links-section")
-            ));
-
-            echo "<br><br>";
-
-            // button to help section
-            ai4seo_echo_wp_kses(ai4seo_get_button_text_link_tag(esc_url(ai4seo_get_subpage_url("help")), "arrow-up-right-from-square", esc_html__("Go to our help section", "ai-for-seo")));
-
-            echo "<br><br><br>";
-
-            // CONTACT US
-            // icon
-            ai4seo_echo_wp_kses(ai4seo_get_svg_tag("envelope", __("Contact us", "ai-for-seo"), "ai4seo-big-paragraph-icon"));
-            echo " ";
-
-            ai4seo_echo_wp_kses(sprintf(
-                /* translators: %s is a clickable email address */
-                __("Missing a feature, need assistance, or looking for a quote?", "ai-for-seo") . " " .
-                __("Please <a href='%s' target='blank'>contact us</a>. We offer support in any language.", "ai-for-seo"),
-                esc_url(AI4SEO_OFFICIAL_CONTACT_URL)
-            ));
-
-            echo "<br><br>";
-
-            // button to contact us
-            ai4seo_echo_wp_kses(ai4seo_get_button_text_link_tag(esc_url(AI4SEO_OFFICIAL_CONTACT_URL), "arrow-up-right-from-square", esc_html__("Contact us", "ai-for-seo"), "", "", "_blank"));
-
-            echo "<br><br><br>";
-
-            // RATE US
-            // icon
-            ai4seo_echo_wp_kses(ai4seo_get_svg_tag("star", __("Rate us", "ai-for-seo"), "ai4seo-big-paragraph-icon"));
-            echo " ";
-
-            //  like our plugin rate us at AI4SEO_OFFICIAL_WORDPRESS_ORG_PAGE
-            ai4seo_echo_wp_kses(sprintf(
-                __("Like our plugin and want to support us? Please <a href='%s' target='blank'>rate us</a> on WordPress.org. We appreciate your feedback!", "ai-for-seo"),
-                esc_url(AI4SEO_OFFICIAL_RATE_US_URL)
-            ));
-
-            echo "<br><br>";
-
-            // button to rate us
-            ai4seo_echo_wp_kses(ai4seo_get_button_text_link_tag(esc_url(AI4SEO_OFFICIAL_RATE_US_URL), "arrow-up-right-from-square", esc_html__("Rate us", "ai-for-seo"), "", "", "_blank"));
-
+            # todo: hide if not applicable
+            if (true) {
+                ai4seo_output_money_back_guarantee_notice();
+            }
         echo "</div>";
     echo "</div>";
 

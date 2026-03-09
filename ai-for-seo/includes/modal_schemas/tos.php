@@ -44,15 +44,22 @@ $ai4seo_extended_data_collection_tooltip_text = esc_html__("This data includes f
 echo "<div class='ai4seo-modal-schema-headline'>";
     echo "<center>";
 
-    echo "<img src='" . esc_url(ai4seo_get_ai_for_seo_logo_url("full")) . "' class='ai4seo-tos-plugin-logo ai4seo-modal-headline-icon' /><br>";
+        ai4seo_echo_wp_kses(ai4seo_get_sooz_logo_image_tag());
+        echo esc_html__("Terms of Service", "ai-for-seo");
 
-    echo esc_html__("Terms of Service", "ai-for-seo");
-
-    if ($ai4seo_tos_toc_and_pp_accepted_time) {
-        echo "<p>" . sprintf(esc_html__("Please review and accept the updated Terms of Service, effective from %s.", "ai-for-seo"), esc_html($ai4seo_datetime_of_change)) . "</p>";
-    } else {
-        echo "<p>" . sprintf(esc_html__("Please accept the Terms of Service to start using the %s plugin.", "ai-for-seo"), "<span class='ai4seo-plugin-name'>" . esc_html(AI4SEO_PLUGIN_NAME) . "</span>") . "</p>";
-    }
+        if ($ai4seo_tos_toc_and_pp_accepted_time) {
+            echo "<p>" . sprintf(
+                /* translators: %s: date of change */
+                esc_html__("Please review and accept the updated Terms of Service, effective from %s.", "ai-for-seo"),
+                esc_html($ai4seo_datetime_of_change)
+            ) . "</p>";
+        } else {
+            echo "<p>" . sprintf(
+                /* translators: %s: plugin name */
+                esc_html__("Please accept the Terms of Service to start using the %s plugin.", "ai-for-seo"),
+                "<span class='ai4seo-plugin-name'>" . esc_html(AI4SEO_PLUGIN_NAME) . "</span>"
+            ) . "</p>";
+        }
 
     echo "</center>";
 echo "</div>";
@@ -106,7 +113,7 @@ echo "</div>";
 
 echo "<div class='ai4seo-modal-schema-footer'>";
     // reject button
-    echo "<button type='button' onclick='ai4seo_confirm_to_reject_tos();' class='button ai4seo-button ai4seo-abort-button'>" . esc_html__("Reject & Uninstall", "ai-for-seo") . "</button>";
+    ai4seo_echo_wp_kses(ai4seo_get_abort_button_tag("", esc_html__("Reject & Uninstall", "ai-for-seo"), "", "ai4seo_confirm_to_reject_tos();"));
 
     // hide modal if we see this modal outside the plugin pages
     $additional_accept_tos_javascript = "";
@@ -119,6 +126,6 @@ echo "<div class='ai4seo-modal-schema-footer'>";
 
     // accept button
     echo "<div onclick='ai4seo_check_if_user_accepted_tos();'>";
-        echo "<button type='button' onclick='ai4seo_accept_tos(" . esc_js($additional_accept_tos_parameter) . ");" . esc_js($additional_accept_tos_javascript) . "' class='button ai4seo-button ai4seo-disabled-button ai4seo-modal-submit-button ai4seo-accept-tos-button'>" . esc_html__("Accept & Continue", "ai-for-seo") . "</button>";
+        ai4seo_echo_wp_kses(ai4seo_get_button_tag(esc_html__("Accept & Continue", "ai-for-seo"), "ai4seo-inactive-button ai4seo-accept-tos-button", "ai4seo_accept_tos(" . esc_js($additional_accept_tos_parameter) . ");"));
     echo "</div>";
 echo "</div>";

@@ -24,6 +24,7 @@ $ai4seo_modal_schemas = array();
 // === FIND SUITABLE MODAL SCHEMAS =========================================================== \\
 
 $is_user_inside_plugin_admin_pages = ai4seo_is_user_inside_our_plugin_admin_pages();
+$is_user_inside_installed_plugins_page = ai4seo_is_user_inside_installed_plugins_page();
 
 if ($is_user_inside_plugin_admin_pages) {
     // TOS
@@ -49,6 +50,10 @@ if ($is_user_inside_plugin_admin_pages) {
 
         $ai4seo_modal_schemas[] = "get-more-credits";
     }
+}
+
+if ($is_user_inside_installed_plugins_page) {
+    $ai4seo_modal_schemas[] = "plugin-deactivation-feedback";
 }
 
 if (!$ai4seo_modal_schemas) {

@@ -91,7 +91,8 @@ echo "<div class='ai4seo-modal-schema-content'>";
             $ai4seo_this_prefixed_input_id = ai4seo_get_prefixed_input_name(AI4SEO_SETTING_PAYG_STRIPE_PRICE_ID);
 
             $ai4seo_this_setting_description = sprintf(
-                esc_html__("The amount of Credits that will be automatically purchased whenever your Credits balance falls below the threshold of %s Credits.", "ai-for-seo"),
+                /* translators: %s: Threshold of credits before refill triggers. */
+                esc_html__('The amount of Credits that will be automatically purchased whenever your Credits balance falls below the threshold of %s Credits.', 'ai-for-seo'),
                 "<strong>" . esc_html(AI4SEO_PAYG_CREDITS_THRESHOLD) . "</strong>"
             );
 
@@ -178,7 +179,8 @@ echo "<div class='ai4seo-modal-schema-content'>";
             echo "<ol>";
                 echo "<li>";
                     echo sprintf(
-                        esc_html__("I will automatically purchase %s Credits for %s whenever the Credits balance falls below %s Credits.", "ai-for-seo"),
+                        /* translators: 1: Credits purchased per refill. 2: Price per refill. 3: Threshold to trigger refill. */
+                        esc_html__('I will automatically purchase %1$s Credits for %2$s whenever the Credits balance falls below %3$s Credits.', 'ai-for-seo'),
                         "<strong><span id='ai4seo-payg-summary-credits-amount'>" . esc_html($ai4seo_credits_packs[$ai4seo_payg_stripe_price_id]["credits_amount"] ?? 0) . "</span></strong>",
                         ($ai4seo_credits_pack_original_price != $ai4seo_credits_pack_discounted_price ? "<span style='text-decoration: line-through; color: #555;'>" . esc_html($ai4seo_used_currency_uppercase) . " <span id='ai4seo-payg-summary-reference-price'>" . esc_html(number_format_i18n($ai4seo_credits_pack_original_price, 2)) . "</span></span> " : "") .
                         "<strong>" . esc_html($ai4seo_used_currency_uppercase) . " <span id='ai4seo-payg-summary-price'>" . esc_html(number_format_i18n($ai4seo_credits_pack_discounted_price, 2)) . "</span></strong>",
@@ -187,14 +189,16 @@ echo "<div class='ai4seo-modal-schema-content'>";
                 echo "</li>";
                 echo "<li>";
                     ai4seo_echo_wp_kses(sprintf(
-                        __("I will never spend more than %s within a <strong>24-hour period</strong>.", "ai-for-seo"),
+                        /* translators: %s: Daily spending limit. */
+                        __('I will never spend more than %s within a <strong>24-hour period</strong>.', 'ai-for-seo'),
                         "<strong>" . esc_html($ai4seo_used_currency_uppercase) . " <span id='ai4seo-payg-summary-daily-budget'>" . esc_html(number_format_i18n($ai4seo_payg_daily_budget, 2)) . "</span></strong>",
                     ));
                     ai4seo_echo_wp_kses(ai4seo_get_icon_with_tooltip_tag(esc_html__("Including manually purchased Credits packs.", "ai-for-seo")));
                 echo "</li>";
                 echo "<li>";
                     ai4seo_echo_wp_kses(sprintf(
-                        __("I will never spend more than %s per <strong>calendar month</strong>.", "ai-for-seo"),
+                        /* translators: %s: Monthly spending limit. */
+                        __('I will never spend more than %s per <strong>calendar month</strong>.', 'ai-for-seo'),
                         "<strong>" . esc_html($ai4seo_used_currency_uppercase) . " <span id='ai4seo-payg-summary-monthly-budget'>" . esc_html(number_format_i18n($ai4seo_payg_monthly_budget, 2)) . "</span></strong>",
                     ));
                     ai4seo_echo_wp_kses(ai4seo_get_icon_with_tooltip_tag(esc_html__("Including manually purchased Credits packs. Resets on the 1st of each month, CET – Central European Time.", "ai-for-seo")));
@@ -234,12 +238,13 @@ echo "</div>";
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 echo "<div class='ai4seo-modal-schema-footer'>";
-    ai4seo_echo_wp_kses(ai4seo_get_button_text_link_tag("#", "", esc_html__("Close", "ai-for-seo"), "ai4seo-abort-button", "ai4seo_close_modal_by_child(this)"));
+    ai4seo_echo_wp_kses(ai4seo_get_modal_close_button_tag());
 
     if ($ai4seo_is_payg_enabled) {
-        ai4seo_echo_wp_kses(ai4seo_get_button_text_link_tag("#", "", esc_html__("Submit", "ai-for-seo"), "ai4seo-success-button", "ai4seo_handle_payg_submit(this);"));
+        ai4seo_echo_wp_kses(ai4seo_get_submit_button_tag(esc_html__("Submit", "ai-for-seo"), "ai4seo-start-inactive", "ai4seo_handle_payg_submit(this);"));
+        ai4seo_echo_wp_kses(ai4seo_get_button_tag(esc_html__("Disable", "ai-for-seo"), "ai4seo-abort-button ai4seo-gap-left", "ai4seo_disable_payg(this);"));
     } else {
-        ai4seo_echo_wp_kses(ai4seo_get_button_text_link_tag("#", "", esc_html__("Enable P-A-Y-G", "ai-for-seo"), "ai4seo-success-button", "ai4seo_handle_payg_submit(this);"));
+        ai4seo_echo_wp_kses(ai4seo_get_submit_button_tag(esc_html__("Enable P-A-Y-G", "ai-for-seo"), "", "ai4seo_handle_payg_submit(this);"));
     }
 
 echo "</div>";

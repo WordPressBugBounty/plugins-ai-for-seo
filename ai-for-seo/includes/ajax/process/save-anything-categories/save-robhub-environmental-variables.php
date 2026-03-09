@@ -45,8 +45,9 @@ foreach (ai4seo_robhub_api()::DEFAULT_ENVIRONMENTAL_VARIABLES as $ai4seo_this_ro
 
     // validate the value
     if (!ai4seo_robhub_api()->validate_environmental_variable_value($ai4seo_this_robhub_environmental_variable_name, $ai4seo_this_new_robhub_environmental_variable_value)) {
-        ai4seo_send_json_error(sprintf(
-            esc_html__("Invalid robhub environmental variable value for %s", "ai-for-seo"),
+        ai4seo_send_ajax_error(sprintf(
+            /* translators: %s: Environmental variable name. */
+            esc_html__('Invalid robhub environmental variable value for %s', 'ai-for-seo'),
             $ai4seo_this_robhub_environmental_variable_name
         ), 11419225);
         #ai4seo_return_error_as_json("Invalid robhub environmental variable value '$ai4seo_this_new_robhub_environmental_variable_value' for " . $ai4seo_this_robhub_environmental_variable_name, 11419225);
@@ -76,16 +77,16 @@ if ( ! empty( $ai4seo_recent_robhub_environmental_variable_changes ) && is_array
         $ai4seo_robhub_bulk_result = ai4seo_robhub_api()->bulk_update_environmental_variables( $ai4seo_robhub_environmental_variables_bulk_updates );
 
         if ( ! empty( $ai4seo_robhub_bulk_result['invalid_names'] ) ) {
-            error_log( 'RobHub: Bulk update skipped unknown names: ' . implode( ', ', $ai4seo_robhub_bulk_result['invalid_names'] ) . ' #3317171025' );
+            ai4seo_debug_message(3317171025, 'RobHub: Bulk update skipped unknown names:' . implode( ', ', $ai4seo_robhub_bulk_result['invalid_names'] ));
         }
 
         if ( ! empty( $ai4seo_robhub_bulk_result['invalid_values'] ) ) {
-            error_log( 'RobHub: Bulk update skipped invalid values for: ' . implode( ', ', $ai4seo_robhub_bulk_result['invalid_values'] ) . ' #3417171025' );
+            ai4seo_debug_message(3417171025, 'RobHub: Bulk update skipped invalid values for:' . implode( ', ', $ai4seo_robhub_bulk_result['invalid_values'] ));
         }
 
         if ( $ai4seo_robhub_bulk_result['success'] !== true ) {
-            error_log( 'RobHub: Bulk update failed to persist changes. #3517171025' );
-            ai4seo_send_json_error(esc_html__( "Failed to update RobHub environmental variables.", "ai-for-seo" ), 3517171);
+            ai4seo_debug_message(3517171025, 'RobHub: Bulk update failed to persist changes.');
+            ai4seo_send_ajax_error(esc_html__( "Failed to update RobHub environmental variables.", "ai-for-seo" ), 3517171);
             wp_die();
         }
     }
@@ -138,7 +139,7 @@ if (isset($ai4seo_recent_robhub_environmental_variable_changes[$ai4seo_robhub_ap
                 $ai4seo_reset_robhub_account = true;
             }
 
-            ai4seo_send_json_error(esc_html__("Could not verify new credentials.", "ai-for-seo"), 391222324);
+            ai4seo_send_ajax_error(esc_html__("Could not verify new credentials.", "ai-for-seo"), 391222324);
         }
 
     // if we had old username or password, but now we have empty ones, we try to init a free account

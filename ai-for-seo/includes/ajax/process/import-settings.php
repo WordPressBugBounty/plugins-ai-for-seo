@@ -29,17 +29,17 @@ if (!isset($ai4seo_import_mode)) {
 }
 
 // get categories to import
-$ai4seo_import_categories = isset($_REQUEST['ai4seo_import_categories']) ? ai4seo_deep_sanitize((array) $_REQUEST['ai4seo_import_categories']) : array();
+$ai4seo_import_categories = isset($_REQUEST['ai4seo_import_categories']) ? ai4seo_deep_sanitize(wp_unslash((array) $_REQUEST['ai4seo_import_categories'])) : array();
 
 if (!$ai4seo_import_categories) {
-    ai4seo_send_json_error(esc_html__("No categories selected for import.", "ai-for-seo"), 4196725);
+    ai4seo_send_ajax_error(esc_html__("No categories selected for import.", "ai-for-seo"), 4196725);
 }
 
 // get new settings to import
-$ai4seo_new_settings_raw = isset($_REQUEST['ai4seo_new_settings']) ? ai4seo_deep_sanitize((array) $_REQUEST['ai4seo_new_settings']) : array();
+$ai4seo_new_settings_raw = isset($_REQUEST['ai4seo_new_settings']) ? ai4seo_deep_sanitize(wp_unslash((array) $_REQUEST['ai4seo_new_settings'])) : array();
 
 if (!$ai4seo_new_settings_raw) {
-    ai4seo_send_json_error(esc_html__("No settings data provided for import.", "ai-for-seo"), 4296725);
+    ai4seo_send_ajax_error(esc_html__("No settings data provided for import.", "ai-for-seo"), 4296725);
 }
 
 
@@ -78,9 +78,11 @@ function ai4seo_make_nicer_setting_value($setting_value): string {
         // key-value pairs if keys are not numeric, otherwise just implode
         if (array_keys($setting_value) !== range(0, count($setting_value) - 1)) {
             $formatted_values = array();
+
             foreach ($setting_value as $key => $value) {
                 $formatted_values[] = htmlspecialchars($key, ENT_QUOTES, 'UTF-8') . ': ' . htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
             }
+
             return implode(', ', $formatted_values);
         } else {
             // if numeric keys, just implode the values
@@ -146,8 +148,6 @@ foreach ($ai4seo_categorized_new_settings AS $ai4seo_this_category => $ai4seo_th
             }
 
             $ai4seo_this_setting_new_value = filter_var($ai4seo_this_setting_new_value, FILTER_VALIDATE_BOOLEAN);
-        } else if (is_string($ai4seo_current_value)) {
-            $ai4seo_this_setting_new_value = stripslashes($ai4seo_this_setting_new_value);
         }
 
         if(ai4seo_validate_setting_value($ai4seo_this_setting_name, $ai4seo_this_setting_new_value)) {
@@ -199,10 +199,10 @@ if ($ai4seo_import_mode === 'preview') {
     // HEADLINE
     echo "<div class='ai4seo-modal-headline'>";
         echo "<div class='ai4seo-modal-headline-icon'>";
-            echo "<img src='" . esc_url(ai4seo_get_ai_for_seo_logo_url("64x64")) . "' />";
+            ai4seo_echo_wp_kses(ai4seo_get_sooz_logo_image_tag());
         echo "</div>";
 
-        echo esc_html__("Preview Settings Import", "ai-for-seo");
+        echo " - " . esc_html__("Preview Settings Import", "ai-for-seo");
     echo "</div>";
 
     // show extra hint if we have entries in $ai4seo_invalid_settings or $ai4seo_got_unknown_category_entries
@@ -290,7 +290,7 @@ if ($ai4seo_import_mode === 'preview') {
 
             // make nicer current setting value
             $ai4seo_this_current_setting_value = ai4seo_make_nicer_setting_value($ai4seo_this_new_and_validated_change['current']);
-
+            
             // make nicer new setting value
             $ai4seo_this_setting_new_value = ai4seo_make_nicer_setting_value($ai4seo_this_new_and_validated_change['new']);
 
@@ -318,12 +318,10 @@ if ($ai4seo_import_mode === 'preview') {
     // Buttons
     echo "<div class='ai4seo-modal-footer ai4seo-buttons-wrapper'>";
         // abort button
-        echo "<button type='button' onclick='ai4seo_close_modal_by_child(this)' class='button ai4seo-button ai4seo-abort-button ai4seo-big-button'>" . esc_html__("Abort", "ai-for-seo") . "</button>";
+        ai4seo_echo_wp_kses(ai4seo_get_modal_close_button_tag(esc_html__("Abort", "ai-for-seo"), "ai4seo-big-button"));
 
         if ($ai4seo_we_got_valid_changes) {
-            echo "<button type='button' onclick='ai4seo_execute_import_settings(this);' class='button ai4seo-button ai4seo-submit-button ai4seo-big-button'>";
-                echo esc_html__("Import Settings", "ai-for-seo");
-            echo "</button>";
+            ai4seo_echo_wp_kses(ai4seo_get_submit_button_tag(esc_html__("Import Settings", "ai-for-seo"), "ai4seo-big-button", "ai4seo_execute_import_settings(this);"));
         }
     echo "</div>";
 
@@ -339,11 +337,11 @@ if ($ai4seo_import_mode === 'execute') {
     $ai4seo_upcoming_updates = array();
 
     if (!$ai4seo_we_got_valid_settings) {
-        ai4seo_send_json_error(esc_html__("No valid settings found for import.", "ai-for-seo"), 8137725);
+        ai4seo_send_ajax_error(esc_html__("No valid settings found for import.", "ai-for-seo"), 8137725);
     }
 
     if (!$ai4seo_we_got_valid_changes || !$ai4seo_new_and_validated_changes || !is_array($ai4seo_new_and_validated_changes)) {
-        ai4seo_send_json_error(esc_html__("No changes detected in the selected settings.", "ai-for-seo"), 9137725);
+        ai4seo_send_ajax_error(esc_html__("No changes detected in the selected settings.", "ai-for-seo"), 9137725);
     }
 
     // prepare $_POST to be used by save-anything function

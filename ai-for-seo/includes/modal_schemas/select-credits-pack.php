@@ -123,6 +123,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
 
                     if ($ai4seo_this_discount_percentage > 0) {
                         echo "<div class='ai4seo-credits-pack-selection-item-discount-percentage'>";
+                            /* translators: %s is the discount percentage */
                             echo sprintf(esc_html__("%s%% off", "ai-for-seo"), esc_html($ai4seo_this_discount_percentage));
                         echo "</div>";
                     }
@@ -143,7 +144,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
             if ($ai4seo_entry_counter === 3) {
                 if (count($ai4seo_credits_packs) > 3) {
                     echo "<center>";
-                    ai4seo_echo_wp_kses(ai4seo_get_small_button_tag("#", "angle-down", __("Show more options", "ai-for-seo") . " " . ai4seo_get_svg_tag("angle-down"), "ai4seo-credits-pack-show-more-options-button", "jQuery(this).parent().hide();jQuery(this).parent().next().show();"));
+                    ai4seo_echo_wp_kses(ai4seo_get_small_icon_button_tag("angle-down", __("Show more options", "ai-for-seo") . " " . ai4seo_get_svg_tag("angle-down"), "ai4seo-credits-pack-show-more-options-button", "jQuery(this).parent().hide();jQuery(this).parent().next().show();"));
                     echo "</center>";
                     echo "<div style='display: none;'>";
                     $ai4seo_hidden_credits_packs_container_open = true;
@@ -167,7 +168,8 @@ echo "<div class='ai4seo-modal-schema-content'>";
             // you're interested in larger Credits Packs? Contact us!
             echo "<div style='margin-top: 30px; margin-bottom: 10px; padding: 10px 0; border: 2px dashed #ccc; border-radius: 10px; background-color: #fafafa; text-align: center; font-size: large;'>";
                 echo sprintf(
-                    esc_html__("Managing 2,000+ posts, products or images? Get a tailored enterprise plan with up to %s. %sRequest a custom plan%s", "ai-for-seo"),
+                    /* translators: %1$s is the discount info, %2$s is the opening anchor tag, %3$s is the closing anchor tag */
+                    esc_html__('Managing 2,000+ posts, products or images? Get a tailored enterprise plan with up to %1$s. %2$sRequest a custom plan%3$s', "ai-for-seo"),
                     "<strong>30% savings</strong>",
                     "<br>-> <a href='" . esc_url(AI4SEO_OFFICIAL_CONTACT_URL) . "' target='_blank' rel='noopener'><strong>",
                     "</strong></a> <-"
@@ -185,6 +187,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
         echo "<ol>";
             echo "<li>";
                 echo sprintf(
+                    /* translators: %s is the cost per page */
                     esc_html__("Based on your current settings, generating metadata for each page or post will cost approximately %s.", "ai-for-seo"),
                     "<strong class='ai4seo-credits-pack-cost-per-page'>" . esc_html($ai4seo_preferred_currency) . " "
                     . esc_html(number_format_i18n($ai4seo_pre_selected_credits_pack_entry["cost_per_page"] ?? 0, 2)) . "</strong>"
@@ -192,6 +195,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
             echo "</li>";
             echo "<li>";
                 echo sprintf(
+                    /* translators: %s is the cost per media file */
                     esc_html__("Based on your current settings, generating media attributes for each image will cost approximately %s.", "ai-for-seo"),
                     "<strong class='ai4seo-credits-pack-cost-per-media-file'>" . esc_html($ai4seo_preferred_currency) . " "
                     . esc_html(number_format_i18n($ai4seo_pre_selected_credits_pack_entry["cost_per_media_file"] ?? 0, 2)) . "</strong>"
@@ -208,6 +212,6 @@ echo "</div>";
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 echo "<div class='ai4seo-modal-schema-footer'>";
-    ai4seo_echo_wp_kses(ai4seo_get_button_text_link_tag("#", "", esc_html__("Close", "ai-for-seo"), "ai4seo-abort-button", "ai4seo_close_modal_by_child(this)"));
-    ai4seo_echo_wp_kses(ai4seo_get_button_text_link_tag("#", "", esc_html__("Continue", "ai-for-seo"), "ai4seo-success-button", "ai4seo_handle_select_credits_pack(this);"));
+    ai4seo_echo_wp_kses(ai4seo_get_modal_close_button_tag());
+    ai4seo_echo_wp_kses(ai4seo_get_submit_button_tag(esc_html__("Continue", "ai-for-seo"), "", "ai4seo_handle_select_credits_pack(this);"));
 echo "</div>";

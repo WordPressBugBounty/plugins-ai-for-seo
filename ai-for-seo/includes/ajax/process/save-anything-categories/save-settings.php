@@ -64,11 +64,12 @@ foreach (AI4SEO_DEFAULT_SETTINGS as $ai4seo_this_setting_name => $ai4seo_this_de
 
     // validate the setting value
     if (!ai4seo_validate_setting_value($ai4seo_this_setting_name, $ai4seo_this_new_setting_value)) {
-        ai4seo_send_json_error(sprintf(
-            esc_html__("Invalid setting value for %s", "ai-for-seo"),
+        ai4seo_send_ajax_error(sprintf(
+            /* translators: %s: Setting name. */
+            esc_html__('Invalid setting value for %s', 'ai-for-seo'),
             $ai4seo_this_setting_name
         ), 261219225);
-        #ai4seo_return_error_as_json("Invalid setting value '" . print_r($ai4seo_this_new_setting_value, true) . "' for " . $ai4seo_this_setting_name, 261219225);
+        #ai4seo_return_error_as_json("Invalid setting value '" . ai4seo_stringify($ai4seo_this_new_setting_value) . "' for " . $ai4seo_this_setting_name, 261219225);
         wp_die();
     }
 
@@ -102,6 +103,7 @@ $ai4seo_analysis_trigger_settings = [
     AI4SEO_SETTING_DISABLED_POST_TYPES,
     AI4SEO_SETTING_OVERWRITE_EXISTING_METADATA,
     AI4SEO_SETTING_OVERWRITE_EXISTING_ATTACHMENT_ATTRIBUTES,
+    AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER
 ];
 
 foreach ( $ai4seo_analysis_trigger_settings as $ai4seo_this_setting_key ) {
@@ -182,7 +184,7 @@ if (isset($upcoming_save_anything_updates[AI4SEO_SETTING_PAYG_ENABLED]) && $upco
     $ai4seo_sent_pay_as_you_go_settings_response = ai4seo_send_pay_as_you_go_settings();
 
     if ($ai4seo_sent_pay_as_you_go_settings_response === false) {
-        ai4seo_send_json_error(esc_html__("Could not send pay-as-you-go settings to RobHub", "ai-for-seo"), 401217325);
+        ai4seo_send_ajax_error(esc_html__("Could not send pay-as-you-go settings to RobHub", "ai-for-seo"), 401217325);
         wp_die();
     }
 }

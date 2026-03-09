@@ -1,22 +1,22 @@
-=== AI for SEO – Bulk Generate Focus Keyphrases, Metadata, Alt Text (SEO Autopilot) ===
+=== SOOZ - AI for SEO – Bulk Generate Focus Keyphrases, Metadata, Alt Text (SEO Autopilot) ===
 Tags: seo, ai, google search console, alt text, bulk
 Contributors: spacecodes
 Donate link: https://spa.ce.codes
 Requires at least: 4.7
-Tested up to: 6.8.3
-Stable tag: 2.2.5
+Tested up to: 6.9
+Stable tag: 2.3.0
 Requires PHP: 7.4
-License: GPLv2 or later (or compatible)
+License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
 Lightweight SEO Autopilot that works with Yoast SEO, Rank Math, SEOPress, WooCommerce etc. to bulk-generate keyphrases, meta tags, alt text and more.
 
 == Description ==
-*AI for SEO* is an **alt text & metadata bulk generator** with **SEO Autopilot**, optimize pages, posts, products, and images automatically. Built for WooCommerce SEO and high-volume sites.
+*SOOZ - AI for SEO* is an **alt text & metadata bulk generator** with **SEO Autopilot**, optimize pages, posts, products, and images automatically. Built for WooCommerce SEO and high-volume sites.
 
-Sync generated focus keyphrases, meta titles, meta descriptions and social-media tags to your existing stack (Yoast SEO, Rank Math, SEOPress, and others). Use ‘Generate with AI’ buttons where you work: Block Editor (Gutenberg), Media Library, Elementor, BeTheme’s BeBuilder, or the top admin bar. Think of *AI for SEO* as your SEO Copilot wherever you edit.
+Sync generated focus keyphrases, meta titles, meta descriptions and social-media tags to your existing stack (Yoast SEO, Rank Math, SEOPress, and others). Use ‘Generate with SOOZ’ buttons where you work: Block Editor (Gutenberg), Media Library, Elementor, BeTheme’s BeBuilder, or the top admin bar. Think of *SOOZ - AI for SEO* as your SEO Copilot wherever you edit.
 
-Achieve better metadata and alt text results than with ChatGPT. *AI for SEO* understands your entire website and uses expertly crafted SEO prompts designed to drive real search traffic.
+Achieve better metadata and alt text results than with ChatGPT. *SOOZ - AI for SEO* understands your entire website and uses expertly crafted SEO prompts designed to drive real search traffic.
 
 **Image SEO at scale:** Create alt text, image titles, captions, and descriptions across your library (jpg, png, gif, webp, avif).
 
@@ -25,18 +25,18 @@ Achieve better metadata and alt text results than with ChatGPT. *AI for SEO* und
 **Free for most small/medium sites:** If your balance falls below 100 Credits, we add 5 free Credits daily, so you can keep generating at no cost.
 
 = 🚀 How to Get Started =
-1. **Open the Dashboard:** Go to 'AI for SEO' to view statistics about your current SEO coverage.
+1. **Open the Dashboard:** Go to 'SOOZ - AI for SEO' to view statistics about your current SEO coverage.
 2. **Review your content:** Open 'Pages', 'Posts', 'Products', or 'Media' and check its SEO status.
 3. **Set up Autopilot:** Click 'Set up SEO Autopilot', choose content types (Pages/Posts/Products/Media), and start bulk generation.
-4. **Get a first win (optional):** In the 'Media Library', click 'Generate with AI' on one image to create optimized alt text within seconds.
-5. **Fine-tune manually:** Use 'Generate with AI' buttons or the top admin-bar 'AI for SEO' button to open the Metadata Editor for any page or post.
-6. **Sync with your SEO plugin (optional):** In 'Settings' → 'Sync 'AI for SEO' Changes', select Yoast SEO, Rank Math, SEOPress or many more to keep fields updated.
+4. **Get a first win (optional):** In the 'Media Library', click 'Generate with SOOZ' on one image to create optimized alt text within seconds.
+5. **Fine-tune manually:** Use 'Generate with SOOZ' buttons or the top admin-bar 'SOOZ - AI for SEO' button to open the Metadata Editor for any page or post.
+6. **Sync with your SEO plugin (optional):** In 'Settings' → 'Sync 'SOOZ - AI for SEO' Changes', select Yoast SEO, Rank Math, SEOPress or many more to keep fields updated.
 
 For a step-by-step guide, see 'Help' → 'Getting Started' → 'First Steps'.
-Need help? Email [info@aiforseo.ai](mailto:info@aiforseo.ai).
+Need help? Email [support@sooz.ai](mailto:support@sooz.ai).
 
 = 💸 100% Risk-Free Money-Back Guarantee! =
-Within 14 days of your **first** purchase (subscription: Basic/Pro/Premium, or **Credits Pack**), if *AI for SEO* isn’t a fit, email [info@aiforseo.ai](mailto:info@aiforseo.ai).
+Within 14 days of your **first** purchase (subscription: Basic/Pro/Premium, or **Credits Pack**), if *SOOZ - AI for SEO* isn’t a fit, email [support@sooz.ai](mailto:support@sooz.ai).
 We’ll refund 100%, no questions asked.
 
 = 🔌 Editor integrations =
@@ -48,15 +48,15 @@ Create and edit metadata right where you work, no context switching.
 - **BeTheme BeBuilder**
 - **Yoast SEO Settings**
 
-We add 'Generate with AI' buttons in these editors so you can create SEO titles, descriptions, and image attributes in one click. It’s like having an SEO Copilot inside each editor.
-You can also click the *AI for SEO* button in the top admin bar to open the Metadata Editor from any page or post.
+We add 'Generate with SOOZ' buttons in these editors so you can create SEO titles, descriptions, and image attributes in one click. It’s like having an SEO Copilot inside each editor.
+You can also click the *SOOZ - AI for SEO* button in the top admin bar to open the Metadata Editor from any page or post.
 
 = 🎯 Key Features =
 ✅ **SEO Autopilot (bulk):** Automatically generate and refresh metadata for new and existing content.
 ✅ **Alt text & image attributes:** Create alt text, titles, captions, and descriptions site-wide (jpg/png/gif/webp/avif).
 ✅ **WooCommerce SEO:** Optimize product metadata to attract higher-intent buyers from search.
 ✅ **Sync with your SEO plugin:** Keep fields updated in Yoast, Rank Math, SEOPress, and others.
-✅ **Edit where you work:** ‘Generate with AI’ in the Block Editor (Gutenberg), Media Library, Elementor, BeBuilder, and Yoast SEO. An SEO Copilot embedded in your workflow.
+✅ **Edit where you work:** ‘Generate with SOOZ’ in the Block Editor (Gutenberg), Media Library, Elementor, BeBuilder, and Yoast SEO. An SEO Copilot embedded in your workflow.
 ✅ **Accessibility-ready:** Helps meet European Accessibility Act (EAA) requirements by automatically generating missing alt text for a more inclusive experience.
 ✅ **Progress tracking:** Monitor coverage and recent activity from the dashboard.
 ✅ **For agencies & teams:** White-label, incognito mode, export/import settings, multi-site support.
@@ -64,7 +64,7 @@ You can also click the *AI for SEO* button in the top admin bar to open the Meta
 ✅ **One account, many websites:** Share subscriptions or Credits Packs across any number of sites.
 
 = 🔗 Integrations & Compatibility =
-*AI for SEO* works with leading SEO plugins, page builders, e-commerce, multilingual tools, galleries, and popular themes, so you can generate and sync metadata where you already work. *AI for SEO* is designed to work alongside these plugins and themes, not replace them, so your existing setup continues to function normally while *AI for SEO* generates and syncs the SEO data.
+*SOOZ - AI for SEO* works with leading SEO plugins, page builders, e-commerce, multilingual tools, galleries, and popular themes, so you can generate and sync metadata where you already work. *SOOZ - AI for SEO* is designed to work alongside these plugins and themes, not replace them, so your existing setup continues to function normally while *SOOZ - AI for SEO* generates and syncs the SEO data.
 See the list below for confirmed compatibility.
 ✅ Yoast SEO
 ✅ Rank Math
@@ -84,7 +84,7 @@ See the list below for confirmed compatibility.
 ✅ MemberPress
 ✅ Divi
 
-If your favorite plugin or theme isn’t listed, please email us the name, URL, and the fields you’d like to sync, we prioritize new compatibility based on demand: [info@aiforseo.ai](mailto:info@aiforseo.ai)
+If your favorite plugin or theme isn’t listed, please email us the name, URL, and the fields you’d like to sync, we prioritize new compatibility based on demand: [support@sooz.ai](mailto:support@sooz.ai)
 Focus keyphrases and meta tags are automatically imported from Yoast SEO, Rank Math, and other supported plugins. You can review, modify, and regenerate this data at any time, then sync it back to your preferred SEO plugin.
 
 == Installation ==
@@ -93,7 +93,7 @@ Install like any other WordPress plugin.
 
 **Dashboard (search)**
 1. Log in to WordPress and go to 'Plugins → Add New'.
-2. Search for *AI for SEO* and select the plugin.
+2. Search for *SOOZ - AI for SEO* and select the plugin.
 3. Click 'Install', then 'Activate'.
 
 **Dashboard (upload a ZIP)**
@@ -103,13 +103,13 @@ Install like any other WordPress plugin.
 
 **Manual upload (FTP/SFTP)**
 1. Unzip the archive and upload the 'ai-for-seo' folder to 'wp-content/plugins/'.
-2. In WordPress, go to 'Plugins' and click 'Activate' for *AI for SEO*.
+2. In WordPress, go to 'Plugins' and click 'Activate' for *SOOZ - AI for SEO*.
 
 **WP-CLI (advanced)**
 wp plugin install ai-for-seo --activate
 
 **After activation**
-Open 'AI for SEO' in the admin menu to view your SEO coverage and click 'Set up SEO Autopilot' to start bulk generation.
+Open 'SOOZ - AI for SEO' in the admin menu to view your SEO coverage and click 'Set up SEO Autopilot' to start bulk generation.
 
 
 == Screenshots ==
@@ -124,8 +124,8 @@ Open 'AI for SEO' in the admin menu to view your SEO coverage and click 'Set up 
 
 == Frequently Asked Questions ==
 
-= Can I use *AI for SEO* alongside another SEO plugin? =
-Yes, *AI for SEO* is compatible with all major SEO plugins. The metadata generated by *AI for SEO* can be synchronized with popular plugins such as Yoast SEO, Rank Math, SEOPress, All in One SEO, Slim SEO, SEO Simple Pack, Squirrly SEO, The SEO Framework, and Blog2Social. This ensures your metadata remains up-to-date and seamlessly integrates with your preferred SEO tool.
+= Can I use *SOOZ - AI for SEO* alongside another SEO plugin? =
+Yes, *SOOZ - AI for SEO* is compatible with all major SEO plugins. The metadata generated by *SOOZ - AI for SEO* can be synchronized with popular plugins such as Yoast SEO, Rank Math, SEOPress, All in One SEO, Slim SEO, SEO Simple Pack, Squirrly SEO, The SEO Framework, and Blog2Social. This ensures your metadata remains up-to-date and seamlessly integrates with your preferred SEO tool.
 
 = How do I avoid duplicate meta tags with other SEO plugins? =
 Use the output mode in Settings. Choose between Disable, Force, Replace (default), or Complement existing meta tags to match your setup with Yoast, Rank Math, SEOPress, etc.
@@ -133,19 +133,19 @@ Use the output mode in Settings. Choose between Disable, Force, Replace (default
 = Will the AI tool automatically analyze my content? =
 Yes, the AI tool will generate SEO-relevant data based on the content of the selected page, blog post or media file.
 
-= Will *AI for SEO* overwrite my existing metadata or media attributes? =
+= Will *SOOZ - AI for SEO* overwrite my existing metadata or media attributes? =
 Not unless you enable it. By default, we don’t overwrite existing data. You can explicitly allow overwriting (and even include “complete” entries) in Settings.
 
 = Can I choose which media attributes the plugin should generate? =
-Yes, *AI for SEO* lets you decide which media attributes (like 'alt text' or 'title') should be generated. You can configure this in the 'Active Media Attributes:' section of the settings to match your content needs. Simply select the desired attributes and the SEO Autopilot will generate the data accordingly.
+Yes, *SOOZ - AI for SEO* lets you decide which media attributes (like 'alt text' or 'title') should be generated. You can configure this in the 'Active Media Attributes:' section of the settings to match your content needs. Simply select the desired attributes and the SEO Autopilot will generate the data accordingly.
 
-= How are Credits consumed in the *AI for SEO* plugin? =
-Credits are used when *AI for SEO* generates metadata for your content (posts, pages, products, media files etc.). The amount of Credits required depends on the selected active meta tags and media attributes (see Settings).
+= How are Credits consumed in the *SOOZ - AI for SEO* plugin? =
+Credits are used when *SOOZ - AI for SEO* generates metadata for your content (posts, pages, products, media files etc.). The amount of Credits required depends on the selected active meta tags and media attributes (see Settings).
 
 = Do unused Credits expire at the end of the month? =
 No, any unused Credits will roll over to the next month, allowing you to fully utilize your Credits without losing them at the end of each billing cycle.
 
-= Can I try the *AI for SEO* plugin without purchasing a subscription? =
+= Can I try the *SOOZ - AI for SEO* plugin without purchasing a subscription? =
 Yes, the free plan provides you with 100 Credits, allowing you to experiment with AI-generated SEO content without any cost. In addition, we provide you with 5 free Credits every day if your balance falls below 100 Credits.
 
 = When should I choose a Subscription, Credit Packs, or Pay-As-You-Go? =
@@ -153,44 +153,64 @@ Yes, the free plan provides you with 100 Credits, allowing you to experiment wit
 2. Choose **Credit Packs** for one-time top-ups when you need a larger burst of generations. Credit Packs are ideal as an add-on to an active subscription when you temporarily need more Credits.
 3. Choose <strong>PAYG (Pay-As-You-Go)</strong> if you prefer automatic top-ups. When your balance falls below 100 Credits, new Credits are added to your account automatically by purchasing a package you selected in advance.
 
-= Does *AI for SEO* support multi-language websites? =
+= Where can I log in to my SOOZ – AI for SEO account / customer portal? =
+We currently do not offer a separate customer portal. All account-related actions, including subscription and payment management, can be accessed through the WordPress plugin.
+You can find the relevant links in your WordPress admin area under “SOOZ – AI for SEO” > “Account”.
+
+= Where can I download my invoice? =
+A download link for your invoice is included in the confirmation email sent after each purchase.
+If you currently have an active subscription, you can also access and download your invoices through the WordPress plugin under “SOOZ – AI for SEO” > “Account” > “Manage Subscription / Invoices”.
+
+= Does *SOOZ - AI for SEO* support multi-language websites? =
 Yes, the plugin does support multi-language websites. The plugin also supports the WPML-plugin through which you can generate metadata and media attributes for all available languages separately.
 
-= Does *AI for SEO* support Multi-Site installations? =
-Yes, *AI for SEO* fully supports Multi-Site installations. Simply purchase a subscription on your primary website and use the same license owner and license key across all your sub-sites.
+= Does *SOOZ - AI for SEO* support Multi-Site installations? =
+Yes, *SOOZ - AI for SEO* fully supports Multi-Site installations. Simply purchase a subscription on your primary website and use the same license owner and license key across all your sub-sites.
 
-= Can I use *AI for SEO* on a staging or local development site? =
-Yes, you can use *AI for SEO* on staging or local development sites.
+= Can I use *SOOZ - AI for SEO* on a staging or local development site? =
+Yes, you can use *SOOZ - AI for SEO* on staging or local development sites.
 
 = What editors are supported? =
-*AI for SEO* supports most editors and themes. For extra convenience, we've added dedicated “Generate with AI” buttons in Elementor, BeTheme (Muffin-Builder / Be-Builder), and the standard editor. You can also generate metadata directly from the plugin dashboard, the metadata editor, or SEO Autopilot without using any page builder.
+*SOOZ - AI for SEO* supports most editors and themes. For extra convenience, we've added dedicated “Generate with SOOZ” buttons in Elementor, BeTheme (Muffin-Builder / Be-Builder), and the standard editor. You can also generate metadata directly from the plugin dashboard, the metadata editor, or SEO Autopilot without using any page builder.
 
 = Can I link multiple sites and share credits/settings? =
-Yes. Enter the same license owner + key under *AI for SEO* > Account on each website to link them. Linked websites share the same credits pool, and you can export/import settings between them. Works with Multisite and staging.
+Yes. Enter the same license owner + key under *SOOZ - AI for SEO* > Account on each website to link them. Linked websites share the same credits pool, and you can export/import settings between them. Works with Multisite and staging.
 
 = I’m an agency with multiple client websites. How do I set things up? =
-1. We recommend setting up your agency *AI for SEO* account via a primary site (e.g., your agency site) and purchasing a subscription there. Alternatively, you can purchase directly on our website: https://aiforseo.ai/pricing
-2. After purchasing a subscription, you receive your license owner and key by email and they are also visible in your *AI for SEO* Account area.
-3. Install the *AI for SEO* plugin on each client website you manage. Go to *AI for SEO* > Account on each website.
+1. We recommend setting up your agency *SOOZ - AI for SEO* account via a primary site (e.g., your agency site) and purchasing a subscription there. Alternatively, you can purchase directly on our website: https://sooz.ai/pricing
+2. After purchasing a subscription, you receive your license owner and key by email and they are also visible in your *SOOZ - AI for SEO* Account area.
+3. Install the *SOOZ - AI for SEO* plugin on each client website you manage. Go to *SOOZ - AI for SEO* > Account on each website.
 4. Enter the **same license owner + key** to link them to the same account. Linked websites share the same subscription and Credits pool.
 
-= Does *AI for SEO* collect or store my content? =
-*AI for SEO* sends only the text needed to generate metadata to our AI service. We don’t add tracking scripts to your site, and we don’t publish your content. You can review privacy options (generator hints, white-label, incognito) under *AI for SEO* > Account > Privacy & Agreements.
+= Does *SOOZ - AI for SEO* collect or store my content? =
+*SOOZ - AI for SEO* sends only the text needed to generate metadata to our AI service. We don’t add tracking scripts to your site, and we don’t publish your content. You can review privacy options (generator hints, white-label, incognito) under *SOOZ - AI for SEO* > Account > Privacy & Agreements.
 
-= Can I control who can use *AI for SEO* in my WordPress? =
-Yes. In Settings, you can restrict access by user role. Agencies can also use Incognito and White-Label options in *AI for SEO* > Account.
+= Can I control who can use *SOOZ - AI for SEO* in my WordPress? =
+Yes. In Settings, you can restrict access by user role. Agencies can also use Incognito and White-Label options in *SOOZ - AI for SEO* > Account.
 
 = Is AI-generated SEO-content harmful to my SEO-ranking? =
 Currently, Google's stance on the use of AI or automation in content creation is generally permissive, as indicated in a Google Developers blog post from February 2023. They state that appropriate use of AI or automation is not against their guidelines. More information can be found at [https://developers.google.com/search/blog/2023/02/google-search-and-ai-content](https://developers.google.com/search/blog/2023/02/google-search-and-ai-content).
 
 = Will all the generated data disappear if I uninstall the plugin? =
-It depends on how the metadata is stored and used. If *AI for SEO* has synchronized the generated metadata with a third-party SEO plugin like Yoast SEO, RankMath, SEOPress, or similar, then the metadata will remain even after uninstalling *AI for SEO*. You can check and enable synchronization in your *AI for SEO* settings. However, if synchronization was not enabled during generation, then those meta tags will disappear once the plugin is deactivated or uninstalled.
+It depends on how the metadata is stored and used. If *SOOZ - AI for SEO* has synchronized the generated metadata with a third-party SEO plugin like Yoast SEO, RankMath, SEOPress, or similar, then the metadata will remain even after uninstalling *SOOZ - AI for SEO*. You can check and enable synchronization in your *SOOZ - AI for SEO* settings. However, if synchronization was not enabled during generation, then those meta tags will disappear once the plugin is deactivated or uninstalled.
 
 = Can you add feature x, y or z to the plugin? =
-We are always open to suggestions and feedback. Please email us at [info@aiforseo.ai](mailto:info@aiforseo.ai) with your suggestions.
+We are always open to suggestions and feedback. Please email us at [support@sooz.ai](mailto:support@sooz.ai) with your suggestions.
 
 
 == Changelog ==
+
+= 2.3.0 =
+* Changed branding from "AI for SEO" to "SOOZ - AI for SEO". Visit sooz.ai for more information.
+* Enhanced the quality of alt text and image attribute generation by incorporating a broader context from the surrounding content, resulting in more accurate descriptions.
+* Performance improvements across multiple areas. The plugin should feel more responsive on large sites.
+* Posts and Media lists now show all languages. Entries are labeled and can be filtered by WPML language.
+* New advanced setting: Toggle frontend cache purging after metadata updates.
+* Added a warning when leaving a page or modal with unsaved changes, on various editors and settings pages.
+* Added a feedback modal on plugin deactivation, so users can share why they are leaving.
+* Added a new "Remove License" button on the account page.
+* Added a new setting "Query IDs Chunk Size": Advanced troubleshooting option to adjust chunk size when processing large amounts of entries. Lower values may reduce database load and fix MySQL-related issues. Higher values can improve performance if your database allows it.
+* Bug Fixes & Maintenance: Fixed 21 minor bugs, implemented 9 usability improvements, implemented 14 performance optimizations, and resolved 13 security issues.
 
 = 2.2.5 =
 * Added an advanced setting to adjust the Focus Keyphrase behavior during SEO Autopilot when existing metadata is present.
@@ -213,8 +233,8 @@ We are always open to suggestions and feedback. Please email us at [info@aiforse
 * Added Focus Keyphrase generation, editing, and syncing for Yoast SEO and RankMath.
 * Added Meta Keywords generation, editing, and front-end output.
 * Added WooCommerce price inclusion modes for AI-generated metadata (Never, Fixed Price, Dynamic Price).
-* Added additional “Generate with AI” buttons inside the Gutenberg editor when RankMath is active.
-* Added “Generate with AI” buttons for Focus Keyphrase (Yoast SEO) and Focus Keyword (RankMath) inside their editors.
+* Added additional “Generate with SOOZ” buttons inside the Gutenberg editor when RankMath is active.
+* Added “Generate with SOOZ” buttons for Focus Keyphrase (Yoast SEO) and Focus Keyword (RankMath) inside their editors.
 * Added a filter bar to the Posts and Media views including SEO-status filters and a text search.
 * Added placeholder support for prefixes and suffixes across all syntaxes ({TITLE}, [TITLE], %%TITLE%% and their placeholder variants).
 * Added a setting to include existing values when generating metadata and media attributes (Basic Plan+).
@@ -262,7 +282,7 @@ We are always open to suggestions and feedback. Please email us at [info@aiforse
 * Bug Fixes & Maintenance: Fixed 9 minor bugs, implemented 6 performance optimizations, and 1 security update.
 
 = 2.1.0 =
-* Added "Generate with AI" buttons in the media section of the Gutenberg editor, allowing users to generate media attributes directly from the editor.
+* Added "Generate with SOOZ" buttons in the media section of the Gutenberg editor, allowing users to generate media attributes directly from the editor.
 * Improved context awareness for pages, posts, and products, especially for content with short text. Ensures AI-generated metadata is more relevant and tailored.
 * Added a setting for render-level alt text injection. This checkbox setting (enabled by default) ensures images always have the correct alt text, even if themes or other mechanisms fail to display it.
 * Added a setting for render-level image title injection. Includes a select input to choose what should be injected as the title attribute: Disabled, Inject image title, Inject alt text (default), Inject caption, or Inject image description.
@@ -272,8 +292,8 @@ We are always open to suggestions and feedback. Please email us at [info@aiforse
 * Added a "Show/Hide Advanced Settings" toggle in the plugin settings. Some advanced settings are now hidden by default to simplify the interface for most users.
 * Made setting descriptions more concise and user-friendly. Rearranged several settings for improved clarity and usability.
 * Private or pending posts, pages, and attachments are now ignored by the plugin, preventing them from being processed.
-* Improved UX: The AI for SEO sidebar is now sticky on desktop, keeping it visible during page scrolling for easier navigation.
-* Changed how plugin notifications are handled. All notifications are now indicated by a red bubble in the admin menu. Detailed notices can be viewed in the AI for SEO dashboard.
+* Improved UX: The SOOZ - AI for SEO sidebar is now sticky on desktop, keeping it visible during page scrolling for easier navigation.
+* Changed how plugin notifications are handled. All notifications are now indicated by a red bubble in the admin menu. Detailed notices can be viewed in the SOOZ - AI for SEO dashboard.
 * Added new notifications:
   - Insufficient credits balance.
   - Overview of missing entries to generate.
@@ -296,7 +316,7 @@ We are always open to suggestions and feedback. Please email us at [info@aiforse
 * Bug Fixes & Maintenance: Fixed 11 minor bugs and implemented security updates.
 
 = 2.0.4 =
-* Added support for NextGen Gallery: The plugin now recognizes and processes media attributes for images created with the NextGen Gallery plugin. Use the new "Import" button in the media page to import all images from the NextGen Gallery into the *AI for SEO* plugin.
+* Added support for NextGen Gallery: The plugin now recognizes and processes media attributes for images created with the NextGen Gallery plugin. Use the new "Import" button in the media page to import all images from the NextGen Gallery into the *SOOZ - AI for SEO* plugin.
 * Bug Fixes & Maintenance: Fixed 2 minor bugs
 
 = 2.0.3 =
@@ -304,7 +324,7 @@ We are always open to suggestions and feedback. Please email us at [info@aiforse
 * Bug Fixes & Maintenance: Fixed 15 minor bugs, corrected typos, and implemented security updates.
 
 = 2.0.2 =
-* Improved Prefix & Suffix Support: Prefixes and suffixes are now correctly applied when using the "Generate with AI" button in both the Metadata Editor and the Attachment Attributes Editor.
+* Improved Prefix & Suffix Support: Prefixes and suffixes are now correctly applied when using the "Generate with SOOZ" button in both the Metadata Editor and the Attachment Attributes Editor.
 * Enhanced Mobile UX: Better responsiveness and usability on the Pages / Posts and Media Files views for mobile devices.
 * Account Page Improvements: Added direct buttons for managing your active subscription and customizing Pay-As-You-Go settings.
 * Updated Help Section: Improved help content and clearer "First Steps" guidance for new users.
@@ -336,7 +356,8 @@ We are always open to suggestions and feedback. Please email us at [info@aiforse
 * Tons more minor improvements, bug fixes, and performance enhancements.
 
 = 1.2.0 =
-* Image Metadata Generation: Added support for generating alt text, titles, captions, and descriptions for all images on your website. You can use the bulk or manual generation options available. Simply click the 'Generate with AI' button in the media library or explore the new 'Media' page within the *AI for SEO* plugin.
+* Image Metadata Generation: Added support for generating alt text, titles, captions, and descriptions for all images on your website.
+* You can use the bulk or manual generation options available. Simply click the 'Generate with SOOZ' button in the media library or explore the new 'Media' page within the *SOOZ - AI for SEO* plugin.
 * New 'Settings' Page: We have introduced a 'Settings' page with various options to enhance your experience (details below).
 ** Meta Tag Inclusion: This option allows you to include or exclude specific meta tags from being output in the header by our plugin. Note that this setting does not affect meta tags generated by other plugins. For instance, if you prefer the meta titles generated by another plugin, you may choose to exclude them here.
 ** Language Selection: Allows you to override the AI’s language detection, which is helpful if your content is in a language different from what the AI has detected.
@@ -356,5 +377,5 @@ We are always open to suggestions and feedback. Please email us at [info@aiforse
 
 == Upgrade Notice ==
 
-= 1.1 =
-* Upgrade recommended: This version introduces essential features like translatable texts, SEO data generation for WooCommerce products, admin notices for credit management, and enhanced statistics for tracking SEO progress. Additionally, visual improvements and bug fixes have been made to enhance user experience and plugin performance.
+= 2.2.0 =
+We have changed how Credits are consumed. Credits are now charged per generated field instead of per entry. Use the "Active Meta Tags" and "Active Media Attributes" settings to control which fields are generated and how many Credits each action requires.

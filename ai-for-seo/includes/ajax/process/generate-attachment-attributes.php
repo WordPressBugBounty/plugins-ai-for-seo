@@ -40,7 +40,7 @@ if (!$ai4seo_debug) {
 $ai4seo_is_robhub_account_synced = ai4seo_robhub_api()->is_account_synced();
 
 if (!$ai4seo_is_robhub_account_synced) {
-    ai4seo_send_json_error(esc_html__("Failed to verify your license data. Please check your account settings.", "ai-for-seo"), 131320825);
+    ai4seo_send_ajax_error(esc_html__("Failed to verify your license data. Please check your account settings.", "ai-for-seo"), 131320825);
 }
 
 
@@ -50,7 +50,7 @@ if (!$ai4seo_is_robhub_account_synced) {
 $ai4seo_this_attachment_post_id = absint($_REQUEST["ai4seo_post_id"] ?? 0);
 
 if ($ai4seo_this_attachment_post_id <= 0) {
-    ai4seo_send_json_error(esc_html__("Media post id is invalid.", "ai-for-seo"), 211823824);
+    ai4seo_send_ajax_error(esc_html__("Media post id is invalid.", "ai-for-seo"), 211823824);
 }
 
 
@@ -59,7 +59,7 @@ if ($ai4seo_this_attachment_post_id <= 0) {
 $ai4seo_generation_fields = ai4seo_deep_sanitize($_REQUEST["ai4seo_generation_fields"] ?? array());
 
 if (!is_array($ai4seo_generation_fields) || count($ai4seo_generation_fields) === 0) {
-    ai4seo_send_json_error(esc_html__("Generation fields are invalid.", "ai-for-seo"), 1713301026);
+    ai4seo_send_ajax_error(esc_html__("Generation fields are invalid.", "ai-for-seo"), 1713301026);
 }
 
 
@@ -79,7 +79,7 @@ $ai4seo_attachment_placeholder_replacements = ai4seo_get_attachment_placeholder_
 $ai4seo_active_attachment_attributes = ai4seo_get_active_attachment_attributes();
 
 if (!$ai4seo_active_attachment_attributes) {
-    ai4seo_send_json_error(esc_html__("No active attachment attributes found.", "ai-for-seo"), 36124125);
+    ai4seo_send_ajax_error(esc_html__("No active attachment attributes found.", "ai-for-seo"), 36124125);
 }
 
 
@@ -89,26 +89,27 @@ if (!$ai4seo_active_attachment_attributes) {
 $ai4seo_attachment_post = get_post($ai4seo_this_attachment_post_id);
 
 if (!$ai4seo_attachment_post) {
-    ai4seo_send_json_error(esc_html__("Media post not found.", "ai-for-seo"), 501013325);
+    ai4seo_send_ajax_error(esc_html__("Media post not found.", "ai-for-seo"), 501013325);
 }
 
 // check if it's an attachment
 $ai4seo_attachment_url = ai4seo_get_attachment_url($ai4seo_this_attachment_post_id);
 
 if (!$ai4seo_attachment_url) {
-    ai4seo_send_json_error(esc_html__("Media url not found.", "ai-for-seo"), 241823824);
+    ai4seo_send_ajax_error(esc_html__("Media url not found.", "ai-for-seo"), 241823824);
 }
 
 $ai4seo_attachment_mime_type = ai4seo_get_attachment_post_mime_type($ai4seo_this_attachment_post_id);
 
-// check if it's one of the allowed mime types
-if (!$ai4seo_attachment_mime_type || !in_array($ai4seo_attachment_mime_type, $ai4seo_allowed_attachment_mime_types)) {
-    ai4seo_send_json_error(sprintf(
-        esc_html__("Media mime type is not allowed: %s for %s", "ai-for-seo"),
-        $ai4seo_attachment_mime_type,
-        $ai4seo_attachment_url
-    ), 251823824);
-}
+    // check if it's one of the allowed mime types
+    if (!$ai4seo_attachment_mime_type || !in_array($ai4seo_attachment_mime_type, $ai4seo_allowed_attachment_mime_types)) {
+        ai4seo_send_ajax_error(sprintf(
+            /* translators: 1: Attachment mime type. 2: Attachment URL. */
+            esc_html__('Media mime type is not allowed: %1$s for %2$s', 'ai-for-seo'),
+            $ai4seo_attachment_mime_type,
+            $ai4seo_attachment_url
+        ), 251823824);
+    }
 
 // Determine whether to use base64 or URL based on user setting
 $ai4seo_use_base64_image = ai4seo_should_use_base64_image($ai4seo_attachment_url);
@@ -126,6 +127,11 @@ $ai4seo_robhub_api_call_parameters = array(
 
 $ai4seo_robhub_api_call_parameters["trigger"] = "manual";
 $ai4seo_robhub_api_call_parameters["context"] = ai4seo_get_website_context();
+$ai4seo_attachment_usage_context = ai4seo_get_attachment_post_related_context($ai4seo_this_attachment_post_id);
+
+if (!empty($ai4seo_attachment_usage_context)) {
+    $ai4seo_robhub_api_call_parameters["attachment_usage_context"] = $ai4seo_attachment_usage_context;
+}
 
 // collect and build field instructions
 $ai4seo_field_instructions = array();
@@ -162,7 +168,7 @@ if (!$ai4seo_use_base64_image) {
 
     $ai4seo_results = ai4seo_robhub_api()->call("ai4seo/generate-all-attachment-attributes", $ai4seo_robhub_api_call_parameters);
 
-    if (!ai4seo_robhub_api()->was_call_successful($ai4seo_results) && ai4seo_robhub_api()->is_error_post_related($ai4seo_results)) {
+    if (!ai4seo_robhub_api()->was_call_successful($ai4seo_results) && ai4seo_robhub_api()->can_retry_generation_with_base64($ai4seo_results)) {
         unset($ai4seo_robhub_api_call_parameters["attachment_url"]);
         $ai4seo_use_base64_image = true;
     }
@@ -177,17 +183,17 @@ if ($ai4seo_use_base64_image) {
 
 if (!ai4seo_robhub_api()->was_call_successful($ai4seo_results ?? false)) {
     if (isset($ai4seo_results["message"]) && $ai4seo_results["message"] && isset($ai4seo_results["code"]) && $ai4seo_results["code"]) {
-        ai4seo_send_json_error(esc_html($ai4seo_results["message"]), $ai4seo_results["code"]);
+        ai4seo_send_ajax_error(esc_html($ai4seo_results["message"]), $ai4seo_results["code"]);
     } else {
-        ai4seo_send_json_error(esc_html__("Could not execute API call.", "ai-for-seo"), 28127323);
+        ai4seo_send_ajax_error(esc_html__("Could not execute API call.", "ai-for-seo"), 28127323);
     }
 }
 
 $ai4seo_generated_data = $ai4seo_results["data"] ?? array();
 
 if (!$ai4seo_generated_data || !is_array($ai4seo_generated_data)) {
-    #error_log("AI for SEO: Could not generate attachment attributes: " . print_r($ai4seo_results, true));
-    ai4seo_send_json_error(esc_html__("API call did not return valid data.", "ai-for-seo"), 431024824);
+    ai4seo_debug_message(28173126, "Attachment attributes generation API call did not return valid data: " . ai4seo_stringify($ai4seo_results));
+    ai4seo_send_ajax_error(esc_html__("API call did not return valid data.", "ai-for-seo"), 431024824);
 }
 
 
@@ -231,20 +237,20 @@ foreach (AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS as $ai4seo_this_attachment_attribu
 $ai4seo_this_success = ai4seo_save_generated_data_to_postmeta($ai4seo_this_attachment_post_id, $ai4seo_new_attachment_attributes);
 
 if (!$ai4seo_this_success) {
-    #error_log("AI for SEO: Could not save media attributes: " . print_r($ai4seo_new_attachment_attributes, true));
-    ai4seo_send_json_error(esc_html__("Could not save media attributes.", "ai-for-seo"), 3218161025);
+    ai4seo_debug_message(30173126, "Could not save media attributes for attachment post ID " . $ai4seo_this_attachment_post_id . ": " . ai4seo_stringify($ai4seo_new_attachment_attributes));
+    ai4seo_send_ajax_error(esc_html__("Could not save media attributes.", "ai-for-seo"), 3218161025);
 }
 
 // workaround for alt text: save it as post meta directly
-if (isset($ai4seo_new_attachment_attributes["alt-text"])) {
+/*if (isset($ai4seo_new_attachment_attributes["alt-text"])) {
     $ai4seo_this_attachment_alt_text = sanitize_text_field($ai4seo_new_attachment_attributes["alt-text"]);
     $ai4seo_this_success = ai4seo_update_post_meta($ai4seo_this_attachment_post_id, "_wp_attachment_image_alt", $ai4seo_this_attachment_alt_text);
 
     if (!$ai4seo_this_success) {
-        #error_log("AI for SEO: Could not save media alt text: " . print_r($ai4seo_new_attachment_attributes, true));
+        ai4seo_debug_message(29173126, "Could not save media alt text for attachment post ID " . $ai4seo_this_attachment_post_id . ": " . $ai4seo_this_attachment_alt_text);
         ai4seo_send_json_error(esc_html__("Could not save media alt text.", "ai-for-seo"), 3318161025);
     }
-}
+}*/
 
 
 // === ADD LATEST ACTIVITY ENTRY ======================================================================= \\
@@ -260,4 +266,4 @@ $ai4seo_response = array(
     "new_credits_balance" => (int) ($ai4seo_results["new-credits-balance"] ?? 0),
 );
 
-ai4seo_send_json_success($ai4seo_response);
+ai4seo_send_ajax_success($ai4seo_response);

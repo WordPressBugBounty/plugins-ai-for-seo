@@ -1,5 +1,17 @@
 == Changelog ==
 
+= 2.3.0 =
+* Changed branding from "AI for SEO" to "SOOZ - AI for SEO". Visit sooz.ai for more information.
+* Enhanced the quality of alt text and image attribute generation by incorporating a broader context from the surrounding content, resulting in more accurate descriptions.
+* Performance improvements across multiple areas. The plugin should feel more responsive on large sites.
+* Posts and Media lists now show all languages. Entries are labeled and can be filtered by WPML language.
+* New advanced setting: Toggle frontend cache purging after metadata updates.
+* Added a warning when leaving a page or modal with unsaved changes, on various editors and settings pages.
+* Added a feedback modal on plugin deactivation, so users can share why they are leaving.
+* Added a new "Remove License" button on the account page.
+* Added a new setting "Query IDs Chunk Size": Advanced troubleshooting option to adjust chunk size when processing large amounts of entries. Lower values may reduce database load and fix MySQL-related issues. Higher values can improve performance if your database allows it.
+* Bug Fixes & Maintenance: Fixed 21 minor bugs, implemented 9 usability improvements, implemented 14 performance optimizations, and resolved 13 security issues.
+
 = 2.2.5 =
 * Added an advanced setting to adjust the Focus Keyphrase behavior during SEO Autopilot when existing metadata is present.
 * Bug Fixes & Maintenance: Fixed 4 minor bugs and implemented 2 usability improvements, and resolved 2 security issues.
@@ -21,8 +33,8 @@
 * Added Focus Keyphrase generation, editing, and syncing for Yoast SEO and RankMath.
 * Added Meta Keywords generation, editing, and front-end output.
 * Added WooCommerce price inclusion modes for AI-generated metadata (Never, Fixed Price, Dynamic Price).
-* Added additional “Generate with AI” buttons inside the Gutenberg editor when RankMath is active.
-* Added “Generate with AI” buttons for Focus Keyphrase (Yoast SEO) and Focus Keyword (RankMath) inside their editors.
+* Added additional “Generate with SOOZ” buttons inside the Gutenberg editor when RankMath is active.
+* Added “Generate with SOOZ” buttons for Focus Keyphrase (Yoast SEO) and Focus Keyword (RankMath) inside their editors.
 * Added a filter bar to the Posts and Media views including SEO-status filters and a text search.
 * Added placeholder support for prefixes and suffixes across all syntaxes ({TITLE}, [TITLE], %%TITLE%% and their placeholder variants).
 * Added a setting to include existing values when generating metadata and media attributes (Basic Plan+).
@@ -70,7 +82,7 @@
 * Bug Fixes & Maintenance: Fixed 9 minor bugs, implemented 6 performance optimizations, and 1 security update.
 
 = 2.1.0 =
-* Added "Generate with AI" buttons in the media section of the Gutenberg editor, allowing users to generate media attributes directly from the editor.
+* Added "Generate with SOOZ" buttons in the media section of the Gutenberg editor, allowing users to generate media attributes directly from the editor.
 * Improved context awareness for pages, posts, and products, especially for content with short text. Ensures AI-generated metadata is more relevant and tailored.
 * Added a setting for render-level alt text injection. This checkbox setting (enabled by default) ensures images always have the correct alt text, even if themes or other mechanisms fail to display it.
 * Added a setting for render-level image title injection. Includes a select input to choose what should be injected as the title attribute: Disabled, Inject image title, Inject alt text (default), Inject caption, or Inject image description.
@@ -80,8 +92,8 @@
 * Added a "Show/Hide Advanced Settings" toggle in the plugin settings. Some advanced settings are now hidden by default to simplify the interface for most users.
 * Made setting descriptions more concise and user-friendly. Rearranged several settings for improved clarity and usability.
 * Private or pending posts, pages, and attachments are now ignored by the plugin, preventing them from being processed.
-* Improved UX: The AI for SEO sidebar is now sticky on desktop, keeping it visible during page scrolling for easier navigation.
-* Changed how plugin notifications are handled. All notifications are now indicated by a red bubble in the admin menu. Detailed notices can be viewed in the AI for SEO dashboard.
+* Improved UX: The SOOZ - AI for SEO sidebar is now sticky on desktop, keeping it visible during page scrolling for easier navigation.
+* Changed how plugin notifications are handled. All notifications are now indicated by a red bubble in the admin menu. Detailed notices can be viewed in the SOOZ - AI for SEO dashboard.
 * Added new notifications:
   - Insufficient credits balance.
   - Overview of missing entries to generate.
@@ -104,7 +116,7 @@
 * Bug Fixes & Maintenance: Fixed 11 minor bugs and implemented security updates.
 
 = 2.0.4 =
-* Added support for NextGen Gallery: The plugin now recognizes and processes media attributes for images created with the NextGen Gallery plugin. Use the new "Import" button in the media page to import all images from the NextGen Gallery into the *AI for SEO* plugin.
+* Added support for NextGen Gallery: The plugin now recognizes and processes media attributes for images created with the NextGen Gallery plugin. Use the new "Import" button in the media page to import all images from the NextGen Gallery into the *SOOZ - AI for SEO* plugin.
 * Bug Fixes & Maintenance: Fixed 2 minor bugs
 
 = 2.0.3 =
@@ -112,7 +124,7 @@
 * Bug Fixes & Maintenance: Fixed 15 minor bugs, corrected typos, and implemented security updates.
 
 = 2.0.2 =
-* Improved Prefix & Suffix Support: Prefixes and suffixes are now correctly applied when using the "Generate with AI" button in both the Metadata Editor and the Attachment Attributes Editor.
+* Improved Prefix & Suffix Support: Prefixes and suffixes are now correctly applied when using the "Generate with SOOZ" button in both the Metadata Editor and the Attachment Attributes Editor.
 * Enhanced Mobile UX: Better responsiveness and usability on the Pages / Posts and Media Files views for mobile devices.
 * Account Page Improvements: Added direct buttons for managing your active subscription and customizing Pay-As-You-Go settings.
 * Updated Help Section: Improved help content and clearer "First Steps" guidance for new users.
@@ -189,7 +201,7 @@
 * Fixed 21 minor bugs, and improved performance and security.
 
 = 1.2.5 =
-* Added a new setting with four meta tag output modes: "Disable 'AI for SEO' Meta Tags," "Force 'AI for SEO' Meta Tags," "Replace Existing Meta Tags," and "Complement Existing Meta Tags." The default mode, "Replace Existing Meta Tags," helps resolve compatibility issues with other plugins and may improve SEO performance by eliminating duplicate meta tags.
+* Added a new setting with four meta tag output modes: "Disable 'SOOZ - AI for SEO' Meta Tags," "Force 'SOOZ - AI for SEO' Meta Tags," "Replace Existing Meta Tags," and "Complement Existing Meta Tags." The default mode, "Replace Existing Meta Tags," helps resolve compatibility issues with other plugins and may improve SEO performance by eliminating duplicate meta tags.
 * Added support for additional SEO plugins, including Blog2Social.
 * Added a "Help" button in the plugin library, providing users with quick access to the FAQ and support resources.
 * Fixed 11 minor bugs, and improved performance and security.
@@ -221,7 +233,7 @@
 * Implemented 6 minor bug fixes, along with performance improvements and security updates.
 
 = 1.2.0 =
-* Image Metadata Generation: Added support for generating alt text, titles, captions, and descriptions for all images on your website. You can use the bulk or manual generation options available. Simply click the 'Generate with AI' button in the media library or explore the new 'Media' page within the 'AI for SEO' plugin.
+* Image Metadata Generation: Added support for generating alt text, titles, captions, and descriptions for all images on your website. You can use the bulk or manual generation options available. Simply click the 'Generate with SOOZ' button in the media library or explore the new 'Media' page within the 'SOOZ - AI for SEO' plugin.
 * New 'Settings' Page: We have introduced a 'Settings' page with various options to enhance your experience (details below).
 ** Meta Tag Inclusion: This option allows you to include or exclude specific meta tags from being output in the header by our plugin. Note that this setting does not affect meta tags generated by other plugins. For instance, if you prefer the meta titles generated by another plugin, you may choose to exclude them here.
 ** Language Selection: Allows you to override the AI’s language detection, which is helpful if your content is in a language different from what the AI has detected.
@@ -243,7 +255,7 @@
 * Implemented 2 minor bug fixes
 
 = 1.1.5 =
-* Important: The 'AI for SEO' dashboard is now accessible via 'AI for SEO' in the main menu of your WordPress backend.
+* Important: The 'SOOZ - AI for SEO' dashboard is now accessible via 'SOOZ - AI for SEO' in the main menu of your WordPress backend.
 * Added a 'Bulk Retry' button to the Pages, Posts, and Products pages, allowing users to retry all failed metadata generations with a single click.
 * Added several 'Refresh Page' buttons to the Pages, Posts, and Products pages, enabling users to refresh the metadata overview without reloading the page.
 * Added a mouseover effect on several buttons throughout the plugin, providing users with more information about each button's functionality.
@@ -252,7 +264,7 @@
 * Implemented 6 minor bug fixes, performance improvements, and security updates.
 
 = 1.1.4 =
-* We now offer a 100% risk-free money-back guarantee for the first 14 days after purchasing a plan (Basic, Pro or Premium). If 'AI for SEO' isn’t the best fit, simply reach out at info@aiforseo.ai and we’ll refund 100% of your money. No questions asked.
+* We now offer a 100% risk-free money-back guarantee for the first 14 days after purchasing a plan (Basic, Pro or Premium). If 'SOOZ - AI for SEO' isn’t the best fit, simply reach out at support@sooz.ai and we’ll refund 100% of your money. No questions asked.
 * 7 Bug fixes and performance improvements.
 
 = 1.1.3 =
@@ -283,3 +295,4 @@
 
 = 1.0 =
 * Initial release
+

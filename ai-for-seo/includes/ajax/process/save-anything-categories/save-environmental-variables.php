@@ -54,8 +54,9 @@ foreach (AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES as $ai4seo_this_environmental_va
 
     // validate the value value
     if (!ai4seo_validate_environmental_variable_value($ai4seo_this_environmental_variable_name, $ai4seo_this_new_environmental_variable_value)) {
-        ai4seo_send_json_error(sprintf(
-            esc_html__("Invalid environmental variable value for %s", "ai-for-seo"),
+        ai4seo_send_ajax_error(sprintf(
+            /* translators: %s: Environmental variable name. */
+            esc_html__('Invalid environmental variable value for %s', 'ai-for-seo'),
             $ai4seo_this_environmental_variable_name
         ), 461219225);
         wp_die();
@@ -85,16 +86,16 @@ if ( ! empty( $ai4seo_recent_environmental_variable_changes ) && is_array( $ai4s
 
         // Optional debug logging for diagnostics.
         if ( ! empty( $ai4seo_bulk_result['invalid_names'] ) ) {
-            error_log( 'AI4SEO: Bulk update skipped unknown names: ' . implode( ', ', $ai4seo_bulk_result['invalid_names'] ) . ' #3017171025' );
+            ai4seo_debug_message(3017171025, 'Bulk update skipped unknown names: ' . implode( ', ', $ai4seo_bulk_result['invalid_names'] ));
         }
 
         if ( ! empty( $ai4seo_bulk_result['invalid_values'] ) ) {
-            error_log( 'AI4SEO: Bulk update skipped invalid values for: ' . implode( ', ', $ai4seo_bulk_result['invalid_values'] ) . ' #3117171025' );
+            ai4seo_debug_message(3117171025, 'Bulk update skipped invalid values for: ' . implode( ', ', $ai4seo_bulk_result['invalid_values'] ));
         }
 
         if ( $ai4seo_bulk_result['success'] !== true ) {
-            error_log( 'AI4SEO: Bulk update failed to persist changes. #3217171025' );
-            ai4seo_send_json_error(esc_html__( "Failed to update environmental variables.", "ai-for-seo" ), 3217171);
+            ai4seo_debug_message(3217171025, 'Bulk update failed to persist changes.');
+            ai4seo_send_ajax_error(esc_html__( "Failed to update environmental variables.", "ai-for-seo" ), 3217171);
             wp_die();
         }
     }
@@ -104,6 +105,21 @@ if ( ! empty( $ai4seo_recent_environmental_variable_changes ) && is_array( $ai4s
 // ___________________________________________________________________________________________ \\
 // === SPECIAL POST-SAVE HANDLING ============================================================ \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
+
+// === FOR SOME UPDATES A NEW POST ANALYSIS NEEDS TO BE TRIGGERED ========================= \\
+
+// for some settings we need to trigger a posts table analysis after saving the settings
+$ai4seo_analysis_trigger_environmental_variables = [
+    AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME
+];
+
+foreach ( $ai4seo_analysis_trigger_environmental_variables as $ai4seo_this_environmental_variable_key ) {
+    if ( isset( $ai4seo_recent_environmental_variable_changes[ $ai4seo_this_environmental_variable_key ] ) ) {
+        ai4seo_try_start_posts_table_analysis( true );
+        break;
+    }
+}
+
 
 // === ENHANCED REPORTING: SEND NEWEST INFO TO ROBHUB ======================================== \\
 

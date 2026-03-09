@@ -53,7 +53,7 @@ foreach (AI4SEO_METADATA_DETAILS as $ai4seo_metadata_identifier => $ai4seo_metad
     $ai4seo_length_limit = ai4seo_get_max_editor_input_length($ai4seo_metadata_identifier);
 
     if (ai4seo_mb_strlen($ai4seo_metadata_raw_value) > $ai4seo_length_limit) {
-        ai4seo_send_json_error(
+        ai4seo_send_ajax_error(
             sprintf(
             /* translators: 1: Field label, 2: Length limit */
                 esc_html__('The value for "%1$s" exceeds the maximum allowed length of %2$d characters. Please shorten your input and try again.', 'ai-for-seo'),
@@ -72,7 +72,7 @@ foreach (AI4SEO_METADATA_DETAILS as $ai4seo_metadata_identifier => $ai4seo_metad
             continue;
         }
 
-        $ai4seo_metadata_keywords = array_map('trim', explode(',', ai4seo_wp_unslash($ai4seo_metadata_raw_value)));
+        $ai4seo_metadata_keywords = array_map('trim', explode(',', $ai4seo_metadata_raw_value));
         $ai4seo_metadata_keywords = array_filter($ai4seo_metadata_keywords, static function ($ai4seo_keyword) {
             return $ai4seo_keyword !== '';
         });
@@ -100,14 +100,14 @@ foreach (AI4SEO_METADATA_DETAILS as $ai4seo_metadata_identifier => $ai4seo_metad
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 if (!$ai4seo_new_metadata) {
-    ai4seo_send_json_error(esc_html__('No metadata values to update.', 'ai-for-seo'), 5611221025);
+    ai4seo_send_ajax_error(esc_html__('No metadata values to update.', 'ai-for-seo'), 5611221025);
     wp_die();
 }
 
 $ai4seo_this_success = ai4seo_update_active_metadata($ai4seo_this_post_id, $ai4seo_new_metadata, true);
 
 if (!$ai4seo_this_success) {
-    ai4seo_send_json_error(esc_html__('Failed to update metadata. Please try again.', 'ai-for-seo'), 3518161025);
+    ai4seo_send_ajax_error(esc_html__('Failed to update metadata. Please try again.', 'ai-for-seo'), 3518161025);
     wp_die();
 }
 

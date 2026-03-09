@@ -52,7 +52,7 @@ foreach (AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS as $ai4seo_attachment_attribute_id
     $ai4seo_length_limit = ai4seo_get_max_editor_input_length($ai4seo_attachment_attribute_identifier);
 
     if (ai4seo_mb_strlen($ai4seo_attachment_attribute_value) > $ai4seo_length_limit) {
-        ai4seo_send_json_error(
+        ai4seo_send_ajax_error(
             sprintf(
             /* translators: 1: Field label, 2: Length limit */
                 esc_html__('The value for "%1$s" exceeds the maximum allowed length of %2$d characters. Please shorten your input and try again.', 'ai-for-seo'),
@@ -72,7 +72,7 @@ foreach (AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS as $ai4seo_attachment_attribute_id
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 if (!$ai4seo_new_attachment_attributes) {
-    ai4seo_send_json_error(esc_html__("No attachment attributes were provided to update.", "ai-for-seo"), 5711221025);
+    ai4seo_send_ajax_error(esc_html__("No attachment attributes were provided to update.", "ai-for-seo"), 5711221025);
 }
 
 ai4seo_update_attachment_attributes($ai4seo_this_attachment_post_id, $ai4seo_new_attachment_attributes, true);
