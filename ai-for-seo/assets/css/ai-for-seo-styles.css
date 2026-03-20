@@ -215,7 +215,7 @@
 /* type: module — icon */
 .ai4seo-form-floating-textfield-icon-holder {
     position: absolute;
-    top: 0;
+    top: 4px;
     right: 5px;
     padding: 5px;
     cursor: pointer;
@@ -2734,15 +2734,20 @@ div.ai4seo-pay-as-you-go-summary-container {
 /* type: module — button */
 .ai4seo-button svg {
     fill: var(--ai4seo-gray-dark) !important;
-    margin-top: calc(-1% - 1px);
     width: auto;
     height: 1rem;
     line-height: 1rem;
+    margin-top: -5px;
 }
 
 /* type: module — button */
 .ai4seo-button > svg.ai4seo-button-icon-left {
-    margin-right: .5rem;
+    margin-right: .6rem;
+}
+
+/* type: module — button */
+.ai4seo-small-button > svg.ai4seo-button-icon-left {
+    margin-right: .35rem;
 }
 
 /* type: module — button */
@@ -3023,7 +3028,7 @@ div.ai4seo-latest-activity-item-buttons a, div.ai4seo-latest-activity-item-butto
 /* type: module — button */
 .ai4seo-small-button {
     font-size: .8rem !important;
-    padding: 5px 10px !important;
+    padding: 4px 10px 5px 10px !important;
     line-height: 100% !important;
     min-height: auto !important;
     box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.5) !important;
@@ -3042,10 +3047,9 @@ div.ai4seo-latest-activity-item-buttons a, div.ai4seo-latest-activity-item-butto
 
 /* type: module — button */
 .ai4seo-small-button svg {
-    width: 0.7rem;
-    height: 0.7rem;
-    margin-top: -2px;
-    margin-right: 5px;
+    width: 0.8rem;
+    height: 0.8rem;
+    margin-top: -3px;
 }
 
 /* type: content — Settings → Automated generation panel */
@@ -3155,10 +3159,10 @@ div.ai4seo-credits-pack-selection-container .ai4seo-credits-pack-show-more-optio
 /* type: module — button */
 .ai4seo-generate-button > .ai4seo-sooz-logo {
     position: relative;
-    height: 1.2rem;
+    height: 1rem;
     max-width: none;
     max-height: none;
-    margin-left: 0.1rem;
+    margin: -4px 0.1rem 0 0.15rem;
 }
 
 /* type: module — button */
@@ -4271,30 +4275,33 @@ div.ai4seo-recent-plugin-updates-title > .ai4seo-bubble, div.ai4seo-recent-plugi
 /* ========================================================================== */
 
 /* type: module — button */
-.ai4seo-generate-button.ai4seo-attachment-generate-attributes-button {
+.ai4seo-attachment-generate-attributes-button {
     margin-bottom: 1em !important;
 }
 
 /* Generate-button details for attachments */
-.attachment-info .ai4seo-generate-all-button, .attachment-details .ai4seo-generate-all-button {
+.media-frame-content > .attachment-details .ai4seo-generate-all-button {
     margin-left: 0;
     width: 100%;
     font-size: small !important;
 }
 
 /* type: module — button */
-.attachment-info .ai4seo-generate-button.ai4seo-attachment-generate-attributes-button, .attachment-details .ai4seo-generate-button.ai4seo-attachment-generate-attributes-button  {
-    margin-bottom: 1em !important;
-    /*width: calc(80% - 2px) !important;*/
+.media-frame-content .ai4seo-attachment-generate-attributes-button {
     min-width: 200px;
-    max-width: 65%;
-    float: right !important;
     margin-right: 2px;
     font-size: small !important;
 }
 
+/* type: module — button */
+.media-frame-content > .attachment-details .ai4seo-attachment-generate-attributes-button {
+    min-width: 200px;
+    max-width: 65%;
+    float: right !important;
+}
+
 @media only screen and (max-width: 1180px) {
-    .attachment-info .ai4seo-generate-button.ai4seo-attachment-generate-attributes-button, .attachment-details .ai4seo-generate-button.ai4seo-attachment-generate-attributes-button {
+    .media-frame-content > .attachment-details .ai4seo-attachment-generate-attributes-button {
         width: 99% !important;
         max-width: 99% !important;
         float: none !important;
@@ -4302,25 +4309,44 @@ div.ai4seo-recent-plugin-updates-title > .ai4seo-bubble, div.ai4seo-recent-plugi
     }
 }
 
+/* Generate-button details for attachments */
+.media-frame-content .media-sidebar .ai4seo-generate-all-button {
+    margin-left: 0;
+    width: 99% !important;
+    max-width: 99% !important;
+    margin-right: 2px !important;
+    font-size: small !important;
+}
+
 /* type: module — button */
-.post-type-attachment .ai4seo-generate-button.ai4seo-attachment-generate-attributes-button {
+.media-frame-content .media-sidebar .ai4seo-attachment-generate-attributes-button,
+.block-editor-block-inspector .ai4seo-attachment-generate-attributes-button {
+    width: 99% !important;
+    max-width: 99% !important;
+    float: none !important;
+    text-align: left !important;
+}
+
+
+/* type: module — button */
+.post-type-attachment .ai4seo-attachment-generate-attributes-button {
     margin-bottom: 1em !important;
 }
 
 /* type: module — button */
-.post-type-attachment .attachment-alt-text .ai4seo-generate-button.ai4seo-attachment-generate-attributes-button {
+.post-type-attachment .attachment-alt-text .ai4seo-attachment-generate-attributes-button {
     max-width: 500px !important;
     display: block !important;
 }
 
 /* type: module — button */
-.post-type-attachment #wp-attachment_content-editor-container .ai4seo-generate-button.ai4seo-attachment-generate-attributes-button {
+.post-type-attachment #wp-attachment_content-editor-container .ai4seo-attachment-generate-attributes-button {
     float: right !important;
 }
 
 @media only screen and (max-width: 880px) {
 /* type: module — button */
-    .attachment-info .ai4seo-generate-button.ai4seo-attachment-generate-attributes-button {
+    .attachment-info .ai4seo-attachment-generate-attributes-button {
         width: 98% !important;
         float: left !important;
     }

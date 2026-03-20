@@ -181,7 +181,7 @@ if (!function_exists('ai4seo_setup_content_type_filters')) {
 
             $sql_parts[] = '(' . implode(' OR ', $search_clauses) . ')';
 
-            $sql = 'SELECT ID FROM ' . esc_sql($wpdb->posts);
+            $sql = "SELECT ID FROM {$wpdb->posts}";
 
             if ($sql_parts) {
                 $sql .= ' WHERE ' . implode(' AND ', $sql_parts);
@@ -189,15 +189,16 @@ if (!function_exists('ai4seo_setup_content_type_filters')) {
 
             $sql .= ' ORDER BY ID DESC';
 
-            $prepared_sql = $sql;
-            if ($sql_values) {
-                $prepared_sql = call_user_func_array(array($wpdb, 'prepare'), array_merge(array($sql), $sql_values));
-            }
+            // Dynamic query with placeholders is prepared immediately below.
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $prepared_sql = $wpdb->prepare( $sql, ...$sql_values );
 
-            if (isset($request_sql_cache[$prepared_sql])) {
-                $search_ids = $request_sql_cache[$prepared_sql];
+            if ( isset( $request_sql_cache[ $prepared_sql ] ) ) {
+                $search_ids = $request_sql_cache[ $prepared_sql ];
             } else {
-                $search_ids = $wpdb->get_col($prepared_sql);
+                // Prepared above.
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $search_ids = $wpdb->get_col( $prepared_sql );
 
                 if ( $wpdb->last_error ) {
                     ai4seo_debug_message(984321701, 'Database error: ' . $wpdb->last_error);
@@ -244,8 +245,7 @@ if (!function_exists('ai4seo_setup_content_type_filters')) {
                 $meta_sql_parts[] = 'pm.meta_value LIKE %s';
                 $meta_values[] = $like_term;
 
-                $meta_sql = 'SELECT DISTINCT p.ID FROM ' . esc_sql($wpdb->posts) . ' AS p'
-                    . ' INNER JOIN ' . esc_sql($wpdb->postmeta) . ' AS pm ON p.ID = pm.post_id';
+                $meta_sql = "SELECT DISTINCT p.ID FROM {$wpdb->posts} AS p INNER JOIN {$wpdb->postmeta} AS pm ON p.ID = pm.post_id";
 
                 if ($meta_sql_parts) {
                     $meta_sql .= ' WHERE ' . implode(' AND ', $meta_sql_parts);
@@ -253,12 +253,16 @@ if (!function_exists('ai4seo_setup_content_type_filters')) {
 
                 $meta_sql .= ' ORDER BY p.ID DESC';
 
-                $prepared_meta_sql = call_user_func_array(array($wpdb, 'prepare'), array_merge(array($meta_sql), $meta_values));
+                // Dynamic query with placeholders is prepared immediately below.
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $prepared_meta_sql = $wpdb->prepare( $meta_sql, ...$meta_values );
 
-                if (isset($request_meta_sql_cache[$prepared_meta_sql])) {
-                    $meta_ids = $request_meta_sql_cache[$prepared_meta_sql];
+                if ( isset( $request_meta_sql_cache[ $prepared_meta_sql ] ) ) {
+                    $meta_ids = $request_meta_sql_cache[ $prepared_meta_sql ];
                 } else {
-                    $meta_ids = $wpdb->get_col($prepared_meta_sql);
+                    // Prepared above.
+                    // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                    $meta_ids = $wpdb->get_col( $prepared_meta_sql );
 
                     if ( $wpdb->last_error ) {
                         ai4seo_debug_message(984321702, 'Database error: ' . $wpdb->last_error);

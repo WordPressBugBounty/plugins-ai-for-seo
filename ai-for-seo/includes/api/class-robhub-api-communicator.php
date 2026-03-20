@@ -39,6 +39,13 @@ class Ai4Seo_RobHubApiCommunicator {
         3619101024, # inappropriate content detected
         3204525, # cloudflare challenge detected
         311014824, # file not accessible at given URL
+        71214326, # file too large
+    );
+
+    public array $invalidate_auth_data_error_codes = array(
+        916101025, # invalid credentials: invalid api username
+        351816823, # invalid credentials: invalid api password
+        431319725, # invalid credentials: access denied
     );
 
     public array $non_post_related_error_codes = array(
@@ -264,6 +271,7 @@ class Ai4Seo_RobHubApiCommunicator {
 
             // stop if code is marked non-retriable or attempts exhausted
             $is_non_retriable = ( $this_error_code !== null && in_array( $this_error_code, $this->non_retriable_error_codes, true ) );
+            $is_invalidate_auth_data_error = ( $this_error_code !== null && in_array( $this_error_code, $this->invalidate_auth_data_error_codes, true ) );
             $has_more_attempts = ( $attempt < $this->max_api_attempts );
 
             ai4seo_debug_message(2117126,
@@ -272,9 +280,15 @@ class Ai4Seo_RobHubApiCommunicator {
                 ' with error: ' . ( $normalized_response['message'] ?? 'Unknown error' ) .
                 ' (Code: ' . ( $this_error_code !== null ? $this_error_code : 'n/a' ) . ').' .
                 ' Non-retriable=' . ( $is_non_retriable ? 'yes' : 'no' ) .
-                ', WillRetry=' . ( $has_more_attempts && ! $is_non_retriable ? 'yes' : 'no' ),
+                ', WillRetry=' . ( $has_more_attempts && ! $is_non_retriable ? 'yes' : 'no' ) .
+                ', InvalidateAuth=' . ( $is_invalidate_auth_data_error ? 'yes' : 'no' ),
                 true
             );
+
+            // invalidate auth credentials if error code indicates an auth issue, to trigger a refresh on the next call
+            if ( $is_invalidate_auth_data_error ) {
+                $this->invalidate_auth_data(true);
+            }
 
             if ( ! $has_more_attempts || $is_non_retriable ) {
                 // stop retry loop
@@ -304,7 +318,6 @@ class Ai4Seo_RobHubApiCommunicator {
 
         return $normalized_response;
     }
-
 
     // =========================================================================================== \\
 
@@ -1097,6 +1110,22 @@ class Ai4Seo_RobHubApiCommunicator {
 
     // =========================================================================================== \\
 
+    function invalidate_auth_data($init_free_account = false) {
+        $ai4seo_robhub_api_username_key = ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_API_USERNAME;
+        $ai4seo_robhub_api_password_key = ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_API_PASSWORD;
+        ai4seo_robhub_api()->delete_environmental_variable($ai4seo_robhub_api_username_key);
+        ai4seo_robhub_api()->delete_environmental_variable($ai4seo_robhub_api_password_key);
+
+        if ($init_free_account) {
+            ai4seo_robhub_api()->init_free_account();
+        }
+
+        // reset last account sync, so we can sync its details again
+        ai4seo_robhub_api()->reset_last_account_sync();
+    }
+
+    // =========================================================================================== \\
+
     /**
      * Determines an A-F group
      *
@@ -1255,6 +1284,7 @@ class Ai4Seo_RobHubApiCommunicator {
      */
     function reset_last_account_sync(): void {
         $this->update_environmental_variable(self::ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC, 0);
+        $this->update_environmental_variable(self::ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED, false);
     }
 
     // =========================================================================================== \\

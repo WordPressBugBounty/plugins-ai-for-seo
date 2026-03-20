@@ -128,11 +128,12 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
                     // Input for the "hidden" license key
                     echo "<div id='ai4seo-visual-license-key-holder'>";
-                        echo "<input type='text' class='ai4seo-textfield ai4seo-inactive-element' autocomplete='off' value='************************************************' readonly='readonly' style='background-color:#eee!important;' />";
+                        echo "<input type='text' class='ai4seo-textfield ai4seo-inactive-element' autocomplete='off' value='**********************************' readonly='readonly' style='background-color:#eee!important;' />";
                     echo "</div>";
 
                     // Button to reveal license-key
                     echo "<div class='ai4seo-form-floating-textfield-icon-holder' onclick='jQuery(\"#ai4seo-visual-license-key-holder\").hide();jQuery(\"#ai4seo-actual-license-key-holder\").show();jQuery(this).hide();jQuery(this).next().show();'>";
+                        echo esc_html__("Show") . " ";
                         ai4seo_echo_wp_kses(ai4seo_get_svg_tag("eye", __("Reveal License Key", "ai-for-seo")));
                     echo "</div>";
 
@@ -152,16 +153,13 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         echo "<div class='ai4seo-form-item' style='padding-top:0;'>";
             echo "<div class='ai4seo-buttons-wrapper' style='margin-top: 0; margin-bottom: 5px;'>";
                 // Button to show lost-license-instructions
-                ai4seo_echo_wp_kses(ai4seo_get_icon_button_tag("key-slash", esc_html__("Lost your license data?", "ai-for-seo"), "", "ai4seo_open_lost_key_modal();"));
+                if (!$ai4seo_is_robhub_account_synced) {
+                    ai4seo_echo_wp_kses(ai4seo_get_icon_button_tag("key-slash", esc_html__("Lost your license data?", "ai-for-seo"), "", "ai4seo_open_lost_key_modal();"));
+                }
 
                 // Button to manage subscription if user has an active subscription
                 if (!$ai4seo_user_is_on_free_plan) {
                     ai4seo_echo_wp_kses(ai4seo_get_a_tag_icon_button_tag(AI4SEO_STRIPE_BILLING_URL, "", "_blank", "stripe", esc_html__("Manage Subscription / Invoices", "ai-for-seo")));
-                }
-
-                // Customize pay-as-you-go
-                if ($ai4seo_has_purchased_something && $ai4seo_is_robhub_account_synced) {
-                    ai4seo_echo_wp_kses(ai4seo_get_icon_button_tag("sliders", esc_html__("Customize Pay-As-You-Go", "ai-for-seo"), "", "ai4seo_handle_open_customize_payg_modal();"));
                 }
 
                 // Button to manage credits
@@ -169,8 +167,13 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
                     ai4seo_echo_wp_kses(ai4seo_get_icon_button_tag("arrow-up-right-from-square", esc_html__("Get more Credits", "ai-for-seo"), "", "ai4seo_open_get_more_credits_modal();"));
                 }
 
+                // Customize pay-as-you-go
+                if ($ai4seo_has_purchased_something && $ai4seo_is_robhub_account_synced) {
+                    ai4seo_echo_wp_kses(ai4seo_get_icon_button_tag("sliders", esc_html__("Customize Pay-As-You-Go", "ai-for-seo"), "", "ai4seo_handle_open_customize_payg_modal();"));
+                }
+
                 if ($ai4seo_show_license_details) {
-                    ai4seo_echo_wp_kses(ai4seo_get_icon_button_tag("trash", esc_html__("Remove License", "ai-for-seo"), "ai4seo-secondary-button", "ai4seo_remove_license(this);"));
+                    ai4seo_echo_wp_kses(ai4seo_get_icon_button_tag("trash", esc_html__("Remove license", "ai-for-seo"), "ai4seo-secondary-button", "ai4seo_remove_license(this);"));
                 }
             echo "</div>";
         echo "</div>";

@@ -37,7 +37,11 @@ echo "<div class='ai4seo-modal-schema-content'>";
     echo "<div class='ai4seo-plugin-deactivation-feedback-modal'>";
 
         echo "<div class='ai4seo-plugin-deactivation-feedback-intro'>";
-            echo esc_html__("We'd love to know why you're deactivating AI for SEO. Your feedback helps us improve the plugin!", "ai-for-seo");
+            echo sprintf(
+                /* translators: 1: plugin name */
+                esc_html__("We'd love to know why you're deactivating %s. Your feedback helps us improve the plugin!", "ai-for-seo"),
+                AI4SEO_PLUGIN_NAME
+            );
         echo "</div>";
 
         echo "<div class='ai4seo-medium-gap'></div>";

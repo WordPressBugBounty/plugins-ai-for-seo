@@ -4,7 +4,7 @@ Contributors: spacecodes
 Donate link: https://spa.ce.codes
 Requires at least: 4.7
 Tested up to: 6.9
-Stable tag: 2.3.0
+Stable tag: 2.3.1
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -200,6 +200,9 @@ We are always open to suggestions and feedback. Please email us at [support@sooz
 
 == Changelog ==
 
+= 2.3.1 =
+* Bug Fixes & Maintenance: Fixed 6 minor bugs and resolved 3 security issues.
+
 = 2.3.0 =
 * Changed branding from "AI for SEO" to "SOOZ - AI for SEO". Visit sooz.ai for more information.
 * Enhanced the quality of alt text and image attribute generation by incorporating a broader context from the surrounding content, resulting in more accurate descriptions.
@@ -215,18 +218,6 @@ We are always open to suggestions and feedback. Please email us at [support@sooz
 = 2.2.5 =
 * Added an advanced setting to adjust the Focus Keyphrase behavior during SEO Autopilot when existing metadata is present.
 * Bug Fixes & Maintenance: Fixed 4 minor bugs and implemented 2 usability improvements, and resolved 2 security issues.
-
-= 2.2.4 =
-* Bug Fixes & Maintenance: Fixed 5 minor bugs and implemented 3 usability improvements.
-
-= 2.2.3 =
-* Bug Fixes & Maintenance: Fixed 7 minor bugs and implemented 2 usability improvements.
-
-= 2.2.2 =
-* Bug Fixes & Maintenance: Fixed 9 minor bugs, implemented 3 usability improvements, and resolved 2 security issues.
-
-= 2.2.1 =
-* Bug Fixes & Maintenance: Fixed 5 minor bugs.
 
 = 2.2.0 =
 * Changed how Credits are consumed. Credits are now charged per generated field instead of per entry. Use the “Active Meta Tags” and “Active Media Attributes” settings to control which fields are generated and how many Credits each action requires.
@@ -254,33 +245,6 @@ We are always open to suggestions and feedback. Please email us at [support@sooz
 * Submit and Abort buttons are now sticky for easier access during editing.
 * Bug Fixes & Maintenance: Fixed 21 minor bugs, implemented 29 usability improvements, implemented 35 stability improvements, and resolved 8 security issues.
 
-= 2.1.6 =
-* Added compatibility with WordPress 6.8.3
-* Bug Fixes & Maintenance: Fixed 2 minor bugs.
-
-= 2.1.5 =
-* Added a new feature to easily retrieve lost license data. Go to your Account page, click "Lost your license data?", and follow the instructions.
-* Bug Fixes & Maintenance: Fixed 2 minor bugs and implemented 4 usability improvements.
-
-= 2.1.4 =
-* Bug Fixes & Maintenance: Fixed 6 bugs, and 1 security update.
-
-= 2.1.3 =
-* Dashboard now refreshes automatically; manual page reload is no longer required.
-* Added compatibility with the SEOKey plugin.
-* Alt Text Injection is now disabled by default. To re-enable, go to Settings > Show Advanced Settings (top right) > Troubleshooting & Experimental > Alt Text Injection.
-* Added a submenu for direct plugin access via the WordPress admin menu.
-* Added a "Refresh" button to dashboard statistics. Recommended for large sites (>10,000 entries) to update statistics on demand.
-* Added a new FAQ area under Help > Troubleshooting, covering common problems and solutions.
-* Bug Fixes & Maintenance: Fixed 11 minor bugs, implemented 13 performance and usability improvements, and resolved 2 security issues.
-
-= 2.1.2 =
-* Bug Fixes & Maintenance: Fixed 2 minor bugs, and 2 security updates.
-
-= 2.1.1 =
-* Fixed AJAX requests (Thanks Marcus!)
-* Bug Fixes & Maintenance: Fixed 9 minor bugs, implemented 6 performance optimizations, and 1 security update.
-
 = 2.1.0 =
 * Added "Generate with SOOZ" buttons in the media section of the Gutenberg editor, allowing users to generate media attributes directly from the editor.
 * Improved context awareness for pages, posts, and products, especially for content with short text. Ensures AI-generated metadata is more relevant and tailored.
@@ -303,36 +267,6 @@ We are always open to suggestions and feedback. Please email us at [support@sooz
   - Ongoing promos and discounts.
   - And others
 * Bug Fixes & Maintenance: Fixed 17 minor bugs, added 6 quality-of-life improvements, implemented 3 performance optimizations, and 2 security updates.
-
-= 2.0.7 =
-* Bug Fixes & Maintenance: Fixed 7 minor bugs, added 3 quality of life improvements, and implemented security updates.
-
-= 2.0.6 =
-* Bug Fixes & Maintenance: Fixed 3 minor bugs
-
-= 2.0.5 =
-* Added a setting to force the image upload to use either the image url only or convert the contents to base64. This can be useful for users who experience issues with the generation of media attributes.
-* Added support for AVIF image files
-* Bug Fixes & Maintenance: Fixed 11 minor bugs and implemented security updates.
-
-= 2.0.4 =
-* Added support for NextGen Gallery: The plugin now recognizes and processes media attributes for images created with the NextGen Gallery plugin. Use the new "Import" button in the media page to import all images from the NextGen Gallery into the *SOOZ - AI for SEO* plugin.
-* Bug Fixes & Maintenance: Fixed 2 minor bugs
-
-= 2.0.3 =
-* SEO Autopilot now more accurately reflects its current status and includes an option to immediately schedule the next run.
-* Bug Fixes & Maintenance: Fixed 15 minor bugs, corrected typos, and implemented security updates.
-
-= 2.0.2 =
-* Improved Prefix & Suffix Support: Prefixes and suffixes are now correctly applied when using the "Generate with SOOZ" button in both the Metadata Editor and the Attachment Attributes Editor.
-* Enhanced Mobile UX: Better responsiveness and usability on the Pages / Posts and Media Files views for mobile devices.
-* Account Page Improvements: Added direct buttons for managing your active subscription and customizing Pay-As-You-Go settings.
-* Updated Help Section: Improved help content and clearer "First Steps" guidance for new users.
-* Bug Fixes & Maintenance: Fixed 11 minor bugs, corrected typos, and implemented security updates.
-
-= 2.0.1 =
-* Fixed a bug that prevented the Media Attributes Editor from generating data correctly.
-* Fixed 17 minor bugs, typos and security updates.
 
 = 2.0.0 =
 * Complete UI/UX Overhaul: The look, feel, design, layout, and navigation of the plugin have been completely redesigned.
@@ -365,7 +299,7 @@ We are always open to suggestions and feedback. Please email us at [support@sooz
 ** Improved Metadata Editor: We have overhauled the metadata editor’s design to enhance usability and provide a better user experience.
 * General Enhancements: Implemented 12 minor bug fixes, performance improvements, and security updates.
 
-= 1.1 =
+= 1.1.0 =
 * SEO data generation for WooCommerce products is now available. This feature is visible only if the WooCommerce plugin is installed, integrating SEO capabilities directly with your e-commerce activities.
 * Introduced statistics in the dashboard page, providing users with insights into their progress in generating SEO metadata for pages, posts, products, and more. This feature aims to help users track their SEO optimization efforts more effectively.
 * Added admin notices to alert users when their credits are running low or to remind them of the remaining credits and opportunities to generate SEO data for pages, posts, and products.
@@ -377,5 +311,9 @@ We are always open to suggestions and feedback. Please email us at [support@sooz
 
 == Upgrade Notice ==
 
-= 2.2.0 =
-We have changed how Credits are consumed. Credits are now charged per generated field instead of per entry. Use the "Active Meta Tags" and "Active Media Attributes" settings to control which fields are generated and how many Credits each action requires.
+= 2.3.0 =
+We changed our branding from "AI for SEO" to "SOOZ - AI for SEO". Visit sooz.ai for more information.
+This update also includes significant improvements to the quality of alt text and image attribute generation, performance optimizations, and various bug fixes.
+We recommend updating to benefit from these enhancements.
+Please note that this is a major update with significant changes, so we recommend backing up your website before proceeding with the update.
+If you encounter any issues or have questions about the new features, please don't hesitate to contact our support team at [support@sooz.ai](mailto:support@sooz.ai).

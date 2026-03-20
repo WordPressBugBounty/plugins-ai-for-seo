@@ -1,5 +1,8 @@
 == Changelog ==
 
+= 2.3.1 =
+* Bug Fixes & Maintenance: Fixed 6 minor bugs and resolved 3 security issues.
+
 = 2.3.0 =
 * Changed branding from "AI for SEO" to "SOOZ - AI for SEO". Visit sooz.ai for more information.
 * Enhanced the quality of alt text and image attribute generation by incorporating a broader context from the surrounding content, resulting in more accurate descriptions.
