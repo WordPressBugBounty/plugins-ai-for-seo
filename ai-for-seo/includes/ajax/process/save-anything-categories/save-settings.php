@@ -40,6 +40,95 @@ if (isset($upcoming_save_anything_updates[AI4SEO_SETTING_DISABLED_POST_TYPES])) 
     $upcoming_save_anything_updates[AI4SEO_SETTING_DISABLED_POST_TYPES] = $ai4seo_disabled_post_types;
 }
 
+// Normalize active post author selection (UI shows active authors, setting stores disabled ones).
+if (isset($upcoming_save_anything_updates[AI4SEO_SETTING_DISABLED_POST_AUTHORS])) {
+    $ai4seo_submitted_active_post_author_ids = $upcoming_save_anything_updates[AI4SEO_SETTING_DISABLED_POST_AUTHORS];
+
+    if (!is_array($ai4seo_submitted_active_post_author_ids)) {
+        $ai4seo_submitted_active_post_author_ids = $ai4seo_submitted_active_post_author_ids ? array($ai4seo_submitted_active_post_author_ids) : array();
+    }
+
+    $ai4seo_available_post_authors = ai4seo_get_available_post_authors();
+    $ai4seo_available_post_author_ids = array_map('intval', array_keys($ai4seo_available_post_authors));
+    $ai4seo_submitted_active_post_author_ids = array_map('intval', $ai4seo_submitted_active_post_author_ids);
+    $ai4seo_submitted_active_post_author_ids = array_values(array_unique($ai4seo_submitted_active_post_author_ids));
+
+    foreach ($ai4seo_submitted_active_post_author_ids as $ai4seo_this_post_author_index => $ai4seo_this_post_author_id) {
+        if ($ai4seo_this_post_author_id <= 0) {
+            unset($ai4seo_submitted_active_post_author_ids[$ai4seo_this_post_author_index]);
+        }
+    }
+
+    $ai4seo_submitted_active_post_author_ids = array_values($ai4seo_submitted_active_post_author_ids);
+    $ai4seo_disabled_post_author_ids = array_values(array_diff($ai4seo_available_post_author_ids, $ai4seo_submitted_active_post_author_ids));
+
+    $upcoming_save_anything_updates[AI4SEO_SETTING_DISABLED_POST_AUTHORS] = $ai4seo_disabled_post_author_ids;
+}
+
+// Normalize active taxonomy term selection (UI shows active terms, setting stores disabled ones).
+if (isset($upcoming_save_anything_updates[AI4SEO_SETTING_DISABLED_TAXONOMY_TERMS])) {
+    $ai4seo_submitted_active_taxonomy_terms = $upcoming_save_anything_updates[AI4SEO_SETTING_DISABLED_TAXONOMY_TERMS];
+
+    if (!is_array($ai4seo_submitted_active_taxonomy_terms)) {
+        $ai4seo_submitted_active_taxonomy_terms = array();
+    }
+
+    $ai4seo_supported_taxonomy_terms = ai4seo_get_supported_taxonomy_terms();
+    $ai4seo_disabled_taxonomy_terms = array();
+
+    foreach ($ai4seo_supported_taxonomy_terms as $ai4seo_this_taxonomy_name => $ai4seo_this_supported_taxonomy) {
+        $ai4seo_supported_term_ids = array_map('intval', array_keys($ai4seo_this_supported_taxonomy['terms'] ?? array()));
+        $ai4seo_submitted_active_term_ids = $ai4seo_submitted_active_taxonomy_terms[$ai4seo_this_taxonomy_name] ?? array();
+
+        if (!is_array($ai4seo_submitted_active_term_ids)) {
+            $ai4seo_submitted_active_term_ids = $ai4seo_submitted_active_term_ids ? array($ai4seo_submitted_active_term_ids) : array();
+        }
+
+        $ai4seo_submitted_active_term_ids = array_map('intval', $ai4seo_submitted_active_term_ids);
+        $ai4seo_submitted_active_term_ids = array_values(array_unique($ai4seo_submitted_active_term_ids));
+
+        foreach ($ai4seo_submitted_active_term_ids as $ai4seo_this_term_index => $ai4seo_this_term_id) {
+            if ($ai4seo_this_term_id <= 0) {
+                unset($ai4seo_submitted_active_term_ids[$ai4seo_this_term_index]);
+            }
+        }
+
+        $ai4seo_submitted_active_term_ids = array_values($ai4seo_submitted_active_term_ids);
+        $ai4seo_this_disabled_term_ids = array_values(array_diff($ai4seo_supported_term_ids, $ai4seo_submitted_active_term_ids));
+
+        if ($ai4seo_this_disabled_term_ids) {
+            $ai4seo_disabled_taxonomy_terms[$ai4seo_this_taxonomy_name] = $ai4seo_this_disabled_term_ids;
+        }
+    }
+
+    $upcoming_save_anything_updates[AI4SEO_SETTING_DISABLED_TAXONOMY_TERMS] = $ai4seo_disabled_taxonomy_terms;
+}
+
+// Normalize active attachment author selection (UI shows active authors, setting stores disabled ones).
+if (isset($upcoming_save_anything_updates[AI4SEO_SETTING_DISABLED_ATTACHMENT_POST_AUTHORS])) {
+    $ai4seo_submitted_active_attachment_post_author_ids = $upcoming_save_anything_updates[AI4SEO_SETTING_DISABLED_ATTACHMENT_POST_AUTHORS];
+
+    if (!is_array($ai4seo_submitted_active_attachment_post_author_ids)) {
+        $ai4seo_submitted_active_attachment_post_author_ids = $ai4seo_submitted_active_attachment_post_author_ids ? array($ai4seo_submitted_active_attachment_post_author_ids) : array();
+    }
+
+    $ai4seo_available_attachment_post_authors = ai4seo_get_available_attachment_post_authors();
+    $ai4seo_available_attachment_post_author_ids = array_map('intval', array_keys($ai4seo_available_attachment_post_authors));
+    $ai4seo_submitted_active_attachment_post_author_ids = array_map('intval', $ai4seo_submitted_active_attachment_post_author_ids);
+    $ai4seo_submitted_active_attachment_post_author_ids = array_values(array_unique($ai4seo_submitted_active_attachment_post_author_ids));
+
+    foreach ($ai4seo_submitted_active_attachment_post_author_ids as $ai4seo_this_post_author_index => $ai4seo_this_post_author_id) {
+        if ($ai4seo_this_post_author_id <= 0) {
+            unset($ai4seo_submitted_active_attachment_post_author_ids[$ai4seo_this_post_author_index]);
+        }
+    }
+
+    $ai4seo_submitted_active_attachment_post_author_ids = array_values($ai4seo_submitted_active_attachment_post_author_ids);
+    $ai4seo_disabled_attachment_post_author_ids = array_values(array_diff($ai4seo_available_attachment_post_author_ids, $ai4seo_submitted_active_attachment_post_author_ids));
+
+    $upcoming_save_anything_updates[AI4SEO_SETTING_DISABLED_ATTACHMENT_POST_AUTHORS] = $ai4seo_disabled_attachment_post_author_ids;
+}
+
 
 // ___________________________________________________________________________________________ \\
 // === VALIDATES AND COLLECTS UPCOMING SETTING UPDATES ======================================= \\
@@ -101,6 +190,10 @@ $ai4seo_analysis_trigger_settings = [
     AI4SEO_SETTING_GENERATE_METADATA_FOR_FULLY_COVERED_ENTRIES,
     AI4SEO_SETTING_GENERATE_ATTACHMENT_ATTRIBUTES_FOR_FULLY_COVERED_ENTRIES,
     AI4SEO_SETTING_DISABLED_POST_TYPES,
+    AI4SEO_SETTING_DISABLED_POST_AUTHORS,
+    AI4SEO_SETTING_DISABLED_TAXONOMY_TERMS,
+    AI4SEO_SETTING_EXCLUDE_POSTS_IF_ANY_DISABLED_TAXONOMY_TERM,
+    AI4SEO_SETTING_DISABLED_ATTACHMENT_POST_AUTHORS,
     AI4SEO_SETTING_OVERWRITE_EXISTING_METADATA,
     AI4SEO_SETTING_OVERWRITE_EXISTING_ATTACHMENT_ATTRIBUTES,
     AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER

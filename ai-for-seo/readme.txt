@@ -4,7 +4,7 @@ Contributors: spacecodes
 Donate link: https://spa.ce.codes
 Requires at least: 4.7
 Tested up to: 6.9
-Stable tag: 2.3.1
+Stable tag: 2.3.2
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -199,6 +199,12 @@ We are always open to suggestions and feedback. Please email us at [support@sooz
 
 
 == Changelog ==
+
+= 2.3.2 =
+* Added an advanced setting to filter posts by author
+* Added an advanced setting to filter media files by author
+* Added an advanced setting to filter by category (taxonomy terms) and a setting to always exclude entries with disabled categories.
+* Bug Fixes & Maintenance: Fixed 3 minor bugs and resolved 1 security issue.
 
 = 2.3.1 =
 * Bug Fixes & Maintenance: Fixed 6 minor bugs and resolved 3 security issues.

@@ -183,6 +183,175 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         echo "</div>";
 
 
+        // === AI4SEO_SETTING_DISABLED_POST_AUTHORS =================================================== \\
+
+        $ai4seo_this_setting_name = AI4SEO_SETTING_DISABLED_POST_AUTHORS;
+        $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
+        $ai4seo_disabled_post_author_ids = ai4seo_get_disabled_post_author_ids();
+        $ai4seo_available_post_authors = ai4seo_get_available_post_authors();
+        $ai4seo_available_post_author_ids = array_map('intval', array_keys($ai4seo_available_post_authors));
+        $ai4seo_active_post_author_ids = array_values(array_diff($ai4seo_available_post_author_ids, $ai4seo_disabled_post_author_ids));
+
+        /* translators: %s: plugin name */
+        $ai4seo_this_setting_description = sprintf(esc_html__("Uncheck any author you want to exclude from %s post dashboards and metadata queues. Newly detected authors stay active by default.", "ai-for-seo"), esc_html(AI4SEO_PLUGIN_NAME));
+
+        echo "<hr class='ai4seo-form-item-divider ai4seo-is-advanced-setting'>";
+
+        echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
+            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
+                echo "<span class='ai4seo-green-bubble'>" . esc_html__("NEW", "ai-for-seo") . "</span> ";
+                echo esc_html__("Active Authors:", "ai-for-seo");
+            echo "</label>";
+
+            echo "<div class='ai4seo-form-item-input-wrapper'>";
+                if ($ai4seo_available_post_authors) {
+                    ai4seo_echo_wp_kses(ai4seo_get_select_all_checkbox($ai4seo_this_setting_input_name));
+                    echo "<div class='ai4seo-medium-gap'></div>";
+
+                    foreach ($ai4seo_available_post_authors as $ai4seo_this_post_author_id => $ai4seo_this_post_author_label) {
+                        $ai4seo_this_checkbox_id = "{$ai4seo_this_setting_input_name}-{$ai4seo_this_post_author_id}";
+                        $ai4seo_is_checkbox_checked = in_array((int) $ai4seo_this_post_author_id, $ai4seo_active_post_author_ids, true);
+
+                        echo "<label for='" . esc_attr($ai4seo_this_checkbox_id) . "' class='ai4seo-form-multiple-inputs'>";
+                            echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "[]' value='" . esc_attr($ai4seo_this_post_author_id) . "'" . ($ai4seo_is_checkbox_checked ? " checked='checked'" : "") . " /> ";
+                            echo esc_html($ai4seo_this_post_author_label);
+                            echo "<br>";
+                        echo "</label>";
+                    }
+                } else {
+                    echo "<p class='ai4seo-form-item-description'>";
+                        echo esc_html__("No authors with supported posts detected.", "ai-for-seo");
+                    echo "</p>";
+                }
+
+                echo "<p class='ai4seo-form-item-description'>";
+                    ai4seo_echo_wp_kses($ai4seo_this_setting_description);
+                echo "</p>";
+            echo "</div>";
+        echo "</div>";
+
+
+        // === AI4SEO_SETTING_DISABLED_TAXONOMY_TERMS ================================================ \\
+
+        $ai4seo_this_setting_name = AI4SEO_SETTING_DISABLED_TAXONOMY_TERMS;
+        $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
+        $ai4seo_disabled_taxonomy_terms = ai4seo_get_disabled_taxonomy_terms();
+        $ai4seo_supported_taxonomy_terms = ai4seo_get_supported_taxonomy_terms();
+
+        /* translators: %s: plugin name */
+        $ai4seo_this_setting_description = sprintf(esc_html__("Uncheck any categories you want to exclude from %s content dashboards and metadata queues. Categories (taxonomy terms) are grouped by taxonomy, and newly detected entries stay active by default.", "ai-for-seo"), esc_html(AI4SEO_PLUGIN_NAME));
+
+        echo "<hr class='ai4seo-form-item-divider ai4seo-is-advanced-setting'>";
+
+        echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
+            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
+                echo "<span class='ai4seo-green-bubble'>" . esc_html__("NEW", "ai-for-seo") . "</span> ";
+                echo esc_html__("Active Categories (taxonomy terms):", "ai-for-seo");
+            echo "</label>";
+
+            echo "<div class='ai4seo-form-item-input-wrapper'>";
+                if ($ai4seo_supported_taxonomy_terms) {
+                    $ai4seo_taxonomy_group_index = 0;
+
+                    foreach ($ai4seo_supported_taxonomy_terms as $ai4seo_this_taxonomy_name => $ai4seo_this_supported_taxonomy) {
+                        $ai4seo_this_taxonomy_terms = (array) ($ai4seo_this_supported_taxonomy['terms'] ?? array());
+
+                        if (!$ai4seo_this_taxonomy_terms) {
+                            continue;
+                        }
+
+                        $ai4seo_this_taxonomy_label = sanitize_text_field($ai4seo_this_supported_taxonomy['label'] ?? $ai4seo_this_taxonomy_name);
+                        $ai4seo_this_taxonomy_input_name = $ai4seo_this_setting_input_name . "[" . $ai4seo_this_taxonomy_name . "]";
+                        $ai4seo_this_disabled_term_ids = array_map('intval', (array) ($ai4seo_disabled_taxonomy_terms[$ai4seo_this_taxonomy_name] ?? array()));
+                        $ai4seo_this_supported_term_ids = array_map('intval', array_keys($ai4seo_this_taxonomy_terms));
+                        $ai4seo_this_active_term_ids = array_values(array_diff($ai4seo_this_supported_term_ids, $ai4seo_this_disabled_term_ids));
+
+                        if ($ai4seo_taxonomy_group_index > 0) {
+                            echo "<div class='ai4seo-medium-gap'></div>";
+                        }
+
+                        echo "<strong>" . esc_html($ai4seo_this_taxonomy_label) . "</strong>";
+                        echo "<div class='ai4seo-small-gap'></div>";
+                        ai4seo_echo_wp_kses(ai4seo_get_select_all_checkbox($ai4seo_this_taxonomy_input_name));
+                        echo "<div class='ai4seo-medium-gap'></div>";
+
+                        $ai4seo_visible_taxonomy_terms = array_slice($ai4seo_this_taxonomy_terms, 0, 10, true);
+                        $ai4seo_hidden_taxonomy_terms = array_slice($ai4seo_this_taxonomy_terms, 10, null, true);
+
+                        foreach ($ai4seo_visible_taxonomy_terms as $ai4seo_this_term_id => $ai4seo_this_term_name) {
+                            $ai4seo_this_checkbox_id = "{$ai4seo_this_setting_input_name}-{$ai4seo_this_taxonomy_name}-{$ai4seo_this_term_id}";
+                            $ai4seo_is_checkbox_checked = in_array((int) $ai4seo_this_term_id, $ai4seo_this_active_term_ids, true);
+
+                            echo "<label for='" . esc_attr($ai4seo_this_checkbox_id) . "' class='ai4seo-form-multiple-inputs'>";
+                                echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_taxonomy_input_name) . "[]' value='" . esc_attr($ai4seo_this_term_id) . "'" . ($ai4seo_is_checkbox_checked ? " checked='checked'" : "") . " /> ";
+                                echo esc_html($ai4seo_this_term_name);
+                                echo "<br>";
+                            echo "</label>";
+                        }
+
+                        if ($ai4seo_hidden_taxonomy_terms) {
+                            echo "<details class='ai4seo-more-setting-entries'>";
+                                echo "<summary>" . esc_html__("See more entries", "ai-for-seo") . "</summary>";
+
+                                foreach ($ai4seo_hidden_taxonomy_terms as $ai4seo_this_term_id => $ai4seo_this_term_name) {
+                                    $ai4seo_this_checkbox_id = "{$ai4seo_this_setting_input_name}-{$ai4seo_this_taxonomy_name}-{$ai4seo_this_term_id}";
+                                    $ai4seo_is_checkbox_checked = in_array((int) $ai4seo_this_term_id, $ai4seo_this_active_term_ids, true);
+
+                                    echo "<label for='" . esc_attr($ai4seo_this_checkbox_id) . "' class='ai4seo-form-multiple-inputs'>";
+                                        echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_taxonomy_input_name) . "[]' value='" . esc_attr($ai4seo_this_term_id) . "'" . ($ai4seo_is_checkbox_checked ? " checked='checked'" : "") . " /> ";
+                                        echo esc_html($ai4seo_this_term_name);
+                                        echo "<br>";
+                                    echo "</label>";
+                                }
+                            echo "</details>";
+                        }
+
+                        $ai4seo_taxonomy_group_index++;
+                    }
+                } else {
+                    echo "<p class='ai4seo-form-item-description'>";
+                        echo esc_html__("No supported categories (taxonomy terms) detected.", "ai-for-seo");
+                    echo "</p>";
+                }
+
+                echo "<p class='ai4seo-form-item-description'>";
+                    ai4seo_echo_wp_kses($ai4seo_this_setting_description);
+                echo "</p>";
+            echo "</div>";
+        echo "</div>";
+
+
+        // === AI4SEO_SETTING_EXCLUDE_POSTS_IF_ANY_DISABLED_TAXONOMY_TERM ======================= \\
+
+        $ai4seo_this_setting_name = AI4SEO_SETTING_EXCLUDE_POSTS_IF_ANY_DISABLED_TAXONOMY_TERM;
+        $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
+        $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
+
+        $ai4seo_this_setting_description = esc_html__("Keep this disabled to exclude entries only when all assigned categories (taxonomy terms) covered by the filter are disabled.", "ai-for-seo");
+        $ai4seo_this_setting_description .= "<br><br>" . esc_html__("Enable it if a single disabled category (taxonomy term) should always exclude the entry, even when additional active categories are assigned.", "ai-for-seo");
+
+        echo "<hr class='ai4seo-form-item-divider ai4seo-is-advanced-setting'>";
+
+        echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
+            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
+                echo "<span class='ai4seo-green-bubble'>" . esc_html__("NEW", "ai-for-seo") . "</span> ";
+                echo esc_html__("Always exclude entries with disabled categories (taxonomy terms):", "ai-for-seo");
+            echo "</label>";
+
+            echo "<div class='ai4seo-form-item-input-wrapper'>";
+                echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
+                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' value='1' class='ai4seo-single-checkbox'" . ($ai4seo_this_setting_input_value ? " checked='checked'" : "") . " /> ";
+                    echo esc_html__("Exclude an entry as soon as one disabled category (taxonomy term) is assigned", "ai-for-seo");
+                    echo "<br>";
+                echo "</label>";
+
+                echo "<p class='ai4seo-form-item-description'>";
+                    ai4seo_echo_wp_kses($ai4seo_this_setting_description);
+                echo "</p>";
+            echo "</div>";
+        echo "</div>";
+
+
         // === AI4SEO_SETTING_METADATA_GENERATION_LANGUAGE =========================================== \\
 
         $ai4seo_this_setting_name = AI4SEO_SETTING_METADATA_GENERATION_LANGUAGE;
@@ -741,6 +910,54 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
                     echo "<br>";
                     echo "</label>";
+                }
+
+                echo "<p class='ai4seo-form-item-description'>";
+                    ai4seo_echo_wp_kses($ai4seo_this_setting_description);
+                echo "</p>";
+            echo "</div>";
+        echo "</div>";
+
+
+        // === AI4SEO_SETTING_DISABLED_ATTACHMENT_POST_AUTHORS =============================================== \\
+
+        $ai4seo_this_setting_name = AI4SEO_SETTING_DISABLED_ATTACHMENT_POST_AUTHORS;
+        $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
+        $ai4seo_disabled_attachment_post_author_ids = ai4seo_get_disabled_attachment_post_author_ids();
+        $ai4seo_available_attachment_post_authors = ai4seo_get_available_attachment_post_authors();
+        $ai4seo_available_attachment_post_author_ids = array_map('intval', array_keys($ai4seo_available_attachment_post_authors));
+        $ai4seo_active_attachment_post_author_ids = array_values(array_diff($ai4seo_available_attachment_post_author_ids, $ai4seo_disabled_attachment_post_author_ids));
+
+        /* translators: %s: plugin name */
+        $ai4seo_this_setting_description = sprintf(esc_html__("Uncheck any author whose media files you want to exclude from %s media dashboards and generation queues. Newly detected authors stay active by default.", "ai-for-seo"), esc_html(AI4SEO_PLUGIN_NAME));
+
+        echo "<hr class='ai4seo-form-item-divider ai4seo-is-advanced-setting'>";
+
+        echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
+            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
+                echo "<span class='ai4seo-green-bubble'>" . esc_html__("NEW", "ai-for-seo") . "</span> ";
+                echo esc_html__("Active Media Authors:", "ai-for-seo");
+            echo "</label>";
+
+            echo "<div class='ai4seo-form-item-input-wrapper'>";
+                if ($ai4seo_available_attachment_post_authors) {
+                    ai4seo_echo_wp_kses(ai4seo_get_select_all_checkbox($ai4seo_this_setting_input_name));
+                    echo "<div class='ai4seo-medium-gap'></div>";
+
+                    foreach ($ai4seo_available_attachment_post_authors as $ai4seo_this_post_author_id => $ai4seo_this_post_author_label) {
+                        $ai4seo_this_checkbox_id = "{$ai4seo_this_setting_input_name}-{$ai4seo_this_post_author_id}";
+                        $ai4seo_is_checkbox_checked = in_array((int) $ai4seo_this_post_author_id, $ai4seo_active_attachment_post_author_ids, true);
+
+                        echo "<label for='" . esc_attr($ai4seo_this_checkbox_id) . "' class='ai4seo-form-multiple-inputs'>";
+                            echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "[]' value='" . esc_attr($ai4seo_this_post_author_id) . "'" . ($ai4seo_is_checkbox_checked ? " checked='checked'" : "") . " /> ";
+                            echo esc_html($ai4seo_this_post_author_label);
+                            echo "<br>";
+                        echo "</label>";
+                    }
+                } else {
+                    echo "<p class='ai4seo-form-item-description'>";
+                        echo esc_html__("No authors with supported media files detected.", "ai-for-seo");
+                    echo "</p>";
                 }
 
                 echo "<p class='ai4seo-form-item-description'>";

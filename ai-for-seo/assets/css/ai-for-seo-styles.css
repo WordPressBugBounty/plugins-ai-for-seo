@@ -1214,11 +1214,6 @@ div.ai4seo-recent-plugin-updates-content li::marker {
     border-radius: 3px;
 }
 
-/* type: utility — responsive visibility (hide) */
-.ai4seo-retry-failed-mobile {
-    display: none !important;
-}
-
 .ai4seo-dashboard-retry-all-failed-wrapper {
     flex-basis: 100%;
     width: 100%;
@@ -2959,6 +2954,14 @@ div.ai4seo-pay-as-you-go-summary-container {
     align-items: center;
 }
 
+/* type: module - link */
+.ai4seo-more-setting-entries summary {
+    cursor: pointer;
+    color: var(--ai4seo-sooz-ci-blue) !important;
+    font-weight: 600;
+    text-decoration: underline !important;
+}
+
 /* type: module — button */
 .ai4seo-button-icon {
     position: relative;
@@ -4256,16 +4259,6 @@ div.ai4seo-recent-plugin-updates-title > .ai4seo-bubble, div.ai4seo-recent-plugi
 /* type: module — table */
     .ai4seo-posts-table td.ai4seo-generation-coverage {
         min-width: auto;
-    }
-
-    /* AI4SEO Retry buttons */
-/* type: utility — responsive visibility (hide) */
-    .ai4seo-retry-failed-mobile {
-        display: inline-block !important;
-    }
-/* type: utility — action visibility */
-    .ai4seo-retry-failed {
-        display: none !important;
     }
 }
 

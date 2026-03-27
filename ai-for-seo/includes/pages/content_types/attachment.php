@@ -47,6 +47,7 @@ $ai4seo_pending_attributes_attachment_post_ids = ai4seo_get_post_ids_from_option
 $ai4seo_processing_attributes_attachment_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_PROCESSING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME);
 $ai4seo_failed_attributes_attachment_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_FAILED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME);
 $ai4seo_fully_covered_attachment_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_FULLY_COVERED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME);
+$ai4seo_disabled_attachment_post_author_ids = ai4seo_get_disabled_attachment_post_author_ids();
 
 
 // ___________________________________________________________________________________________ \\
@@ -139,6 +140,10 @@ $ai4seo_posts_query_arguments = array(
     "lang" => "all",
 );
 
+if ($ai4seo_disabled_attachment_post_author_ids) {
+    $ai4seo_posts_query_arguments["author__not_in"] = $ai4seo_disabled_attachment_post_author_ids;
+}
+
 $ai4seo_filter_context = ai4seo_setup_content_type_filters(array(
     'form_action' => ai4seo_get_subpage_url($ai4seo_nice_post_type, array('ai4seo_page' => 1)),
     'nonce_action' => 'ai4seo_content_type_filter_form',
@@ -146,6 +151,7 @@ $ai4seo_filter_context = ai4seo_setup_content_type_filters(array(
     'post_types' => (array) $ai4seo_post_types,
     'post_status' => array('publish', 'future', 'inherit'),
     'post_mime_types' => (array) $ai4seo_allowed_attachment_mime_types,
+    'author_not_in' => $ai4seo_disabled_attachment_post_author_ids,
     'search_file_meta' => true,
     'per_page' => 20,
 ));
@@ -287,7 +293,7 @@ if ($ai4seo_all_attachment_posts) {
 }
 
 // Define variable for the label of the failed-attributes-generations-link
-$ai4seo_retry_all_failed_attachment_attributes_generations_link_label = "<span class='ai4seo-retry-failed'>" . __("Retry all failed media attributes generations", "ai-for-seo") . "</span><span class='ai4seo-retry-failed-mobile'>" . __("Retry all failed", "ai-for-seo") . "</span>";
+$ai4seo_retry_all_failed_attachment_attributes_generations_link_label = __("Retry all failed", "ai-for-seo");
 
 // retry all failed attachment attributes generations link
 $ai4seo_retry_all_failed_attachment_attributes_generations_link_tag = ai4seo_get_small_icon_button_tag("rotate", $ai4seo_retry_all_failed_attachment_attributes_generations_link_label, "", "ai4seo_retry_all_failed_attachment_attributes(this); return false;");

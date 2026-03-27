@@ -288,6 +288,11 @@ class Ai4Seo_RobHubApiCommunicator {
             // invalidate auth credentials if error code indicates an auth issue, to trigger a refresh on the next call
             if ( $is_invalidate_auth_data_error ) {
                 $this->invalidate_auth_data(true);
+
+                // rebuild API arguments with fallback credentials if available and we have more attempts left
+                if ( $has_more_attempts && ! $is_non_retriable ) {
+                    $api_arguments = $this->build_api_arguments( $parameters, $request_method, $endpoint, $fallback_to_public_client_operation_credentials );
+                }
             }
 
             if ( ! $has_more_attempts || $is_non_retriable ) {
@@ -1115,6 +1120,9 @@ class Ai4Seo_RobHubApiCommunicator {
         $ai4seo_robhub_api_password_key = ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_API_PASSWORD;
         ai4seo_robhub_api()->delete_environmental_variable($ai4seo_robhub_api_username_key);
         ai4seo_robhub_api()->delete_environmental_variable($ai4seo_robhub_api_password_key);
+
+        $this->api_username = '';
+        $this->api_password = '';
 
         if ($init_free_account) {
             ai4seo_robhub_api()->init_free_account();

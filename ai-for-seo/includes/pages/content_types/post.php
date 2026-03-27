@@ -48,7 +48,7 @@ if (isset($_GET["ai4seo-execute-cron-job-sooner"]) && $_GET["ai4seo-execute-cron
 }
 
 // Define variable for the label of the failed-metadata-generations-link
-$ai4seo_retry_all_failed_metadata_generations_link_label = "<span class='ai4seo-retry-failed'>" . __("Retry all failed metadata generations", "ai-for-seo") . "</span><span class='ai4seo-retry-failed-mobile'>" . __("Retry all failed", "ai-for-seo") . "</span>";
+$ai4seo_retry_all_failed_metadata_generations_link_label = __("Retry all failed", "ai-for-seo");
 
 // retry all failed metadata generations link
 $ai4seo_retry_all_failed_metadata_generations_link_tag = ai4seo_get_small_icon_button_tag("rotate", $ai4seo_retry_all_failed_metadata_generations_link_label, "", "ai4seo_retry_all_failed_metadata(this, '" . esc_js($ai4seo_post_type) . "'); return false;");
@@ -65,6 +65,8 @@ $ai4seo_all_failed_metadata_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_FA
 
 $ai4seo_missing_metadata_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_MISSING_METADATA_POST_IDS_OPTION_NAME);
 $ai4seo_fully_covered_metadata_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_FULLY_COVERED_METADATA_POST_IDS_OPTION_NAME);
+$ai4seo_disabled_post_author_ids = ai4seo_get_disabled_post_author_ids();
+$ai4seo_disabled_taxonomy_terms = ai4seo_get_disabled_taxonomy_terms();
 
 
 // ___________________________________________________________________________________________ \\
@@ -82,12 +84,18 @@ $ai4seo_posts_query_arguments = array(
     "lang" => "all",
 );
 
+if ($ai4seo_disabled_post_author_ids) {
+    $ai4seo_posts_query_arguments["author__not_in"] = $ai4seo_disabled_post_author_ids;
+}
+
 $ai4seo_filter_context = ai4seo_setup_content_type_filters(array(
     'form_action' => ai4seo_get_post_type_page_url($ai4seo_post_type, 1),
     'nonce_action' => 'ai4seo_content_type_filter_form',
     'nonce_name' => 'ai4seo_content_type_filter_nonce',
     'post_types' => array($ai4seo_post_type),
     'post_status' => array('publish', 'future'),
+    'author_not_in' => $ai4seo_disabled_post_author_ids,
+    'disabled_taxonomy_terms' => $ai4seo_disabled_taxonomy_terms,
     'per_page' => 20,
 ));
 
@@ -125,6 +133,7 @@ if (is_array($ai4seo_search_ids)) {
 
 $ai4seo_candidate_post_ids = array_values(array_unique(array_map('intval', (array) $ai4seo_candidate_post_ids)));
 rsort($ai4seo_candidate_post_ids, SORT_NUMERIC);
+$ai4seo_candidate_post_ids = ai4seo_filter_post_ids_by_disabled_taxonomy_terms($ai4seo_candidate_post_ids, $ai4seo_disabled_taxonomy_terms);
 $ai4seo_candidate_post_ids = ai4seo_filter_post_ids_by_language($ai4seo_candidate_post_ids, $ai4seo_filter_language);
 
 $ai4seo_search_status_map = array(

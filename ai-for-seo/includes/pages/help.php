@@ -479,9 +479,17 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-faq'>
         ai4seo_echo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("How can I use placeholders in metadata or media prefixes and suffixes?", "ai-for-seo"), $ai4seo_this_accordion_content));
 
         /* translators: %s: plugin name */
-        $ai4seo_this_accordion_content = sprintf(esc_html__("Open *%s* > Settings and locate the \"Active Post Types\" checkboxes in the Metadata section. Uncheck any post types you want to hide. The plugin keeps their existing metadata untouched but removes them from the dashboard, menu and SEO Autopilot queues until you re-enable them.", "ai-for-seo"), esc_html(AI4SEO_PLUGIN_NAME));
+        $ai4seo_this_accordion_content = sprintf(esc_html__("Open %s > Settings and locate the \"Active Post Types\" checkboxes in the Metadata section. Uncheck any post types you want to hide. The plugin keeps their existing metadata untouched but removes them from the dashboard, menu and SEO Autopilot queues until you re-enable them.", "ai-for-seo"), esc_html(AI4SEO_PLUGIN_NAME));
         /* translators: %s: plugin name */
-        ai4seo_echo_wp_kses(ai4seo_get_accordion_element("> " . sprintf(esc_html__("How do I hide certain post types from the *%s* dashboard?", "ai-for-seo"), esc_html(AI4SEO_PLUGIN_NAME)), $ai4seo_this_accordion_content));
+        ai4seo_echo_wp_kses(ai4seo_get_accordion_element("> " . sprintf(esc_html__("How do I hide certain post types from the %s dashboard?", "ai-for-seo"), esc_html(AI4SEO_PLUGIN_NAME)), $ai4seo_this_accordion_content));
+
+        /* translators: %s: plugin name */
+        $ai4seo_this_accordion_content = sprintf(esc_html__("Yes. Open %s > Settings and use the advanced checkboxes \"Active Authors\" in the Metadata section or \"Active Media Authors\" in the Media Attributes section. Uncheck any authors you want to exclude. Their existing metadata or media attributes stay untouched, but their posts or media files are removed from the related dashboards and automation queues until you enable them again.", "ai-for-seo"), esc_html(AI4SEO_PLUGIN_NAME));
+        ai4seo_echo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("Can I filter posts or media files by the author?", "ai-for-seo"), $ai4seo_this_accordion_content));
+
+        /* translators: %s: plugin name */
+        $ai4seo_this_accordion_content = sprintf(esc_html__("Yes. Open %s > Settings and use the advanced \"Active Categories (taxonomy terms)\" checkboxes in the Metadata section. Uncheck any categories you want to exclude. Their existing metadata stays untouched. By default, entries remain included as long as they still have at least one active category assigned, and you can enable the stricter option to exclude an entry as soon as one disabled category is assigned.", "ai-for-seo"), esc_html(AI4SEO_PLUGIN_NAME));
+        ai4seo_echo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("Can I filter posts, products or other content by category (taxonomy term)?", "ai-for-seo"), $ai4seo_this_accordion_content));
 
         $ai4seo_this_accordion_content = __("Including image metadata helps search engines better interpret your images, potentially boosting your rankings in image search results and the overall quality of your website. In addition, it also shows your commitment to accessibility, catering to a wider audience and complying with accessibility standards.", "ai-for-seo");
         ai4seo_echo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("What are the benefits of providing alt text, titles, captions, and descriptions for images on my website?", "ai-for-seo"), $ai4seo_this_accordion_content));

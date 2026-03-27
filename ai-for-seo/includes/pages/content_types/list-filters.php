@@ -20,6 +20,8 @@ if (!function_exists('ai4seo_setup_content_type_filters')) {
      *     @type array  $post_types           Post types to limit search queries.
      *     @type array  $post_status          Post statuses to limit search queries.
      *     @type array  $post_mime_types      Optional. MIME types to limit attachment search queries.
+     *     @type array  $author_not_in        Optional. Post author IDs to exclude from search queries.
+     *     @type array  $disabled_taxonomy_terms Optional. Disabled taxonomy terms to exclude from search queries.
      *     @type bool   $search_file_meta     Optional. Whether to search attachment filenames via post meta.
      *     @type int    $per_page             Optional. Items per page. Default 20.
      *     @type array  $hidden_fields        Optional. Additional hidden fields for the filter form.
@@ -45,6 +47,8 @@ if (!function_exists('ai4seo_setup_content_type_filters')) {
             'post_types' => array(),
             'post_status' => array(),
             'post_mime_types' => array(),
+            'author_not_in' => array(),
+            'disabled_taxonomy_terms' => array(),
             'search_file_meta' => false,
             'per_page' => 20,
             'hidden_fields' => array(),
@@ -137,11 +141,23 @@ if (!function_exists('ai4seo_setup_content_type_filters')) {
             $post_types = array_map('sanitize_key', (array) $args['post_types']);
             $post_status = array_map('sanitize_key', (array) $args['post_status']);
             $post_mime_types = array_map('sanitize_text_field', (array) $args['post_mime_types']);
+            $author_not_in = array_map('intval', (array) $args['author_not_in']);
+            $disabled_taxonomy_terms = ai4seo_sanitize_disabled_taxonomy_terms_value($args['disabled_taxonomy_terms'] ?? array());
+            $author_not_in = array_values(array_unique($author_not_in));
+
+            foreach ($author_not_in as $author_not_in_index => $author_not_in_id) {
+                if ($author_not_in_id <= 0) {
+                    unset($author_not_in[$author_not_in_index]);
+                }
+            }
+
+            $author_not_in = array_values($author_not_in);
 
             // Hard cap dynamic filter arrays to avoid oversized IN(...) clauses.
             $post_types = array_slice( $post_types, 0, 256 );
             $post_status = array_slice( $post_status, 0, 256 );
             $post_mime_types = array_slice( $post_mime_types, 0, 256 );
+            $author_not_in = array_slice( $author_not_in, 0, 256 );
 
             $sql_parts = array();
             $sql_values = array();
@@ -162,6 +178,12 @@ if (!function_exists('ai4seo_setup_content_type_filters')) {
                 $mime_placeholders = implode(', ', array_fill(0, count($post_mime_types), '%s'));
                 $sql_parts[] = "post_mime_type IN ($mime_placeholders)";
                 $sql_values = array_merge($sql_values, $post_mime_types);
+            }
+
+            if ($author_not_in) {
+                $author_placeholders = implode(', ', array_fill(0, count($author_not_in), '%d'));
+                $sql_parts[] = "post_author NOT IN ($author_placeholders)";
+                $sql_values = array_merge($sql_values, $author_not_in);
             }
 
             $like_term = '%' . $wpdb->esc_like($filter_text) . '%';
@@ -240,6 +262,12 @@ if (!function_exists('ai4seo_setup_content_type_filters')) {
                     $meta_values = array_merge($meta_values, $post_mime_types);
                 }
 
+                if ($author_not_in) {
+                    $author_placeholders = implode(', ', array_fill(0, count($author_not_in), '%d'));
+                    $meta_sql_parts[] = 'p.post_author NOT IN (' . $author_placeholders . ')';
+                    $meta_values = array_merge($meta_values, $author_not_in);
+                }
+
                 $meta_sql_parts[] = 'pm.meta_key = %s';
                 $meta_values[] = '_wp_attached_file';
                 $meta_sql_parts[] = 'pm.meta_value LIKE %s';
@@ -280,6 +308,10 @@ if (!function_exists('ai4seo_setup_content_type_filters')) {
                         $search_ids = ai4seo_filter_post_ids_by_language($search_ids, $filter_language);
                     }
                 }
+            }
+
+            if ($disabled_taxonomy_terms) {
+                $search_ids = ai4seo_filter_post_ids_by_disabled_taxonomy_terms($search_ids, $disabled_taxonomy_terms);
             }
         }
 

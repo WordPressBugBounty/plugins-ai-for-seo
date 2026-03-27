@@ -3,7 +3,7 @@
 Plugin Name: SOOZ - AI for SEO
 Plugin URI: https://sooz.ai
 Description: One-Click SEO solution. *SOOZ - AI for SEO* helps your website to rank higher in Web Search results.
-Version: 2.3.1
+Version: 2.3.2
 Author: spacecodes
 Author URI: https://spa.ce.codes
 Text Domain: ai-for-seo
@@ -31,7 +31,7 @@ if (isset($_GET['prohibit-ai-for-seo'])) {
 // region CONSTANTS AND VARIABLES ============================================================ \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
-const AI4SEO_PLUGIN_VERSION_NUMBER = "2.3.1";
+const AI4SEO_PLUGIN_VERSION_NUMBER = "2.3.2";
 const AI4SEO_PLUGIN_NAME = "SOOZ - AI for SEO";
 const AI4SEO_SHORT_PLUGIN_NAME = "SOOZ";
 const AI4SEO_PLUGIN_DESCRIPTION = 'One-Click SEO solution. *SOOZ - AI for SEO* helps your website to rank higher in Web Search results.';
@@ -120,6 +120,17 @@ const AI4SEO_MAX_EDITOR_INPUT_LENGTHS = array(
  */
 function ai4seo_get_change_log(): array {
     return [
+        [
+            'date' => 'April 3rd, 2026',
+            'version' => '2.3.2',
+            'important' => false,
+            'updates' => [
+                'Added an advanced setting to filter posts by author',
+                'Added an advanced setting to filter media files by author',
+                'Added an advanced setting to filter by category (taxonomy terms) and a setting to always exclude entries with disabled categories.',
+                'Bug Fixes & Maintenance: Fixed 3 minor bugs and resolved 1 security issue.',
+            ],
+        ],
         [
             'date' => 'March 19th, 2026',
             'version' => '2.3.1',
@@ -788,6 +799,10 @@ const AI4SEO_SETTING_ENABLE_ENHANCED_CELEBRITY_RECOGNITION = 'enable_enhanced_ce
 const AI4SEO_SETTING_IMAGE_UPLOAD_METHOD = 'image_upload_method';
 const AI4SEO_SETTING_ALLOWED_USER_ROLES = 'allowed_user_roles';
 const AI4SEO_SETTING_DISABLED_POST_TYPES = 'disabled_post_types';
+const AI4SEO_SETTING_DISABLED_POST_AUTHORS = 'disabled_post_authors';
+const AI4SEO_SETTING_DISABLED_ATTACHMENT_POST_AUTHORS = 'disabled_attachment_post_authors';
+const AI4SEO_SETTING_DISABLED_TAXONOMY_TERMS = 'disabled_taxonomy_terms';
+const AI4SEO_SETTING_EXCLUDE_POSTS_IF_ANY_DISABLED_TAXONOMY_TERM = 'exclude_posts_if_any_disabled_taxonomy_term';
 const AI4SEO_SETTING_BULK_GENERATION_DURATION = 'bulk_generation_duration';
 const AI4SEO_SETTING_DISABLE_HEAVY_DB_OPERATIONS = 'disable_heavy_db_operations';
 const AI4SEO_SETTING_ENABLE_FRONTEND_CACHE_PURGE = 'enable_frontend_cache_purge';
@@ -835,6 +850,10 @@ const AI4SEO_ALL_SETTING_PAGE_SETTINGS = array(
     AI4SEO_SETTING_IMAGE_UPLOAD_METHOD,
     AI4SEO_SETTING_ALLOWED_USER_ROLES,
     AI4SEO_SETTING_DISABLED_POST_TYPES,
+    AI4SEO_SETTING_DISABLED_POST_AUTHORS,
+    AI4SEO_SETTING_DISABLED_ATTACHMENT_POST_AUTHORS,
+    AI4SEO_SETTING_DISABLED_TAXONOMY_TERMS,
+    AI4SEO_SETTING_EXCLUDE_POSTS_IF_ANY_DISABLED_TAXONOMY_TERM,
     AI4SEO_SETTING_BULK_GENERATION_DURATION,
     AI4SEO_SETTING_DISABLE_HEAVY_DB_OPERATIONS,
     AI4SEO_SETTING_ENABLE_FRONTEND_CACHE_PURGE,
@@ -904,6 +923,10 @@ const AI4SEO_DEFAULT_SETTINGS = array(
     AI4SEO_SETTING_SYNC_ONLY_THESE_METADATA => array("focus-keyphrase", "meta-title", "meta-description", "facebook-title", "facebook-description", "twitter-title", "twitter-description"),
     AI4SEO_SETTING_ALLOWED_USER_ROLES => array("administrator"),
     AI4SEO_SETTING_DISABLED_POST_TYPES => array(),
+    AI4SEO_SETTING_DISABLED_POST_AUTHORS => array(),
+    AI4SEO_SETTING_DISABLED_ATTACHMENT_POST_AUTHORS => array(),
+    AI4SEO_SETTING_DISABLED_TAXONOMY_TERMS => array(),
+    AI4SEO_SETTING_EXCLUDE_POSTS_IF_ANY_DISABLED_TAXONOMY_TERM => false,
     AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES => array(),
     AI4SEO_SETTING_BULK_GENERATION_ORDER => "newest",
     AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER => "both",
@@ -1053,6 +1076,8 @@ const AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_STATE = "posts_table_an
 const AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_START_TIME = "posts_table_analysis_start_time";
 const AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_LAST_CORE_RUN_TIME = "posts_table_analysis_last_core_run_time";
 const AI4SEO_ENVIRONMENTAL_VARIABLE_SUPPORTED_POST_TYPES_CACHE = "supported_post_types_cache";
+const AI4SEO_ENVIRONMENTAL_VARIABLE_AVAILABLE_POST_AUTHORS_CACHE = "available_post_authors_cache";
+const AI4SEO_ENVIRONMENTAL_VARIABLE_SUPPORTED_TAXONOMY_TERMS_CACHE = "supported_taxonomy_terms_cache";
 const AI4SEO_ENVIRONMENTAL_VARIABLE_ATTACHMENT_ID_LOOKUP_CACHE = "attachment_id_lookup_cache";
 const AI4SEO_ENVIRONMENTAL_VARIABLE_NEXTGEN_PICTURE_PIDS_CACHE = "nextgen_picture_pids_cache";
 const AI4SEO_ENVIRONMENTAL_VARIABLE_NEXTGEN_IMPORTED_IMAGES_COUNT_CACHE = "nextgen_imported_images_count_cache";
@@ -1090,6 +1115,8 @@ const AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES = array(
     AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_START_TIME => 0,
     AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_LAST_CORE_RUN_TIME => 0,
     AI4SEO_ENVIRONMENTAL_VARIABLE_SUPPORTED_POST_TYPES_CACHE => array(),
+    AI4SEO_ENVIRONMENTAL_VARIABLE_AVAILABLE_POST_AUTHORS_CACHE => array(),
+    AI4SEO_ENVIRONMENTAL_VARIABLE_SUPPORTED_TAXONOMY_TERMS_CACHE => array(),
     AI4SEO_ENVIRONMENTAL_VARIABLE_ATTACHMENT_ID_LOOKUP_CACHE => array(),
     AI4SEO_ENVIRONMENTAL_VARIABLE_NEXTGEN_PICTURE_PIDS_CACHE => array(),
     AI4SEO_ENVIRONMENTAL_VARIABLE_NEXTGEN_IMPORTED_IMAGES_COUNT_CACHE => 0,
@@ -8659,6 +8686,819 @@ function ai4seo_pop_post_context() {
 // =========================================================================================== \\
 
 /**
+ * Returns all authors that currently own entries for the given post types.
+ *
+ * @param array $supported_post_types
+ * @param array $post_statuses
+ * @return array Array of post_author IDs mapped to display labels.
+ */
+function ai4seo_get_available_post_authors_by_post_types(array $supported_post_types, array $post_statuses = array('publish', 'future')): array {
+    global $wpdb;
+
+    if ( ai4seo_prevent_loops( __FUNCTION__, 2 ) ) {
+        ai4seo_debug_message( 748322611, 'Prevented loop', true );
+        return array();
+    }
+
+    if ( ! $supported_post_types ) {
+        return array();
+    }
+
+    $supported_post_types = ai4seo_deep_sanitize( $supported_post_types, 'sanitize_key' );
+    $supported_post_types = array_values( array_unique( $supported_post_types ) );
+    $supported_post_types = array_slice( $supported_post_types, 0, 256 );
+
+    if ( ! $supported_post_types ) {
+        return array();
+    }
+
+    $post_statuses = ai4seo_deep_sanitize( $post_statuses, 'sanitize_key' );
+    $post_statuses = array_values( array_unique( $post_statuses ) );
+    $post_statuses = array_slice( $post_statuses, 0, 256 );
+
+    if ( ! $post_statuses ) {
+        $post_statuses = array( 'publish', 'future' );
+    }
+
+    $available_post_authors_cache_key = md5( wp_json_encode( array( $supported_post_types, $post_statuses ) ) );
+
+    if ( ai4seo_is_environmental_variable_cache_available( AI4SEO_ENVIRONMENTAL_VARIABLE_AVAILABLE_POST_AUTHORS_CACHE ) ) {
+        $available_post_authors_cache = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_AVAILABLE_POST_AUTHORS_CACHE );
+
+        if (
+            is_array( $available_post_authors_cache )
+            && isset( $available_post_authors_cache[ $available_post_authors_cache_key ] )
+            && is_array( $available_post_authors_cache[ $available_post_authors_cache_key ] )
+        ) {
+            return $available_post_authors_cache[ $available_post_authors_cache_key ];
+        }
+    }
+
+    $post_type_placeholders = implode( ', ', array_fill( 0, count( $supported_post_types ), '%s' ) );
+    $post_status_placeholders = implode( ', ', array_fill( 0, count( $post_statuses ), '%s' ) );
+
+    $sql = $wpdb->prepare(
+        "SELECT DISTINCT post_author
+        FROM {$wpdb->posts}
+        WHERE post_author > 0
+        AND post_type IN ($post_type_placeholders)
+        AND post_status IN ($post_status_placeholders)",
+        ...array_merge( $supported_post_types, $post_statuses )
+    );
+
+    $available_post_author_ids = $wpdb->get_col( $sql );
+
+    if ( $wpdb->last_error ) {
+        ai4seo_debug_message( 984321703, 'Database error: ' . $wpdb->last_error, true );
+        return array();
+    }
+
+    $sanitized_post_author_ids = array();
+
+    foreach ( (array) $available_post_author_ids as $available_post_author_id ) {
+        $available_post_author_id = (int) $available_post_author_id;
+
+        if ( $available_post_author_id <= 0 ) {
+            continue;
+        }
+
+        $sanitized_post_author_ids[] = $available_post_author_id;
+    }
+
+    $sanitized_post_author_ids = array_values( array_unique( $sanitized_post_author_ids ) );
+
+    if ( ! $sanitized_post_author_ids ) {
+        $available_post_authors = array();
+        $available_post_authors_cache = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_AVAILABLE_POST_AUTHORS_CACHE );
+
+        if ( ! is_array( $available_post_authors_cache ) ) {
+            $available_post_authors_cache = array();
+        }
+
+        $available_post_authors_cache[ $available_post_authors_cache_key ] = $available_post_authors;
+
+        if ( count( $available_post_authors_cache ) > 10 ) {
+            $available_post_authors_cache = array_slice( $available_post_authors_cache, -10, null, true );
+        }
+
+        ai4seo_update_environmental_variable(
+            AI4SEO_ENVIRONMENTAL_VARIABLE_AVAILABLE_POST_AUTHORS_CACHE,
+            $available_post_authors_cache,
+            true,
+            HOUR_IN_SECONDS
+        );
+
+        return array();
+    }
+
+    $wordpress_users = get_users(
+        array(
+            'include' => $sanitized_post_author_ids,
+            'orderby' => 'display_name',
+            'order' => 'ASC',
+        )
+    );
+
+    $available_post_authors = array();
+    $handled_post_author_ids = array();
+
+    foreach ( $wordpress_users as $this_wordpress_user ) {
+        $this_post_author_id = (int) ( $this_wordpress_user->ID ?? 0 );
+
+        if ( $this_post_author_id <= 0 ) {
+            continue;
+        }
+
+        $handled_post_author_ids[] = $this_post_author_id;
+
+        $this_display_name = sanitize_text_field( $this_wordpress_user->display_name ?? '' );
+        $this_user_login = sanitize_text_field( $this_wordpress_user->user_login ?? '' );
+        $this_author_label = ( $this_display_name !== '' ) ? $this_display_name : $this_user_login;
+
+        if ( $this_display_name !== '' && $this_user_login !== '' && $this_display_name !== $this_user_login ) {
+            $this_author_label .= ' (' . $this_user_login . ')';
+        }
+
+        if ( $this_author_label === '' ) {
+            /* translators: %d: WordPress user ID. */
+            $this_author_label = sprintf( __( 'User #%d', 'ai-for-seo' ), $this_post_author_id );
+        }
+
+        $available_post_authors[ $this_post_author_id ] = $this_author_label;
+    }
+
+    $missing_post_author_ids = array_diff( $sanitized_post_author_ids, $handled_post_author_ids );
+
+    if ( $missing_post_author_ids ) {
+        sort( $missing_post_author_ids, SORT_NUMERIC );
+
+        foreach ( $missing_post_author_ids as $missing_post_author_id ) {
+            /* translators: %d: WordPress user ID. */
+            $available_post_authors[ $missing_post_author_id ] = sprintf( __( 'User #%d', 'ai-for-seo' ), $missing_post_author_id );
+        }
+    }
+
+    if ( $available_post_authors ) {
+        asort( $available_post_authors, SORT_NATURAL | SORT_FLAG_CASE );
+    }
+
+    $available_post_authors_cache = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_AVAILABLE_POST_AUTHORS_CACHE );
+
+    if ( ! is_array( $available_post_authors_cache ) ) {
+        $available_post_authors_cache = array();
+    }
+
+    $available_post_authors_cache[ $available_post_authors_cache_key ] = $available_post_authors;
+
+    if ( count( $available_post_authors_cache ) > 10 ) {
+        $available_post_authors_cache = array_slice( $available_post_authors_cache, -10, null, true );
+    }
+
+    ai4seo_update_environmental_variable(
+        AI4SEO_ENVIRONMENTAL_VARIABLE_AVAILABLE_POST_AUTHORS_CACHE,
+        $available_post_authors_cache,
+        true,
+        HOUR_IN_SECONDS
+    );
+
+    return $available_post_authors;
+}
+
+// =========================================================================================== \\
+
+/**
+ * Returns all authors that currently own supported posts.
+ *
+ * @return array Array of post_author IDs mapped to display labels.
+ */
+function ai4seo_get_available_post_authors(): array {
+    static $ai4seo_available_post_authors = null;
+
+    if ( is_array( $ai4seo_available_post_authors ) ) {
+        return $ai4seo_available_post_authors;
+    }
+
+    $ai4seo_available_post_authors = ai4seo_get_available_post_authors_by_post_types(
+        ai4seo_get_supported_post_types( false )
+    );
+
+    return $ai4seo_available_post_authors;
+}
+
+// =========================================================================================== \\
+
+/**
+ * Returns all authors that currently own supported attachments.
+ *
+ * @return array Array of post_author IDs mapped to display labels.
+ */
+function ai4seo_get_available_attachment_post_authors(): array {
+    static $ai4seo_available_attachment_post_authors = null;
+
+    if ( is_array( $ai4seo_available_attachment_post_authors ) ) {
+        return $ai4seo_available_attachment_post_authors;
+    }
+
+    $ai4seo_available_attachment_post_authors = ai4seo_get_available_post_authors_by_post_types(
+        ai4seo_get_supported_attachment_post_types( false ),
+        array( 'publish', 'future', 'inherit' )
+    );
+
+    return $ai4seo_available_attachment_post_authors;
+}
+
+// =========================================================================================== \\
+
+/**
+ * Returns all disabled post author IDs from the user setting.
+ *
+ * @return array
+ */
+function ai4seo_get_disabled_post_author_ids(): array {
+    return ai4seo_get_disabled_author_ids_by_setting_name( AI4SEO_SETTING_DISABLED_POST_AUTHORS );
+}
+
+// =========================================================================================== \\
+
+/**
+ * Returns all disabled attachment post author IDs from the user setting.
+ *
+ * @return array
+ */
+function ai4seo_get_disabled_attachment_post_author_ids(): array {
+    return ai4seo_get_disabled_author_ids_by_setting_name( AI4SEO_SETTING_DISABLED_ATTACHMENT_POST_AUTHORS );
+}
+
+// =========================================================================================== \\
+
+/**
+ * Returns supported taxonomy terms that are connected to supported content types.
+ *
+ * @return array Array keyed by taxonomy name with labels and term IDs mapped to names.
+ */
+function ai4seo_get_supported_taxonomy_terms(): array {
+    global $wpdb;
+
+    static $ai4seo_supported_taxonomy_terms = null;
+
+    if ( is_array( $ai4seo_supported_taxonomy_terms ) ) {
+        return $ai4seo_supported_taxonomy_terms;
+    }
+
+    if ( ai4seo_prevent_loops( __FUNCTION__, 2 ) ) {
+        ai4seo_debug_message( 517322611, 'Prevented loop', true );
+        return array();
+    }
+
+    if ( ai4seo_is_environmental_variable_cache_available( AI4SEO_ENVIRONMENTAL_VARIABLE_SUPPORTED_TAXONOMY_TERMS_CACHE ) ) {
+        $ai4seo_supported_taxonomy_terms = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_SUPPORTED_TAXONOMY_TERMS_CACHE );
+
+        if ( is_array( $ai4seo_supported_taxonomy_terms ) ) {
+            return $ai4seo_supported_taxonomy_terms;
+        }
+    }
+
+    $supported_post_types = ai4seo_get_supported_post_types( false );
+
+    if ( ! $supported_post_types ) {
+        $ai4seo_supported_taxonomy_terms = array();
+        return $ai4seo_supported_taxonomy_terms;
+    }
+
+    $supported_post_types = ai4seo_deep_sanitize( $supported_post_types, 'sanitize_key' );
+    $supported_post_types = array_values( array_unique( $supported_post_types ) );
+    $supported_post_types = array_slice( $supported_post_types, 0, 256 );
+
+    if ( ! $supported_post_types ) {
+        $ai4seo_supported_taxonomy_terms = array();
+        return $ai4seo_supported_taxonomy_terms;
+    }
+
+    $supported_taxonomies = array();
+
+    foreach ( $supported_post_types as $this_supported_post_type ) {
+        $this_taxonomy_objects = get_object_taxonomies( $this_supported_post_type, 'objects' );
+
+        foreach ( (array) $this_taxonomy_objects as $this_taxonomy_name => $this_taxonomy_object ) {
+            $this_taxonomy_name = sanitize_key( $this_taxonomy_name );
+
+            if ( $this_taxonomy_name === '' ) {
+                continue;
+            }
+
+            if ( empty( $this_taxonomy_object->public ) || empty( $this_taxonomy_object->show_ui ) ) {
+                continue;
+            }
+
+            if ( $this_taxonomy_name === 'post_format' ) {
+                continue;
+            }
+
+            $this_taxonomy_label = sanitize_text_field( $this_taxonomy_object->labels->name ?? $this_taxonomy_object->label ?? $this_taxonomy_name );
+
+            if ( $this_taxonomy_label === '' ) {
+                $this_taxonomy_label = $this_taxonomy_name;
+            }
+
+            if ( ! isset( $supported_taxonomies[ $this_taxonomy_name ] ) ) {
+                $supported_taxonomies[ $this_taxonomy_name ] = array(
+                    'label' => $this_taxonomy_label,
+                    'terms' => array(),
+                );
+            }
+        }
+    }
+
+    if ( ! $supported_taxonomies ) {
+        $ai4seo_supported_taxonomy_terms = array();
+        return $ai4seo_supported_taxonomy_terms;
+    }
+
+    $taxonomy_names = array_keys( $supported_taxonomies );
+    $post_type_placeholders = implode( ', ', array_fill( 0, count( $supported_post_types ), '%s' ) );
+    $database_chunk_size = function_exists( 'ai4seo_get_database_chunk_size' ) ? (int) ai4seo_get_database_chunk_size() : 1000;
+
+    if ( $database_chunk_size < 1 ) {
+        $database_chunk_size = 1000;
+    }
+
+    $sql = $wpdb->prepare(
+        "SELECT DISTINCT tr.term_taxonomy_id
+        FROM {$wpdb->term_relationships} AS tr
+        INNER JOIN {$wpdb->posts} AS p
+            ON tr.object_id = p.ID
+        WHERE p.post_type IN ($post_type_placeholders)
+        AND p.post_status IN ('publish', 'future')",
+        ...$supported_post_types
+    );
+
+    $supported_term_taxonomy_ids = $wpdb->get_col( $sql );
+
+    if ( $wpdb->last_error ) {
+        ai4seo_debug_message( 984321704, 'Database error: ' . $wpdb->last_error, true );
+        $ai4seo_supported_taxonomy_terms = array();
+        return $ai4seo_supported_taxonomy_terms;
+    }
+
+    $supported_term_taxonomy_ids = array_map( 'intval', (array) $supported_term_taxonomy_ids );
+    $supported_term_taxonomy_ids = array_values( array_unique( $supported_term_taxonomy_ids ) );
+    $supported_term_taxonomy_ids = array_filter(
+        $supported_term_taxonomy_ids,
+        static function ( $term_taxonomy_id ) {
+            return $term_taxonomy_id > 0;
+        }
+    );
+
+    if ( ! $supported_term_taxonomy_ids ) {
+        $ai4seo_supported_taxonomy_terms = array();
+        return $ai4seo_supported_taxonomy_terms;
+    }
+
+    $supported_taxonomy_term_rows = array();
+    $taxonomy_placeholders = implode( ', ', array_fill( 0, count( $taxonomy_names ), '%s' ) );
+    $supported_term_taxonomy_id_chunks = array_chunk( $supported_term_taxonomy_ids, $database_chunk_size );
+
+    foreach ( $supported_term_taxonomy_id_chunks as $this_supported_term_taxonomy_id_chunk ) {
+        $term_taxonomy_id_placeholders = implode( ', ', array_fill( 0, count( $this_supported_term_taxonomy_id_chunk ), '%d' ) );
+
+        $sql = $wpdb->prepare(
+            "SELECT tt.taxonomy, t.term_id, t.name
+            FROM {$wpdb->term_taxonomy} AS tt
+            INNER JOIN {$wpdb->terms} AS t
+                ON t.term_id = tt.term_id
+            WHERE tt.taxonomy IN ($taxonomy_placeholders)
+            AND tt.term_taxonomy_id IN ($term_taxonomy_id_placeholders)",
+            ...array_merge( $taxonomy_names, $this_supported_term_taxonomy_id_chunk )
+        );
+
+        $this_supported_taxonomy_term_rows = $wpdb->get_results( $sql, ARRAY_A );
+
+        if ( $wpdb->last_error ) {
+            ai4seo_debug_message( 984321705, 'Database error: ' . $wpdb->last_error, true );
+            $ai4seo_supported_taxonomy_terms = array();
+            return $ai4seo_supported_taxonomy_terms;
+        }
+
+        if ( $this_supported_taxonomy_term_rows ) {
+            $supported_taxonomy_term_rows = array_merge( $supported_taxonomy_term_rows, $this_supported_taxonomy_term_rows );
+        }
+    }
+
+    foreach ( (array) $supported_taxonomy_term_rows as $this_supported_taxonomy_term_row ) {
+        $this_taxonomy_name = sanitize_key( $this_supported_taxonomy_term_row['taxonomy'] ?? '' );
+        $this_term_id = (int) ( $this_supported_taxonomy_term_row['term_id'] ?? 0 );
+        $this_term_name = sanitize_text_field( $this_supported_taxonomy_term_row['name'] ?? '' );
+
+        if ( $this_taxonomy_name === '' || $this_term_id <= 0 || $this_term_name === '' ) {
+            continue;
+        }
+
+        if ( ! isset( $supported_taxonomies[ $this_taxonomy_name ] ) ) {
+            continue;
+        }
+
+        $supported_taxonomies[ $this_taxonomy_name ]['terms'][ $this_term_id ] = $this_term_name;
+    }
+
+    foreach ( $supported_taxonomies as $this_taxonomy_name => $this_supported_taxonomy ) {
+        if ( empty( $this_supported_taxonomy['terms'] ) || ! is_array( $this_supported_taxonomy['terms'] ) ) {
+            unset( $supported_taxonomies[ $this_taxonomy_name ] );
+            continue;
+        }
+
+        asort( $supported_taxonomies[ $this_taxonomy_name ]['terms'], SORT_NATURAL | SORT_FLAG_CASE );
+    }
+
+    if ( $supported_taxonomies ) {
+        uasort(
+            $supported_taxonomies,
+            static function ( $left, $right ) {
+                $left_label = sanitize_text_field( $left['label'] ?? '' );
+                $right_label = sanitize_text_field( $right['label'] ?? '' );
+
+                return strnatcasecmp( $left_label, $right_label );
+            }
+        );
+    }
+
+    $ai4seo_supported_taxonomy_terms = $supported_taxonomies;
+
+    ai4seo_update_environmental_variable(
+        AI4SEO_ENVIRONMENTAL_VARIABLE_SUPPORTED_TAXONOMY_TERMS_CACHE,
+        $ai4seo_supported_taxonomy_terms,
+        true,
+        HOUR_IN_SECONDS
+    );
+
+    return $ai4seo_supported_taxonomy_terms;
+}
+
+// =========================================================================================== \\
+
+/**
+ * Sanitizes a disabled-taxonomy-terms setting value.
+ *
+ * @param mixed $disabled_taxonomy_terms
+ * @param bool $restrict_to_supported_taxonomies
+ * @return array
+ */
+function ai4seo_sanitize_disabled_taxonomy_terms_value( $disabled_taxonomy_terms, bool $restrict_to_supported_taxonomies = true ): array {
+    if ( ! is_array( $disabled_taxonomy_terms ) ) {
+        return array();
+    }
+
+    $supported_taxonomy_terms = $restrict_to_supported_taxonomies ? ai4seo_get_supported_taxonomy_terms() : array();
+    $sanitized_disabled_taxonomy_terms = array();
+
+    foreach ( $disabled_taxonomy_terms as $taxonomy_name => $term_ids ) {
+        $taxonomy_name = sanitize_key( $taxonomy_name );
+
+        if ( $taxonomy_name === '' ) {
+            continue;
+        }
+
+        if ( $restrict_to_supported_taxonomies && ! isset( $supported_taxonomy_terms[ $taxonomy_name ] ) ) {
+            continue;
+        }
+
+        if ( ! is_array( $term_ids ) ) {
+            $term_ids = $term_ids ? array( $term_ids ) : array();
+        }
+
+        $sanitized_term_ids = array();
+
+        foreach ( $term_ids as $term_id ) {
+            $term_id = (int) $term_id;
+
+            if ( $term_id <= 0 ) {
+                continue;
+            }
+
+            $sanitized_term_ids[] = $term_id;
+        }
+
+        $sanitized_term_ids = array_values( array_unique( $sanitized_term_ids ) );
+        sort( $sanitized_term_ids, SORT_NUMERIC );
+
+        if ( ! $sanitized_term_ids ) {
+            continue;
+        }
+
+        $sanitized_disabled_taxonomy_terms[ $taxonomy_name ] = $sanitized_term_ids;
+    }
+
+    return $sanitized_disabled_taxonomy_terms;
+}
+
+// =========================================================================================== \\
+
+/**
+ * Returns all disabled taxonomy terms from the user setting.
+ *
+ * @return array
+ */
+function ai4seo_get_disabled_taxonomy_terms(): array {
+    return ai4seo_sanitize_disabled_taxonomy_terms_value( ai4seo_get_setting( AI4SEO_SETTING_DISABLED_TAXONOMY_TERMS ) );
+}
+
+// =========================================================================================== \\
+
+/**
+ * Returns whether posts should be excluded as soon as they match any disabled taxonomy term.
+ *
+ * @return bool
+ */
+function ai4seo_should_exclude_posts_if_any_disabled_taxonomy_term_matches(): bool {
+    return (bool) ai4seo_get_setting( AI4SEO_SETTING_EXCLUDE_POSTS_IF_ANY_DISABLED_TAXONOMY_TERM );
+}
+
+// =========================================================================================== \\
+
+/**
+ * Builds SQL fragments for matching disabled taxonomy terms.
+ *
+ * @param array $disabled_taxonomy_terms
+ * @return array
+ */
+function ai4seo_get_disabled_taxonomy_term_sql_parts(array $disabled_taxonomy_terms): array {
+    $disabled_taxonomy_terms = ai4seo_sanitize_disabled_taxonomy_terms_value( $disabled_taxonomy_terms );
+
+    if ( ! $disabled_taxonomy_terms ) {
+        return array(
+            'condition' => '',
+            'values' => array(),
+            'taxonomy_names' => array(),
+        );
+    }
+
+    $matching_conditions = array();
+    $matching_values = array();
+
+    foreach ( $disabled_taxonomy_terms as $taxonomy_name => $term_ids ) {
+        if ( ! $term_ids ) {
+            continue;
+        }
+
+        $term_placeholders = implode( ', ', array_fill( 0, count( $term_ids ), '%d' ) );
+        $matching_conditions[] = "(tt.taxonomy = %s AND tt.term_id IN ($term_placeholders))";
+        $matching_values[] = $taxonomy_name;
+        $matching_values = array_merge( $matching_values, $term_ids );
+    }
+
+    if ( ! $matching_conditions ) {
+        return array(
+            'condition' => '',
+            'values' => array(),
+            'taxonomy_names' => array(),
+        );
+    }
+
+    return array(
+        'condition' => implode( ' OR ', $matching_conditions ),
+        'values' => $matching_values,
+        'taxonomy_names' => array_keys( $disabled_taxonomy_terms ),
+    );
+}
+
+// =========================================================================================== \\
+
+/**
+ * Returns post IDs whose assigned taxonomy terms include at least one disabled term.
+ *
+ * @param array $post_ids
+ * @param array $disabled_taxonomy_terms
+ * @return array
+ */
+function ai4seo_get_post_ids_with_any_disabled_taxonomy_terms(array $post_ids, array $disabled_taxonomy_terms): array {
+    global $wpdb;
+
+    $post_ids = array_map( 'intval', $post_ids );
+    $post_ids = array_values( array_unique( $post_ids ) );
+    $post_ids = array_filter(
+        $post_ids,
+        static function ( $post_id ) {
+            return $post_id > 0;
+        }
+    );
+
+    $disabled_taxonomy_term_sql_parts = ai4seo_get_disabled_taxonomy_term_sql_parts( $disabled_taxonomy_terms );
+
+    if ( ! $post_ids || $disabled_taxonomy_term_sql_parts['condition'] === '' ) {
+        return array();
+    }
+
+    $excluded_post_ids = array();
+    $database_chunk_size = function_exists( 'ai4seo_get_database_chunk_size' ) ? (int) ai4seo_get_database_chunk_size() : 1000;
+
+    if ( $database_chunk_size < 1 ) {
+        $database_chunk_size = 1000;
+    }
+
+    $post_id_chunks = array_chunk( $post_ids, $database_chunk_size );
+
+    foreach ( $post_id_chunks as $this_post_id_chunk ) {
+        $post_id_placeholders = implode( ', ', array_fill( 0, count( $this_post_id_chunk ), '%d' ) );
+
+        $sql = $wpdb->prepare(
+            "SELECT DISTINCT tr.object_id
+            FROM {$wpdb->term_relationships} AS tr
+            INNER JOIN {$wpdb->term_taxonomy} AS tt
+                ON tr.term_taxonomy_id = tt.term_taxonomy_id
+            WHERE tr.object_id IN ($post_id_placeholders)
+            AND (" . $disabled_taxonomy_term_sql_parts['condition'] . ")",
+            ...array_merge( $this_post_id_chunk, $disabled_taxonomy_term_sql_parts['values'] )
+        );
+
+        $this_excluded_post_ids = $wpdb->get_col( $sql );
+
+        if ( $wpdb->last_error ) {
+            ai4seo_debug_message( 984321707, 'Database error: ' . $wpdb->last_error, true );
+            continue;
+        }
+
+        if ( $this_excluded_post_ids ) {
+            $excluded_post_ids = array_merge( $excluded_post_ids, array_map( 'intval', $this_excluded_post_ids ) );
+        }
+    }
+
+    $excluded_post_ids = array_values( array_unique( $excluded_post_ids ) );
+    sort( $excluded_post_ids, SORT_NUMERIC );
+
+    return $excluded_post_ids;
+}
+
+// =========================================================================================== \\
+
+/**
+ * Returns post IDs whose assigned taxonomy terms are all disabled.
+ *
+ * Posts without any assigned relevant taxonomy term are not returned.
+ *
+ * @param array $post_ids
+ * @param array $disabled_taxonomy_terms
+ * @return array
+ */
+function ai4seo_get_post_ids_with_only_disabled_taxonomy_terms(array $post_ids, array $disabled_taxonomy_terms): array {
+    global $wpdb;
+
+    $post_ids = array_map( 'intval', $post_ids );
+    $post_ids = array_values( array_unique( $post_ids ) );
+    $post_ids = array_filter(
+        $post_ids,
+        static function ( $post_id ) {
+            return $post_id > 0;
+        }
+    );
+
+    $disabled_taxonomy_term_sql_parts = ai4seo_get_disabled_taxonomy_term_sql_parts( $disabled_taxonomy_terms );
+
+    if ( ! $post_ids || $disabled_taxonomy_term_sql_parts['condition'] === '' || ! $disabled_taxonomy_term_sql_parts['taxonomy_names'] ) {
+        return array();
+    }
+
+    $excluded_post_ids = array();
+    $database_chunk_size = function_exists( 'ai4seo_get_database_chunk_size' ) ? (int) ai4seo_get_database_chunk_size() : 1000;
+
+    if ( $database_chunk_size < 1 ) {
+        $database_chunk_size = 1000;
+    }
+
+    $post_id_chunks = array_chunk( $post_ids, $database_chunk_size );
+    $taxonomy_placeholders = implode( ', ', array_fill( 0, count( $disabled_taxonomy_term_sql_parts['taxonomy_names'] ), '%s' ) );
+
+    foreach ( $post_id_chunks as $this_post_id_chunk ) {
+        $post_id_placeholders = implode( ', ', array_fill( 0, count( $this_post_id_chunk ), '%d' ) );
+
+        $sql = $wpdb->prepare(
+            "SELECT tr.object_id
+            FROM {$wpdb->term_relationships} AS tr
+            INNER JOIN {$wpdb->term_taxonomy} AS tt
+                ON tr.term_taxonomy_id = tt.term_taxonomy_id
+            WHERE tt.taxonomy IN ($taxonomy_placeholders)
+            AND tr.object_id IN ($post_id_placeholders)
+            GROUP BY tr.object_id
+            HAVING COUNT(DISTINCT tt.term_taxonomy_id) > 0
+            AND COUNT(DISTINCT tt.term_taxonomy_id) = SUM(CASE WHEN (" . $disabled_taxonomy_term_sql_parts['condition'] . ") THEN 1 ELSE 0 END)",
+            ...array_merge(
+                $disabled_taxonomy_term_sql_parts['taxonomy_names'],
+                $this_post_id_chunk,
+                $disabled_taxonomy_term_sql_parts['values']
+            )
+        );
+
+        $this_excluded_post_ids = $wpdb->get_col( $sql );
+
+        if ( $wpdb->last_error ) {
+            ai4seo_debug_message( 984321706, 'Database error: ' . $wpdb->last_error, true );
+            continue;
+        }
+
+        if ( $this_excluded_post_ids ) {
+            $excluded_post_ids = array_merge( $excluded_post_ids, array_map( 'intval', $this_excluded_post_ids ) );
+        }
+    }
+
+    $excluded_post_ids = array_values( array_unique( $excluded_post_ids ) );
+    sort( $excluded_post_ids, SORT_NUMERIC );
+
+    return $excluded_post_ids;
+}
+
+// =========================================================================================== \\
+
+/**
+ * Returns all post IDs that should be excluded by the disabled-taxonomy-terms setting mode.
+ *
+ * @param array $post_ids
+ * @param array $disabled_taxonomy_terms
+ * @param bool|null $exclude_on_any_disabled_taxonomy_term Optional. Defaults to the user setting.
+ * @return array
+ */
+function ai4seo_get_post_ids_excluded_by_disabled_taxonomy_terms(array $post_ids, array $disabled_taxonomy_terms, ?bool $exclude_on_any_disabled_taxonomy_term = null): array {
+    if ( $exclude_on_any_disabled_taxonomy_term === null ) {
+        $exclude_on_any_disabled_taxonomy_term = ai4seo_should_exclude_posts_if_any_disabled_taxonomy_term_matches();
+    }
+
+    if ( $exclude_on_any_disabled_taxonomy_term ) {
+        return ai4seo_get_post_ids_with_any_disabled_taxonomy_terms( $post_ids, $disabled_taxonomy_terms );
+    }
+
+    return ai4seo_get_post_ids_with_only_disabled_taxonomy_terms( $post_ids, $disabled_taxonomy_terms );
+}
+
+// =========================================================================================== \\
+
+/**
+ * Filters out posts based on the disabled-taxonomy-terms setting mode.
+ *
+ * @param array $post_ids
+ * @param array $disabled_taxonomy_terms
+ * @param bool|null $exclude_on_any_disabled_taxonomy_term Optional. Defaults to the user setting.
+ * @return array
+ */
+function ai4seo_filter_post_ids_by_disabled_taxonomy_terms(array $post_ids, array $disabled_taxonomy_terms, ?bool $exclude_on_any_disabled_taxonomy_term = null): array {
+    $excluded_post_ids = ai4seo_get_post_ids_excluded_by_disabled_taxonomy_terms(
+        $post_ids,
+        $disabled_taxonomy_terms,
+        $exclude_on_any_disabled_taxonomy_term
+    );
+
+    if ( ! $excluded_post_ids ) {
+        return array_values( $post_ids );
+    }
+
+    $excluded_post_ids = array_flip( array_map( 'intval', $excluded_post_ids ) );
+    $filtered_post_ids = array();
+
+    foreach ( $post_ids as $post_id ) {
+        $post_id = (int) $post_id;
+
+        if ( $post_id <= 0 || isset( $excluded_post_ids[ $post_id ] ) ) {
+            continue;
+        }
+
+        $filtered_post_ids[] = $post_id;
+    }
+
+    return $filtered_post_ids;
+}
+
+// =========================================================================================== \\
+
+/**
+ * Returns all disabled author IDs from a setting.
+ *
+ * @param string $setting_name
+ * @return array
+ */
+function ai4seo_get_disabled_author_ids_by_setting_name( string $setting_name ): array {
+    $disabled_post_author_ids = ai4seo_get_setting( $setting_name );
+
+    if ( ! is_array( $disabled_post_author_ids ) ) {
+        return array();
+    }
+
+    $sanitized_post_author_ids = array();
+
+    foreach ( $disabled_post_author_ids as $disabled_post_author_id ) {
+        $disabled_post_author_id = (int) $disabled_post_author_id;
+
+        if ( $disabled_post_author_id <= 0 ) {
+            continue;
+        }
+
+        $sanitized_post_author_ids[] = $disabled_post_author_id;
+    }
+
+    $sanitized_post_author_ids = array_values( array_unique( $sanitized_post_author_ids ) );
+    sort( $sanitized_post_author_ids, SORT_NUMERIC );
+
+    return $sanitized_post_author_ids;
+}
+
+// =========================================================================================== \\
+
+/**
  * Returns all supported post types for this wordpress setup
  * @param bool $apply_user_setting Whether to filter out user-disabled post types.
  * @return array The supported post types
@@ -9185,7 +10025,7 @@ function ai4seo_add_post_context($post_id, &$content) {
                 }
 
                 if (!$product_price_instruction_added) {
-                    $context .= "Important: Don't add the product price in the metadata. ";
+                    $context .= "Important: Do not include the product price in the metadata. ";
                 }
 
                 $category_ids = ai4seo_deep_sanitize($product->get_category_ids());
@@ -13211,7 +14051,7 @@ function ai4seo_perform_posts_table_analysis(int $posts_table_analysis_last_post
 
     // Cursor-based pagination query
     $raw_posts = $wpdb->get_results($wpdb->prepare(
-        "SELECT ID, post_type, post_status, post_mime_type, post_date_gmt, post_date, post_modified_gmt, post_modified
+        "SELECT ID, post_author, post_type, post_status, post_mime_type, post_date_gmt, post_date, post_modified_gmt, post_modified
         FROM {$wpdb->posts}
         WHERE ID > %d
         ORDER BY ID ASC
@@ -13246,8 +14086,29 @@ function ai4seo_perform_posts_table_analysis(int $posts_table_analysis_last_post
 
     $supported_post_types = ai4seo_get_supported_post_types();
     $supported_attachment_post_types = ai4seo_get_supported_attachment_post_types();
+    $disabled_post_author_ids = ai4seo_get_disabled_post_author_ids();
+    $disabled_post_author_ids = array_flip( $disabled_post_author_ids );
+    $disabled_attachment_post_author_ids = ai4seo_get_disabled_attachment_post_author_ids();
+    $disabled_attachment_post_author_ids = array_flip( $disabled_attachment_post_author_ids );
+    $disabled_taxonomy_terms = ai4seo_get_disabled_taxonomy_terms();
     $posts = array();
     $attachment_posts = array();
+    $post_ids_with_disabled_taxonomy_terms = array();
+
+    if ( $disabled_taxonomy_terms && $raw_posts ) {
+        $raw_post_ids = array_map(
+            static function ( $this_raw_post ) {
+                return (int) ( $this_raw_post['ID'] ?? 0 );
+            },
+            $raw_posts
+        );
+
+        $post_ids_with_disabled_taxonomy_terms = ai4seo_get_post_ids_excluded_by_disabled_taxonomy_terms(
+            $raw_post_ids,
+            $disabled_taxonomy_terms
+        );
+        $post_ids_with_disabled_taxonomy_terms = array_flip( $post_ids_with_disabled_taxonomy_terms );
+    }
 
     if ($supported_post_types || $supported_attachment_post_types) {
         foreach ($raw_posts as $this_raw_post) {
@@ -13270,6 +14131,14 @@ function ai4seo_perform_posts_table_analysis(int $posts_table_analysis_last_post
             }
 
             if ($supported_post_types && in_array($this_raw_post['post_type'], $supported_post_types, true)) {
+                if ( $disabled_post_author_ids && isset( $disabled_post_author_ids[ (int) $this_raw_post['post_author'] ] ) ) {
+                    continue;
+                }
+
+                if ( $post_ids_with_disabled_taxonomy_terms && isset( $post_ids_with_disabled_taxonomy_terms[ (int) $this_raw_post['ID'] ] ) ) {
+                    continue;
+                }
+
                 // skip if not status publish or future
                 if (!in_array($this_raw_post['post_status'], array('publish', 'future'), true)) {
                     continue;
@@ -13279,6 +14148,10 @@ function ai4seo_perform_posts_table_analysis(int $posts_table_analysis_last_post
 
                 $posts[$this_post_id] = $this_raw_post;
             } else if ($supported_attachment_post_types && in_array($this_raw_post['post_type'], $supported_attachment_post_types, true)) {
+                if ( $disabled_attachment_post_author_ids && isset( $disabled_attachment_post_author_ids[ (int) $this_raw_post['post_author'] ] ) ) {
+                    continue;
+                }
+
                 // skip if not status publish, future or inherit
                 if (!in_array($this_raw_post['post_status'], array('publish', 'future', 'inherit'), true)) {
                     continue;
@@ -16572,16 +17445,18 @@ function ai4seo_get_active_attachment_attributes(): array {
  *
  * @return array the supported attachment post types
  */
-function ai4seo_get_supported_attachment_post_types(): array {
+function ai4seo_get_supported_attachment_post_types( bool $require_active_attachment_attributes = true ): array {
     if (ai4seo_prevent_loops(__FUNCTION__)) {
         ai4seo_debug_message(867135627, 'Prevented loop', true);
         return array();
     }
 
-    $ai4seo_active_attachment_attributes = ai4seo_get_active_attachment_attributes();
+    if ( $require_active_attachment_attributes ) {
+        $ai4seo_active_attachment_attributes = ai4seo_get_active_attachment_attributes();
 
-    if (!$ai4seo_active_attachment_attributes) {
-        return array();
+        if (!$ai4seo_active_attachment_attributes) {
+            return array();
+        }
     }
 
     $supported_attachment_post_types = array('attachment');
@@ -18449,6 +19324,55 @@ function ai4seo_validate_setting_value(string $setting_name, $setting_value): bo
 
             return true;
 
+        case AI4SEO_SETTING_DISABLED_POST_AUTHORS:
+        case AI4SEO_SETTING_DISABLED_ATTACHMENT_POST_AUTHORS:
+            if (!is_array($setting_value)) {
+                ai4seo_debug_message(331815240, 'Setting value for setting "' . $setting_name . '" is not an array.', true);
+                return false;
+            }
+
+            foreach ($setting_value as $post_author_id) {
+                $post_author_id = (string) $post_author_id;
+
+                if (!ctype_digit($post_author_id) || (int) $post_author_id <= 0) {
+                    ai4seo_debug_message(341815240, 'Invalid post author in the disabled post authors setting.', true);
+                    return false;
+                }
+            }
+
+            return true;
+
+        case AI4SEO_SETTING_DISABLED_TAXONOMY_TERMS:
+            if (!is_array($setting_value)) {
+                ai4seo_debug_message(351815240, 'Setting value for setting "' . $setting_name . '" is not an array.', true);
+                return false;
+            }
+
+            foreach ($setting_value as $taxonomy_name => $taxonomy_term_ids) {
+                $taxonomy_name = sanitize_key($taxonomy_name);
+
+                if ($taxonomy_name === '') {
+                    ai4seo_debug_message(361815240, 'Invalid taxonomy in the disabled taxonomy terms setting.', true);
+                    return false;
+                }
+
+                if (!is_array($taxonomy_term_ids)) {
+                    ai4seo_debug_message(371815240, 'Invalid taxonomy term list in the disabled taxonomy terms setting.', true);
+                    return false;
+                }
+
+                foreach ($taxonomy_term_ids as $taxonomy_term_id) {
+                    $taxonomy_term_id = (string) $taxonomy_term_id;
+
+                    if (!ctype_digit($taxonomy_term_id) || (int) $taxonomy_term_id <= 0) {
+                        ai4seo_debug_message(381815240, 'Invalid taxonomy term in the disabled taxonomy terms setting.', true);
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+
         case AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES:
             // Make sure that the new setting-value is an array
             if (!is_array($setting_value)) {
@@ -18583,6 +19507,7 @@ function ai4seo_validate_setting_value(string $setting_name, $setting_value): bo
         case AI4SEO_SETTING_DISABLE_HEAVY_DB_OPERATIONS:
         case AI4SEO_SETTING_ENABLE_FRONTEND_CACHE_PURGE:
         case AI4SEO_SETTING_DEEP_CONTEXT_SEARCH_FOR_IMAGES:
+        case AI4SEO_SETTING_EXCLUDE_POSTS_IF_ANY_DISABLED_TAXONOMY_TERM:
         case AI4SEO_SETTING_USE_EXISTING_METADATA_AS_REFERENCE:
         case AI4SEO_SETTING_USE_EXISTING_ATTACHMENT_ATTRIBUTES_AS_REFERENCE:
         case AI4SEO_SETTING_ENABLE_ENHANCED_ENTITY_RECOGNITION:
@@ -19418,6 +20343,66 @@ function ai4seo_validate_environmental_variable_value(string $environmental_vari
 
             return true;
 
+        case AI4SEO_ENVIRONMENTAL_VARIABLE_AVAILABLE_POST_AUTHORS_CACHE:
+            if (!is_array($environmental_variable_value)) {
+                return false;
+            }
+
+            foreach ($environmental_variable_value as $this_key => $this_value) {
+                if (!is_string($this_key) || $this_key === '') {
+                    return false;
+                }
+
+                if (!is_array($this_value)) {
+                    return false;
+                }
+
+                foreach ($this_value as $this_author_id => $this_author_label) {
+                    if (!is_numeric($this_author_id) || (int) $this_author_id <= 0) {
+                        return false;
+                    }
+
+                    if (!is_string($this_author_label)) {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+
+        case AI4SEO_ENVIRONMENTAL_VARIABLE_SUPPORTED_TAXONOMY_TERMS_CACHE:
+            if (!is_array($environmental_variable_value)) {
+                return false;
+            }
+
+            foreach ($environmental_variable_value as $this_taxonomy_name => $this_taxonomy_data) {
+                if (!is_string($this_taxonomy_name) || sanitize_key($this_taxonomy_name) !== $this_taxonomy_name || $this_taxonomy_name === '') {
+                    return false;
+                }
+
+                if (
+                    !is_array($this_taxonomy_data)
+                    || !isset($this_taxonomy_data['label'])
+                    || !isset($this_taxonomy_data['terms'])
+                    || !is_string($this_taxonomy_data['label'])
+                    || !is_array($this_taxonomy_data['terms'])
+                ) {
+                    return false;
+                }
+
+                foreach ($this_taxonomy_data['terms'] as $this_term_id => $this_term_name) {
+                    if (!is_numeric($this_term_id) || (int) $this_term_id <= 0) {
+                        return false;
+                    }
+
+                    if (!is_string($this_term_name)) {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+
         case AI4SEO_ENVIRONMENTAL_VARIABLE_NEXTGEN_PICTURE_PIDS_CACHE:
             if (!is_array($environmental_variable_value)) {
                 return false;
@@ -19583,6 +20568,40 @@ function ai4seo_get_environmental_variable_to_action_cache_invalidation_map(): a
             'deleted_post',
             'registered_post_type',
             'unregistered_post_type',
+            'switch_theme',
+        ),
+        AI4SEO_ENVIRONMENTAL_VARIABLE_AVAILABLE_POST_AUTHORS_CACHE => array(
+            'save_post',
+            'delete_post',
+            'deleted_post',
+            'trashed_post',
+            'untrashed_post',
+            'transition_post_status',
+            'add_attachment',
+            'edit_attachment',
+            'delete_attachment',
+            'registered_post_type',
+            'unregistered_post_type',
+            'switch_theme',
+            'profile_update',
+            'user_register',
+            'deleted_user',
+        ),
+        AI4SEO_ENVIRONMENTAL_VARIABLE_SUPPORTED_TAXONOMY_TERMS_CACHE => array(
+            'save_post',
+            'delete_post',
+            'deleted_post',
+            'trashed_post',
+            'untrashed_post',
+            'transition_post_status',
+            'set_object_terms',
+            'created_term',
+            'edited_term',
+            'delete_term',
+            'registered_post_type',
+            'unregistered_post_type',
+            'registered_taxonomy',
+            'unregistered_taxonomy',
             'switch_theme',
         ),
         AI4SEO_ENVIRONMENTAL_VARIABLE_MAX_POST_ID_CACHE => array(
