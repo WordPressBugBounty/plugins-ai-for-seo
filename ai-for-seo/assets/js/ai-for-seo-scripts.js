@@ -264,7 +264,7 @@ let ai4seo_allowed_ajax_actions = [
     'ai4seo_request_lost_licence_data',
     'ai4seo_refresh_dashboard_statistics',
     'ai4seo_refresh_robhub_account',
-    'ai4seo_submit_feedback'
+    'ai4seo_submit_feedback',
 ];
 
 
@@ -631,18 +631,21 @@ function ai4seo_init_load_scripts_click_listeners() {
 
     for (let i = 0; i < ai4seo_init_our_scripts_click_selectors.length; i++) {
         // Check if click-function-container exists
-        if (!ai4seo_exists_$(ai4seo_init_our_scripts_click_selectors[i])) {
-            //ai4seo_console_debug(ai4seo_get_plugin_name() + ': selector ' + ai4seo_init_our_scripts_click_selectors[i] + ' no match in ai4seo_init_load_scripts_click_listeners() \u2014 skipping delegated binding.');
+        if (!ai4seo_exists_$(ai4seo_init_our_scripts_click_selectors[i], $parent_document_body)) {
+            // ai4seo_console_debug is not working here
+            //console.log(ai4seo_get_plugin_name() + ': selector ' + ai4seo_init_our_scripts_click_selectors[i] + ' not found in parent document \u2014 skipping delegated binding.');
             continue;
         }
 
-        //ai4seo_console_debug(ai4seo_get_plugin_name() + ': Adding delegated binding for selector ' + ai4seo_init_our_scripts_click_selectors[i] + ' in ai4seo_init_load_scripts_click_listeners().');
+        // ai4seo_console_debug is not working here
+        // console.log(ai4seo_get_plugin_name() + ': attaching delegated binding for ' + ai4seo_init_our_scripts_click_selectors[i]);
 
         // Add click-function to parent-window
         $parent_document_body.off('click.ai4seo-init-scripts', ai4seo_init_our_scripts_click_selectors[i]);
         $parent_document_body.on('click.ai4seo-init-scripts', ai4seo_init_our_scripts_click_selectors[i], function() {
             setTimeout(function() {
-                ai4seo_console_debug(ai4seo_get_plugin_name() + ': Detected click on selector ' + ai4seo_init_our_scripts_click_selectors[i] + ' \u2014 loading our scripts.');
+                // ai4seo_console_debug is not working here
+                //console.log(ai4seo_get_plugin_name() + ': delegated binding for ' + ai4seo_init_our_scripts_click_selectors[i] + ' triggered.');
 
                 // Call function to load js-file to main-window
                 ai4seo_try_load_js_file_to_top_document(ai4seo_js_file_path, ai4seo_js_file_id, function () { ai4seo_try_set_localization_to_window_top(); });
@@ -836,6 +839,9 @@ function ai4seo_init_html_elements() {
 
     // init help page debug log actions
     ai4seo_init_help_page_debug_log_actions();
+
+    // init global modal keyboard shortcuts
+    ai4seo_init_modal_keyboard_shortcuts();
 
     // Add open-layer-button to edit-page-header
     ai4seo_add_open_edit_metadata_modal_button_to_edit_page_header();
@@ -1076,6 +1082,8 @@ function ai4seo_init_unsaved_changes_navigation_guard() {
             return;
         }
 
+        // hide a potential full page loading screen
+        ai4seo_hide_full_page_loading_screen();
         event.preventDefault();
         event.returnValue = '';
     });
@@ -1093,6 +1101,9 @@ function ai4seo_init_unsaved_changes_navigation_guard() {
         if (confirm_navigation === false) {
             event.preventDefault();
             event.stopPropagation();
+
+            // hide a potential full page loading screen
+            ai4seo_hide_full_page_loading_screen();
             return;
         }
 
@@ -1385,12 +1396,12 @@ function ai4seo_init_copy_to_clipboard() {
 
     $copy_to_clipboard_targets.each(function() {
         const $this = ai4seo_normalize_$(this);
-        
+
         if (!ai4seo_exists_$($this)) {
             console.error(ai4seo_get_plugin_name() + ': element \"$this\" missing in ai4seo_init_copy_to_clipboard() \u2014 skipping item.');
             return;
         }
-        
+
         // Get the text to copy from the data-clipboard-text attribute
         let text_to_copy = $this.data('clipboard-text');
 
@@ -1474,12 +1485,12 @@ function ai4seo_get_container_spare_height($container) {
     if (ai4seo_exists_$($container_children)) {
         $container_children.each(function() {
             const $child = ai4seo_normalize_$(this);
-            
+
             if (!ai4seo_exists_$($child)) {
                 console.error(ai4seo_get_plugin_name() + ': element \"$child\" missing in ai4seo_get_container_spare_height() \u2014 DOM traversal skipped.');
                 return;
             }
-            
+
             container_element_children_elements_height += $child.outerHeight(true);
         });
     }
@@ -1685,7 +1696,7 @@ function ai4seo_handle_sidebar_outside_click(event) {
         console.error(ai4seo_get_plugin_name() + ': selector \".ai4seo-sidebar\" missing in ai4seo_handle_sidebar_outside_click() \u2014 cannot evaluate outside clicks.');
         return;
     }
-    
+
     if (!ai4seo_exists_$($toggle_button)) {
         console.error(ai4seo_get_plugin_name() + ': selector \".ai4seo-mobile-top-bar-toggle-button\" missing in ai4seo_handle_sidebar_outside_click() \u2014 cannot evaluate outside clicks.');
         return;
@@ -2630,58 +2641,32 @@ function ai4seo_normalize_$(mixed = null, scope = null) {
         return jQuery();
     }
 
-    // try to normalize mixed first
-    try {
-        $mixed = jQuery(mixed);
-    } catch (error) {
-        console.error(ai4seo_get_plugin_name() + ': Error normalizing jQuery element in ai4seo_normalize_$() with context: ' + error);
-        return jQuery();
-    }
-
-    // if mixed is not a string, then it is likely already an element / jQuery object / window / document
-    // in this case, check if at least one of its elements is really inside one of the context elements
-    // or equal to one of them
-    if (typeof mixed !== 'string') {
-        let $filtered_mixed = jQuery();
-
-        $mixed.each(function() {
-            const this_mixed_element = this;
-            let this_mixed_element_is_inside_context = false;
-
-            for (let i = 0; i < $scope.length; i++) {
-                const this_context_element = $scope[i];
-
-                if (this_context_element === this_mixed_element || jQuery.contains(this_context_element, this_mixed_element)) {
-                    this_mixed_element_is_inside_context = true;
-                    break;
-                }
-            }
-
-            if (this_mixed_element_is_inside_context) {
-                $filtered_mixed = $filtered_mixed.add(this_mixed_element);
-            }
-        });
-
-        if (typeof $filtered_mixed.length !== 'undefined' && $filtered_mixed.length > 0) {
-            return $filtered_mixed;
-        }
-
-        return jQuery();
-    }
-
-    // mixed is a string: it may either be a selector or an HTML string
-    // first try to resolve it inside each context element
     let $scoped_mixed = jQuery();
 
     for (let i = 0; i < $scope.length; i++) {
-        let $this_context_item = jQuery($scope[i]);
+        let $this_scope_item = jQuery($scope[i]);
 
         try {
-            $mixed = jQuery(mixed, $this_context_item);
+            // works well if $this_scope_item is a main DOM element (e.g. window.parent)
+            $mixed = jQuery(mixed, $this_scope_item);
 
             // if we found a jQuery object with the selector, then add it
             if (typeof $mixed.length !== 'undefined' && $mixed.length > 0) {
                 $scoped_mixed = $scoped_mixed.add($mixed);
+            } else {
+                $mixed = jQuery(mixed);
+
+                // workaround for DOM elements that and the mixed and the scope are the same
+                if ($this_scope_item === $mixed || jQuery.contains($this_scope_item, $mixed)) {
+                    $scoped_mixed = $scoped_mixed.add($mixed);
+                } else {
+                    // this route works best if scope is a jQuery object
+                    $mixed = $this_scope_item.find($mixed);
+
+                    if (typeof $mixed.length !== 'undefined' && $mixed.length > 0) {
+                        $scoped_mixed = $scoped_mixed.add($mixed);
+                    }
+                }
             }
         } catch (error) {
             console.error(ai4seo_get_plugin_name() + ': Error normalizing jQuery element with context in ai4seo_normalize_$(): ' + error);
@@ -2707,7 +2692,7 @@ function ai4seo_exists_$(mixed, scope = null) {
 
 // =========================================================================================== \\
 
-function ai4seo_get_post_id() {
+function ai4seo_get_post_id(processing_context) {
     const $editor_context = ai4seo_get_editor_context_$();
 
     if (ai4seo_exists_$($editor_context)) {
@@ -2724,7 +2709,7 @@ function ai4seo_get_post_id() {
     }
 
     // Check if "media-modal"-element exists
-    if (ai4seo_exists_$('.media-modal')) {
+    if ((!processing_context || processing_context === 'attachment-attributes') && ai4seo_exists_$('.media-modal')) {
         // Read current url-parameters
         const current_url_parameters = new URLSearchParams(window.location.search);
 
@@ -2767,49 +2752,56 @@ function ai4seo_get_post_id() {
         }
     }
 
-    // Gutenberg: selected image in the editor
-    // check if wp.data can be accessed
-    do if (typeof wp !== 'undefined' && typeof wp.data !== 'undefined') {
-        const {select} = wp.data;
+    if (!processing_context || processing_context === 'attachment-attributes') {
+        // Gutenberg: selected image in the editor
+        // check if wp.data can be accessed
+        do if (typeof wp !== 'undefined' && typeof wp.data !== 'undefined') {
+            const {select} = wp.data;
 
-        // check if we can call getSelectedBlock()
-        if (typeof select('core/block-editor') === 'undefined' || typeof select('core/block-editor').getSelectedBlock !== 'function') {
-            break;
-        }
-
-        // Get the currently selected block
-        const selected_block = select('core/block-editor').getSelectedBlock();
-
-        // check if we have a selected_block and have access to its attributes
-        if (!selected_block || typeof selected_block.attributes === 'undefined') {
-            break;
-        }
-
-        // check for mediaId
-        if (typeof selected_block.attributes.mediaId !== 'undefined') {
-            post_id = selected_block.attributes.mediaId;
-
-            if (post_id && !isNaN(post_id)) {
-                return parseInt(post_id);
+            // check if we can call getSelectedBlock()
+            if (typeof select('core/block-editor') === 'undefined' || typeof select('core/block-editor').getSelectedBlock !== 'function') {
+                break;
             }
-        }
 
-        // check for id
-        if (typeof selected_block.attributes.id !== 'undefined') {
-            post_id = selected_block.attributes.id;
+            // Get the currently selected block
+            const selected_block = select('core/block-editor').getSelectedBlock();
 
-            if (post_id && !isNaN(post_id)) {
-                return parseInt(post_id);
+            // check if we have a selected_block and have access to its attributes
+            if (!selected_block || typeof selected_block.attributes === 'undefined') {
+                break;
             }
+
+            // check for mediaId
+            if (typeof selected_block.attributes.mediaId !== 'undefined') {
+                post_id = selected_block.attributes.mediaId;
+
+                if (post_id && !isNaN(post_id)) {
+                    return parseInt(post_id);
+                }
+            }
+
+            // check for id
+            if (typeof selected_block.attributes.id !== 'undefined') {
+                post_id = selected_block.attributes.id;
+
+                if (post_id && !isNaN(post_id)) {
+                    return parseInt(post_id);
+                }
+            }
+        } while (false);
+    }
+
+    // check for .post-type-attachment -> then we are inside the edit attachment form
+    const $post_type_attachment = ai4seo_normalize_$('.post-type-attachment');
+
+    if (ai4seo_exists_$($post_type_attachment) || !processing_context || processing_context === 'metadata') {
+        // then look for the post-id in the localized object -> check last as it can sometimes have invalid information
+        post_id = ai4seo_get_localization_parameter('ai4seo_current_post_id');
+
+        // Make sure that post_id could be found and is a number
+        if (post_id && !isNaN(post_id) && parseInt(post_id) > 0) {
+            return parseInt(post_id);
         }
-    } while (false);
-
-    // then look for the post-id in the localized object -> check last as it can sometimes have invalid information
-    post_id = ai4seo_get_localization_parameter('ai4seo_current_post_id');
-
-    // Make sure that post_id could be found and is a number
-    if (post_id && !isNaN(post_id) && parseInt(post_id) > 0) {
-        return parseInt(post_id);
     }
 
     return false;
@@ -3102,12 +3094,12 @@ function ai4seo_build_custom_admin_url(subpage = '', additional_url_parameters =
     }
 
     additional_url_parameters.page = 'ai-for-seo';
-    
+
     // go through all additional parameters and add them to the url
     for (const [key, value] of Object.entries(additional_url_parameters)) {
         admin_url = ai4seo_add_or_modify_url_parameter(admin_url, key, value);
     }
-    
+
     return admin_url;
 }
 
@@ -3584,6 +3576,7 @@ function ai4seo_get_normalized_generation_fields(generate_data_for_input_instruc
             normalized_generate_data_for_input_instructions[this_generation_field_identifier]['credits'] = this_credits_cost;
         });
     });
+
 
     // 3. REMOVE EMPTY GENERATION FIELDS
     jQuery.each({...normalized_generate_data_for_input_instructions}, function(this_generation_field_identifier, generation_field_details) {
@@ -4465,6 +4458,7 @@ function ai4seo_refresh_robhub_account($potential_button, options = {}) {
             }
 
             ai4seo_show_success_toast(wp.i18n.__('Account synced successfully. Reloading page...', 'ai-for-seo'));
+            setTimeout(() => ai4seo_safe_page_load('dashboard'), 1000);
         })
         .catch((error) => {
             ai4seo_show_generic_error_toast(812181225);
@@ -4475,9 +4469,6 @@ function ai4seo_refresh_robhub_account($potential_button, options = {}) {
 
             ai4seo_unlock_and_enable_lockable_input_fields();
             throw error;
-        })
-        .finally(() => {
-            setTimeout(() => ai4seo_safe_page_load('dashboard'), 1000);
         });
 }
 
@@ -4580,7 +4571,7 @@ function ai4seo_populate_datetime_picker_with_current_timestamp($datetime_picker
         console.warn(ai4seo_get_plugin_name() + ': element \"$datetime_picker\" missing in ai4seo_populate_datetime_picker_with_current_timestamp() \u2014 reference time cannot preset.');
         return;
     }
-    
+
     // Check if there's already a stored timestamp from the server
     let timestamp = $datetime_picker_input.data('stored-timestamp');
 
@@ -4779,6 +4770,13 @@ function ai4seo_add_generate_all_buttons(processing_context, $generate_all_butto
         return;
     }
 
+    // make sure we have a post_id
+    let post_id = ai4seo_get_post_id(processing_context);
+
+    if (!post_id || isNaN(post_id)) {
+        return;
+    }
+
     // get the closest container that holds the generation fields to limit the scope of content reading via js
     const $closest_container = ai4seo_get_closest_container_$($generate_all_buttons_container);
 
@@ -4970,7 +4968,8 @@ function ai4seo_try_add_generate_button_to_input($generate_data_for_input, gener
     $generate_button = ai4seo_try_find_generate_button_by_input_$($generate_data_for_input, false);
 
     if (!ai4seo_exists_$($generate_button)) {
-        console.warn(ai4seo_get_plugin_name() + ': could not add generate button near $generate_button_reference in ai4seo_add_generate_button_to_input().');
+        // this can be true, if we don't add a generate button to this input because the context is not supported (no post id etc.)
+        ai4seo_console_debug(ai4seo_get_plugin_name() + ': failed to add generate button near $generate_data_for_input in ai4seo_add_generate_button_to_input() \u2014 cannot find generate button after adding it.');
         return;
     }
 
@@ -5039,7 +5038,6 @@ function ai4seo_try_find_generate_button_by_input_$($generate_data_for_input) {
 
 function ai4seo_build_generate_button($generate_data_for_input, generate_data_for_input_selector, button_label = 'auto', button_title = '') {
     // Make sure that onclick-variable is defined
-    let button_onclick = '';
     let try_read_page_content_via_js = 'true'; // assuming I'm inside a WordPress editor
     const $read_page_content_via_js = ai4seo_normalize_$('#ai4seo-read-page-content-via-js');
 
@@ -5062,6 +5060,13 @@ function ai4seo_build_generate_button($generate_data_for_input, generate_data_fo
     if (ai4seo_generate_data_for_inputs[generate_data_for_input_selector]['processing-context']) {
         // Prepare onclick for attachment-attributes-processing
         if (ai4seo_generate_data_for_inputs[generate_data_for_input_selector]['processing-context'] === 'attachment-attributes') {
+            // make sure we have a post_id
+            let post_id = ai4seo_get_post_id('attachment-attributes');
+
+            if (!post_id || isNaN(post_id)) {
+                return null;
+            }
+
             if (!ai4seo_generate_data_for_inputs[generate_data_for_input_selector]['attachment_attributes_identifier']) {
                 console.error(ai4seo_get_plugin_name() + ': No attachment_attributes_identifier defined for element-selector: ' + generate_data_for_input_selector);
                 return;
@@ -5080,7 +5085,6 @@ function ai4seo_build_generate_button($generate_data_for_input, generate_data_fo
             const credits_usage = ai4seo_get_credits_usage_from_generation_fields(normalized_generation_fields);
 
             button_label += '<div class="ai4seo-generation-button-credits-usage ai4seo-credits-usage-badge">' + credits_usage + ' ' + wp.i18n.__('Cr', 'ai-for-seo') + '</div>';
-            button_onclick = 'ai4seo_generate_with_ai(this, \"ai4seo_generate_attachment_attributes\", ' + JSON.stringify(normalized_generation_fields) + ', false, true);';
 
             // Build button via jQuery (no inline onclick)
             // Prepare additional css-class for button-output
@@ -5101,7 +5105,7 @@ function ai4seo_build_generate_button($generate_data_for_input, generate_data_fo
 
             $button.off('click.ai4seo-generate');
             $button.on('click.ai4seo-generate', function() {
-                ai4seo_generate_with_ai(this, 'ai4seo_generate_attachment_attributes', normalized_generation_fields, false, true);
+                ai4seo_generate_with_ai(this, 'ai4seo_generate_attachment_attributes', normalized_generation_fields, post_id, true);
             });
 
             return $button;
@@ -5109,6 +5113,13 @@ function ai4seo_build_generate_button($generate_data_for_input, generate_data_fo
 
         // Prepare onclick for metadata-processing
         else if (ai4seo_generate_data_for_inputs[generate_data_for_input_selector]['processing-context'] === 'metadata') {
+            // make sure we have a post_id
+            let post_id = ai4seo_get_post_id('metadata');
+
+            if (!post_id || isNaN(post_id)) {
+                return null;
+            }
+
             if (!ai4seo_generate_data_for_inputs[generate_data_for_input_selector]['metadata_identifier']) {
                 console.error(ai4seo_get_plugin_name() + ': No metadata_identifier defined for element-selector: ' + generate_data_for_input_selector);
                 return;
@@ -5129,9 +5140,6 @@ function ai4seo_build_generate_button($generate_data_for_input, generate_data_fo
             button_label += '<div class="ai4seo-generation-button-credits-usage ai4seo-credits-usage-badge">' +
                 credits_usage + ' ' + wp.i18n.__('Cr', 'ai-for-seo') + '</div>';
 
-            button_onclick = 'ai4seo_generate_with_ai(this, "ai4seo_generate_metadata", ' +
-                JSON.stringify(normalized_generation_fields) + ', false, true, ' + try_read_page_content_via_js_string + ');';
-
             // Build button via jQuery (no inline onclick)
             // Prepare additional css-class for button-output
             let additional_css_class = '';
@@ -5149,32 +5157,18 @@ function ai4seo_build_generate_button($generate_data_for_input, generate_data_fo
 
             $button.off('click.ai4seo-generate');
             $button.on('click.ai4seo-generate', function() {
-                ai4seo_generate_with_ai(this, 'ai4seo_generate_metadata', normalized_generation_fields, false, true, try_read_page_content_via_js_bool);
+                ai4seo_generate_with_ai(this, 'ai4seo_generate_metadata', normalized_generation_fields, post_id, true, try_read_page_content_via_js_bool);
             });
 
             return $button;
-        }
-
-        // Prepare fallback onclick
-        else {
+        } else {
             console.error(ai4seo_get_plugin_name() + ': Unknown processing-context: ' + ai4seo_generate_data_for_inputs[generate_data_for_input_selector]['processing-context']);
         }
     } else {
         console.error(ai4seo_get_plugin_name() + ': No processing-context defined for element-selector: ' + generate_data_for_input_selector);
     }
 
-    // Prepare additional css-class for button-output
-    let additional_css_class = '';
-
-    if (ai4seo_generate_data_for_inputs[generate_data_for_input_selector]['css-class']) {
-        additional_css_class = ' ' + ai4seo_generate_data_for_inputs[generate_data_for_input_selector]['css-class'];
-    }
-
-    let button_tag = "<button type='button' onclick='" + button_onclick + "' title='" + button_title + "' class='ai4seo-button ai4seo-generate-button ai4seo-generate-button-arrow ai4seo-lockable" + additional_css_class + "'>";
-    button_tag += button_label;
-    button_tag += '</button>';
-
-    return button_tag;
+    return null;
 }
 
 // =========================================================================================== \\
@@ -5811,7 +5805,7 @@ function ai4seo_open_modal_from_schema(modal_schema_identifier, modal_settings =
 
     // add schema identifier to modal
     $modal.data('ai4seo-modal-schema-identifier', modal_schema_identifier);
-    
+
     // Initialize datetime picker functionality for SEO Autopilot modal
     if (modal_schema_identifier === 'seo-autopilot') {
         ai4seo_handle_bulk_generation_new_or_existing_filter_change();
@@ -5984,6 +5978,73 @@ function ai4seo_init_modal(modal_id, close_on_outside_click) {
 
 // =========================================================================================== \\
 
+/**
+ * Bind global keyboard shortcuts for modal handling and primary actions.
+ * Escape closes the top-most modal, while Enter triggers the first suitable action button.
+ */
+function ai4seo_init_modal_keyboard_shortcuts() {
+    const $document = ai4seo_normalize_$(document);
+
+    if (!ai4seo_exists_$($document)) {
+        console.error(ai4seo_get_plugin_name() + ': document object missing in ai4seo_init_modal_keyboard_shortcuts() - cannot bind keyboard shortcuts.');
+        return;
+    }
+
+    $document
+        .off('keydown.ai4seo-modal-shortcuts')
+        .on('keydown.ai4seo-modal-shortcuts', function(event) {
+            // Escape should never bubble into other handlers once we decide to close a modal.
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                ai4seo_close_active_modal();
+                return;
+            }
+
+            if (event.key === 'Enter') {
+                // Preserve native Enter behavior for multiline and rich-text editing contexts.
+                if (ai4seo_should_ignore_modal_enter_shortcut(event)) {
+                    return;
+                }
+
+                // Consume the original Enter event so it cannot also activate the underlying trigger.
+                event.preventDefault();
+                event.stopPropagation();
+                ai4seo_press_active_primary_button();
+                return;
+            }
+        });
+}
+
+// =========================================================================================== \\
+
+/**
+ * Ignore the Enter shortcut while the user is actively editing multiline or rich-text fields.
+ *
+ * @param {KeyboardEvent} event
+ * @returns {boolean}
+ */
+function ai4seo_should_ignore_modal_enter_shortcut(event) {
+    const $target = ai4seo_normalize_$(event.target);
+
+    if (!ai4seo_exists_$($target)) {
+        return false;
+    }
+
+    if ($target.is('textarea, select')) {
+        return true;
+    }
+
+    // Rich text editors often render nested editable elements instead of plain inputs.
+    if ($target.prop('isContentEditable')) {
+        return true;
+    }
+
+    return ai4seo_exists_$($target.closest('[contenteditable=\"true\"]'));
+}
+
+// =========================================================================================== \\
+
 function ai4seo_create_empty_modal_$(modal_id, modal_css_class, modal_wrapper_css_class, modal_size) {
     // get highest z-index of all modal wrappers
     let previous_highest_z_index = ai4seo_get_highest_modal_wrapper_z_index();
@@ -6110,6 +6171,146 @@ function ai4seo_get_modal_$(modal_id) {
         // return empty jQuery object
         return null;
     }
+}
+
+// =========================================================================================== \\
+
+/**
+ * Resolve the currently active modal by wrapper stacking order.
+ *
+ * @returns {jQuery|null}
+ */
+function ai4seo_get_active_modal_$() {
+    const $modal_wrappers = ai4seo_normalize_$('.ai4seo-modal-wrapper');
+    let $active_modal = null;
+    let highest_z_index = -1;
+
+    if (!ai4seo_exists_$($modal_wrappers)) {
+        return null;
+    }
+
+    $modal_wrappers.each(function() {
+        const $this_modal_wrapper = ai4seo_normalize_$(this);
+
+        if (!ai4seo_exists_$($this_modal_wrapper)) {
+            return;
+        }
+
+        const $this_modal = $this_modal_wrapper.children('.ai4seo-modal').last();
+
+        if (!ai4seo_exists_$($this_modal)) {
+            return;
+        }
+
+        let this_z_index = parseInt($this_modal_wrapper.css('z-index'), 10);
+
+        // Wrappers without an explicit z-index should still be considered, but below stacked modals.
+        if (isNaN(this_z_index)) {
+            this_z_index = 0;
+        }
+
+        // Use the top-most wrapper so nested confirmation modals win over their parent modal.
+        if (this_z_index >= highest_z_index) {
+            highest_z_index = this_z_index;
+            $active_modal = $this_modal;
+        }
+    });
+
+    return $active_modal;
+}
+
+// =========================================================================================== \\
+
+/**
+ * Close the current top-most modal through the standard close lifecycle.
+ */
+function ai4seo_close_active_modal() {
+    const $active_modal = ai4seo_get_active_modal_$();
+
+    if (!ai4seo_exists_$($active_modal)) {
+        return;
+    }
+
+    const modal_id = $active_modal.attr('id');
+
+    // Reuse the regular modal close flow so unsaved-changes checks still apply.
+    if (!modal_id) {
+        console.warn(ai4seo_get_plugin_name() + ': active modal without id found in ai4seo_close_active_modal() - cannot close modal.');
+        return;
+    }
+
+    ai4seo_close_modal(modal_id);
+}
+
+// =========================================================================================== \\
+
+/**
+ * Trigger the first enabled primary action in the active modal,
+ * or fall back to the visible page when no modal is open.
+ */
+function ai4seo_press_active_primary_button() {
+    const $active_modal = ai4seo_get_active_modal_$();
+    let $primary_button = null;
+
+    // Modal actions take precedence over page-level actions.
+    if (ai4seo_exists_$($active_modal)) {
+        $primary_button = ai4seo_get_primary_button_in_container($active_modal);
+    }
+
+    // When no modal is open, fall back to the visible page.
+    if (!ai4seo_exists_$($primary_button)) {
+        $primary_button = ai4seo_get_primary_button_in_container(ai4seo_normalize_$('body'));
+    }
+
+    if (!ai4seo_exists_$($primary_button)) {
+        return;
+    }
+
+    if ($primary_button.prop('disabled')) {
+        return;
+    }
+
+    // Trigger click so existing button-specific handlers run unchanged.
+    $primary_button.trigger('click');
+}
+
+// =========================================================================================== \\
+
+/**
+ * Find the first visible enabled primary action button within a container.
+ *
+ * @param {*} $container
+ * @returns {jQuery|null}
+ */
+function ai4seo_get_primary_button_in_container($container) {
+    $container = ai4seo_normalize_$($container);
+
+    if (!ai4seo_exists_$($container)) {
+        return null;
+    }
+
+    const $visible_buttons = $container.find('.ai4seo-primary-button:visible, .ai4seo-submit-button:visible');
+
+    if (!ai4seo_exists_$($visible_buttons)) {
+        return null;
+    }
+
+    const $enabled_buttons = $visible_buttons.filter(function() {
+        const $button = ai4seo_normalize_$(this);
+
+        if (!ai4seo_exists_$($button)) {
+            return false;
+        }
+
+        // Skip visually inactive buttons that are still present in the DOM.
+        return !$button.prop('disabled') && !$button.hasClass('ai4seo-inactive-button');
+    });
+
+    if (!ai4seo_exists_$($enabled_buttons)) {
+        return null;
+    }
+
+    return $enabled_buttons.first();
 }
 
 // =========================================================================================== \\
@@ -6255,7 +6456,7 @@ function ai4seo_close_all_modals() {
 function ai4seo_open_metadata_editor_modal(post_id = false, read_page_content_via_js = false, all_post_ids = []) {
     // Read post-id from hidden container if not defined
     if (!post_id) {
-        post_id = ai4seo_get_post_id();
+        post_id = ai4seo_get_post_id('metadata');
     }
 
     if (!post_id) {
@@ -6358,9 +6559,42 @@ function ai4seo_show_full_page_loading_screen() {
 
     if (ai4seo_exists_$($body)) {
         // add loading icon in the middle of the screen
-        const loading_icon = "<div class='ai4seo-full-screen-loading-icon'>" + ai4seo_get_svg_tag('rotate', 'ai4seo-spinning-icon', wp.i18n.__('Loading... Please wait.', 'ai-for-seo')) + '</div>';
-        $body.append(loading_icon);
+        const loading_screen = "<div class='ai4seo-full-screen-loading-screen'>" + ai4seo_get_svg_tag('rotate', 'ai4seo-spinning-icon', wp.i18n.__('Loading... Please wait.', 'ai-for-seo')) + '</div>';
+        $body.append(loading_screen);
         $body.css('overflow', 'hidden');
+
+        // revert everything after 15 seconds if anything gone wrong
+        setTimeout(function() {
+            ai4seo_hide_full_page_loading_screen();
+        }, 15000);
+    }
+}
+
+// =========================================================================================== \\
+
+function ai4seo_hide_full_page_loading_screen() {
+    const $wrap = ai4seo_normalize_$('.ai4seo-wrap');
+
+    if (ai4seo_exists_$($wrap)) {
+        $wrap.css({
+            'opacity': '',
+            'pointer-events': '',
+        });
+    }
+
+    const $modals = ai4seo_normalize_$('.ai4seo-modal');
+
+    if (ai4seo_exists_$($modals)) {
+        $modals.css({
+            'opacity': '',
+        })
+    }
+
+    const $body = ai4seo_normalize_$('body');
+
+    if (ai4seo_exists_$($body)) {
+        $body.css('overflow', '');
+        $body.find('.ai4seo-full-screen-loading-screen').remove();
     }
 }
 
@@ -6448,7 +6682,7 @@ function ai4seo_add_open_edit_metadata_modal_button_to_edit_page_header() {
     }
 
     // Read post-id from hidden container if not defined
-    const post_id = ai4seo_get_post_id();
+    const post_id = ai4seo_get_post_id('metadata');
 
     // Make sure post_id is defined
     if (!post_id) {
@@ -6484,7 +6718,7 @@ function ai4seo_add_open_edit_metadata_modal_button_to_be_builder_navigation() {
     ai4seo_console_debug(ai4seo_get_plugin_name() + ': selector \".mfn-meta-seo-title\" found in ai4seo_add_open_edit_metadata_modal_button_to_be_builder_navigation() \u2014 injecting toolbar button.');
 
     // Read post-id from hidden container if not defined
-    const post_id = ai4seo_get_post_id();
+    const post_id = ai4seo_get_post_id('metadata');
 
     // Make sure post_id is defined
     if (!post_id) {
@@ -6514,7 +6748,7 @@ function ai4seo_add_open_edit_metadata_modal_button_to_be_builder_navigation() {
 
 function ai4seo_add_open_edit_metadata_modal_button_to_elementor_navigation() {
     // Read post-id from hidden container if not defined
-    const post_id = ai4seo_get_post_id();
+    const post_id = ai4seo_get_post_id('metadata');
 
     // Make sure post_id is defined
     if (!post_id) {
@@ -6892,10 +7126,10 @@ function ai4seo_open_lost_key_modal() {
     modal_content += "<input type='email' id='ai4seo-lost-licence-email' class='ai4seo-textfield' placeholder='" + wp.i18n.__('Enter your email address', 'ai-for-seo') + "' />";
     modal_content += '</div>';
     modal_content += '</div>';
-    
+
     let modal_footer = "<button type='button' class='ai4seo-button ai4seo-abort-button' onclick='ai4seo_close_modal_by_child(this);'>" + wp.i18n.__('Cancel', 'ai-for-seo') + '</button> ';
     modal_footer += "<button type='button' id='ai4seo-lost-licence-submit' class='ai4seo-button ai4seo-primary-button' onclick='ai4seo_request_lost_licence_data(this);'>" + wp.i18n.__('Send License Data', 'ai-for-seo') + '</button>';
-    
+
     let modal_settings = {
         close_on_outside_click: true,
         add_close_button: true,
@@ -7007,6 +7241,7 @@ function ai4seo_perform_remove_license($button) {
 
     ai4seo_save_anything($button, ai4seo_validate_license_inputs, function() {
         $button.remove();
+        ai4seo_safe_page_load();
     });
 }
 
@@ -7030,17 +7265,17 @@ function ai4seo_request_lost_licence_data($submit_button) {
     }
 
     let email = $lost_licence_email.val();
-    
+
     // Validate email
     if (!email || email.length < 3 || !email.includes('@')) {
         ai4seo_show_warning_toast(wp.i18n.__('Please enter a valid email address.', 'ai-for-seo'));
         return;
     }
-    
+
     // Add loading state to submit button
     ai4seo_add_loading_html_to_element($submit_button);
     ai4seo_lock_and_disable_lockable_input_fields();
-    
+
     // Prepare AJAX data
     let ajax_data = {
         stripe_email: email
@@ -7054,10 +7289,11 @@ function ai4seo_request_lost_licence_data($submit_button) {
         .then(response => {
             // Always show success confirmation regardless of API response
             const plugin_name = ai4seo_get_plugin_name();
+            /* translators: %s: plugin name */
             let confirmation_message = wp.i18n.sprintf(wp.i18n.__('If this email address is linked to a Stripe order for %s, you will receive an email with your licence data within the next 60 seconds. Otherwise you will not receive any email. Please check your inbox and spam folder.', 'ai-for-seo'), plugin_name);
             let confirmation_headline = wp.i18n.__('Request Sent', 'ai-for-seo');
             let confirmation_footer = "<button type='button' class='ai4seo-button ai4seo-primary-button' onclick='ai4seo_close_all_modals();'>" + wp.i18n.__('OK', 'ai-for-seo') + '</button>';
-            
+
             ai4seo_open_notification_modal(confirmation_headline, confirmation_message, confirmation_footer, {close_on_outside_click: false, add_close_button: false});
         })
         .catch(error => {
@@ -8887,7 +9123,7 @@ function ai4seo_init_export_settings() {
         console.error(ai4seo_get_plugin_name() + ': element \"$export_button\" missing in ai4seo_init_export_settings() \u2014 settings export aborted.');
         return;
     }
-    
+
     // Add loading animation
     ai4seo_add_loading_html_to_element($export_button);
 
@@ -8972,14 +9208,14 @@ function ai4seo_init_import_settings() {
     }
 
     let file = file_input_element.files[0];
-    
+
     // Validate file type
     if (!file.name.toLowerCase().endsWith('.json')) {
         ai4seo_show_warning_toast(wp.i18n.__('Please select a valid JSON file.', 'ai-for-seo'));
         console.warn(ai4seo_get_plugin_name() + ': invalid file type in ai4seo_init_import_settings() \u2014 import cannot proceed.');
         return;
     }
-    
+
     // Get selected categories
     let categories = [];
 
@@ -9013,10 +9249,10 @@ function ai4seo_init_import_settings() {
         console.warn(ai4seo_get_plugin_name() + ': no categories selected in ai4seo_init_import_settings() \u2014 import cannot proceed.');
         return;
     }
-    
+
     // Add loading animation
     ai4seo_add_loading_html_to_element($import_settings_button);
-    
+
     // Read file content
     let reader = new FileReader();
 
@@ -9356,10 +9592,10 @@ function ai4seo_handle_dashboard_click() {
     if (ai4seo_dashboard_debug_metrics) {
         ai4seo_dashboard_metrics.user_interaction_locks++;
     }
-    
+
     // Record click time for idle tracking
     ai4seo_dashboard_last_user_click = Date.now();
-    
+
     // Reset adaptive interval to 10s
     ai4seo_dashboard_adaptive_interval = 10000;
     ai4seo_dashboard_no_changes_streak = 0;
@@ -9383,7 +9619,7 @@ function ai4seo_handle_dashboard_mouse_interaction() {
         ai4seo_console_debug(ai4seo_get_plugin_name() + ': $dashboard missing in ai4seo_handle_dashboard_mouse_interaction() \u2014 cannot track dashboard mouse activity.');
         return;
     }
-    
+
     // Record click time for idle tracking
     ai4seo_snap_dashboard_refresh_timer(1000); // Snap to 1 second remaining if near finish
 }
@@ -9457,18 +9693,18 @@ function ai4seo_handle_dashboard_visibility_change() {
         // browser tab became hidden
         ai4seo_dashboard_is_hidden = true;
         ai4seo_dashboard_hidden_start_time = Date.now();
-        
+
         // Update metrics
         if (ai4seo_dashboard_debug_metrics) {
             ai4seo_dashboard_metrics.hidden_mode_triggers++;
         }
-        
+
         // Clear all active timers
         ai4seo_clear_all_dashboard_timers();
-        
+
         // Start hidden mode: 3-minute refresh cadence
         ai4seo_schedule_dashboard_hidden_mode_refresh();
-        
+
         // Schedule full reload after 15 minutes of inactivity
         ai4seo_dashboard_hidden_reload_timer = setTimeout(function() {
             if (ai4seo_dashboard_debug_metrics) {
@@ -9476,21 +9712,21 @@ function ai4seo_handle_dashboard_visibility_change() {
             }
             location.reload();
         }, 15 * 60 * 1000); // 15 minutes
-        
+
     } else {
         // browser tab became visible
         const ai4seo_was_hidden = ai4seo_dashboard_is_hidden;
         ai4seo_dashboard_is_hidden = false;
         ai4seo_dashboard_hidden_start_time = null;
-        
+
         // Clear hidden mode timers
         ai4seo_clear_dashboard_hidden_mode_timers();
-        
+
         if (ai4seo_was_hidden && ai4seo_exists_$('.ai4seo-dashboard')) {
             // Reset adaptive interval to 10s base
             ai4seo_dashboard_adaptive_interval = 10000;
             ai4seo_dashboard_no_changes_streak = 0;
-            
+
             // Trigger immediate refresh
             ai4seo_fetch_and_update_dashboard();
         }
@@ -9506,7 +9742,7 @@ function ai4seo_schedule_dashboard_hidden_mode_refresh() {
     if (!ai4seo_dashboard_is_hidden) {
         return;
     }
-    
+
     ai4seo_dashboard_hidden_refresh_timer = setTimeout(function() {
         if (ai4seo_dashboard_is_hidden && ai4seo_exists_$('.ai4seo-dashboard')) {
             ai4seo_fetch_and_update_dashboard();
@@ -9540,10 +9776,10 @@ function ai4seo_schedule_dashboard_idle_reload_check() {
     if (ai4seo_dashboard_idle_reload_timer) {
         clearTimeout(ai4seo_dashboard_idle_reload_timer);
     }
-    
+
     ai4seo_dashboard_idle_reload_timer = setTimeout(function() {
         const ai4seo_time_since_click = Date.now() - ai4seo_dashboard_last_user_click;
-        
+
         if (ai4seo_time_since_click >= 60 * 1000) { // 1 minute idle
             // User has been idle for 1+ minute, schedule full reload every 5 minutes
             if (ai4seo_dashboard_debug_metrics) {
@@ -9565,12 +9801,12 @@ function ai4seo_schedule_dashboard_idle_reload_check() {
 function ai4seo_clear_all_dashboard_timers() {
     ai4seo_clear_dashboard_refresh_timer();
     ai4seo_clear_dashboard_hidden_mode_timers();
-    
+
     if (ai4seo_dashboard_user_interaction_timer) {
         clearTimeout(ai4seo_dashboard_user_interaction_timer);
         ai4seo_dashboard_user_interaction_timer = null;
     }
-    
+
     if (ai4seo_dashboard_idle_reload_timer) {
         clearTimeout(ai4seo_dashboard_idle_reload_timer);
         ai4seo_dashboard_idle_reload_timer = null;
@@ -9587,21 +9823,21 @@ function ai4seo_schedule_dashboard_refresh() {
     if (ai4seo_dashboard_user_interaction_lock) {
         return;
     }
-    
+
     // Precedence rule 2: Browser tab visibility state overrides cadence
     if (ai4seo_dashboard_is_hidden) {
         return; // Hidden mode handles its own scheduling
     }
-    
+
     // Don't schedule if refresh is locked
     if (ai4seo_dashboard_refresh_lock) {
         return;
     }
 
     ai4seo_clear_dashboard_refresh_timer();
-    
+
     let start_dashboard_refresh_delay;
-    
+
     // Precedence rule 3: Failure backoff applies when request fails
     if (ai4seo_dashboard_refresh_failures > 0) {
         // Exponential backoff: 10s -> 20s -> 40s -> 80s -> 120s (max)
@@ -9643,12 +9879,12 @@ function ai4seo_fetch_and_update_dashboard() {
     if (ai4seo_dashboard_refresh_lock) {
         return;
     }
-    
+
     // Skip if user interaction is locked
     if (ai4seo_dashboard_user_interaction_lock) {
         return;
     }
-    
+
     // Skip if dashboard container no longer exists
     const $dashboard = ai4seo_normalize_$('.ai4seo-dashboard');
 
@@ -9694,10 +9930,10 @@ function ai4seo_fetch_and_update_dashboard() {
             if (this_request.cancelled) {
                 return; // Discard response
             }
-            
+
             if (response && typeof response === 'string') {
                 const ai4seo_changes_made = ai4seo_update_dashboard_content(response);
-                
+
                 // Adaptive interval logic based on changes
                 if (ai4seo_changes_made) {
                     // Reset to base interval on changes (rule 5: reset on changes)
@@ -9710,12 +9946,12 @@ function ai4seo_fetch_and_update_dashboard() {
                         10000 + (ai4seo_dashboard_no_changes_streak * 10000), // 20s, 30s, 40s, 50s, 60s
                         60000 // Cap at 60s
                     );
-                    
+
                     if (ai4seo_dashboard_debug_metrics) {
                         ai4seo_dashboard_metrics.no_change_streak_length = ai4seo_dashboard_no_changes_streak;
                     }
                 }
-                
+
                 // Reset failure count on success
                 ai4seo_dashboard_refresh_failures = 0;
             }
@@ -9725,7 +9961,7 @@ function ai4seo_fetch_and_update_dashboard() {
             if (this_request.cancelled) {
                 return; // Discard error
             }
-            
+
             // Increment failure count for exponential backoff
             ai4seo_dashboard_refresh_failures = Math.min(ai4seo_dashboard_refresh_failures + 1, ai4seo_dashboard_max_failures);
 
@@ -9737,10 +9973,10 @@ function ai4seo_fetch_and_update_dashboard() {
             if (ai4seo_dashboard_current_ajax_request === this_request) {
                 ai4seo_dashboard_current_ajax_request = null;
             }
-            
+
             // Release lock and schedule next refresh
             ai4seo_dashboard_refresh_lock = false;
-            
+
             // Schedule next refresh based on current state
             if (ai4seo_dashboard_is_hidden) {
                 // Hidden mode handles its own scheduling
@@ -9777,7 +10013,7 @@ function ai4seo_update_dashboard_content(new_html) {
     try {
         // Clear previous changed nodes array
         ai4seo_dashboard_changed_nodes = [];
-        
+
         // Parse new HTML into a DOM tree
         const dom_parser = new DOMParser();
         const new_parsed_dom_html = dom_parser.parseFromString(new_html, 'text/html');
@@ -9814,7 +10050,7 @@ function ai4seo_update_dashboard_content(new_html) {
         if (changes_made) {
             ai4seo_init_html_elements();
         }
-        
+
         return changes_made;
 
     } catch (error) {
@@ -9988,7 +10224,7 @@ function ai4seo_sync_node_attributes(old_element, new_element) {
     for (let i = 0; i < new_attributes.length; i++) {
         const this_new_attributes = new_attributes[i];
         const this_old_attributes_value = old_element.getAttribute(this_new_attributes.name);
-        
+
         if (this_old_attributes_value !== this_new_attributes.value) {
             old_element.setAttribute(this_new_attributes.name, this_new_attributes.value);
             changes_made = true;
@@ -10619,7 +10855,7 @@ function ai4seo_show_toast(opts) {
 
         // Auto close timers
         var timer1 = null, timer2 = null;
-        
+
         if (duration > 0) {
             timer1 = setTimeout(function() {
                 $toast.removeClass('active');

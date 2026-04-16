@@ -56,7 +56,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
 
             echo "<label>";
                 echo "<input type='radio' name='ai4seo_plugin_deactivation_feedback_reason' value='not_satisfied_with_ai_text_quality'>";
-                echo esc_html__("Not satisfied with AI text quality", "ai-for-seo");
+                echo esc_html__("Poor AI generations", "ai-for-seo");
             echo "</label>";
 
             echo '<br>';
@@ -91,7 +91,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
 
             echo "<label>";
                 echo "<input type='radio' name='ai4seo_plugin_deactivation_feedback_reason' value='performance_issues'>";
-                echo esc_html__("Performance issues", "ai-for-seo");
+                echo esc_html__("Slows my site", "ai-for-seo");
             echo "</label>";
 
             echo '<br>';

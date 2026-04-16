@@ -48,13 +48,13 @@ if (!$ai4seo_new_settings_raw) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 function ai4seo_get_setting_category($setting_name): string {
-    if (in_array($setting_name, AI4SEO_ALL_SETTING_PAGE_SETTINGS)) {
+    if (in_array($setting_name, AI4SEO_EXPORTABLE_SETTING_PAGE_SETTINGS)) {
         return 'settings';
-    } else if (in_array($setting_name, AI4SEO_ALL_SEO_AUTOPILOT_SETTINGS)) {
+    } else if (in_array($setting_name, AI4SEO_EXPORTABLE_SEO_AUTOPILOT_SETTINGS)) {
         return 'seo_autopilot';
-    } else if (in_array($setting_name, AI4SEO_ALL_ACCOUNT_PAGE_SETTINGS)) {
+    } else if (in_array($setting_name, AI4SEO_EXPORTABLE_ACCOUNT_PAGE_SETTINGS)) {
         return 'account';
-    } else if (in_array($setting_name, AI4SEO_ALL_GET_MORE_CREDITS_MODAL_SETTINGS)) {
+    } else if (in_array($setting_name, AI4SEO_EXPORTABLE_GET_MORE_CREDITS_MODAL_SETTINGS)) {
         return 'get_more_credits';
     } else {
         return 'unknown';

@@ -47,7 +47,9 @@ $ai4seo_pending_attributes_attachment_post_ids = ai4seo_get_post_ids_from_option
 $ai4seo_processing_attributes_attachment_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_PROCESSING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME);
 $ai4seo_failed_attributes_attachment_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_FAILED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME);
 $ai4seo_fully_covered_attachment_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_FULLY_COVERED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME);
+$ai4seo_generated_attachment_post_ids = ai4seo_get_post_ids_from_option(AI4SEO_GENERATED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME);
 $ai4seo_disabled_attachment_post_author_ids = ai4seo_get_disabled_attachment_post_author_ids();
+$ai4seo_do_generate_attachment_attributes_for_fully_covered_entries = ai4seo_do_generate_attachment_attributes_for_fully_covered_entries();
 
 
 // ___________________________________________________________________________________________ \\
@@ -377,11 +379,28 @@ echo "<table class='widefat striped table-view-list attachments ai4seo-posts-tab
             $ai4seo_this_attachment_title_with_language .= " (" . $ai4seo_this_attachment_language . ")";
         }
 
+        $ai4seo_this_attachment_post_date_gmt = (string) ($ai4seo_this_attachment->post_date_gmt ?? '');
+        $ai4seo_this_attachment_post_date = (string) ($ai4seo_this_attachment->post_date ?? '');
+        $ai4seo_this_attachment_post_modified_gmt = (string) ($ai4seo_this_attachment->post_modified_gmt ?? '');
+        $ai4seo_this_attachment_post_modified = (string) ($ai4seo_this_attachment->post_modified ?? '');
+
         // get timestamp of post date
-        $ai4seo_this_attachment_date_timestamp = strtotime($ai4seo_this_attachment->post_date_gmt);
+        $ai4seo_this_attachment_date_timestamp = strtotime($ai4seo_this_attachment_post_date_gmt . ' UTC');
+        $ai4seo_this_attachment_post_date_display = $ai4seo_this_attachment_post_date;
+        $ai4seo_this_attachment_post_date_gmt_display = $ai4seo_this_attachment_post_date_gmt;
+
+        if ($ai4seo_this_attachment_date_timestamp) {
+            $ai4seo_this_attachment_post_date_gmt_display = ai4seo_format_unix_timestamp($ai4seo_this_attachment_date_timestamp, 'auto', 'auto', ' ', 'UTC');
+        }
+
+        $ai4seo_this_attachment_post_date_local_timestamp = strtotime($ai4seo_this_attachment_post_date);
+        if ($ai4seo_this_attachment_post_date_local_timestamp) {
+            $ai4seo_this_attachment_post_date_display = ai4seo_format_unix_timestamp($ai4seo_this_attachment_post_date_local_timestamp);
+        }
 
         // check if the new-or-existing filter complies with this post ("both" -> yes, "new" -> only posts with post_date_timestamp > reference_timestamp, "existing" -> only posts with post_date_timestamp <= reference_timestamp)
         $ai4seo_is_excluded_by_new_or_existing_filter = false;
+
         if ($ai4seo_bulk_generation_new_or_existing_filter == "new" && $ai4seo_this_attachment_date_timestamp <= $ai4seo_bulk_generation_new_or_existing_filter_reference_timestamp) {
             $ai4seo_is_excluded_by_new_or_existing_filter = true;
         } else if ($ai4seo_bulk_generation_new_or_existing_filter == "existing" && $ai4seo_this_attachment_date_timestamp > $ai4seo_bulk_generation_new_or_existing_filter_reference_timestamp) {
@@ -400,7 +419,60 @@ echo "<table class='widefat striped table-view-list attachments ai4seo-posts-tab
             $ai4seo_this_attachment_attributes_is_not_covered = false;
         }
 
+        $ai4seo_this_attachment_post_is_fully_covered = in_array($ai4seo_this_post_attachment_id, $ai4seo_fully_covered_attachment_post_ids);
         $ai4seo_this_attachment_attributes_is_not_finished = ($ai4seo_this_attachment_attribute_coverage_percentage < 100);
+        $ai4seo_this_attachment_post_is_generated = in_array($ai4seo_this_post_attachment_id, $ai4seo_generated_attachment_post_ids);
+        $ai4seo_this_attachment_sub_info_rows = array();
+
+        $ai4seo_this_attachment_upload_timestamp_tooltip = sprintf(
+            /* translators: 1: post_date_gmt, 2: post_date, 3: post_modified_gmt, 4: post_modified */
+            __("post_date_gmt: %1\$s\npost_date: %2\$s\npost_modified_gmt: %3\$s\npost_modified: %4\$s", "ai-for-seo"),
+            $ai4seo_this_attachment_post_date_gmt ?: '-',
+            $ai4seo_this_attachment_post_date ?: '-',
+            $ai4seo_this_attachment_post_modified_gmt ?: '-',
+            $ai4seo_this_attachment_post_modified ?: '-'
+        );
+
+        $ai4seo_this_attachment_sub_info_rows[] = "<span class='ai4seo-attachment-upload-timestamp' title='" . esc_attr($ai4seo_this_attachment_upload_timestamp_tooltip) . "'>" .
+            sprintf(
+                /* translators: %s: upload timestamp */
+                esc_html__("Upload time: %s", "ai-for-seo"),
+                esc_html($ai4seo_this_attachment_post_date_display)
+            ) .
+        "</span>";
+
+        $ai4seo_this_attachment_sub_info_rows[] =
+            sprintf(
+                /* translators: %s: MIME type */
+                esc_html__("MIME type: %s", "ai-for-seo"),
+                esc_html($ai4seo_this_mime_type ?: '-')
+            );
+
+        $ai4seo_this_attachment_coverage_suffix = $ai4seo_this_attachment_post_is_fully_covered ? " " . esc_html__("(completed)", "ai-for-seo") : "";
+        $ai4seo_this_attachment_sub_info_rows[] =
+            sprintf(
+                /* translators: 1: coverage percentage, 2: optional fully covered note */
+                esc_html__("Coverage: %1\$s%%%2\$s", "ai-for-seo"),
+                esc_html(ai4seo_stringify($ai4seo_this_attachment_attribute_coverage_percentage)),
+                $ai4seo_this_attachment_coverage_suffix
+            );
+
+        $ai4seo_this_attachment_sub_info_rows[] =
+            (
+                $ai4seo_this_attachment_post_is_generated
+                    ? sprintf(
+                        /* translators: %s: plugin name */
+                        esc_html__("%s has generated data for this media file.", "ai-for-seo"),
+                        esc_html(AI4SEO_PLUGIN_NAME)
+                    )
+                    : sprintf(
+                        /* translators: %s: plugin name */
+                        __("%s has <span style='text-decoration: underline;'>not</span> generated data for this media file yet.", "ai-for-seo"),
+                        esc_html(AI4SEO_PLUGIN_NAME)
+                    )
+            );
+
+        $ai4seo_this_attachment_sub_info_html = "<div class='ai4seo-sub-info'>" . implode(" &bull; ", $ai4seo_this_attachment_sub_info_rows) . "</div>";
 
         $ai4seo_is_attachment_post_failed = in_array($ai4seo_this_post_attachment_id, $ai4seo_current_page_failed_to_fill_attachment_post_ids);
         // check if filling is in progress
@@ -410,7 +482,9 @@ echo "<table class='widefat striped table-view-list attachments ai4seo-posts-tab
         $ai4seo_is_attachment_post_waiting_for_cron_job = false;
 
         // if the post is not covered, but pending
-        if ($ai4seo_this_attachment_attributes_is_not_finished && !$ai4seo_is_excluded_by_new_or_existing_filter) {
+        // OR if post is fully covered, but not generated, and fully generated entries should be generated again, the post is pending
+        if (($ai4seo_this_attachment_attributes_is_not_finished || (!$ai4seo_this_attachment_post_is_generated && $ai4seo_do_generate_attachment_attributes_for_fully_covered_entries))
+            && !$ai4seo_is_excluded_by_new_or_existing_filter) {
             if (in_array($ai4seo_this_post_attachment_id, $ai4seo_pending_attributes_attachment_post_ids) || in_array($ai4seo_this_post_attachment_id, $ai4seo_processing_attributes_attachment_post_ids)) {
                 $ai4seo_is_attachment_post_pending = true;
             } else if ($ai4seo_is_bulk_generation_activated) {
@@ -479,6 +553,8 @@ echo "<table class='widefat striped table-view-list attachments ai4seo-posts-tab
                         echo esc_html($ai4seo_this_attachment_title_with_language);
                     echo "</a>";
                 echo "</strong>";
+
+                ai4seo_echo_wp_kses($ai4seo_this_attachment_sub_info_html);
             echo "</td>";
 
             // Generation Coverage
@@ -535,8 +611,28 @@ echo "<table class='widefat striped table-view-list attachments ai4seo-posts-tab
                             ai4seo_echo_wp_kses(ai4seo_get_small_icon_button_tag("arrow-up-right-from-square", __("Try it manually", "ai-for-seo"), "", "ai4seo_open_attachment_attributes_editor_modal(\"" . esc_html($ai4seo_this_post_attachment_id) . "\");"));
                         echo "</div>";
                     } else if ($ai4seo_is_excluded_by_new_or_existing_filter && $ai4seo_this_attachment_attributes_is_not_finished) {
+                        $ai4seo_new_or_existing_filter_reference_timestamp_formatted = esc_html(ai4seo_format_unix_timestamp($ai4seo_bulk_generation_new_or_existing_filter_reference_timestamp));
+
                         echo "<div class='ai4seo-sub-info ai4seo-red-message'>";
-                            echo esc_html__("Excluded by 'New or existing entries' filter.", "ai-for-seo");
+                            if ($ai4seo_bulk_generation_new_or_existing_filter == "new") {
+                                echo sprintf(
+                                    /* translators: %s: reference timestamp */
+                                    esc_html__("Excluded by 'New or existing entries' filter: Uploaded before %s.", "ai-for-seo"),
+                                    $ai4seo_new_or_existing_filter_reference_timestamp_formatted
+                                );
+                            } else if ($ai4seo_bulk_generation_new_or_existing_filter == "existing") {
+                                echo sprintf(
+                                    /* translators: %s: reference timestamp */
+                                    esc_html__("Excluded by 'New or existing entries' filter: Uploaded after %s.", "ai-for-seo"),
+                                    $ai4seo_new_or_existing_filter_reference_timestamp_formatted
+                                );
+                            } else {
+                                echo esc_html__("Excluded by 'New or existing entries' filter.", "ai-for-seo");
+                            }
+                        echo "</div>";
+                    } else if ($ai4seo_this_attachment_post_is_fully_covered && !$ai4seo_this_attachment_post_is_generated && !$ai4seo_do_generate_attachment_attributes_for_fully_covered_entries) {
+                        echo "<div class='ai4seo-sub-info ai4seo-red-message'>";
+                            echo esc_html__("Excluded because all attributes are already filled, and the setting \"SEO Autopilot: Include Complete Entries When Overwriting\" is disabled, or no fields are allowed to be overwritten.", "ai-for-seo");
                         echo "</div>";
                     }
                 } else {
@@ -552,6 +648,7 @@ echo "<table class='widefat striped table-view-list attachments ai4seo-posts-tab
                             echo esc_html($ai4seo_this_attachment_title_with_language);
                         echo "</a>";
                     echo "</strong>";
+                    ai4seo_echo_wp_kses($ai4seo_this_attachment_sub_info_html);
                 echo "</div>";
             echo "</td>";
 

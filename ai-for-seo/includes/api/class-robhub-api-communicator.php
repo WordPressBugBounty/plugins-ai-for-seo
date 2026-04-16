@@ -31,21 +31,24 @@ class Ai4Seo_RobHubApiCommunicator {
     private array $non_retriable_error_codes = array(
         371816823, # no more credits
         591716925, # could not send email (send-licence-data)
-        41228125, # client already exists (get-free-account)
+        41228125, # Please log in using the license data provided (get-free-account)
         25164525, # error while downloading file from url / http status code != 200
         916101025, # invalid credentials: invalid api username
         351816823, # invalid credentials: invalid api password
         431319725, # invalid credentials: access denied
         3619101024, # inappropriate content detected
+        218101024, # blocked from using the service
         3204525, # cloudflare challenge detected
         311014824, # file not accessible at given URL
         71214326, # file too large
     );
 
     public array $invalidate_auth_data_error_codes = array(
+        41228125,  # Please log in using the license data provided (get-free-account)
         916101025, # invalid credentials: invalid api username
         351816823, # invalid credentials: invalid api password
         431319725, # invalid credentials: access denied
+        218101024, # blocked from using the service
     );
 
     public array $non_post_related_error_codes = array(
@@ -104,6 +107,7 @@ class Ai4Seo_RobHubApiCommunicator {
     public const ENVIRONMENTAL_VARIABLE_SUBSCRIPTION = "subscription";
     public const ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC = "last_account_sync";
     public const ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED = "is_account_synced";
+    public const ENVIRONMENTAL_VARIABLE_IS_AUTH_LOCKED = "is_auth_locked";
     public const ENVIRONMENTAL_VARIABLE_GROUP = "group";
 
     public const DEFAULT_ENVIRONMENTAL_VARIABLES = array(
@@ -115,10 +119,12 @@ class Ai4Seo_RobHubApiCommunicator {
         self::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION => array(),
         self::ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC => 0,
         self::ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED => false,
+        self::ENVIRONMENTAL_VARIABLE_IS_AUTH_LOCKED => false,
         self::ENVIRONMENTAL_VARIABLE_GROUP => 'x',
     );
     private array $environmental_variables = self::DEFAULT_ENVIRONMENTAL_VARIABLES;
 
+    // all allowed endpoints / whitelist
     private array $allowed_endpoints = array(
         "ai4seo/generate-all-metadata",
         "ai4seo/generate-all-attachment-attributes",
@@ -136,11 +142,13 @@ class Ai4Seo_RobHubApiCommunicator {
         "client/feedback",
     );
 
+    // endpoints that are used to generate output
     private array $generation_endpoints = array(
         "ai4seo/generate-all-metadata",
         "ai4seo/generate-all-attachment-attributes",
     );
 
+    // endpoints that do not cost Credits and therefor a Credits check is not necessary among other things
     private array $free_endpoints = array(
         "client/get-free-account",
         "client/sync",
@@ -155,6 +163,8 @@ class Ai4Seo_RobHubApiCommunicator {
         "client/feedback",
     );
 
+    // these endpoints can be used without the user having to accept the terms of service, terms of conditions and privacy policy first
+    # note: tos is currently disabled
     private array $no_need_to_accept_tos_endpoints = array(
         "client/reject-terms",
         "client/product-deactivated",
@@ -212,7 +222,11 @@ class Ai4Seo_RobHubApiCommunicator {
      * @return array|mixed|string     The response from the API.
      */
     function call( string $endpoint, array $parameters = array(), string $request_method = 'POST', bool $fallback_to_public_client_operation_credentials = false ) {
-        $api_call_checksum = $this->prepare_call( $endpoint, $parameters, $request_method );
+        if ($this->is_auth_data_locked() && !$fallback_to_public_client_operation_credentials) {
+            return $this->respond_error("Authentication data is locked due to previous errors. Please update your API credentials to unlock.", 581715426);
+        }
+
+        $api_call_checksum = $this->prepare_call( $endpoint, $parameters, $request_method, $fallback_to_public_client_operation_credentials );
 
         if ( ! is_numeric( $api_call_checksum ) ) {
             return $api_call_checksum;
@@ -268,10 +282,10 @@ class Ai4Seo_RobHubApiCommunicator {
 
             // failure: decide whether to retry
             $this_error_code = $normalized_response['code'] ?? null;
+            $is_invalidate_auth_data_error = ( $this_error_code !== null && $this->is_auth_lock_error_code( $this_error_code ) );
 
-            // stop if code is marked non-retriable or attempts exhausted
-            $is_non_retriable = ( $this_error_code !== null && in_array( $this_error_code, $this->non_retriable_error_codes, true ) );
-            $is_invalidate_auth_data_error = ( $this_error_code !== null && in_array( $this_error_code, $this->invalidate_auth_data_error_codes, true ) );
+            // Auth-locking errors must never retry, even if a future code list changes.
+            $is_non_retriable = $is_invalidate_auth_data_error || ( $this_error_code !== null && in_array( $this_error_code, $this->non_retriable_error_codes, true ) );
             $has_more_attempts = ( $attempt < $this->max_api_attempts );
 
             ai4seo_debug_message(2117126,
@@ -285,14 +299,11 @@ class Ai4Seo_RobHubApiCommunicator {
                 true
             );
 
-            // invalidate auth credentials if error code indicates an auth issue, to trigger a refresh on the next call
+            // These auth errors mean the saved credentials should not auto-bootstrap a fresh free account.
+            // Instead, we lock further RobHub calls until the user manually enters valid credentials again.
             if ( $is_invalidate_auth_data_error ) {
-                $this->invalidate_auth_data(true);
-
-                // rebuild API arguments with fallback credentials if available and we have more attempts left
-                if ( $has_more_attempts && ! $is_non_retriable ) {
-                    $api_arguments = $this->build_api_arguments( $parameters, $request_method, $endpoint, $fallback_to_public_client_operation_credentials );
-                }
+                $this->invalidate_auth_data(false);
+                $this->set_auth_data_locked(true);
             }
 
             if ( ! $has_more_attempts || $is_non_retriable ) {
@@ -326,7 +337,7 @@ class Ai4Seo_RobHubApiCommunicator {
 
     // =========================================================================================== \\
 
-    function prepare_call($endpoint, $parameters, $request_method) {
+    function prepare_call($endpoint, $parameters, $request_method, $fallback_to_public_client_operation_credentials = false) {
         // user did not accept terms of service, terms of conditions and privacy policy
         // except for the endpoints in no_need_to_accept_tos_endpoints
         if ($this->does_user_need_to_accept_tos_toc_and_pp && !in_array($endpoint, $this->no_need_to_accept_tos_endpoints)) {
@@ -372,10 +383,15 @@ class Ai4Seo_RobHubApiCommunicator {
             return $this->respond_error("Request method " . $request_method . " is not allowed.", 211313823);
         }
 
-        // check for proper credentials
-        if (!$this->init_credentials()) {
-            ai4seo_debug_message(320337712, "Could not initialize credentials for endpoint " . $endpoint . ".", true);
-            return $this->respond_error("Missing or corrupt auth credentials", 2113111223);
+        // Public client operation fallbacks may continue without stored credentials or an unlocked auth state.
+        // In that case build_api_arguments() swaps in the public credentials later in the request pipeline.
+        if (!$fallback_to_public_client_operation_credentials && !$this->check_credentials() && $endpoint !== "client/get-free-account") {
+            $api_response = $this->init_free_account();
+
+            if (!$this->was_call_successful($api_response)) {
+                $api_response_error_message = $api_response['message'] ?? esc_html__("Please try to reconnect account", "ai-for-seo");
+                return $this->respond_error("Could not initialize credentials: $api_response_error_message", 2113111223);
+            }
         }
 
         // if this is not a free endpoint, check credits balance is at least 1
@@ -435,7 +451,7 @@ class Ai4Seo_RobHubApiCommunicator {
         $api_password = $this->api_password;
 
         if ($fallback_to_public_client_operation_credentials) {
-            if (!$this->init_credentials(false)) {
+            if (!$this->check_credentials()) {
                 $random_api_username = $this->generate_random_pseudo_api_username();
                 $api_username = $this->build_api_username($random_api_username);
                 $api_password = $this->public_client_operations_api_password;
@@ -819,10 +835,15 @@ class Ai4Seo_RobHubApiCommunicator {
 
     /**
      * Function to either get user credentials from wp_options or to create a free account and save the credentials.
-     * @param $try_create_free_account bool Whether to try to create a free account if no credentials are found.
      * @return bool True if credentials are valid, false otherwise.
      */
-    function init_credentials(bool $try_create_free_account = true): bool {
+    function check_credentials(): bool {
+        // Once we have seen an auth failure, keep all RobHub communication blocked until the
+        // user manually enters replacement credentials in Account settings.
+        if ($this->is_auth_data_locked()) {
+            return false;
+        }
+
         // credentials already saved previously? -> skip
         if ($this->has_credentials()) {
             return true;
@@ -830,15 +851,6 @@ class Ai4Seo_RobHubApiCommunicator {
 
         // read robhub auth data from json data in wp_options
         $auth_data = $this->read_auth_data();
-
-        // we do not have any auth data? ask for free account
-        if (empty($auth_data) || !isset($auth_data[0]) || !isset($auth_data[1]) || !$auth_data[0] || !$auth_data[1]) {
-            if (!$try_create_free_account) {
-                return false;
-            }
-
-            return $this->init_free_account();
-        }
 
         // otherwise, try to use the saved credentials
         $auth_data = $this->deep_sanitize($auth_data);
@@ -856,15 +868,15 @@ class Ai4Seo_RobHubApiCommunicator {
      * Function to create a free account and save the credentials.
      * @param $base_username string The base username to use for the free account (optional).
      * @param $update_to_database bool Whether to save the new credentials to the database.
-     * @return bool True if free account was successfully created, false otherwise.
+     * @return array The API response from the free account creation call, or an error array if the process failed.
      */
-    function init_free_account(string $base_username = "", bool $update_to_database = true): bool {
+    function init_free_account(string $base_username = "", bool $update_to_database = true): array {
         // build pseudo api username and password first
         $new_api_username = $this->build_api_username($base_username);
 
         if (!$this->use_this_credentials($new_api_username, $this->public_get_free_account_api_password)) {
             ai4seo_debug_message(193648888, 'Could not build api for free account creation.', true);
-            return false;
+            return array();
         }
 
         $site_url = sanitize_text_field(get_site_url());
@@ -893,7 +905,7 @@ class Ai4Seo_RobHubApiCommunicator {
             $this->api_username = "";
             $this->api_password = "";
             ai4seo_debug_message(704894316, 'Could not create free account. Response:' . ai4seo_stringify($response), true);
-            return false;
+            return $response;
         }
 
         // try save new credentials
@@ -901,11 +913,11 @@ class Ai4Seo_RobHubApiCommunicator {
             $this->api_username = "";
             $this->api_password = "";
             ai4seo_debug_message(802042473, 'Could not save free account credentials.', true);
-            return false;
+            return $response;
         }
 
         // everything went fine
-        return true;
+        return $response;
     }
 
     // =========================================================================================== \\
@@ -964,6 +976,18 @@ class Ai4Seo_RobHubApiCommunicator {
         $api_password = $this->read_environmental_variable(self::ENVIRONMENTAL_VARIABLE_API_PASSWORD);
 
         return array($api_username, $api_password);
+    }
+
+    // =========================================================================================== \\
+
+    function is_auth_data_locked(): bool {
+        return (bool) $this->read_environmental_variable(self::ENVIRONMENTAL_VARIABLE_IS_AUTH_LOCKED);
+    }
+
+    // =========================================================================================== \\
+
+    function set_auth_data_locked(bool $is_auth_locked): bool {
+        return $this->update_environmental_variable(self::ENVIRONMENTAL_VARIABLE_IS_AUTH_LOCKED, $is_auth_locked);
     }
 
     // =========================================================================================== \\
@@ -1116,20 +1140,20 @@ class Ai4Seo_RobHubApiCommunicator {
     // =========================================================================================== \\
 
     function invalidate_auth_data($init_free_account = false) {
-        $ai4seo_robhub_api_username_key = ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_API_USERNAME;
-        $ai4seo_robhub_api_password_key = ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_API_PASSWORD;
-        ai4seo_robhub_api()->delete_environmental_variable($ai4seo_robhub_api_username_key);
-        ai4seo_robhub_api()->delete_environmental_variable($ai4seo_robhub_api_password_key);
+        $ai4seo_robhub_api_username_key = self::ENVIRONMENTAL_VARIABLE_API_USERNAME;
+        $ai4seo_robhub_api_password_key = self::ENVIRONMENTAL_VARIABLE_API_PASSWORD;
+        $this->delete_environmental_variable($ai4seo_robhub_api_username_key);
+        $this->delete_environmental_variable($ai4seo_robhub_api_password_key);
 
         $this->api_username = '';
         $this->api_password = '';
 
         if ($init_free_account) {
-            ai4seo_robhub_api()->init_free_account();
+            $this->init_free_account();
         }
 
         // reset last account sync, so we can sync its details again
-        ai4seo_robhub_api()->reset_last_account_sync();
+        $this->reset_last_account_sync();
     }
 
     // =========================================================================================== \\
@@ -1167,6 +1191,12 @@ class Ai4Seo_RobHubApiCommunicator {
             "message" => wp_kses_post($message),
             "code" => $code
         );
+    }
+
+    // =========================================================================================== \\
+
+    function is_auth_lock_error_code($error_code): bool {
+        return in_array((int) $error_code, $this->invalidate_auth_data_error_codes, true);
     }
 
     // =========================================================================================== \\
@@ -1243,11 +1273,13 @@ class Ai4Seo_RobHubApiCommunicator {
 
     /**
      * Returns the api username if credentials are initialized.
+     *
+     * @param bool $check_credentials Whether to check if credentials are initialized before returning the username. Defaults to true.
      * @return string The api username or an empty string if credentials are not initialized.
      */
-    function get_api_username(): string {
+    function get_api_username(bool $check_credentials = true): string {
         // Make sure that credentials are initialized
-        if (!$this->init_credentials(false)) {
+        if ($check_credentials && !$this->check_credentials()) {
             return "";
         }
 
@@ -1258,11 +1290,13 @@ class Ai4Seo_RobHubApiCommunicator {
 
     /**
      * Returns the api password if credentials are initialized.
+     *
+     * @param bool $check_credentials Whether to check if credentials are initialized before returning the password. Defaults to true.
      * @return string The api password or an empty string if credentials are not initialized.
      */
-    function get_api_password(): string {
+    function get_api_password(bool $check_credentials = true): string {
         // Make sure that credentials are initialized
-        if (!$this->init_credentials(false)) {
+        if ($check_credentials && !$this->check_credentials()) {
             return "";
         }
 
@@ -1678,6 +1712,7 @@ class Ai4Seo_RobHubApiCommunicator {
                 return true;
 
             case self::ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED:
+            case self::ENVIRONMENTAL_VARIABLE_IS_AUTH_LOCKED:
                 return is_bool($environmental_variable_value);
 
             default:
@@ -1695,6 +1730,16 @@ class Ai4Seo_RobHubApiCommunicator {
      * @return int The crc32 checksum of the API call.
      */
     function get_api_call_checksum(string $endpoint, array $parameters, string $method): int {
+        if ($endpoint === 'client/get-free-account') {
+            // Use only stable site identity fields here so concurrent first-run requests with
+            // different user agents, client IPs, or timestamps still hit the same existing lock.
+            $parameters = array(
+                'website_url' => $parameters['website_url'] ?? '',
+                'website_name' => $parameters['website_name'] ?? '',
+                'admin_email_address' => $parameters['admin_email_address'] ?? '',
+            );
+        }
+
         return crc32($endpoint . serialize($parameters) . $method);
     }
 

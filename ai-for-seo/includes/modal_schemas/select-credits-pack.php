@@ -144,7 +144,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
             if ($ai4seo_entry_counter === 3) {
                 if (count($ai4seo_credits_packs) > 3) {
                     echo "<center>";
-                    ai4seo_echo_wp_kses(ai4seo_get_small_icon_button_tag("angle-down", __("Show more options", "ai-for-seo") . " " . ai4seo_get_svg_tag("angle-down"), "ai4seo-credits-pack-show-more-options-button", "jQuery(this).parent().hide();jQuery(this).parent().next().show();"));
+                    ai4seo_echo_wp_kses(ai4seo_get_small_icon_button_tag("angle-down", __("Show more options", "ai-for-seo"), "ai4seo-credits-pack-show-more-options-button", "jQuery(this).parent().hide();jQuery(this).parent().next().show();"));
                     echo "</center>";
                     echo "<div style='display: none;'>";
                     $ai4seo_hidden_credits_packs_container_open = true;

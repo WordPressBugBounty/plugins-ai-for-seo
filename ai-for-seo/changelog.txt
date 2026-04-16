@@ -1,5 +1,12 @@
 == Changelog ==
 
+= 2.3.3 =
+* Better image usage detection for Elementor and BeTheme. To ensure this works properly, please enable the "Deep Search for Image Usage" setting.
+* Moved the "Active Authors", "Active Media Authors", and "Active Categories (taxonomy terms)" settings out of Advanced Settings so they are easier to find.
+* Moved the "SEO Autopilot: Include Complete Entries When Overwriting" settings for Metadata and Media Attributes out of Advanced Settings so they are easier to find.
+* Moved the metadata and media attribute "Prefix / Suffix" settings into Advanced Settings.
+* Added keyboard shortcuts for faster confirmations: Press Escape to close the active modal, or Enter to trigger the first primary button in the active modal or current page.
+
 = 2.3.2 =
 * Added an advanced setting to filter posts by author
 * Added an advanced setting to filter media files by author

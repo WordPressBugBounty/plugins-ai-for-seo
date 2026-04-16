@@ -301,7 +301,7 @@
     margin-left: .5rem;
 }
 
-.ai4seo-full-screen-loading-icon {
+.ai4seo-full-screen-loading-screen {
     position: fixed;
     top: 0;
     left: 0;
@@ -836,6 +836,30 @@ div.ai4seo-max-width-100 {
     align-items: end !important;
 }
 
+/* type: component — dashboard statistics card */
+.ai4seo-dashboard-statistics-message-row {
+    flex: 0 0 100%;
+    width: 100%;
+    margin-bottom: 1.5rem;
+    padding: 0 1.5rem;
+    box-sizing: border-box;
+}
+
+/* type: component — dashboard statistics card */
+.ai4seo-dashboard-statistics-message-content {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+/* type: component — dashboard statistics card */
+.ai4seo-dashboard-retry-all-failed-wrapper {
+    flex: 0 0 100%;
+    width: 100%;
+    margin-bottom: 1.5rem;
+    padding: 0 1.5rem;
+    box-sizing: border-box;
+}
+
 
 /* type: module — dashboard chart */
 .ai4seo-chart-container {
@@ -1214,11 +1238,6 @@ div.ai4seo-recent-plugin-updates-content li::marker {
     border-radius: 3px;
 }
 
-.ai4seo-dashboard-retry-all-failed-wrapper {
-    flex-basis: 100%;
-    width: 100%;
-    margin-bottom: 2rem
-}
 
 /* type: content — Dashboard → Recent plugin updates */
 .ai4seo-payg-confirmation-checkbox {
@@ -2407,6 +2426,14 @@ div.ai4seo-credits-generation-costs-info h4 {
 div.ai4seo-credits-generation-costs-info li {
     text-align: center;
     margin-bottom: 1rem;
+}
+
+.ai4seo-upscaled-inline-icon {
+    display: inline-block;
+    transform: scale(1.8);
+    transform-origin: right;
+    margin-top: -2px;
+    margin-right: -2px;
 }
 
 /* type: content — Dashboard → Overview layout */

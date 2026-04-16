@@ -484,11 +484,11 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-faq'>
         ai4seo_echo_wp_kses(ai4seo_get_accordion_element("> " . sprintf(esc_html__("How do I hide certain post types from the %s dashboard?", "ai-for-seo"), esc_html(AI4SEO_PLUGIN_NAME)), $ai4seo_this_accordion_content));
 
         /* translators: %s: plugin name */
-        $ai4seo_this_accordion_content = sprintf(esc_html__("Yes. Open %s > Settings and use the advanced checkboxes \"Active Authors\" in the Metadata section or \"Active Media Authors\" in the Media Attributes section. Uncheck any authors you want to exclude. Their existing metadata or media attributes stay untouched, but their posts or media files are removed from the related dashboards and automation queues until you enable them again.", "ai-for-seo"), esc_html(AI4SEO_PLUGIN_NAME));
-        ai4seo_echo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("Can I filter posts or media files by the author?", "ai-for-seo"), $ai4seo_this_accordion_content));
+        $ai4seo_this_accordion_content = sprintf(esc_html__("Yes. Open %s > Settings and use the checkboxes \"Active Authors\" in the Metadata section or \"Active Media Authors\" in the Media Attributes section. Uncheck any authors you want to exclude. Their existing metadata or media attributes stay untouched, but their posts or media files are removed from the dashboard and the SEO Autopilot until you enable them again.", "ai-for-seo"), esc_html(AI4SEO_PLUGIN_NAME));
+        ai4seo_echo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("Can I filter pages, posts, products or media files by the author?", "ai-for-seo"), $ai4seo_this_accordion_content));
 
         /* translators: %s: plugin name */
-        $ai4seo_this_accordion_content = sprintf(esc_html__("Yes. Open %s > Settings and use the advanced \"Active Categories (taxonomy terms)\" checkboxes in the Metadata section. Uncheck any categories you want to exclude. Their existing metadata stays untouched. By default, entries remain included as long as they still have at least one active category assigned, and you can enable the stricter option to exclude an entry as soon as one disabled category is assigned.", "ai-for-seo"), esc_html(AI4SEO_PLUGIN_NAME));
+        $ai4seo_this_accordion_content = sprintf(esc_html__("Yes. Open %s > Settings and use the \"Active Categories (taxonomy terms)\" checkboxes in the Metadata section. Uncheck any categories you want to exclude. Their existing metadata stays untouched. By default, entries remain included as long as they still have at least one active category assigned, and you can enable the stricter option (advanced setting) to exclude an entry as soon as one disabled category is assigned.", "ai-for-seo"), esc_html(AI4SEO_PLUGIN_NAME));
         ai4seo_echo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("Can I filter posts, products or other content by category (taxonomy term)?", "ai-for-seo"), $ai4seo_this_accordion_content));
 
         $ai4seo_this_accordion_content = __("Including image metadata helps search engines better interpret your images, potentially boosting your rankings in image search results and the overall quality of your website. In addition, it also shows your commitment to accessibility, catering to a wider audience and complying with accessibility standards.", "ai-for-seo");
@@ -851,22 +851,28 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-faq'>
         ));
 
         // login / customer portal
-        $ai4seo_this_accordion_content = __(
-            'We currently do not offer a separate customer portal. All account-related actions, including subscription and payment management, can be accessed through the WordPress plugin. You can find the relevant links in your WordPress admin area under “SOOZ - AI for SEO” > “Account”.',
-            'ai-for-seo'
+        $ai4seo_this_accordion_content = sprintf(
+            /* translators: %s: plugin name */
+            __('We currently do not offer a separate customer portal. All account-related actions, including subscription and payment management, can be accessed through the WordPress plugin. You can find the relevant links in your WordPress admin area under "$s" > "Account".', 'ai-for-seo'),
+            esc_html(AI4SEO_PLUGIN_NAME),
         );
 
         ai4seo_echo_wp_kses(
             ai4seo_get_accordion_element(
-                '> ' . esc_html__( 'Where can I log in to my SOOZ – AI for SEO account / customer portal?', 'ai-for-seo' ),
+                sprintf(
+                    /* translators: %s: plugin name */
+                    '> ' . esc_html__( 'Where can I log in to my %s account / customer portal?', 'ai-for-seo' ),
+                    esc_html(AI4SEO_PLUGIN_NAME),
+                ),
                 $ai4seo_this_accordion_content
             )
         );
 
         // invoices
-        $ai4seo_this_accordion_content = __(
-            'A download link for your invoice is included in the confirmation email sent after each purchase. If you currently have an active subscription, you can also access and download your invoices through the WordPress plugin under “SOOZ - AI for SEO” > “Account” > “Manage Subscription / Invoices”.',
-            'ai-for-seo'
+        $ai4seo_this_accordion_content = sprintf(
+            /* translators: %s: plugin name */
+            __('A download link for your invoice is included in the confirmation email sent after each purchase. If you currently have an active subscription, you can also access and download your invoices through the WordPress plugin under "%s" > "Account" > "Manage Subscription / Invoices".', 'ai-for-seo'),
+            esc_html(AI4SEO_PLUGIN_NAME),
         );
 
         ai4seo_echo_wp_kses(
@@ -1038,7 +1044,7 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-troub
                     echo "</select>";
 
                     /* translators: %s: plugin name */
-                    $ai4seo_debug_output_mode_description = sprintf(esc_html__("Choose how %s delivers diagnostics: disable output, send to the PHP/WP debug log (PHP default error_log or wp-content/debug.log when WP_DEBUG_LOG is enabled), append to <code>wp-content/uploads/ai-for-seo-debug.log</code>, store up to 1000 entries in the database, display a admin notice, or print a formatted block on the page. Notice and print outputs only appear for users who can manage this plugin.", "ai-for-seo"), esc_html(AI4SEO_PLUGIN_NAME));
+                    $ai4seo_debug_output_mode_description = sprintf(__("Choose how %s delivers diagnostics: disable output, send to the PHP/WP debug log (PHP default error_log or wp-content/debug.log when WP_DEBUG_LOG is enabled), append to <code>wp-content/uploads/ai-for-seo-debug.log</code>, store up to 1000 entries in the database, display a admin notice, or print a formatted block on the page. Notice and print outputs only appear for users who can manage this plugin.", "ai-for-seo"), esc_html(AI4SEO_PLUGIN_NAME));
 
                     echo "<p class='ai4seo-form-item-description'>";
                         ai4seo_echo_wp_kses($ai4seo_debug_output_mode_description);
@@ -1223,7 +1229,7 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-troub
         $ai4seo_this_accordion_content .= "<br /><br />" . __("Switch the setting off after debugging to resume normal data analysis.", "ai-for-seo");
         ai4seo_echo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("I run into performance while pages and media files are being analyzed. How can I pause the analysis?", "ai-for-seo"), $ai4seo_this_accordion_content));
 
-        $ai4seo_this_accordion_content = __("Use Help > Troubleshooting > Preferred Debug Output to direct ai4seo_debug_message() diagnostics to the PHP/WP debug log, an uploads log file, the database viewer above, an admin notice, or inline printouts. Turn output back to None when finished. You can also open the Debug Message Log at the top of this section to review stored entries (max. 1000), and enable WP_DEBUG_LOG if you prefer writing to wp-content/debug.log.", "ai-for-seo");
+        $ai4seo_this_accordion_content = __("Use Help > Troubleshooting > Preferred Debug Output to direct ai4seo_debug_message() diagnostics to the PHP/WP debug log, an uploads log file, the Debug message log below, an admin notice, or inline printouts. Turn output back to None when finished. You can also open the Debug Message Log at the bottom of this section to review stored entries (max. 1000), and enable WP_DEBUG_LOG if you prefer writing to wp-content/debug.log.", "ai-for-seo");
         ai4seo_echo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("I want to debug an unexpected plugin behaviour. What tools can I use to debug?", "ai-for-seo"), $ai4seo_this_accordion_content));
 
         $ai4seo_this_accordion_content  = __("WordPress's internal cron system (WP-Cron) may not run reliably in every hosting setup, which can delay tasks such as SEO Autopilot jobs.", "ai-for-seo") . "<br /><br />";

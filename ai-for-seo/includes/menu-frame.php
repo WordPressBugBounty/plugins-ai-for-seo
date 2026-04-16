@@ -280,8 +280,8 @@ echo "<div class='wrap ai4seo-wrap'>";
             return;
         }
 
-        // DEBUG POST CONTENT
-        if (isset($_GET["ai4seo_debug_post_content"]) && $_GET["ai4seo_debug_post_content"] && is_numeric($_GET["ai4seo_debug_post_content"])) {
+        // DEBUG CONDENSED POST CONTENT
+        if (isset($_GET["ai4seo_debug_condensed_post_content"]) && $_GET["ai4seo_debug_condensed_post_content"] && is_numeric($_GET["ai4seo_debug_condensed_post_content"])) {
             $ai4seo_debug_post_id = absint($_GET["ai4seo_debug_post_content"]);
             $ai4seo_condensed_post_content_from_database = ai4seo_get_condensed_post_content_from_database($ai4seo_debug_post_id, true);
 
@@ -289,6 +289,15 @@ echo "<div class='wrap ai4seo-wrap'>";
 
             ai4seo_debug_message(658418123, "FINAL WITH CONTEXT >" . ai4seo_stringify(htmlspecialchars($ai4seo_condensed_post_content_from_database)));
             unset($ai4seo_condensed_post_content_from_database, $ai4seo_debug_post_id);
+        }
+
+        // DEBUG POST CONTENT
+        if (isset($_GET["ai4seo_get_combined_post_content"]) && $_GET["ai4seo_get_combined_post_content"] && is_numeric($_GET["ai4seo_get_combined_post_content"])) {
+            $ai4seo_debug_post_id = absint($_GET["ai4seo_get_combined_post_content"]);
+            $ai4seo_get_combined_post_content = ai4seo_get_combined_post_content($ai4seo_debug_post_id, "", true, true);
+
+            ai4seo_debug_message(402011426, ai4seo_stringify(htmlspecialchars($ai4seo_get_combined_post_content)));
+            unset($ai4seo_get_combined_post_content, $ai4seo_debug_post_id);
         }
 
         // DEBUG ai4seo_debug_posts_table_analysis

@@ -130,8 +130,8 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
         $ai4seo_num_missing_posts_by_post_type = ai4seo_get_num_missing_posts_by_post_type();
 
         /* translators: %s: post type name */
-        $ai4seo_retry_all_failed_metadata_generations_link_label = esc_html__("Retry all failed generations for %s", "ai-for-seo");
-        $ai4seo_retry_all_failed_attachment_attributes_generations_link_label = esc_html__("Retry all failed media attribute generations", "ai-for-seo");
+        $ai4seo_retry_all_failed_metadata_generations_link_label = __("Retry all failed generations for <strong>%s</strong>", "ai-for-seo");
+        $ai4seo_retry_all_failed_attachment_attributes_generations_link_label = __("Retry all failed <strong>media attribute</strong> generations", "ai-for-seo");
         $ai4seo_retry_all_failed_metadata_button_tags = array();
         $ai4seo_retry_all_failed_attachment_attributes_generations_link_tag = "";
 
@@ -253,15 +253,20 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
                 ai4seo_echo_half_donut_chart_with_headline_and_percentage($ai4seo_supported_post_type_label, $ai4seo_chart_values, $ai4seo_this_num_finished_post_ids, $ai4seo_total_value, $ai4seo_posts_table_analysis_state, $ai4seo_this_post_type);
             }
 
+            // chart legend container
             if ($ai4seo_could_output_any_chart) {
                 echo "<div class='ai4seo-chart-legend-container'>";
                     ai4seo_echo_chart_legend($ai4seo_chart_values);
                 echo "</div>";
             }
 
+            // no data message
             if (!$ai4seo_could_output_any_chart && $ai4seo_posts_table_analysis_state === 'completed') {
-                echo "<div class='ai4seo-no-data-message ai4seo-red-message' style='margin: 1.5rem; max-width: 800px;'>";
-                    echo esc_html__("Note: No data to display yet. Please review your settings. All entries may currently be excluded from analysis.", "ai-for-seo");
+                echo "<div class='ai4seo-no-data-message ai4seo-dashboard-statistics-message-row ai4seo-red-message'>";
+                    echo "<div class='ai4seo-dashboard-statistics-message-content ai4seo-red-message'>";
+                        echo "<strong>" . esc_html__("Note:", "ai-for-seo") . "</strong> ";
+                        echo esc_html__("No data to display yet. Please review your settings. All entries may currently be excluded from analysis.", "ai-for-seo");
+                    echo "</div>";
                 echo "</div>";
             }
 
@@ -273,28 +278,28 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
                 if ($bulk_generation_new_or_existing_filter == "new") {
                     $ai4seo_new_or_existing_filter_text = sprintf(
                         /* translators: %s: reference timestamp */
-                        esc_html__("Note: The SEO Autopilot is currently set to only generate data for new content created after %s. Therefore, existing content before this date is not included in the above statistics.", "ai-for-seo"),
-                        esc_html(ai4seo_format_unix_timestamp($bulk_generation_new_or_existing_filter_reference_timestamp))
+                        esc_html__("The SEO Autopilot is currently set to only generate data for new content created after %s. Therefore, existing content before this date is not included in the above statistics.", "ai-for-seo"),
+                        '<strong>' . esc_html(ai4seo_format_unix_timestamp($bulk_generation_new_or_existing_filter_reference_timestamp)) . '</strong>'
                     );
                 } else if ($bulk_generation_new_or_existing_filter == "existing") {
                     $ai4seo_new_or_existing_filter_text = sprintf(
                         /* translators: %s: reference timestamp */
-                        esc_html__("Note: The SEO Autopilot is currently set to only generate data for existing content created before %s. Therefore, new content after this date is not included in the above statistics.", "ai-for-seo"),
-                        esc_html(ai4seo_format_unix_timestamp($bulk_generation_new_or_existing_filter_reference_timestamp))
+                        esc_html__("The SEO Autopilot is currently set to only generate data for existing content created before %s. Therefore, new content after this date is not included in the above statistics.", "ai-for-seo"),
+                        '<strong>' . esc_html(ai4seo_format_unix_timestamp($bulk_generation_new_or_existing_filter_reference_timestamp)) . '</strong>'
                     );
                 }
 
-                echo "<div class='ai4seo-dashboard-new-or-existing-filter-note ai4seo-red-message' style='margin: 1.5rem; max-width: 800px;'>";
-                    ai4seo_echo_wp_kses($ai4seo_new_or_existing_filter_text);
-                    ai4seo_echo_wp_kses(" " . esc_html__("You can change this setting in the SEO Autopilot settings.", "ai-for-seo"));
+                echo "<div class='ai4seo-dashboard-new-or-existing-filter-note ai4seo-dashboard-statistics-message-row ai4seo-red-message'>";
+                    echo "<div class='ai4seo-dashboard-statistics-message-content ai4seo-red-message'>";
+                        echo "<strong>" . esc_html__("Note:", "ai-for-seo") . "</strong> ";
+                        ai4seo_echo_wp_kses($ai4seo_new_or_existing_filter_text);
+                        ai4seo_echo_wp_kses(" " . esc_html__("You can change this setting in the SEO Autopilot settings.", "ai-for-seo"));
+                    echo "</div>";
                 echo "</div>";
             }
 
-            // clear both
-            echo "<div class='ai4seo-clear-both' style='margin-top: 2rem;'></div>";
-
             if ($ai4seo_retry_all_failed_metadata_button_tags || $ai4seo_retry_all_failed_attachment_attributes_generations_link_tag) {
-                echo "<div class='ai4seo-buttons-wrapper ai4seo-dashboard-retry-all-failed-wrapper'>";
+                echo "<div class='ai4seo-buttons-wrapper ai4seo-dashboard-retry-all-failed-wrapper ai4seo-ignore-during-dashboard-refresh'>";
 
                     if ($ai4seo_retry_all_failed_metadata_button_tags) {
                         foreach ($ai4seo_retry_all_failed_metadata_button_tags as $ai4seo_this_retry_button_tag) {

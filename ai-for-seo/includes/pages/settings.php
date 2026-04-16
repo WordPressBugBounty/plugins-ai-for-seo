@@ -193,11 +193,11 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_active_post_author_ids = array_values(array_diff($ai4seo_available_post_author_ids, $ai4seo_disabled_post_author_ids));
 
         /* translators: %s: plugin name */
-        $ai4seo_this_setting_description = sprintf(esc_html__("Uncheck any author you want to exclude from %s post dashboards and metadata queues. Newly detected authors stay active by default.", "ai-for-seo"), esc_html(AI4SEO_PLUGIN_NAME));
+        $ai4seo_this_setting_description = esc_html__("Uncheck any author if you don’t want their posts to be included in the dashboard and the SEO Autopilot. Newly detected authors remain enabled by default.", "ai-for-seo");
 
-        echo "<hr class='ai4seo-form-item-divider ai4seo-is-advanced-setting'>";
+        echo "<hr class='ai4seo-form-item-divider'>";
 
-        echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
+        echo "<div class='ai4seo-form-item'>";
             echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
                 echo "<span class='ai4seo-green-bubble'>" . esc_html__("NEW", "ai-for-seo") . "</span> ";
                 echo esc_html__("Active Authors:", "ai-for-seo");
@@ -239,11 +239,11 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_supported_taxonomy_terms = ai4seo_get_supported_taxonomy_terms();
 
         /* translators: %s: plugin name */
-        $ai4seo_this_setting_description = sprintf(esc_html__("Uncheck any categories you want to exclude from %s content dashboards and metadata queues. Categories (taxonomy terms) are grouped by taxonomy, and newly detected entries stay active by default.", "ai-for-seo"), esc_html(AI4SEO_PLUGIN_NAME));
+        $ai4seo_this_setting_description = esc_html__("Uncheck any categories if you don’t want their content to be included in the dashboard and the SEO Autopilot. Categories (taxonomy terms) are grouped by taxonomy, and newly detected entries remain enabled by default.", "ai-for-seo");
 
-        echo "<hr class='ai4seo-form-item-divider ai4seo-is-advanced-setting'>";
+        echo "<hr class='ai4seo-form-item-divider'>";
 
-        echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
+        echo "<div class='ai4seo-form-item'>";
             echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
                 echo "<span class='ai4seo-green-bubble'>" . esc_html__("NEW", "ai-for-seo") . "</span> ";
                 echo esc_html__("Active Categories (taxonomy terms):", "ai-for-seo");
@@ -450,10 +450,10 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_metadata_placeholders_tooltip = __("<strong>Available placeholders</strong> (case-insensitive; supports {PLACEHOLDER}, [PLACEHOLDER], or %%placeholder%% formats):<br>WEBSITE_URL - Site URL.<br>WEBSITE_NAME - Site name.<br>POST_ID - Current entry ID.<br>TITLE - Current entry title.<br>PRODUCT_NAME - WooCommerce product title (products only).<br>PRODUCT_PRICE - WooCommerce product price (products only).<br><br>Placeholders are replaced automatically when meta tags are injected on the frontend.", "ai-for-seo");
 
         // Divider
-        echo "<hr class='ai4seo-form-item-divider'>";
+        echo "<hr class='ai4seo-form-item-divider ai4seo-is-advanced-setting'>";
 
         // Display form elements
-        echo "<div class='ai4seo-form-item'>";
+        echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
             echo "<label>";
                 echo esc_html__("Prefix / Suffix:", "ai-for-seo") ;
                 ai4seo_echo_wp_kses(ai4seo_get_icon_with_tooltip_tag($ai4seo_metadata_placeholders_tooltip));
@@ -762,10 +762,10 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_this_setting_description = __("Generate metadata for entries that already have complete metadata sets. Disable to only generate for entries missing at least one field. Note: Make sure to enable at least one field in 'Overwrite Existing Metadata' to see any effect.", "ai-for-seo");
 
         // Divider
-        echo "<hr class='ai4seo-form-item-divider ai4seo-is-advanced-setting'>";
+        echo "<hr class='ai4seo-form-item-divider'>";
 
         // Display form elements
-        echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
+        echo "<div class='ai4seo-form-item'>";
             echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
             echo esc_html__("SEO Autopilot: Include Complete Entries When Overwriting:", "ai-for-seo") ;
             echo "</label>";
@@ -928,12 +928,11 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_available_attachment_post_author_ids = array_map('intval', array_keys($ai4seo_available_attachment_post_authors));
         $ai4seo_active_attachment_post_author_ids = array_values(array_diff($ai4seo_available_attachment_post_author_ids, $ai4seo_disabled_attachment_post_author_ids));
 
-        /* translators: %s: plugin name */
-        $ai4seo_this_setting_description = sprintf(esc_html__("Uncheck any author whose media files you want to exclude from %s media dashboards and generation queues. Newly detected authors stay active by default.", "ai-for-seo"), esc_html(AI4SEO_PLUGIN_NAME));
+        $ai4seo_this_setting_description = esc_html__("Uncheck any author whose media files you want to exclude from the dashboard and the SEO Autopilot. Newly detected authors stay active by default.", "ai-for-seo");
 
-        echo "<hr class='ai4seo-form-item-divider ai4seo-is-advanced-setting'>";
+        echo "<hr class='ai4seo-form-item-divider'>";
 
-        echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
+        echo "<div class='ai4seo-form-item'>";
             echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
                 echo "<span class='ai4seo-green-bubble'>" . esc_html__("NEW", "ai-for-seo") . "</span> ";
                 echo esc_html__("Active Media Authors:", "ai-for-seo");
@@ -1024,10 +1023,10 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_attachment_placeholders_tooltip = __("<strong>Available placeholders</strong> (case-insensitive):<br>{WEBSITE_URL} - Site URL.<br>{WEBSITE_NAME} - Site name.<br>{FILE_NAME} - File name without extension.<br>{FILE_TYPE} - File extension.<br>{FILE_SIZE} - File size in kilobytes.<br>{IMAGE_DIMENSIONS} - Image width x height.<br><br>Placeholders are replaced when attributes are saved or injected into the frontend.", "ai-for-seo");
 
         // Divider
-        echo "<hr class='ai4seo-form-item-divider'>";
+        echo "<hr class='ai4seo-form-item-divider ai4seo-is-advanced-setting'>";
 
         // Display form elements
-        echo "<div class='ai4seo-form-item'>";
+        echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
             echo "<label>";
                 echo esc_html__("Prefix / Suffix:", "ai-for-seo") ;
                 ai4seo_echo_wp_kses(ai4seo_get_icon_with_tooltip_tag($ai4seo_attachment_placeholders_tooltip));
@@ -1063,86 +1062,6 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
                 echo "</p>";
             echo "</div>";
         echo "</div>";
-
-
-        // === AI4SEO_SETTING_OVERWRITE_EXISTING_ATTACHMENT_ATTRIBUTES ========================================================== \\
-
-        $ai4seo_this_setting_name = AI4SEO_SETTING_OVERWRITE_EXISTING_ATTACHMENT_ATTRIBUTES;
-        $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
-        $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
-        $ai4seo_this_setting_description = __("Overwrite existing media attributes when using SEO Autopilot. If disabled, only missing attributes will be generated.", "ai-for-seo");
-        $ai4seo_this_setting_description .= "<br><br>";
-        $ai4seo_this_setting_description .= __("<strong>WARNING:</strong> Permanently overwrites existing data. Backup recommended.", "ai-for-seo");
-
-        // Divider
-        echo "<hr class='ai4seo-form-item-divider'>";
-
-        // Display form elements
-        echo "<div class='ai4seo-form-item'>";
-            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-            echo esc_html__("SEO Autopilot: Overwrite Existing Media Attributes:", "ai-for-seo") ;
-            echo "</label>";
-
-            echo "<div class='ai4seo-form-item-input-wrapper'>";
-                // Define variable for the selected user-roles based on plugin-settings
-                $ai4seo_this_checked_values = ($ai4seo_this_setting_input_value && is_array($ai4seo_this_setting_input_value) ? $ai4seo_this_setting_input_value : array());
-
-                // add a select / un select all checkbox
-                ai4seo_echo_wp_kses(ai4seo_get_select_all_checkbox($ai4seo_this_setting_input_name));
-                echo "<div class='ai4seo-medium-gap'></div>";
-
-                // Loop through all available user-roles and display checkboxes for each of them
-                foreach (AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS as $ai4seo_attachment_attribute_name => $ai4seo_attachment_attribute_details) {
-                    $ai4seo_this_translated_checkbox_label = $ai4seo_attachment_attribute_details["name"] ?? $ai4seo_attachment_attribute_name;
-                    $ai4seo_this_checkbox_id = "{$ai4seo_this_setting_input_name}-{$ai4seo_attachment_attribute_name}";
-
-                    // Determine whether this role is supported
-                    $ai4seo_is_this_checkbox_checked = in_array($ai4seo_attachment_attribute_name, $ai4seo_this_checked_values);
-
-                    echo "<label for='" . esc_attr($ai4seo_this_checkbox_id) . "' class='ai4seo-form-multiple-inputs'>";
-                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "[]' value='" . esc_attr($ai4seo_attachment_attribute_name) . "'" . ($ai4seo_is_this_checkbox_checked ? " checked='checked'" : "") . "/> ";
-                    echo esc_html($ai4seo_this_translated_checkbox_label);
-
-                    echo "<br>";
-                    echo "</label>";
-                }
-
-                echo "<p class='ai4seo-form-item-description'>";
-                    ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
-
-
-        // === AI4SEO_SETTING_USE_EXISTING_ATTACHMENT_ATTRIBUTES_AS_REFERENCE ================================================ \\
-
-        echo "<hr class='ai4seo-form-item-divider'>";
-
-        $ai4seo_this_setting_name = AI4SEO_SETTING_USE_EXISTING_ATTACHMENT_ATTRIBUTES_AS_REFERENCE;
-        $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
-        $ai4seo_this_setting_input_value = (bool) ai4seo_get_setting($ai4seo_this_setting_name);
-        /* translators: %s: plugin name */
-        $ai4seo_this_setting_description = sprintf(esc_html__("Let %s include your existing media attributes (existing alt text, title, caption or description) as additional context for generation.", "ai-for-seo"), esc_html(AI4SEO_PLUGIN_NAME));
-
-
-        echo "<div class='ai4seo-form-item'>";
-            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                echo esc_html__("Use existing media attributes as reference", "ai-for-seo") . ":";
-            echo "</label>";
-
-            echo "<div class='ai4seo-form-item-input-wrapper'>";
-                echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' value='1' class='ai4seo-single-checkbox'" . ($ai4seo_this_setting_input_value ? " checked='checked'" : "") . " /> ";
-                    echo esc_html__("Use existing media attributes as reference", "ai-for-seo");
-                    echo "<br>";
-                echo "</label>";
-
-                echo "<p class='ai4seo-form-item-description'>";
-                    ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
-
 
         // === AI4SEO_SETTING_ENABLE_ENHANCED_ENTITY_RECOGNITION ============================================================ \\
 
@@ -1208,6 +1127,84 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
             echo "</div>";
         echo "</div>";
 
+        // === AI4SEO_SETTING_USE_EXISTING_ATTACHMENT_ATTRIBUTES_AS_REFERENCE ================================================ \\
+
+        echo "<hr class='ai4seo-form-item-divider'>";
+
+        $ai4seo_this_setting_name = AI4SEO_SETTING_USE_EXISTING_ATTACHMENT_ATTRIBUTES_AS_REFERENCE;
+        $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
+        $ai4seo_this_setting_input_value = (bool) ai4seo_get_setting($ai4seo_this_setting_name);
+        /* translators: %s: plugin name */
+        $ai4seo_this_setting_description = sprintf(esc_html__("Let %s include your existing media attributes (existing alt text, title, caption or description) as additional context for generation.", "ai-for-seo"), esc_html(AI4SEO_PLUGIN_NAME));
+
+
+        echo "<div class='ai4seo-form-item'>";
+            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
+                echo esc_html__("Use existing media attributes as reference", "ai-for-seo") . ":";
+            echo "</label>";
+
+            echo "<div class='ai4seo-form-item-input-wrapper'>";
+                echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
+                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' value='1' class='ai4seo-single-checkbox'" . ($ai4seo_this_setting_input_value ? " checked='checked'" : "") . " /> ";
+                    echo esc_html__("Use existing media attributes as reference", "ai-for-seo");
+                    echo "<br>";
+                echo "</label>";
+
+                echo "<p class='ai4seo-form-item-description'>";
+                    ai4seo_echo_wp_kses($ai4seo_this_setting_description);
+                echo "</p>";
+            echo "</div>";
+        echo "</div>";
+
+
+        // === AI4SEO_SETTING_OVERWRITE_EXISTING_ATTACHMENT_ATTRIBUTES ========================================================== \\
+
+        $ai4seo_this_setting_name = AI4SEO_SETTING_OVERWRITE_EXISTING_ATTACHMENT_ATTRIBUTES;
+        $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
+        $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
+        $ai4seo_this_setting_description = __("Overwrite existing media attributes when using SEO Autopilot. If disabled, only missing attributes will be generated.", "ai-for-seo");
+        $ai4seo_this_setting_description .= "<br><br>";
+        $ai4seo_this_setting_description .= __("<strong>WARNING:</strong> Permanently overwrites existing data. Backup recommended.", "ai-for-seo");
+
+        // Divider
+        echo "<hr class='ai4seo-form-item-divider'>";
+
+        // Display form elements
+        echo "<div class='ai4seo-form-item'>";
+            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
+            echo esc_html__("SEO Autopilot: Overwrite Existing Media Attributes:", "ai-for-seo") ;
+            echo "</label>";
+
+            echo "<div class='ai4seo-form-item-input-wrapper'>";
+                // Define variable for the selected user-roles based on plugin-settings
+                $ai4seo_this_checked_values = ($ai4seo_this_setting_input_value && is_array($ai4seo_this_setting_input_value) ? $ai4seo_this_setting_input_value : array());
+
+                // add a select / un select all checkbox
+                ai4seo_echo_wp_kses(ai4seo_get_select_all_checkbox($ai4seo_this_setting_input_name));
+                echo "<div class='ai4seo-medium-gap'></div>";
+
+                // Loop through all available user-roles and display checkboxes for each of them
+                foreach (AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS as $ai4seo_attachment_attribute_name => $ai4seo_attachment_attribute_details) {
+                    $ai4seo_this_translated_checkbox_label = $ai4seo_attachment_attribute_details["name"] ?? $ai4seo_attachment_attribute_name;
+                    $ai4seo_this_checkbox_id = "{$ai4seo_this_setting_input_name}-{$ai4seo_attachment_attribute_name}";
+
+                    // Determine whether this role is supported
+                    $ai4seo_is_this_checkbox_checked = in_array($ai4seo_attachment_attribute_name, $ai4seo_this_checked_values);
+
+                    echo "<label for='" . esc_attr($ai4seo_this_checkbox_id) . "' class='ai4seo-form-multiple-inputs'>";
+                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "[]' value='" . esc_attr($ai4seo_attachment_attribute_name) . "'" . ($ai4seo_is_this_checkbox_checked ? " checked='checked'" : "") . "/> ";
+                    echo esc_html($ai4seo_this_translated_checkbox_label);
+
+                    echo "<br>";
+                    echo "</label>";
+                }
+
+                echo "<p class='ai4seo-form-item-description'>";
+                    ai4seo_echo_wp_kses($ai4seo_this_setting_description);
+                echo "</p>";
+            echo "</div>";
+        echo "</div>";
+
 
         // === AI4SEO_SETTING_GENERATE_ATTACHMENT_ATTRIBUTES_FOR_FULLY_COVERED_ENTRIES =========================================== \\
 
@@ -1217,10 +1214,10 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_this_setting_description = __("Generate media attributes for entries that already have complete attribute sets. Disable to only generate for entries missing attributes. Note: Make sure to enable at least one attribute in 'Overwrite Existing Media Attributes' to see any effect.", "ai-for-seo");
 
         // Divider
-        echo "<hr class='ai4seo-form-item-divider ai4seo-is-advanced-setting'>";
+        echo "<hr class='ai4seo-form-item-divider'>";
 
         // Display form elements
-        echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
+        echo "<div class='ai4seo-form-item'>";
             echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
             echo esc_html__("SEO Autopilot: Include Complete Entries When Overwriting:", "ai-for-seo") ;
             echo "</label>";

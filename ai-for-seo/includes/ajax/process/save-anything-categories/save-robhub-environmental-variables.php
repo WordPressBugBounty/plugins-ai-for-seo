@@ -28,11 +28,18 @@ $ai4seo_old_api_password = ai4seo_robhub_api()->get_api_password();
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 $ai4seo_recent_robhub_environmental_variable_changes = array();
+$ai4seo_just_saved_api_credentials = array();
 
 foreach (ai4seo_robhub_api()::DEFAULT_ENVIRONMENTAL_VARIABLES as $ai4seo_this_robhub_environmental_variable_name => $ai4seo_this_default_robhub_environmental_variable_value) {
     // Check if $upcoming_save_anything_updates-entry exists for this robhub environmental variable
     if (!isset($upcoming_save_anything_updates[$ai4seo_this_robhub_environmental_variable_name])) {
         continue;
+    }
+
+    if ($ai4seo_this_robhub_environmental_variable_name == ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_API_USERNAME) {
+        $ai4seo_just_saved_api_credentials['username'] = $upcoming_save_anything_updates[$ai4seo_this_robhub_environmental_variable_name];
+    } else if ($ai4seo_this_robhub_environmental_variable_name == ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_API_PASSWORD) {
+        $ai4seo_just_saved_api_credentials['password'] = $upcoming_save_anything_updates[$ai4seo_this_robhub_environmental_variable_name];
     }
 
     $ai4seo_this_old_robhub_environmental_variable_value = ai4seo_robhub_api()->read_environmental_variable($ai4seo_this_robhub_environmental_variable_name);
@@ -102,27 +109,23 @@ if ( ! empty( $ai4seo_recent_robhub_environmental_variable_changes ) && is_array
 
 $ai4seo_robhub_api_username_key = ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_API_USERNAME;
 $ai4seo_robhub_api_password_key = ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_API_PASSWORD;
+$ai4seo_old_is_auth_locked = ai4seo_robhub_api()->is_auth_data_locked();
 
 if (isset($ai4seo_recent_robhub_environmental_variable_changes[$ai4seo_robhub_api_username_key]) || isset($ai4seo_recent_robhub_environmental_variable_changes[$ai4seo_robhub_api_password_key])) {
-    $ai4seo_new_api_username = $ai4seo_recent_robhub_environmental_variable_changes[$ai4seo_robhub_api_username_key][1] ?? $ai4seo_old_api_username;
-    $ai4seo_new_api_password = $ai4seo_recent_robhub_environmental_variable_changes[$ai4seo_robhub_api_password_key][1] ?? $ai4seo_old_api_password;
+    $ai4seo_new_api_username = $ai4seo_recent_robhub_environmental_variable_changes[$ai4seo_robhub_api_username_key][1] ?? $ai4seo_just_saved_api_credentials['username'] ?? $ai4seo_old_api_username;
+    $ai4seo_new_api_password = $ai4seo_recent_robhub_environmental_variable_changes[$ai4seo_robhub_api_password_key][1] ?? $ai4seo_just_saved_api_credentials['password'] ?? $ai4seo_old_api_password;
     $ai4seo_reset_robhub_account = false;
 
-    // inkonsistent data -> maybe one of the pair is empty, we copy the old value to the new one
-    if ($ai4seo_new_api_username && !$ai4seo_new_api_password) {
-        $ai4seo_new_api_password = $ai4seo_old_api_password;
-    } else if (!$ai4seo_new_api_username && $ai4seo_new_api_password) {
-        $ai4seo_new_api_username = $ai4seo_old_api_username;
-    }
-    
     // if we have new username or password, we need to test the new credentials
     if ($ai4seo_new_api_username && $ai4seo_new_api_password) {
+        // Temporarily lift the auth lock so the user can verify newly entered credentials.
+        ai4seo_robhub_api()->set_auth_data_locked(false);
         ai4seo_robhub_api()->use_this_credentials($ai4seo_new_api_username, $ai4seo_new_api_password);
 
         $ai4seo_robhub_api_response = ai4seo_robhub_api()->call("client/changed-api-user",
             array("old-api-username" => $ai4seo_old_api_username,
                 "new-api-username" => $ai4seo_new_api_username));
-        
+
         // check if the response is valid
         if (ai4seo_robhub_api()->was_call_successful($ai4seo_robhub_api_response)) {
             ai4seo_robhub_api()->reset_last_account_sync();
@@ -130,6 +133,11 @@ if (isset($ai4seo_recent_robhub_environmental_variable_changes[$ai4seo_robhub_ap
         } else {
             // we had good auth data before? -> revert changes
             if ($ai4seo_old_api_username && $ai4seo_old_api_password) {
+                // unlock the auth data if it was unlocked with old credentials
+                if (!$ai4seo_old_is_auth_locked) {
+                    ai4seo_robhub_api()->set_auth_data_locked(false);
+                }
+
                 ai4seo_robhub_api()->update_environmental_variable($ai4seo_robhub_api_username_key, $ai4seo_old_api_username);
                 ai4seo_robhub_api()->update_environmental_variable($ai4seo_robhub_api_password_key, $ai4seo_old_api_password);
                 ai4seo_robhub_api()->use_this_credentials($ai4seo_old_api_username, $ai4seo_old_api_password);
@@ -137,20 +145,29 @@ if (isset($ai4seo_recent_robhub_environmental_variable_changes[$ai4seo_robhub_ap
                 ai4seo_remove_all_notifications();
             } else {
                 // otherwise we start over with empty credentials
-                ai4seo_robhub_api()->invalidate_auth_data(true);
+                ai4seo_robhub_api()->invalidate_auth_data(false);
                 ai4seo_remove_all_notifications();
             }
 
-            ai4seo_send_ajax_error(esc_html__("Could not verify new credentials.", "ai-for-seo"), 391222324);
+            // build error message from response, if available
+            $ai4seo_api_response_error_message = $ai4seo_robhub_api_response['message'] ?? esc_html__("Please try to reconnect account", "ai-for-seo");
+            $ai4seo_ajax_error_message = sprintf(
+                /* translators: %s: API Error message. */
+                esc_html__('Could not verify new credentials: %s', 'ai-for-seo'),
+                $ai4seo_api_response_error_message
+            );
+
+            ai4seo_send_ajax_error($ai4seo_ajax_error_message, 391222324);
         }
 
-    // if we had old username or password, but now we have empty ones, we try to init a free account
+        // if we had old username or password, but now they were cleared
     } else if ($ai4seo_old_api_username || $ai4seo_old_api_password) {
-        // if the new username or password is empty, we try to init a free account
-        ai4seo_robhub_api()->invalidate_auth_data(true);
+        ai4seo_robhub_api()->invalidate_auth_data(false);
         ai4seo_remove_all_notifications();
     } else {
         // if we had no username or password before, we do nothing
         // this is the case when the user has not set any credentials before and just saved
     }
 }
+
+unset($ai4seo_just_saved_api_credentials);
