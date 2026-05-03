@@ -126,7 +126,7 @@ $ai4seo_robhub_api_call_parameters = array(
 );
 
 $ai4seo_robhub_api_call_parameters["trigger"] = "manual";
-$ai4seo_robhub_api_call_parameters["context"] = ai4seo_get_website_context();
+$ai4seo_robhub_api_call_parameters["website_context"] = ai4seo_get_website_context();
 $ai4seo_attachment_usage_context = ai4seo_get_attachment_post_related_context($ai4seo_this_attachment_post_id);
 
 if (!empty($ai4seo_attachment_usage_context)) {

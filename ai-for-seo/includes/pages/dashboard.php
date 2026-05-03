@@ -265,7 +265,7 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
                 echo "<div class='ai4seo-no-data-message ai4seo-dashboard-statistics-message-row ai4seo-red-message'>";
                     echo "<div class='ai4seo-dashboard-statistics-message-content ai4seo-red-message'>";
                         echo "<strong>" . esc_html__("Note:", "ai-for-seo") . "</strong> ";
-                        echo esc_html__("No data to display yet. Please review your settings. All entries may currently be excluded from analysis.", "ai-for-seo");
+                        echo esc_html__("No data to display yet. Please review your settings. It looks like all entries are currently excluded from analysis based on your configuration.", "ai-for-seo");
                     echo "</div>";
                 echo "</div>";
             }

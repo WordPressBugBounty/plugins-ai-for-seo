@@ -759,7 +759,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_this_setting_name = AI4SEO_SETTING_GENERATE_METADATA_FOR_FULLY_COVERED_ENTRIES;
         $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
         $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
-        $ai4seo_this_setting_description = __("Generate metadata for entries that already have complete metadata sets. Disable to only generate for entries missing at least one field. Note: Make sure to enable at least one field in 'Overwrite Existing Metadata' to see any effect.", "ai-for-seo");
+        $ai4seo_this_setting_description = __("Generate metadata for entries that already have a complete set of metadata. Disable this option to generate metadata only for entries with at least one missing field. Note: Enable at least one field under 'Overwrite Existing Metadata' for this setting to take effect.", "ai-for-seo");
 
         // Divider
         echo "<hr class='ai4seo-form-item-divider'>";
@@ -1211,7 +1211,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_this_setting_name = AI4SEO_SETTING_GENERATE_ATTACHMENT_ATTRIBUTES_FOR_FULLY_COVERED_ENTRIES;
         $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
         $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
-        $ai4seo_this_setting_description = __("Generate media attributes for entries that already have complete attribute sets. Disable to only generate for entries missing attributes. Note: Make sure to enable at least one attribute in 'Overwrite Existing Media Attributes' to see any effect.", "ai-for-seo");
+        $ai4seo_this_setting_description = __("Generate media attributes for entries that already have a complete set of attributes. Disable this option to generate media attributes only for entries with missing attributes. Note: Enable at least one attribute under 'Overwrite Existing Media Attributes' for this setting to take effect.", "ai-for-seo");
 
         // Divider
         echo "<hr class='ai4seo-form-item-divider'>";

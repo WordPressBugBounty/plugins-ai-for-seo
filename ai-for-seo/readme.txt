@@ -4,7 +4,7 @@ Contributors: spacecodes
 Donate link: https://spa.ce.codes
 Requires at least: 4.7
 Tested up to: 6.9
-Stable tag: 2.3.3
+Stable tag: 2.3.4
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -173,7 +173,7 @@ Yes, you can use *SOOZ - AI for SEO* on staging or local development sites.
 *SOOZ - AI for SEO* supports most editors and themes. For extra convenience, we've added dedicated “Generate with SOOZ” buttons in Elementor, BeTheme (Muffin-Builder / Be-Builder), and the standard editor. You can also generate metadata directly from the plugin dashboard, the metadata editor, or SEO Autopilot without using any page builder.
 
 = Can I link multiple sites and share credits/settings? =
-Yes. Enter the same license owner + key under *SOOZ - AI for SEO* > Account on each website to link them. Linked websites share the same credits pool, and you can export/import settings between them. Works with Multisite and staging.
+Yes. Enter the same license owner and key under *SOOZ - AI for SEO* > Account on each website to link them. Linked websites share the same credits pool, and you can export/import settings between them. Works with Multisite and staging.
 
 = I’m an agency with multiple client websites. How do I set things up? =
 1. We recommend setting up your agency *SOOZ - AI for SEO* account via a primary site (e.g., your agency site) and purchasing a subscription there. Alternatively, you can purchase directly on our website: https://sooz.ai/pricing
@@ -184,7 +184,7 @@ Yes. Enter the same license owner + key under *SOOZ - AI for SEO* > Account on e
 = Does *SOOZ - AI for SEO* collect or store my content? =
 *SOOZ - AI for SEO* sends only the text needed to generate metadata to our AI service. We don’t add tracking scripts to your site, and we don’t publish your content. You can review privacy options (generator hints, white-label, incognito) under *SOOZ - AI for SEO* > Account > Privacy & Agreements.
 
-= Can I control who can use *SOOZ - AI for SEO* in my WordPress? =
+= Can I control who can use *SOOZ - AI for SEO* in my WordPress backend? =
 Yes. In Settings, you can restrict access by user role. Agencies can also use Incognito and White-Label options in *SOOZ - AI for SEO* > Account.
 
 = Is AI-generated SEO-content harmful to my SEO-ranking? =
@@ -199,9 +199,14 @@ We are always open to suggestions and feedback. Please email us at [support@sooz
 
 == Changelog ==
 
+= 2.3.4 =
+* Improved "Generate with SOOZ" button behavior in Yoast SEO and Rank Math
+* Bug Fixes & Maintenance: Fixed 6 minor bugs and resolved 2 security issues.
+
 = 2.3.3 =
 * Better image usage detection for Elementor and BeTheme. To ensure this works properly, please enable the "Deep Search for Image Usage" setting.
 * Moved the "Active Authors", "Active Media Authors", and "Active Categories (taxonomy terms)" settings out of Advanced Settings so they are easier to find.
+* Moved the "SEO Autopilot: Include Complete Entries When Overwriting" settings for Metadata and Media Attributes out of Advanced Settings so they are easier to find.
 * Moved the metadata and media attribute "Prefix / Suffix" settings into Advanced Settings.
 * Added keyboard shortcuts for faster confirmations: Press Escape to close the active modal, or Enter to trigger the first primary button in the active modal or current page.
 

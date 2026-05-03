@@ -64,7 +64,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
 
     if (!empty($ai4seo_current_discount["voucher_code"])) {
         echo "<br>";
-        echo esc_html__("Enter this voucher code during checkout to apply the discount: ", "ai-for-seo") . "<br>";
+        echo esc_html__("Enter this voucher code during checkout to apply the discount:", "ai-for-seo") . "<br>";
         ai4seo_echo_wp_kses(ai4seo_get_voucher_code_output($ai4seo_current_discount["voucher_code"]));
     }
 
@@ -88,12 +88,12 @@ echo "<div class='ai4seo-modal-schema-content'>";
             $ai4seo_this_price_usd = floor(round($ai4seo_this_price_usd * 100, 1)) / 100;
 
             $ai4seo_cost_per_page = $ai4seo_metadata_credits_cost_per_post > 0 ? $ai4seo_this_price_usd / ($ai4seo_this_credits_amount / $ai4seo_metadata_credits_cost_per_post) : 0;
-            $ai4seo_cost_per_media_file = $ai4seo_attachment_attributes_credits_cost_per_attachment_post > 0 ? $ai4seo_this_price_usd / ($ai4seo_this_credits_amount / $ai4seo_attachment_attributes_credits_cost_per_attachment_post) : 0;
+            $ai4seo_cost_per_attachment = $ai4seo_attachment_attributes_credits_cost_per_attachment_post > 0 ? $ai4seo_this_price_usd / ($ai4seo_this_credits_amount / $ai4seo_attachment_attributes_credits_cost_per_attachment_post) : 0;
 
             if ($ai4seo_this_entry_is_pre_selected) {
                 $ai4seo_pre_selected_credits_pack_entry = $ai4seo_credits_pack_entry;
                 $ai4seo_pre_selected_credits_pack_entry["cost_per_page"] = $ai4seo_cost_per_page;
-                $ai4seo_pre_selected_credits_pack_entry["cost_per_media_file"] = $ai4seo_cost_per_media_file;
+                $ai4seo_pre_selected_credits_pack_entry["cost_per_attachment"] = $ai4seo_cost_per_attachment;
                 $ai4seo_pre_selected_credits_pack_entry["credits_amount"] = $ai4seo_this_credits_amount;
             }
 
@@ -104,7 +104,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
                 echo "</div>";
             }
 
-            echo "<div class='ai4seo-credits-pack-selection-item" . ($ai4seo_this_entry_is_pre_selected ? " ai4seo-credits-pack-selection-item-selected ai4seo-credits-pack-selection-item-most-popular" : "") . "' onclick='ai4seo_handle_credits_pack_selection(this);' data-credits-amount='" . esc_attr($ai4seo_this_credits_amount) . "' data-price='" . esc_attr($ai4seo_this_price_usd) . "' data-currency='" . esc_attr($ai4seo_preferred_currency) . "' data-cost-per-page='" . esc_attr(number_format_i18n($ai4seo_cost_per_page, 2)) . "' data-cost-per-media-file='" . esc_attr(number_format_i18n($ai4seo_cost_per_media_file, 2)) . "'>";
+            echo "<div class='ai4seo-credits-pack-selection-item" . ($ai4seo_this_entry_is_pre_selected ? " ai4seo-credits-pack-selection-item-selected ai4seo-credits-pack-selection-item-most-popular" : "") . "' onclick='ai4seo_handle_credits_pack_selection(this);' data-credits-amount='" . esc_attr($ai4seo_this_credits_amount) . "' data-price='" . esc_attr($ai4seo_this_price_usd) . "' data-currency='" . esc_attr($ai4seo_preferred_currency) . "' data-cost-per-page='" . esc_attr(number_format_i18n($ai4seo_cost_per_page, 2)) . "' data-cost-per-attachment='" . esc_attr(number_format_i18n($ai4seo_cost_per_attachment, 2)) . "'>";
 
                 echo "<div class='ai4seo-credits-pack-selection-item-left-side'>";
 
@@ -166,7 +166,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
             echo "<div class='ai4seo-tiny-gap'></div>";
 
             // you're interested in larger Credits Packs? Contact us!
-            echo "<div style='margin-top: 30px; margin-bottom: 10px; padding: 10px 0; border: 2px dashed #ccc; border-radius: 10px; background-color: #fafafa; text-align: center; font-size: large;'>";
+            echo "<div style='margin-top: 30px; margin-bottom: 10px; padding: 10px; border: 2px dashed #ccc; border-radius: 10px; background-color: #fafafa; text-align: center; font-size: large;'>";
                 echo sprintf(
                     /* translators: %1$s is the discount info, %2$s is the opening anchor tag, %3$s is the closing anchor tag */
                     esc_html__('Managing 2,000+ posts, products or images? Get a tailored enterprise plan with up to %1$s. %2$sRequest a custom plan%3$s', "ai-for-seo"),
@@ -197,8 +197,8 @@ echo "<div class='ai4seo-modal-schema-content'>";
                 echo sprintf(
                     /* translators: %s is the cost per media file */
                     esc_html__("Based on your current settings, generating media attributes for each image will cost approximately %s.", "ai-for-seo"),
-                    "<strong class='ai4seo-credits-pack-cost-per-media-file'>" . esc_html($ai4seo_preferred_currency) . " "
-                    . esc_html(number_format_i18n($ai4seo_pre_selected_credits_pack_entry["cost_per_media_file"] ?? 0, 2)) . "</strong>"
+                    "<strong class='ai4seo-credits-pack-cost-per-attachment'>" . esc_html($ai4seo_preferred_currency) . " "
+                    . esc_html(number_format_i18n($ai4seo_pre_selected_credits_pack_entry["cost_per_attachment"] ?? 0, 2)) . "</strong>"
                 );
             echo "</li>";
         echo "</ol>";

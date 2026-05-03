@@ -33,7 +33,9 @@ class Ai4Seo_RobHubApiCommunicator {
         591716925, # could not send email (send-licence-data)
         41228125, # Please log in using the license data provided (get-free-account)
         25164525, # error while downloading file from url / http status code != 200
-        916101025, # invalid credentials: invalid api username
+        2113111223, # missing or corrupt auth credentials
+        916101025, # invalid credentials: client not found / access denied
+        461723823, # invalid credentials: auth user is missing
         351816823, # invalid credentials: invalid api password
         431319725, # invalid credentials: access denied
         3619101024, # inappropriate content detected
@@ -45,7 +47,8 @@ class Ai4Seo_RobHubApiCommunicator {
 
     public array $invalidate_auth_data_error_codes = array(
         41228125,  # Please log in using the license data provided (get-free-account)
-        916101025, # invalid credentials: invalid api username
+        916101025, # invalid credentials: client not found / access denied
+        461723823, # invalid credentials: auth user is missing
         351816823, # invalid credentials: invalid api password
         431319725, # invalid credentials: access denied
         218101024, # blocked from using the service
@@ -58,6 +61,7 @@ class Ai4Seo_RobHubApiCommunicator {
         201313823, # endpoint not allowed
         211313823, # request method not allowed
         2113111223,# missing or corrupt auth credentials
+        251118426, # could not initialize credentials
         521561224, # endpoint locked
         2313111223, # TypeError while making API call
         2413111223, # Exception while making API call
@@ -228,15 +232,37 @@ class Ai4Seo_RobHubApiCommunicator {
 
         $api_call_checksum = $this->prepare_call( $endpoint, $parameters, $request_method, $fallback_to_public_client_operation_credentials );
 
+        // on error
         if ( ! is_numeric( $api_call_checksum ) ) {
             return $api_call_checksum;
         }
 
-        // build URL (without query string)
-        $api_url = $this->build_api_url( $endpoint );
+        // build arguments
+        $api_arguments = $this->build_api_arguments( $parameters, $request_method, $endpoint, $fallback_to_public_client_operation_credentials );
+
+        // on error
+        if (is_array($api_arguments) && isset($api_arguments['success']) && $api_arguments['success'] === false) {
+            return $api_arguments;
+        }
+
+        // Fail closed: if client-specific credentials are unexpectedly empty here, do not send
+        // a malformed Authorization header that the API would interpret as missing auth data.
+        if ( ! $fallback_to_public_client_operation_credentials
+            && ( $this->api_username === '' || $this->api_password === '' ) ) {
+            ai4seo_debug_message(219543188, 'Aborted API call because credentials are empty after prepare_call().', true);
+            return $this->respond_error( 'Missing or corrupt auth credentials.', 2113111223 );
+        }
 
         // build arguments
         $api_arguments = $this->build_api_arguments( $parameters, $request_method, $endpoint, $fallback_to_public_client_operation_credentials );
+
+        // build URL (without query string)
+        $api_url = $this->build_api_url( $endpoint );
+
+        // on error
+        if (is_array($api_url) && isset($api_url['success']) && $api_url['success'] === false) {
+            return $api_url;
+        }
 
         // retry configuration
         $attempt      = 0;
@@ -390,7 +416,7 @@ class Ai4Seo_RobHubApiCommunicator {
 
             if (!$this->was_call_successful($api_response)) {
                 $api_response_error_message = $api_response['message'] ?? esc_html__("Please try to reconnect account", "ai-for-seo");
-                return $this->respond_error("Could not initialize credentials: $api_response_error_message", 2113111223);
+                return $this->respond_error("Could not initialize credentials: $api_response_error_message", 251118426);
             }
         }
 
@@ -451,11 +477,19 @@ class Ai4Seo_RobHubApiCommunicator {
         $api_password = $this->api_password;
 
         if ($fallback_to_public_client_operation_credentials) {
-            if (!$this->check_credentials()) {
-                $random_api_username = $this->generate_random_pseudo_api_username();
-                $api_username = $this->build_api_username($random_api_username);
+            if ((!$api_username || !$api_password) && $this->check_credentials()) {
+                $api_username = $this->api_username;
+                $api_password = $this->api_password;
+            }
+
+            if (!$api_username || !$api_password) {
+                $api_username = $this->generate_random_pseudo_api_username();
                 $api_password = $this->public_client_operations_api_password;
             }
+        }
+
+        if (!$api_username || !$api_password) {
+            return $this->respond_error("API credentials are missing. Please connect your account first.", 172125426);
         }
 
         // prepare headers
@@ -879,23 +913,7 @@ class Ai4Seo_RobHubApiCommunicator {
             return array();
         }
 
-        $site_url = sanitize_text_field(get_site_url());
-        $website_name = sanitize_text_field(get_bloginfo("name"));
-        $admin_email = sanitize_email(ai4seo_get_option("admin_email"));
-        $client_ip = ai4seo_get_client_ip();
-        $server_ip = ai4seo_get_server_ip();
-        $user_agent = ai4seo_get_client_user_agent();
-
-        $parameters = array(
-            "product_activation_time" => $this->product_activation_time,
-            "users_current_time" => time(),
-            "website_url" => $site_url,
-            "website_name" => $website_name,
-            "admin_email_address" => $admin_email,
-            "client_ip_address" => $client_ip,
-            "server_ip_address" => $server_ip,
-            "user_agent" => $user_agent,
-        );
+        $parameters = $this->build_client_context_parameters();
 
         // retrieve our real credentials
         $response = $this->call("client/get-free-account", $parameters);
@@ -918,6 +936,51 @@ class Ai4Seo_RobHubApiCommunicator {
 
         // everything went fine
         return $response;
+    }
+
+    // =========================================================================================== \\
+
+    /**
+     * Build shared client context parameters for account-related API calls.
+     *
+     * @return array Client context parameters.
+     */
+    function build_client_context_parameters(): array {
+        return array(
+            "product_activation_time" => $this->product_activation_time,
+            "users_current_time" => time(),
+            "website_url" => sanitize_text_field(get_site_url()),
+            "website_name" => sanitize_text_field(get_bloginfo("name")),
+            "admin_email_address" => sanitize_email(ai4seo_get_option("admin_email")),
+            "client_ip_address" => ai4seo_get_client_ip(),
+            "server_ip_address" => ai4seo_get_server_ip(),
+            "user_agent" => ai4seo_get_client_user_agent(),
+        );
+    }
+
+    // =========================================================================================== \\
+
+    /**
+     * Build AI4SEO opportunity report parameters for account sync.
+     *
+     * @return array Sync report parameters.
+     */
+    function build_client_sync_report_parameters(): array {
+        $generation_status_summary = ai4seo_read_generation_status_summary(true, true);
+        $enabled_bulk_generation_post_types = ai4seo_get_setting(AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES) ?: array();
+
+        if (!is_array($enabled_bulk_generation_post_types)) {
+            $enabled_bulk_generation_post_types = array();
+        }
+
+        $enabled_bulk_generation_post_types = array_values(array_unique(array_map('sanitize_key', $enabled_bulk_generation_post_types)));
+
+        return array(
+            "generation_status_summary" => $generation_status_summary,
+            "costs_per_post" => ai4seo_calculate_metadata_credits_cost_per_post(),
+            "costs_per_attachment" => ai4seo_calculate_attachment_attributes_credits_cost_per_attachment_post(),
+            "enabled_bulk_generation_post_types" => $enabled_bulk_generation_post_types,
+        );
     }
 
     // =========================================================================================== \\
@@ -1088,7 +1151,14 @@ class Ai4Seo_RobHubApiCommunicator {
      */
     function sync_account(string $sync_reason = "unknown"): array {
         $sync_reason = sanitize_key($sync_reason);
-        $api_response = self::call("client/sync", ["reason" => $sync_reason]);
+        $parameters = array_merge(
+            array(
+                "reason" => $sync_reason,
+            ),
+            $this->build_client_context_parameters(),
+            $this->build_client_sync_report_parameters()
+        );
+        $api_response = self::call("client/sync", $parameters);
 
         // Interpret response & check data payload
         if (!self::was_call_successful($api_response) || !isset($api_response["data"]) || !is_array($api_response["data"]) || !$api_response["data"]) {
@@ -1514,7 +1584,7 @@ class Ai4Seo_RobHubApiCommunicator {
         $this->environmental_variables = $current_environmental_variables;
 
         // Save updated environmental variables to database
-        return ai4seo_update_option($this->environmental_variables_option_name, $current_environmental_variables);
+        return ai4seo_update_option($this->environmental_variables_option_name, $current_environmental_variables, false);
     }
 
     // =========================================================================================== \\
@@ -1592,7 +1662,7 @@ class Ai4Seo_RobHubApiCommunicator {
         $this->environmental_variables = $current_environmental_variables;
 
         // Persist once.
-        $did_update = ai4seo_update_option( $this->environmental_variables_option_name, $current_environmental_variables );
+        $did_update = ai4seo_update_option( $this->environmental_variables_option_name, $current_environmental_variables, false );
 
         if ( ! $did_update ) {
             $result['success'] = false;
@@ -1631,7 +1701,7 @@ class Ai4Seo_RobHubApiCommunicator {
         $this->environmental_variables = $current_environmental_variables;
 
         // Save updated environmental variables to database
-        return ai4seo_update_option($this->environmental_variables_option_name, $current_environmental_variables);
+        return ai4seo_update_option($this->environmental_variables_option_name, $current_environmental_variables, false);
     }
 
     // =========================================================================================== \\

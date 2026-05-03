@@ -90,7 +90,12 @@ if (!$ai4seo_post_content) {
     $ai4seo_post_content = ai4seo_get_condensed_post_content_from_database($ai4seo_post_id);
 }
 
-ai4seo_add_post_context($ai4seo_post_id, $ai4seo_post_content);
+$ai4seo_post_context = $ai4seo_post_content;
+ai4seo_add_post_context($ai4seo_post_id, $ai4seo_post_context, false, false);
+
+if (!$ai4seo_post_content && $ai4seo_post_context) {
+    $ai4seo_post_content = $ai4seo_post_context;
+}
 
 // check if content is too large (should never happen as we already condensed the content)
 if (ai4seo_mb_strlen($ai4seo_post_content) > AI4SEO_MAX_TOTAL_CONTENT_SIZE) {
@@ -99,6 +104,7 @@ if (ai4seo_mb_strlen($ai4seo_post_content) > AI4SEO_MAX_TOTAL_CONTENT_SIZE) {
 
 
 $ai4seo_post_content = sanitize_text_field($ai4seo_post_content);
+$ai4seo_post_context = sanitize_text_field($ai4seo_post_context);
 
 // check for a key phrase
 $ai4seo_keyphrase = sanitize_text_field(ai4seo_get_any_third_party_seo_plugin_keyphrase($ai4seo_post_id));
@@ -119,7 +125,8 @@ if ($ai4seo_keyphrase) {
 }
 
 $ai4seo_robhub_api_call_parameters["trigger"] = "manual";
-$ai4seo_robhub_api_call_parameters["context"] = ai4seo_get_website_context();
+$ai4seo_robhub_api_call_parameters["website_context"] = ai4seo_get_website_context();
+$ai4seo_robhub_api_call_parameters["post_context"] = $ai4seo_post_context;
 
 // url
 $ai4seo_post_permalink = get_permalink($ai4seo_post_id);

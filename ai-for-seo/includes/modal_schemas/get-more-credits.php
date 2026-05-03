@@ -51,6 +51,7 @@ $ai4seo_robhub_credits_balance = ai4seo_robhub_api()->get_credits_balance();
 
 $ai4seo_is_payg_enabled = (bool) ai4seo_get_setting(AI4SEO_SETTING_PAYG_ENABLED);
 $ai4seo_payg_status = ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_STATUS);
+$ai4seo_payg_failure_reason = ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_FAILURE_REASON);
 $ai4seo_has_purchased_something = (bool) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_HAS_PURCHASED_SOMETHING);
 
 $ai4seo_api_username = ai4seo_robhub_api()->get_api_username();
@@ -302,12 +303,38 @@ echo "</div>";
                             echo "<strong>" . esc_html__("Payment pending.", "ai-for-seo") . "</strong> ";
                             echo esc_html__("The refill will complete once the payment is confirmed. If it takes longer than an hour, check your payment method or contact support", "ai-for-seo") . " ";
                         echo "</p>";
+                    } else if ($ai4seo_payg_status == 'payment-method-failed') {
+                            echo "<span class='ai4seo-red-message'>";
+                                ai4seo_echo_wp_kses(ai4seo_get_svg_tag("triangle-exclamation", "", "ai4seo-red-icon"));
+                                echo " ";
+                                echo "<strong>" . esc_html__("Saved payment method failed.", "ai-for-seo") . "</strong> ";
+
+                                if ($ai4seo_payg_failure_reason == 'payment-method-expired') {
+                                    echo esc_html__("Your saved payment method appears to be expired.", "ai-for-seo") . " ";
+                                } else if ($ai4seo_payg_failure_reason == 'payment-method-currency-mismatch') {
+                                    echo esc_html__("Your saved payment method is not available for the required billing currency.", "ai-for-seo") . " ";
+                                } else if ($ai4seo_payg_failure_reason == 'payment-method-not-off-session-capable') {
+                                    echo esc_html__("Your saved payment method does not support automatic off-session charges.", "ai-for-seo") . " ";
+                                } else if ($ai4seo_payg_failure_reason == 'no-payment-method') {
+                                    echo esc_html__("No saved payment method is currently available for automatic refills.", "ai-for-seo") . " ";
+                                } else {
+                                    echo esc_html__("Your saved payment method could not be used for the automatic refill.", "ai-for-seo") . " ";
+                                }
+
+                                echo esc_html__("The fastest way to continue immediately is to manually purchase a Credits Pack. This will fix most payment-method-related errors.", "ai-for-seo") . " ";
+                            echo "</span>";
                     } else if ($ai4seo_payg_status == 'payment-failed') {
                             echo "<span class='ai4seo-red-message'>";
                                 ai4seo_echo_wp_kses(ai4seo_get_svg_tag("triangle-exclamation", "", "ai4seo-red-icon"));
                                 echo " ";
                                 echo "<strong>" . esc_html__("Refill failed.", "ai-for-seo") . "</strong> ";
-                                echo esc_html__("Please check your payment method and try again.", "ai-for-seo") . " ";
+                                if ($ai4seo_payg_failure_reason == 'payment-timeout') {
+                                    echo esc_html__("The payment confirmation took too long to arrive.", "ai-for-seo") . " ";
+                                } else {
+                                    echo esc_html__("The payment could not be completed.", "ai-for-seo") . " ";
+                                }
+
+                                echo esc_html__("The fastest way to continue immediately is to manually purchase a Credits Pack. This will fix most payment-method-related errors.", "ai-for-seo") . " ";
                             echo "</span>";
                     } else if ($ai4seo_payg_status == 'error') {
                             echo "<span class='ai4seo-red-message'>";

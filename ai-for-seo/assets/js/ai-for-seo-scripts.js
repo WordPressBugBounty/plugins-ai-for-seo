@@ -66,17 +66,17 @@ const ai4seo_generate_data_for_inputs = {
     '#yoast-google-preview-description-metabox > div > div > div': {'add_generate_button': true, 'metadata_identifier': 'meta-description', 'key_by_key': true, 'processing-context': 'metadata', 'use_exec_command_workaround': true},
     '#yoast_wpseo_metadesc': {'add_generate_button': false, 'metadata_identifier': 'meta-description', 'key_by_key': false, 'processing-context': 'metadata', 'use_exec_command_workaround': true},
 
-    '#facebook-title-input-metabox > div > div > div': {'add_generate_button': true, 'metadata_identifier': 'facebook-title', 'key_by_key': false, 'processing-context': 'metadata', 'use_exec_command_workaround': true},
-    '#facebook-description-input-metabox > div > div > div': {'add_generate_button': true, 'metadata_identifier': 'facebook-description', 'key_by_key': false, 'processing-context': 'metadata', 'use_exec_command_workaround': true},
+    '#facebook-title-input-metabox': {'add_generate_button': true, 'metadata_identifier': 'facebook-title', 'key_by_key': false, 'processing-context': 'metadata', 'use_exec_command_workaround': true},
+    '#facebook-description-input-metabox': {'add_generate_button': true, 'metadata_identifier': 'facebook-description', 'key_by_key': false, 'processing-context': 'metadata', 'use_exec_command_workaround': true},
     '#yoast_wpseo_opengraph-description': {'add_generate_button': false, 'metadata_identifier': 'facebook-description', 'key_by_key': false, 'processing-context': 'metadata', 'use_exec_command_workaround': true},
-    '#social-title-input-metabox > div > div > div': {'add_generate_button': true, 'metadata_identifier': 'facebook-title', 'key_by_key': false, 'processing-context': 'metadata', 'use_exec_command_workaround': true},
-    '#social-description-input-metabox > div > div > div': {'add_generate_button': true, 'metadata_identifier': 'facebook-description', 'key_by_key': false, 'processing-context': 'metadata', 'use_exec_command_workaround': true},
+    '#social-title-input-metabox': {'add_generate_button': true, 'metadata_identifier': 'facebook-title', 'key_by_key': false, 'processing-context': 'metadata', 'use_exec_command_workaround': true},
+    '#social-description-input-metabox': {'add_generate_button': true, 'metadata_identifier': 'facebook-description', 'key_by_key': false, 'processing-context': 'metadata', 'use_exec_command_workaround': true},
 
-    '#twitter-title-input-metabox > div > div > div': {'add_generate_button': true, 'metadata_identifier': 'twitter-title', 'key_by_key': false, 'processing-context': 'metadata', 'use_exec_command_workaround': true},
-    '#twitter-description-input-metabox > div > div > div': {'add_generate_button': true, 'metadata_identifier': 'twitter-description', 'key_by_key': false, 'processing-context': 'metadata', 'use_exec_command_workaround': true},
+    '#twitter-title-input-metabox': {'add_generate_button': true, 'metadata_identifier': 'twitter-title', 'key_by_key': false, 'processing-context': 'metadata', 'use_exec_command_workaround': true},
+    '#twitter-description-input-metabox': {'add_generate_button': true, 'metadata_identifier': 'twitter-description', 'key_by_key': false, 'processing-context': 'metadata', 'use_exec_command_workaround': true},
     '#yoast_wpseo_twitter-description': {'add_generate_button': false, 'metadata_identifier': 'twitter-description', 'key_by_key': false, 'processing-context': 'metadata', 'use_exec_command_workaround': true},
-    '#x-title-input-metabox > div > div > div': {'add_generate_button': true, 'metadata_identifier': 'twitter-title', 'key_by_key': false, 'processing-context': 'metadata', 'use_exec_command_workaround': true},
-    '#x-description-input-metabox > div > div > div': {'add_generate_button': true, 'metadata_identifier': 'twitter-description', 'key_by_key': false, 'processing-context': 'metadata', 'use_exec_command_workaround': true},
+    '#x-title-input-metabox': {'add_generate_button': true, 'metadata_identifier': 'twitter-title', 'key_by_key': false, 'processing-context': 'metadata', 'use_exec_command_workaround': true},
+    '#x-description-input-metabox': {'add_generate_button': true, 'metadata_identifier': 'twitter-description', 'key_by_key': false, 'processing-context': 'metadata', 'use_exec_command_workaround': true},
 
     '#yoast-google-preview-title-modal > div > div > div': {'add_generate_button': true, 'metadata_identifier': 'meta-title', 'key_by_key': true, 'processing-context': 'metadata', 'use_exec_command_workaround': true},
     '#yoast-google-preview-description-modal > div > div > div': {'add_generate_button': true, 'metadata_identifier': 'meta-description', 'key_by_key': true, 'processing-context': 'metadata', 'use_exec_command_workaround': true},
@@ -175,6 +175,9 @@ const ai4seo_error_codes_and_messages = {
     '291215624': wp.i18n.__('SOOZ - AI for SEO server call returned an invalid data array. Please try again.', 'ai-for-seo'),
     '301215624': wp.i18n.__('SOOZ - AI for SEO server call returned an invalid data array. Please try again.', 'ai-for-seo'),
     '311215624': wp.i18n.__('SOOZ - AI for SEO server call returned an invalid data array. Please try again.', 'ai-for-seo'),
+    '2113111223': wp.i18n.__('Could not initialize SOOZ - AI for SEO server credentials. Please check your settings or contact the plugin developer.', 'ai-for-seo'),
+    '251118426': wp.i18n.__('Could not initialize SOOZ - AI for SEO server credentials. Please check your settings or contact the plugin developer.', 'ai-for-seo'),
+    '581715426': wp.i18n.__('Could not initialize SOOZ - AI for SEO server credentials. Please check your settings or contact the plugin developer.', 'ai-for-seo'),
     '1115424': wp.i18n.__('Your SOOZ - AI for SEO account does not contain sufficient Credits. Please add more Credits to your account.', 'ai-for-seo'),
     '1215424': wp.i18n.__('Your SOOZ - AI for SEO account does not contain sufficient Credits. Please add more Credits to your account.', 'ai-for-seo'),
     "3619101024": wp.i18n.__('This content violates our usage policies and cannot be processed. Please modify your content and try again.', 'ai-for-seo'),
@@ -183,6 +186,10 @@ const ai4seo_error_codes_and_messages = {
 const ai4seo_robhub_api_response_error_codes = [32127323, 18197323, 311823824];
 
 const ai4seo_robhub_api_response_error_codes_and_messages = {
+    'client not found / access denied': wp.i18n.__('Could not initialize SOOZ - AI for SEO server credentials. Please check your settings or contact the plugin developer.', 'ai-for-seo'),
+    'invalid credentials: invalid api username': wp.i18n.__('Could not initialize SOOZ - AI for SEO server credentials. Please check your settings or contact the plugin developer.', 'ai-for-seo'),
+    'invalid credentials: invalid api password': wp.i18n.__('Could not initialize SOOZ - AI for SEO server credentials. Please check your settings or contact the plugin developer.', 'ai-for-seo'),
+    'invalid credentials: access denied': wp.i18n.__('Could not initialize SOOZ - AI for SEO server credentials. Please check your settings or contact the plugin developer.', 'ai-for-seo'),
     'client secret is invalid. Api-Error-Code: 351816823': wp.i18n.__('Could not initialize SOOZ - AI for SEO server credentials. Please check your settings or contact the plugin developer.', 'ai-for-seo'),
     'client is not active. Api-Error-Code: 361816823': wp.i18n.__('Could not initialize SOOZ - AI for SEO server credentials. Please check your settings or contact the plugin developer.', 'ai-for-seo'),
     'could not create client. Api-Error-Code: 571931823': wp.i18n.__('Could not initialize SOOZ - AI for SEO server credentials. Please check your settings or contact the plugin developer.', 'ai-for-seo'),
@@ -3180,6 +3187,38 @@ function ai4seo_is_yoast_element($yoast_candidate) {
 
 // =========================================================================================== \\
 
+function ai4seo_is_yoast_selector(selector) {
+    if (!selector || typeof selector !== 'string') {
+        return false;
+    }
+
+    const yoast_selector_indicators = [
+        'yoast',
+        'wpseo',
+        'focus-keyword-input-metabox',
+        'facebook-title-input-metabox',
+        'facebook-description-input-metabox',
+        'social-title-input-metabox',
+        'social-description-input-metabox',
+        'twitter-title-input-metabox',
+        'twitter-description-input-metabox',
+        'x-title-input-metabox',
+        'x-description-input-metabox',
+        'facebook-title-input-modal',
+        'facebook-description-input-modal',
+        'twitter-title-input-modal',
+        'twitter-description-input-modal',
+        'x-title-input-modal',
+        'x-description-input-modal',
+    ];
+
+    return yoast_selector_indicators.some(function(indicator) {
+        return selector.indexOf(indicator) !== -1;
+    });
+}
+
+// =========================================================================================== \\
+
 function ai4seo_console_debug(...args) {
     try {
         if (ai4seo_output_console_debug === true) {
@@ -3665,24 +3704,19 @@ function ai4seo_fill_text( generate_data_for_input_selector, generated_data, gen
     }
 
     const is_yoast = ai4seo_is_yoast_element($generate_data_for_input);
+    const is_yoast_related = is_yoast || ai4seo_is_yoast_selector(generate_data_for_input_selector);
     const use_exec_command_workaround = (typeof generate_data_for_input_details.use_exec_command_workaround !== 'undefined' && generate_data_for_input_details.use_exec_command_workaround === true);
 
-    if ($generate_data_for_input.is('input')) {
-        $generate_data_for_input.val(generated_data).keypress().keyup().change();
+    if (is_yoast_related) {
+        ai4seo_set_yoast_input_content(generate_data_for_input_selector, generated_data, generate_data_for_input_details);
+    } else if ($generate_data_for_input.is('input')) {
+        ai4seo_fill_input_without_exec_command($generate_data_for_input, generated_data);
     } else if ($generate_data_for_input.is('textarea')) {
-        $generate_data_for_input.val(generated_data).keypress().keyup().change();
-    } else if (is_yoast && ($generate_data_for_input.is('div') || $generate_data_for_input.is('span') || $generate_data_for_input.is('p'))) {
-        const text_length = $generate_data_for_input.text().length;
-
-        if (generate_data_for_input_details.key_by_key && text_length > 0) {
-            ai4seo_add_text_to_yoast_editor_key_by_key($generate_data_for_input, generated_data);
-        } else {
-            ai4seo_set_yoast_input_content($generate_data_for_input, generated_data);
-        }
+        ai4seo_fill_input_without_exec_command($generate_data_for_input, generated_data);
     }
 
     // workaround for some inputs to trigger change event properly
-    if (use_exec_command_workaround) {
+    if (use_exec_command_workaround && !is_yoast_related) {
         $generate_data_for_input.focus();
         document.execCommand('insertText', false, '.');
         document.execCommand('delete');
@@ -3699,6 +3733,35 @@ function ai4seo_fill_text( generate_data_for_input_selector, generated_data, gen
     /*if (typeof generate_data_for_input_details.metadata_identifier !== 'undefined' && generate_data_for_input_details.metadata_identifier) {
         ai4seo_set_rank_math_serp_data(generate_data_for_input_details.metadata_identifier, generated_data);
     }*/
+}
+
+// =========================================================================================== \\
+
+function ai4seo_fill_input_without_exec_command($input, value) {
+    $input = ai4seo_normalize_$($input);
+
+    if (!ai4seo_exists_$($input)) {
+        console.error(ai4seo_get_plugin_name() + ': element \"$input\" missing in ai4seo_fill_input_without_exec_command() \u2014 cannot update input.');
+        return false;
+    }
+
+    $input.val(value);
+
+    const input_element = $input.get(0);
+
+    if (input_element) {
+        input_element.value = value;
+
+        ['input', 'change', 'keyup'].forEach(function(event_name) {
+            input_element.dispatchEvent(new Event(event_name, {bubbles: true}));
+        });
+    }
+
+    $input.triggerHandler('input');
+    $input.triggerHandler('keyup');
+    $input.triggerHandler('change');
+
+    return true;
 }
 
 // =========================================================================================== \\
@@ -3781,114 +3844,122 @@ function ai4seo_try_refresh_yoast_progress_bar( $input ) {
 
 // =========================================================================================== \\
 
-function ai4seo_set_yoast_input_content( $input, value ) {
-    $input = ai4seo_normalize_$($input);
+function ai4seo_get_yoast_backing_input_selector(metadata_identifier) {
+    const yoast_backing_input_selectors = {
+        'focus-keyphrase': '#yoast_wpseo_focuskw',
+        'meta-title': '#yoast_wpseo_title',
+        'meta-description': '#yoast_wpseo_metadesc',
+        'facebook-title': '#yoast_wpseo_opengraph-title',
+        'facebook-description': '#yoast_wpseo_opengraph-description',
+        'twitter-title': '#yoast_wpseo_twitter-title',
+        'twitter-description': '#yoast_wpseo_twitter-description',
+    };
 
-    if (!ai4seo_exists_$($input)) {
-        console.error(ai4seo_get_plugin_name() + ': element \"$input\" missing in ai4seo_set_yoast_input_content() \u2014 cannot update metadata.');
-        return
-    }
-
-    const data_offset_key = $input.data('offset-key');
-    const input_element = $input.get(0);
-    const inner_span = React.createElement('span', { 'data-text': 'true' }, value);
-    const span_container = React.createElement('span', { 'data-offset-key': data_offset_key }, inner_span);
-    ReactDOM.unmountComponentAtNode(input_element);
-    ReactDOM.render(span_container, input_element);
-
-    // frozen input workaround: add empty character to editor
-    const $editor_container = $input.parent().parent().parent();
-
-    if (!ai4seo_exists_$($editor_container)) {
-        console.warn(ai4seo_get_plugin_name() + ': container \"$editor_container\" missing in ai4seo_set_yoast_input_content() \u2014 cannot update Yoast field.');
-        return;
-    }
-
-    const editor_element = $editor_container.get(0);
-
-    if (editor_element) {
-        editor_element.focus();
-        document.execCommand('insertText', false, '​');
-    }
+    return yoast_backing_input_selectors[metadata_identifier] || '';
 }
 
 // =========================================================================================== \\
 
-function ai4seo_add_text_to_yoast_editor_key_by_key( $input, value ) {
-    $input = ai4seo_normalize_$($input);
-
-    if (!ai4seo_exists_$($input)) {
-        console.error(ai4seo_get_plugin_name() + ': element \"$input\" missing in ai4seo_add_text_to_editor_key_by_key() \u2014 cannot update metadata.');
-        return;
+function ai4seo_update_yoast_store(metadata_identifier, value) {
+    if (typeof wp === 'undefined' || typeof wp.data === 'undefined' || typeof wp.data.dispatch !== 'function') {
+        return false;
     }
 
-    const $editor = $input.parent().parent().parent();
+    let yoast_dispatch = false;
 
-    if (!ai4seo_exists_$($editor)) {
-        console.error(ai4seo_get_plugin_name() + ': element \"$editor\" missing in ai4seo_add_text_to_editor_key_by_key() \u2014 cannot manipulate editor content.');
-        return;
+    try {
+        yoast_dispatch = wp.data.dispatch('yoast-seo/editor');
+    } catch (error) {
+        ai4seo_console_debug(ai4seo_get_plugin_name() + ': Yoast editor store is not available in ai4seo_update_yoast_store().', error);
+        return false;
     }
 
-    // go through each character and add it to the editor
-    if (ai4seo_is_chrome_browser()) {
-        // delete all content in the editor
-        ai4seo_delete_editor_content($editor);
+    if (!yoast_dispatch) {
+        return false;
+    }
 
-        $editor.focus();
-        ai4seo_set_cursor_at_the_end($editor);
+    switch (metadata_identifier) {
+        case 'focus-keyphrase':
+            if (typeof yoast_dispatch.setFocusKeyword === 'function') {
+                yoast_dispatch.setFocusKeyword(value);
+                return true;
+            }
+            break;
 
-        for (let i = 0; i < value.length; i++) {
-            document.execCommand('insertText', false, value[i]);
-        }
+        case 'meta-title':
+            if (typeof yoast_dispatch.updateData === 'function') {
+                yoast_dispatch.updateData({title: value});
+                return true;
+            }
+            break;
+
+        case 'meta-description':
+            if (typeof yoast_dispatch.updateData === 'function') {
+                yoast_dispatch.updateData({description: value});
+                return true;
+            }
+            break;
+
+        case 'facebook-title':
+            if (typeof yoast_dispatch.setFacebookPreviewTitle === 'function') {
+                yoast_dispatch.setFacebookPreviewTitle(value);
+                return true;
+            }
+            break;
+
+        case 'facebook-description':
+            if (typeof yoast_dispatch.setFacebookPreviewDescription === 'function') {
+                yoast_dispatch.setFacebookPreviewDescription(value);
+                return true;
+            }
+            break;
+
+        case 'twitter-title':
+            if (typeof yoast_dispatch.setTwitterPreviewTitle === 'function') {
+                yoast_dispatch.setTwitterPreviewTitle(value);
+                return true;
+            }
+            break;
+
+        case 'twitter-description':
+            if (typeof yoast_dispatch.setTwitterPreviewDescription === 'function') {
+                yoast_dispatch.setTwitterPreviewDescription(value);
+                return true;
+            }
+            break;
+    }
+
+    return false;
+}
+
+// =========================================================================================== \\
+
+function ai4seo_set_yoast_input_content(generate_data_for_input_selector, value, generate_data_for_input_details = {}) {
+    const metadata_identifier = generate_data_for_input_details.metadata_identifier || '';
+
+    if (!metadata_identifier) {
+        console.warn(ai4seo_get_plugin_name() + ': metadata_identifier missing in ai4seo_set_yoast_input_content() \u2014 cannot update Yoast field.');
+        return false;
+    }
+
+    let was_updated = ai4seo_update_yoast_store(metadata_identifier, value);
+    let yoast_backing_input_selector = '';
+
+    if (generate_data_for_input_selector && generate_data_for_input_selector.indexOf('#yoast_wpseo_') === 0) {
+        yoast_backing_input_selector = generate_data_for_input_selector;
     } else {
-        $editor.text(value);
-    }
-}
-
-// =========================================================================================== \\
-
-function ai4seo_delete_editor_content($editor) {
-    $editor = ai4seo_normalize_$($editor);
-
-    if (!ai4seo_exists_$($editor)) {
-        console.error(ai4seo_get_plugin_name() + ': element \"$editor\" missing in ai4seo_delete_editor_content() \u2014 cannot manipulate editor content.');
-        return;
+        yoast_backing_input_selector = ai4seo_get_yoast_backing_input_selector(metadata_identifier);
     }
 
-    $editor.focus();
+    if (yoast_backing_input_selector) {
+        const $yoast_backing_input = ai4seo_normalize_$(yoast_backing_input_selector);
 
-    // place cursor at the beginning of the editor
-    ai4seo_set_cursor_at_the_end($editor);
-
-    // Remove the content one by one
-    const text_length = $editor.text().length;
-
-    if (ai4seo_is_chrome_browser()) {
-        for (let i = 0; i < text_length; i++) {
-            document.execCommand('delete', false, null);
+        if (ai4seo_exists_$($yoast_backing_input)) {
+            was_updated = ai4seo_fill_input_without_exec_command($yoast_backing_input, value) || was_updated;
         }
-    } else {
-        $editor.text('');
-    }
-}
-
-// =========================================================================================== \\
-
-function ai4seo_set_cursor_at_the_end($input) {
-    $input = ai4seo_normalize_$($input);
-
-    if (!ai4seo_exists_$($input)) {
-        console.error(ai4seo_get_plugin_name() + ': element \"$editor\" missing in ai4seo_set_cursor_at_the_end() \u2014 cannot manipulate editor content.');
-        return;
     }
 
-    const range_element = document.createRange();
-    const selection = window.getSelection();
-    const input_element = $input.get(0);
-    range_element.selectNodeContents(input_element);
-    range_element.collapse(false);
-    selection.removeAllRanges();
-    selection.addRange(range_element);
+    return was_updated;
 }
 
 // =========================================================================================== \\
@@ -8804,18 +8875,18 @@ function ai4seo_handle_credits_pack_selection($credits_pack_selection_item) {
 
     // refresh cost breakdown
     let cost_per_page = $credits_pack_selection_item.data('cost-per-page');
-    let cost_per_media_file = $credits_pack_selection_item.data('cost-per-media-file');
+    let cost_per_attachment = $credits_pack_selection_item.data('cost-per-attachment');
     let currency = $credits_pack_selection_item.data('currency');
 
     const $credits_pack_cost_per_page = ai4seo_normalize_$('.ai4seo-credits-pack-cost-per-page');
-    const $credits_pack_cost_per_media_file = ai4seo_normalize_$('.ai4seo-credits-pack-cost-per-media-file');
+    const $credits_pack_cost_per_attachment = ai4seo_normalize_$('.ai4seo-credits-pack-cost-per-attachment');
 
     if (ai4seo_exists_$($credits_pack_cost_per_page)) {
         $credits_pack_cost_per_page.text(cost_per_page + ' ' + currency);
     }
 
-    if (ai4seo_exists_$($credits_pack_cost_per_media_file)) {
-        $credits_pack_cost_per_media_file.text(cost_per_media_file + ' ' + currency);
+    if (ai4seo_exists_$($credits_pack_cost_per_attachment)) {
+        $credits_pack_cost_per_attachment.text(cost_per_attachment + ' ' + currency);
     }
 }
 

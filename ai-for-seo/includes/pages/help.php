@@ -498,7 +498,7 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-faq'>
         ai4seo_echo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("What can I do if alt text is missing on images?", "ai-for-seo"), $ai4seo_this_accordion_content));
 
         /* translators: %s: plugin name */
-        $ai4seo_this_accordion_content = sprintf(esc_html__("The 'Alt Text Injection' setting ensures that images on your website always display the correct alt text, even when your theme or other plugins fail to properly output the alt text stored in the database. When enabled, *%s* will inject alt text directly at the render level, helping to improve accessibility and SEO compliance. This setting is particularly useful if you experience issues with missing alt text on images due to theme or plugin limitations. It is enabled by default and can be found in the plugin settings.", "ai-for-seo"), esc_html(AI4SEO_PLUGIN_NAME));
+        $ai4seo_this_accordion_content = sprintf(esc_html__("The 'Alt Text Injection' setting ensures that images on your website always display the correct alt text, even when your theme or other plugins fail to properly output the alt text stored in the database. When enabled, *%s* will inject alt text directly at the render level, helping to improve accessibility and SEO compliance. This setting is particularly useful if you experience issues with missing alt text on images due to theme or plugin limitations. It is disabled by default and can be found in the plugin settings.", "ai-for-seo"), esc_html(AI4SEO_PLUGIN_NAME));
         ai4seo_echo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("What is the 'Alt Text Injection' setting and why should I use it?", "ai-for-seo"), $ai4seo_this_accordion_content));
 
         $ai4seo_this_accordion_content = sprintf(
@@ -524,9 +524,6 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-faq'>
 
         $ai4seo_this_accordion_content = __("We currently support Elementor, BeTheme (Muffin-Builder / Be-Builder) and the standard editor. We are working on supporting more editors.", "ai-for-seo");
         ai4seo_echo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("What editors are supported?", "ai-for-seo"), $ai4seo_this_accordion_content));
-
-        $ai4seo_this_accordion_content = __("We are currently working on fixing this issue. As a workaround, we recommend saving the generated data and reloading the page before applying changes to the generated data.", "ai-for-seo");
-        ai4seo_echo_wp_kses(ai4seo_get_accordion_element("> " . esc_html__("I can't remove the AI-generated text within the Yoast SEO plugin", "ai-for-seo"), $ai4seo_this_accordion_content));
 
         $ai4seo_this_accordion_content = __("Yes, the plugin does support multi-language websites. The plugin also supports the WPML-plugin through which you can generate metadata and media attributes for all available languages separately.", "ai-for-seo");
         /* translators: %s: plugin name */
@@ -660,7 +657,7 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-faq'>
 
         $ai4seo_this_accordion_content = sprintf(
             /* translators: %1$s plugin name, %2$s plugin name */
-            esc_html__('Yes, simply deactivate the checkbox next to the desired content type within the "Set up SEO Autopilot" modal. This modal can be accessed by clicking the "Set up SEO Autopilot"-button within the "SEO Autopilot (Bulk Generation)"-section on the *%1$s* dashboard of your WordPress website. If you would like to disable the automation for every content type entirely you can click the "Stop SEO Autopilot" button within the "SEO Autopilot (Bulk Generation)"-section on the *%2$s* dashboard of your WordPress website.', 'ai-for-seo'),
+            esc_html__('Yes, simply deactivate the checkbox next to the desired content type within the "Set up SEO Autopilot" modal. This modal can be accessed by clicking the "Set up SEO Autopilot"-button within the "SEO Autopilot (Bulk Generation)"-section on the *%1$s* dashboard of your WordPress website. If you would like to disable the automation for every content type entirely you can click the "Stop SEO Autopilot" button instead.', 'ai-for-seo'),
             esc_html(AI4SEO_PLUGIN_NAME),
             esc_html(AI4SEO_PLUGIN_NAME)
         );
@@ -853,7 +850,7 @@ echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-faq'>
         // login / customer portal
         $ai4seo_this_accordion_content = sprintf(
             /* translators: %s: plugin name */
-            __('We currently do not offer a separate customer portal. All account-related actions, including subscription and payment management, can be accessed through the WordPress plugin. You can find the relevant links in your WordPress admin area under "$s" > "Account".', 'ai-for-seo'),
+            __('We currently do not offer a separate customer portal. All account-related actions, including subscription and payment management, can be accessed through the WordPress plugin. You can find the relevant links in your WordPress admin area under "%s" > "Account".', 'ai-for-seo'),
             esc_html(AI4SEO_PLUGIN_NAME),
         );
 
