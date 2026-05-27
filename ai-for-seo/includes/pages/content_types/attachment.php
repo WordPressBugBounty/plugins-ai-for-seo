@@ -21,7 +21,7 @@ require_once __DIR__ . '/list-filters.php';
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 global $wpdb;
-global $ai4seo_allowed_attachment_mime_types;
+$ai4seo_allowed_attachment_mime_types = ai4seo_get_allowed_attachment_mime_types();
 
 $ai4seo_main_attachment_post_type = "attachment";
 $ai4seo_nice_post_type = "media";
@@ -520,9 +520,15 @@ echo "<table class='widefat striped table-view-list attachments ai4seo-posts-tab
         }
 
         $ai4seo_preview_image_url = "";
+        $ai4seo_preview_image_alt_text = __("No image preview available", "ai-for-seo");
 
         if (in_array($ai4seo_this_mime_type, array("image/jpeg", "image/png", "image/gif", "image/webp"))) {
             $ai4seo_preview_image_url = wp_get_attachment_image_url($ai4seo_this_post_attachment_id, array(48, 48));
+
+            if ($ai4seo_preview_image_url) {
+                $ai4seo_this_attachment_alt_text = trim((string) get_post_meta($ai4seo_this_post_attachment_id, "_wp_attachment_image_alt", true));
+                $ai4seo_preview_image_alt_text = $ai4seo_this_attachment_alt_text ?: $ai4seo_this_attachment_title_with_language;
+            }
 
             if (!$ai4seo_preview_image_url) {
                 $ai4seo_preview_image_url = $ai4seo_this_post_link;
@@ -542,7 +548,7 @@ echo "<table class='widefat striped table-view-list attachments ai4seo-posts-tab
             // Image or File Preview
             echo "<td class='ai4seo-attachment-list-image-preview'>";
                 echo "<a href='" . esc_url($ai4seo_this_post_link) . "' target='_blank'>";
-                    echo "<img src='" . esc_url($ai4seo_preview_image_url) . "' alt='" . esc_html__("No image preview available", "ai-for-seo") . "'/>";
+                    echo "<img src='" . esc_url($ai4seo_preview_image_url) . "' alt='" . esc_attr($ai4seo_preview_image_alt_text) . "'/>";
                 echo "</a>";
             echo "</td>";
 

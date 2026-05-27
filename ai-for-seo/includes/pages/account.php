@@ -111,7 +111,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         echo "<div class='ai4seo-form-item'>";
             echo "<label for='" . esc_attr($ai4seo_this_prefixed_input_id) . "'>" . esc_html__("License owner", "ai-for-seo") . ":</label>";
             echo "<div class='ai4seo-form-item-input-wrapper'>";
-                echo "<input type='text' class='ai4seo-textfield' name='" . esc_attr($ai4seo_this_prefixed_input_id) ."' autocomplete='off' value='" . esc_attr($ai4seo_license_username) . "' />";
+                echo "<input type='text' class='ai4seo-textfield' id='" . esc_attr($ai4seo_this_prefixed_input_id) . "' name='" . esc_attr($ai4seo_this_prefixed_input_id) ."' autocomplete='off' value='" . esc_attr($ai4seo_license_username) . "' />";
             echo "</div>";
         echo "</div>";
 
@@ -127,14 +127,14 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
             echo "<div class='ai4seo-form-item-input-wrapper' style='position:relative;'>";
                 // Display only actual input-field for when there is no existing api-key
                 if (!$ai4seo_license_key) {
-                    echo "<input type='text' class='ai4seo-textfield' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' autocomplete='off' value='' />";
+                    echo "<input type='text' class='ai4seo-textfield' id='" . esc_attr($ai4seo_this_prefixed_input_id) . "' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' autocomplete='off' value='' />";
                 }
 
                 // Display both input-fields and toggle buttons if there is an existing api-key
                 else {
                     // Input for the license key
                     echo "<div id='ai4seo-actual-license-key-holder' class='ai4seo-display-none'>";
-                        echo "<input type='text' class='ai4seo-textfield' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' autocomplete='off' value='" . esc_attr($ai4seo_license_key) . "' />";
+                        echo "<input type='text' class='ai4seo-textfield' id='" . esc_attr($ai4seo_this_prefixed_input_id) . "' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' autocomplete='off' value='" . esc_attr($ai4seo_license_key) . "' />";
                     echo "</div>";
 
                     // Input for the "hidden" license key
@@ -220,7 +220,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
             echo "<label for='" . esc_attr($ai4seo_this_prefixed_input_id) . "'>" . esc_html__("Incognito Mode", "ai-for-seo") . ":</label>";
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                 // Input
-                echo "<input type='checkbox' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' class='ai4seo-single-checkbox' " . ($ai4seo_setting_enable_incognito_mode ? " checked='checked'" : "") . " /> ";
+                echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_prefixed_input_id) . "' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' class='ai4seo-single-checkbox' " . ($ai4seo_setting_enable_incognito_mode ? " checked='checked'" : "") . " /> ";
                 echo esc_html__("Enable Incognito Mode", "ai-for-seo");
 
                 // Description
@@ -243,7 +243,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
             echo "<label for='" . esc_attr($ai4seo_this_prefixed_input_id) . "'>" . esc_html__("White-Label Mode", "ai-for-seo") . ":</label>";
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                 // Input
-                echo "<input type='checkbox' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' class='ai4seo-single-checkbox' onchange='ai4seo_toggle_visibility_on_checkbox(jQuery(this), jQuery(\".ai4seo-white-label-only-container\"));'" . ($ai4seo_setting_enable_white_label ? " checked='checked'" : "") . " /> ";
+                echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_prefixed_input_id) . "' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' class='ai4seo-single-checkbox' onchange='ai4seo_toggle_visibility_on_checkbox(jQuery(this), jQuery(\".ai4seo-white-label-only-container\"));'" . ($ai4seo_setting_enable_white_label ? " checked='checked'" : "") . " /> ";
                 echo esc_html__("Enable White-Label Mode", "ai-for-seo");
 
                 // Description
@@ -277,7 +277,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
                 echo "<label for='" . esc_attr($ai4seo_this_prefixed_input_id) . "'>" . esc_html__("Overwrite 'Installed Plugins' Page Plugin Name", "ai-for-seo") . ":</label>";
                 echo "<div class='ai4seo-form-item-input-wrapper'>";
                     // Input
-                    echo "<input type='text' class='ai4seo-textfield' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' autocomplete='off' value='" . esc_attr($ai4seo_setting_plugin_name) . "' minlength='3' maxlength='100' />";
+                    echo "<input type='text' class='ai4seo-textfield' id='" . esc_attr($ai4seo_this_prefixed_input_id) . "' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' autocomplete='off' value='" . esc_attr($ai4seo_setting_plugin_name) . "' minlength='3' maxlength='100' />";
 
                     // Description
                     echo "<p class='ai4seo-form-item-description'>";
@@ -303,7 +303,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
                 echo "<label for='" . esc_attr($ai4seo_this_prefixed_input_id) . "'>" . esc_html__("Overwrite 'Installed Plugins' Page Plugin Description", "ai-for-seo") . ":</label>";
                 echo "<div class='ai4seo-form-item-input-wrapper'>";
                     // Input
-                    echo "<input type='text' class='ai4seo-textfield' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' autocomplete='off' value='" . esc_attr($ai4seo_setting_plugin_description) . "' minlength='3' maxlength='140' />";
+                    echo "<input type='text' class='ai4seo-textfield' id='" . esc_attr($ai4seo_this_prefixed_input_id) . "' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' autocomplete='off' value='" . esc_attr($ai4seo_setting_plugin_description) . "' minlength='3' maxlength='140' />";
 
                     // Description
                     echo "<p class='ai4seo-form-item-description'>";
@@ -325,7 +325,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
                 echo "<label for='" . esc_attr($ai4seo_this_prefixed_input_id) . "'>" . esc_html__("Generator Hints (Source Code)", "ai-for-seo") . ":</label>";
                 echo "<div class='ai4seo-form-item-input-wrapper'>";
                     // Input
-                    echo "<input type='checkbox' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' class='ai4seo-single-checkbox' onchange='ai4seo_toggle_visibility_on_checkbox(jQuery(this), jQuery(\".ai4seo-source-code-adjustments-only-container\"));' " . ($ai4seo_setting_display_source_code_notes ? " checked='checked'" : "") . " /> ";
+                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_prefixed_input_id) . "' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' class='ai4seo-single-checkbox' onchange='ai4seo_toggle_visibility_on_checkbox(jQuery(this), jQuery(\".ai4seo-source-code-adjustments-only-container\"));' " . ($ai4seo_setting_display_source_code_notes ? " checked='checked'" : "") . " /> ";
                     echo esc_html__("Add Generator Hints", "ai-for-seo");
 
                     // Description
@@ -355,7 +355,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
                     echo "<label for='" . esc_attr($ai4seo_this_prefixed_input_id) . "'>" . esc_html__("Meta Tags Block Starting Hint", "ai-for-seo") . ":</label>";
                     echo "<div class='ai4seo-form-item-input-wrapper'>";
                         // Input
-                        echo "<input type='text' class='ai4seo-textfield' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' autocomplete='off' value='" . esc_attr($ai4seo_setting_source_code_notes_content_start) . "' minlength='3' maxlength='250' />";
+                        echo "<input type='text' class='ai4seo-textfield' id='" . esc_attr($ai4seo_this_prefixed_input_id) . "' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' autocomplete='off' value='" . esc_attr($ai4seo_setting_source_code_notes_content_start) . "' minlength='3' maxlength='250' />";
 
                         // Description
                         echo "<p class='ai4seo-form-item-description'>";
@@ -378,7 +378,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
                     echo "<label for='" . esc_attr($ai4seo_this_prefixed_input_id) . "'>" . esc_html__("Meta Tags Block Ending Hint", "ai-for-seo") . ":</label>";
                     echo "<div class='ai4seo-form-item-input-wrapper'>";
                         // Input
-                        echo "<input type='text' class='ai4seo-textfield' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' autocomplete='off' value='" . esc_attr($ai4seo_setting_source_code_notes_content_end) . "' minlength='3' maxlength='250' />";
+                        echo "<input type='text' class='ai4seo-textfield' id='" . esc_attr($ai4seo_this_prefixed_input_id) . "' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' autocomplete='off' value='" . esc_attr($ai4seo_setting_source_code_notes_content_end) . "' minlength='3' maxlength='250' />";
 
                         // Description
                         echo "<p class='ai4seo-form-item-description'>";
@@ -440,7 +440,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
                 $extended_data_collection_tooltip_text = __("This data includes feature usage, performance metrics, and error logs. It will be stored for up to 30 days to assist with improving the plugin. You can opt out of data collection at any time through the plugin settings.", "ai-for-seo");
 
                 echo "<div style='max-width: 400px;'>";
-                    echo "<input type='checkbox' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' class='ai4seo-single-checkbox' " . ($ai4seo_did_user_accept_enhanced_reporting ? " checked='checked'" : "") . ">";
+                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_prefixed_input_id) . "' name='" . esc_attr($ai4seo_this_prefixed_input_id) . "' class='ai4seo-single-checkbox' " . ($ai4seo_did_user_accept_enhanced_reporting ? " checked='checked'" : "") . ">";
                     echo "<label for='" . esc_attr($ai4seo_this_prefixed_input_id) . "'>" . esc_html__("I agree to share extended data to support the ongoing development of the plugin. I may opt out at any time.", "ai-for-seo");
                         ai4seo_echo_wp_kses(ai4seo_get_icon_with_tooltip_tag($extended_data_collection_tooltip_text));
                     echo "</label>";

@@ -48,9 +48,6 @@ $ai4seo_execute_sooner_button = ai4seo_get_small_a_tag_icon_button_tag($ai4seo_e
 $ai4seo_current_credits_balance = ai4seo_robhub_api()->get_credits_balance();
 $ai4seo_metadata_credits_cost_per_post = ai4seo_calculate_metadata_credits_cost_per_post();
 $ai4seo_attachment_attributes_credits_cost_per_attachment_post = ai4seo_calculate_attachment_attributes_credits_cost_per_attachment_post();
-$ai4seo_min_credits_cost_per_generation = min($ai4seo_metadata_credits_cost_per_post, $ai4seo_attachment_attributes_credits_cost_per_attachment_post);
-$ai4seo_max_credits_cost_per_generation = max($ai4seo_metadata_credits_cost_per_post, $ai4seo_attachment_attributes_credits_cost_per_attachment_post);
-$ai4seo_insufficient_credits_balance = ($ai4seo_current_credits_balance < $ai4seo_min_credits_cost_per_generation);
 $ai4seo_is_robhub_account_synced = ai4seo_robhub_api()->is_account_synced();
 $ai4seo_heavy_db_operations_disabled = (bool) ai4seo_get_setting(AI4SEO_SETTING_DISABLE_HEAVY_DB_OPERATIONS);
 
@@ -123,6 +120,8 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
 
     if ($ai4seo_all_supported_post_types) {
         $ai4seo_total_num_pending_posts = 0;
+        $ai4seo_total_num_pending_metadata_posts = 0;
+        $ai4seo_total_num_pending_attachment_posts = 0;
         $ai4seo_num_finished_posts_by_post_type = ai4seo_get_num_finished_posts_by_post_type();
         $ai4seo_num_failed_posts_by_post_type = ai4seo_get_num_failed_posts_by_post_type();
         $ai4seo_num_pending_posts_by_post_type = ai4seo_get_num_pending_posts_by_post_type();
@@ -216,9 +215,14 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
                 }
 
                 if (in_array($ai4seo_this_post_type, $ai4seo_active_bulk_generation_post_types)) {
-                    $ai4seo_total_num_pending_posts += $ai4seo_this_num_missing_post_ids;
-                    $ai4seo_total_num_pending_posts += $ai4seo_this_num_pending_post_ids;
-                    $ai4seo_total_num_pending_posts += $ai4seo_this_num_processing_post_ids;
+                    $ai4seo_this_num_pending_generation_posts = $ai4seo_this_num_missing_post_ids + $ai4seo_this_num_pending_post_ids + $ai4seo_this_num_processing_post_ids;
+                    $ai4seo_total_num_pending_posts += $ai4seo_this_num_pending_generation_posts;
+
+                    if (in_array($ai4seo_this_post_type, $ai4seo_supported_attachment_post_types, true)) {
+                        $ai4seo_total_num_pending_attachment_posts += $ai4seo_this_num_pending_generation_posts;
+                    } else {
+                        $ai4seo_total_num_pending_metadata_posts += $ai4seo_this_num_pending_generation_posts;
+                    }
                 }
 
                 # todo: separate pending and processing posts
@@ -324,10 +328,35 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
 
     // === CREDITS ========================================================================== \\
 
-    // calculate the percentage we are able to generate metadata for base on the current credits balance and the required credits per entry ($ai4seo_total_num_missing_posts * $ai4seo_min_credits_balance)
+    // Calculate backlog coverage separately from "can generate anything" so large sites with <1% coverage do not show a false insufficiency warning.
+    $ai4seo_can_afford_at_least_one_generation = true;
+
     if (isset($ai4seo_total_num_pending_posts) && $ai4seo_total_num_pending_posts) {
-        $ai4seo_credits_percentage = min(100, $ai4seo_current_credits_balance
-            ? round($ai4seo_current_credits_balance / max(1, ($ai4seo_total_num_pending_posts * $ai4seo_max_credits_cost_per_generation)) * 100) : 0);
+        $ai4seo_pending_generation_costs = array();
+
+        if ($ai4seo_total_num_pending_metadata_posts > 0 && $ai4seo_metadata_credits_cost_per_post > 0) {
+            $ai4seo_pending_generation_costs[] = $ai4seo_metadata_credits_cost_per_post;
+        }
+
+        if ($ai4seo_total_num_pending_attachment_posts > 0 && $ai4seo_attachment_attributes_credits_cost_per_attachment_post > 0) {
+            $ai4seo_pending_generation_costs[] = $ai4seo_attachment_attributes_credits_cost_per_attachment_post;
+        }
+
+        if ($ai4seo_pending_generation_costs) {
+            $ai4seo_min_credits_cost_for_pending_generation = min($ai4seo_pending_generation_costs);
+            $ai4seo_max_credits_cost_for_pending_generation = max($ai4seo_pending_generation_costs);
+            $ai4seo_can_afford_at_least_one_generation = ($ai4seo_current_credits_balance >= $ai4seo_min_credits_cost_for_pending_generation);
+
+            if ($ai4seo_can_afford_at_least_one_generation) {
+                $ai4seo_total_required_credits = max(1, ($ai4seo_total_num_pending_posts * $ai4seo_max_credits_cost_for_pending_generation));
+                $ai4seo_raw_credits_percentage = ($ai4seo_current_credits_balance / $ai4seo_total_required_credits) * 100;
+                $ai4seo_credits_percentage = min(100, max(1, floor($ai4seo_raw_credits_percentage)));
+            } else {
+                $ai4seo_credits_percentage = 0;
+            }
+        } else {
+            $ai4seo_credits_percentage = 100;
+        }
     } else {
         $ai4seo_credits_percentage = 100;
     }
@@ -423,7 +452,7 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
 
         // costs breakdown
         echo "<div class='ai4seo-credits-generation-costs-info'>";
-            ai4seo_echo_cost_breakdown_section($ai4seo_credits_percentage);
+            ai4seo_echo_cost_breakdown_section($ai4seo_credits_percentage, $ai4seo_can_afford_at_least_one_generation);
         echo "</div>";
 
     echo "</div>";
@@ -540,7 +569,7 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
                     echo "<div class='ai4seo-bulk-generation-status-subtext'>";
                         echo esc_html__("Waiting for new entries to process.", "ai-for-seo");
                     echo "</div>";
-                } else if ($ai4seo_insufficient_credits_balance) {
+                } else if (!$ai4seo_can_afford_at_least_one_generation) {
                     echo "<img src='" . esc_url(ai4seo_get_sooz_logo_url("256x256")) . "' alt='" . esc_attr__("SEO Autopilot is active but no credits available", "ai-for-seo") . "' class='ai4seo-bulk-generation-status-active-logo'>";
 
                     // triangle-exclamation on the top right corner
@@ -761,17 +790,17 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
                     echo "<div class='ai4seo-latest-activity-item-buttons'>";
                         // see post / media preview
                         if (isset($ai4seo_this_latest_activity_entry["url"]) && $ai4seo_this_latest_activity_entry["url"]) {
-                            ai4seo_echo_wp_kses(ai4seo_get_a_tag_icon_button_tag($ai4seo_this_latest_activity_entry["url"], "", "_blank", "eye"));
+                            ai4seo_echo_wp_kses(ai4seo_get_a_tag_icon_button_tag($ai4seo_this_latest_activity_entry["url"], "", "_blank", "eye", "", "", "", esc_html__("View entry", "ai-for-seo")));
                         }
 
                         if (in_array(($ai4seo_this_latest_activity_entry["post_type"] ?? ""), $ai4seo_supported_attachment_post_types)) {
-                            ai4seo_echo_wp_kses(ai4seo_get_icon_button_tag("pen-to-square", "", "", "ai4seo_open_attachment_attributes_editor_modal(" . esc_js($ai4seo_this_latest_activity_entry["post_id"]) . ");"));
+                            ai4seo_echo_wp_kses(ai4seo_get_icon_button_tag("pen-to-square", "", "", "ai4seo_open_attachment_attributes_editor_modal(" . esc_js($ai4seo_this_latest_activity_entry["post_id"]) . ");", AI4SEO_PLUGIN_NAME . ": " . esc_html__("Media Attributes Editor", "ai-for-seo")));
                         } else {
                             if (isset($ai4seo_this_latest_activity_entry["url"]) && $ai4seo_this_latest_activity_entry["url"]) {
                                 # todo: add source code button using ajax modal, and then only showing the header of the page
                                 #ai4seo_echo_wp_kses(ai4seo_get_button_text_link_tag("#", "code", "", "", "ai4seo_open_view_source(\"" . esc_url($ai4seo_this_latest_activity_entry["url"]) . "\")"));
                             }
-                            ai4seo_echo_wp_kses(ai4seo_get_icon_button_tag("pen-to-square", "", "", "ai4seo_open_metadata_editor_modal(" . esc_js($ai4seo_this_latest_activity_entry["post_id"]) . ");"));
+                            ai4seo_echo_wp_kses(ai4seo_get_icon_button_tag("pen-to-square", "", "", "ai4seo_open_metadata_editor_modal(" . esc_js($ai4seo_this_latest_activity_entry["post_id"]) . ");", AI4SEO_PLUGIN_NAME . ": " . esc_html__("Metadata Editor", "ai-for-seo")));
                         }
                     echo "</div>";
                 echo "</div>";
@@ -784,10 +813,13 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
     echo "</div>";
 
 
+    $ai4seo_dashboard_toggle_onclick = "ai4seo_toggle_collapsible_section(this, 200);";
+    $ai4seo_dashboard_toggle_onkeydown = "ai4seo_handle_collapsible_section_keydown(event, this, 200);";
+
     // === Ask for feedback ========================================================================== \\
 
     echo "<div class='card ai4seo-card ai4seo-ignore-during-dashboard-refresh'>";
-        echo "<h4 style='cursor: pointer; margin-bottom: 0;' onclick='ai4seo_toggle_visibility(jQuery(this).next(), jQuery(this).find(\".ai4seo-caret-down\"), jQuery(this).find(\".ai4seo-caret-up\"), 200);'>";
+        echo "<h4 role='button' tabindex='0' aria-expanded='true' style='cursor: pointer; margin-bottom: 0;' onclick='" . esc_attr($ai4seo_dashboard_toggle_onclick) . "' onkeydown='" . esc_attr($ai4seo_dashboard_toggle_onkeydown) . "'>";
             echo esc_html__("Support & Feedback", "ai-for-seo");
             echo "<div class='ai4seo-caret-down'>";
                 ai4seo_echo_wp_kses(ai4seo_get_svg_tag("caret-down"));
@@ -858,7 +890,7 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
     // === Recent Plugin Updates ========================================================================== \\
 
     echo "<div class='card ai4seo-card ai4seo-ignore-during-dashboard-refresh' id='ai4seo_recent_plugin_updates'>";
-        echo "<h4 style='cursor: pointer; margin-bottom: 0;' onclick='ai4seo_toggle_visibility(jQuery(this).next(), jQuery(this).find(\".ai4seo-caret-down\"), jQuery(this).find(\".ai4seo-caret-up\"), 200);'>";
+        echo "<h4 role='button' tabindex='0' aria-expanded='" . ($ai4seo_pre_open_recent_plugin_updates ? "true" : "false") . "' style='cursor: pointer; margin-bottom: 0;' onclick='" . esc_attr($ai4seo_dashboard_toggle_onclick) . "' onkeydown='" . esc_attr($ai4seo_dashboard_toggle_onkeydown) . "'>";
             echo esc_html__("Recent Plugin Updates", "ai-for-seo");
             echo "<div class='ai4seo-caret-down'>";
                 ai4seo_echo_wp_kses(ai4seo_get_svg_tag("caret-down"));
@@ -881,9 +913,9 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
                 if ($ai4seo_this_plugin_update_index >= 5 && !$ai4seo_this_is_important_update) {
                     continue;
                 }
-                
+
                 // Header with date, version, and collapsible functionality
-                echo "<div class='ai4seo-recent-plugin-updates-title" . ($ai4seo_this_is_important_update ? " ai4seo-recent-plugin-updates-important-title" : "") . "' onclick='ai4seo_toggle_visibility(jQuery(this).next(), jQuery(this).find(\".ai4seo-caret-down\"), jQuery(this).find(\".ai4seo-caret-up\"), 200);'>";
+                echo "<div class='ai4seo-recent-plugin-updates-title" . ($ai4seo_this_is_important_update ? " ai4seo-recent-plugin-updates-important-title" : "") . "' role='button' tabindex='0' aria-expanded='" . ($ai4seo_this_is_first_plugin_update ? "true" : "false") . "' onclick='" . esc_attr($ai4seo_dashboard_toggle_onclick) . "' onkeydown='" . esc_attr($ai4seo_dashboard_toggle_onkeydown) . "'>";
                     // title
                     if ($ai4seo_this_is_important_update) {
                         echo "<div class='ai4seo-blue-bubble'>" . esc_html($this_plugin_update_details['version']) . "</div> ";
@@ -916,9 +948,9 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
                             ai4seo_echo_wp_kses(ai4seo_get_svg_tag("caret-up"));
                         echo "</div>";
                     }
-                    
+
                 echo "</div>";
-                
+
                 // Content - first entry expanded, others collapsed
                 echo "<div class='ai4seo-changelog-entry-content'" . (!$ai4seo_this_is_first_plugin_update ? " style='display: none;'" : "") . ">";
                     echo '<ul>';
@@ -990,7 +1022,7 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
     // === Money Back Guarantee ========================================================================== \\
 
     echo "<div class='card ai4seo-card ai4seo-ignore-during-dashboard-refresh'>";
-        echo "<h4 style='cursor: pointer; margin-bottom: 0;' onclick='ai4seo_toggle_visibility(jQuery(this).next(), jQuery(this).find(\".ai4seo-caret-down\"), jQuery(this).find(\".ai4seo-caret-up\"), 200);'>";
+        echo "<h4 role='button' tabindex='0' aria-expanded='false' style='cursor: pointer; margin-bottom: 0;' onclick='" . esc_attr($ai4seo_dashboard_toggle_onclick) . "' onkeydown='" . esc_attr($ai4seo_dashboard_toggle_onkeydown) . "'>";
             echo esc_html__("Guarantee", "ai-for-seo");
             echo "<div class='ai4seo-caret-down'>";
                 ai4seo_echo_wp_kses(ai4seo_get_svg_tag("caret-down"));

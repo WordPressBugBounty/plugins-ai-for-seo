@@ -18,6 +18,14 @@ if (!ai4seo_can_manage_this_plugin()) {
 }
 
 $ai4seo_claimed_feedback_offer = (bool) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_CLAIMED_FEEDBACK_OFFER);
+$ai4seo_robhub_subscription = ai4seo_robhub_api()->read_environmental_variable(ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION);
+$ai4seo_robhub_subscription_plan = $ai4seo_robhub_subscription["plan"] ?? "free";
+$ai4seo_robhub_subscription_end_date_and_time = $ai4seo_robhub_subscription["subscription_end"] ?? false;
+$ai4seo_robhub_subscription_end_timestamp = $ai4seo_robhub_subscription_end_date_and_time
+    ? strtotime($ai4seo_robhub_subscription_end_date_and_time) : 0;
+$ai4seo_has_active_subscription = ($ai4seo_robhub_subscription_plan !== "free") && $ai4seo_robhub_subscription_end_timestamp > time();
+$ai4seo_is_payg_enabled = (bool) ai4seo_get_setting(AI4SEO_SETTING_PAYG_ENABLED);
+$ai4seo_has_active_billing_feature = $ai4seo_has_active_subscription || $ai4seo_is_payg_enabled;
 
 
 // ___________________________________________________________________________________________ \\
@@ -35,6 +43,33 @@ echo "</div>";
 
 echo "<div class='ai4seo-modal-schema-content'>";
     echo "<div class='ai4seo-plugin-deactivation-feedback-modal'>";
+
+        if ($ai4seo_has_active_billing_feature) {
+            echo "<div class='ai4seo-plugin-deactivation-feedback-billing-warning'>";
+                echo "<p>";
+                    ai4seo_echo_wp_kses(ai4seo_get_svg_tag('triangle-exclamation', esc_html__("Warning", "ai-for-seo")));
+                    echo ' ';
+                    echo "<strong>" . esc_html__("Active billing settings detected.", "ai-for-seo") . "</strong> ";
+                    echo esc_html__("Deactivating the plugin does not cancel an active subscription or Pay-As-You-Go automatic refills.", "ai-for-seo");
+                echo "</p>";
+
+                echo "<p>";
+                    echo esc_html__("Review your subscription or Pay-As-You-Go settings before deactivating.", "ai-for-seo");
+                echo "</p>";
+
+                echo "<div class='ai4seo-plugin-deactivation-feedback-billing-warning-actions ai4seo-buttons-wrapper'>";
+                    if ($ai4seo_has_active_subscription) {
+                        ai4seo_echo_wp_kses(ai4seo_get_a_tag_icon_button_tag(AI4SEO_STRIPE_BILLING_URL, "", "_blank", "stripe", esc_html__("Manage Subscription / Invoices", "ai-for-seo")));
+                    }
+
+                    if ($ai4seo_is_payg_enabled) {
+                        ai4seo_echo_wp_kses(ai4seo_get_icon_button_tag("sliders", esc_html__("Customize Pay-As-You-Go", "ai-for-seo"), "", "ai4seo_handle_open_customize_payg_modal();"));
+                    }
+                echo "</div>";
+            echo "</div>";
+
+            echo "<div class='ai4seo-medium-gap'></div>";
+        }
 
         echo "<div class='ai4seo-plugin-deactivation-feedback-intro'>";
             echo sprintf(

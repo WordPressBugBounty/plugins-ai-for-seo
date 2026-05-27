@@ -1,4 +1,11 @@
 == Changelog ==
+= 2.3.5 =
+* WordPress 7.0 compatibility
+* Improved Automatic language detection for media attributes by using image usage context first, with WPML and system language fallbacks.
+* Added a usage context status to the media attributes editor, showing when image context is available for generation and how to improve detection when it is not.
+* Added separate entry type choices when removing AI-generated data, including media files, so users can reset only selected generated data.
+* Added settings to control where additional "Generate with SOOZ" buttons appear in third-party SEO plugins, page builders, and WordPress media screens.
+* Bug Fixes & Maintenance: Implemented 1 security fix, 2 minor bug fixes, and 2 performance improvements.
 
 = 2.3.4 =
 * Improved "Generate with SOOZ" button behavior in Yoast SEO and Rank Math

@@ -19,7 +19,7 @@ if (!ai4seo_can_manage_this_plugin()) {
 // === PREPARE =============================================================================== \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
-global $ai4seo_allowed_attachment_mime_types;
+$ai4seo_allowed_attachment_mime_types = ai4seo_get_allowed_attachment_mime_types();
 
 // set false in production
 $ai4seo_debug = false;
@@ -120,10 +120,16 @@ $ai4seo_use_base64_image = ai4seo_should_use_base64_image($ai4seo_attachment_url
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 $ai4seo_attachment_attributes_generation_language = ai4seo_get_attachments_language($ai4seo_this_attachment_post_id);
+$ai4seo_wpml_language = sanitize_text_field(ai4seo_try_get_post_language_by_checking_multilanguage_plugins($ai4seo_this_attachment_post_id));
 
 $ai4seo_robhub_api_call_parameters = array(
-    "language" => $ai4seo_attachment_attributes_generation_language
+    "language" => $ai4seo_attachment_attributes_generation_language,
+    "system_language" => sanitize_text_field(ai4seo_get_wordpress_language()),
 );
+
+if ($ai4seo_wpml_language) {
+    $ai4seo_robhub_api_call_parameters["wpml_language"] = $ai4seo_wpml_language;
+}
 
 $ai4seo_robhub_api_call_parameters["trigger"] = "manual";
 $ai4seo_robhub_api_call_parameters["website_context"] = ai4seo_get_website_context();

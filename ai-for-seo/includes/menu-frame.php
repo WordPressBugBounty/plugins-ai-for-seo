@@ -97,7 +97,9 @@ if (isset($_GET["ai4seo-just-purchased"]) || isset($_GET["amp;ai4seo-just-purcha
 
 echo "<div class='ai4seo-mobile-top-bar'>";
     // toggle button
-    echo "<button class='ai4seo-mobile-top-bar-toggle-button' onclick='ai4seo_toggle_sidebar();'>";
+    $ai4seo_toggle_sidebar_label = __("Toggle navigation", "ai-for-seo");
+
+    echo "<button type='button' class='ai4seo-mobile-top-bar-toggle-button' aria-label='" . esc_attr($ai4seo_toggle_sidebar_label) . "' title='" . esc_attr($ai4seo_toggle_sidebar_label) . "' onclick='ai4seo_toggle_sidebar();'>";
         ai4seo_echo_wp_kses(ai4seo_get_svg_tag("bars-sort"));
     echo "</button>";
 
@@ -303,6 +305,63 @@ echo "<div class='wrap ai4seo-wrap'>";
         // DEBUG ai4seo_debug_posts_table_analysis
         if (isset($_GET["ai4seo_debug_posts_table_analysis"]) && $_GET["ai4seo_debug_posts_table_analysis"]) {
             ai4seo_try_start_posts_table_analysis(true, true);
+        }
+
+        // DEBUG ai4seo_read_generation_status_summary
+        if (isset($_GET["ai4seo_read_generation_status_summary"]) && $_GET["ai4seo_read_generation_status_summary"]) {
+            $ai4seo_totals_only = isset($_GET["ai4seo_read_generation_status_summary_totals_only"]) && $_GET["ai4seo_read_generation_status_summary_totals_only"];
+            $ai4seo_direct_database_call = isset($_GET["ai4seo_read_generation_status_summary_direct_database_call"]) && $_GET["ai4seo_read_generation_status_summary_direct_database_call"];
+            $ai4seo_generation_status_summary = ai4seo_read_generation_status_summary($ai4seo_totals_only, $ai4seo_direct_database_call);
+            ai4seo_debug_message(49174526, ai4seo_stringify($ai4seo_generation_status_summary));
+        }
+
+        // DEBUG ACTIVE METADATA MIGRATION V235
+        if (isset($_GET["ai4seo_debug_active_metadata_migration_v235_run"]) && $_GET["ai4seo_debug_active_metadata_migration_v235_run"]) {
+            $ai4seo_active_metadata_migration_v235_state_before = ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STATE, false);
+            $ai4seo_active_metadata_migration_v235_started_time_before = (int) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STARTED_TIME, false);
+            $ai4seo_active_metadata_migration_v235_processed_entries_before = (int) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_PROCESSED_ENTRIES, false);
+            $ai4seo_active_metadata_migration_v235_processing_lock_is_active = (
+                $ai4seo_active_metadata_migration_v235_state_before === 'processing'
+                && $ai4seo_active_metadata_migration_v235_started_time_before > time() - (15 * MINUTE_IN_SECONDS)
+            );
+
+            ai4seo_debug_message(
+                984321703,
+                'Manual v235 active metadata migration run requested. State before: ' . ai4seo_stringify($ai4seo_active_metadata_migration_v235_state_before)
+                . ', started time before: ' . ai4seo_stringify(ai4seo_format_unix_timestamp($ai4seo_active_metadata_migration_v235_started_time_before))
+                . ', processed entries before: ' . ai4seo_stringify($ai4seo_active_metadata_migration_v235_processed_entries_before)
+            );
+
+            if ($ai4seo_active_metadata_migration_v235_processing_lock_is_active) {
+                ai4seo_debug_message(
+                    984321704,
+                    'Manual v235 active metadata migration run skipped because another run is marked as processing. Started time: '
+                    . ai4seo_stringify(ai4seo_format_unix_timestamp($ai4seo_active_metadata_migration_v235_started_time_before)),
+                    true
+                );
+            } else if (ai4seo_is_active_metadata_migration_v235_completed()) {
+                ai4seo_debug_message(
+                    984321705,
+                    'Manual v235 active metadata migration run skipped because the migration is already completed.'
+                );
+            } else {
+                $ai4seo_active_metadata_migration_v235_run_result = ai4seo_active_metadata_migration_v235_cron_job();
+                $ai4seo_active_metadata_migration_v235_state_after = ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STATE, false);
+                $ai4seo_active_metadata_migration_v235_started_time_after = (int) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STARTED_TIME, false);
+                $ai4seo_active_metadata_migration_v235_last_run_time_after = (int) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_LAST_RUN_TIME, false);
+                $ai4seo_active_metadata_migration_v235_processed_entries_after = (int) ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_PROCESSED_ENTRIES, false);
+
+                ai4seo_debug_message(
+                    984321706,
+                    'Manual v235 active metadata migration run finished. Result: ' . ($ai4seo_active_metadata_migration_v235_run_result ? 'true' : 'false')
+                    . ', state after: ' . ai4seo_stringify($ai4seo_active_metadata_migration_v235_state_after)
+                    . ', started time after: ' . ai4seo_stringify(ai4seo_format_unix_timestamp($ai4seo_active_metadata_migration_v235_started_time_after))
+                    . ', last run time after: ' . ai4seo_stringify(ai4seo_format_unix_timestamp($ai4seo_active_metadata_migration_v235_last_run_time_after))
+                    . ', processed entries after: ' . ai4seo_stringify($ai4seo_active_metadata_migration_v235_processed_entries_after)
+                    . ', processed entries this run: ' . ai4seo_stringify(max(0, $ai4seo_active_metadata_migration_v235_processed_entries_after - $ai4seo_active_metadata_migration_v235_processed_entries_before)),
+                    !$ai4seo_active_metadata_migration_v235_run_result
+                );
+            }
         }
 
 

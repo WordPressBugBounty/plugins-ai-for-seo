@@ -12,6 +12,7 @@ let ai4seo_output_console_debug = false; // or false to disable all console.debu
 
 const ai4seo_svg_icons = {
     'circle-check': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM369 209L241 337c-9.4 9.4-24.6 9.4-33.9 0l-64-64c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l47 47L335 175c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9z"/></svg>',
+    'circle-xmark': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM175 175c9.4-9.4 24.6-9.4 33.9 0l47 47 47-47c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9l-47 47 47 47c9.4 9.4 9.4 24.6 0 33.9s-24.6 9.4-33.9 0l-47-47-47 47c-9.4 9.4-24.6 9.4-33.9 0s-9.4-24.6 0-33.9l47-47-47-47c-9.4-9.4-9.4-24.6 0-33.9z"/></svg>',
     'rotate': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Pro 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2023 Fonticons, Inc. --><defs><style>.fa-secondary{opacity:.4}</style></defs><path class="fa-primary" d="M105.1 202.6c7.7-21.8 20.2-42.3 37.8-59.8c62.2-62.2 162.7-62.5 225.3-1L327 183c-6.9 6.9-8.9 17.2-5.2 26.2s12.5 14.8 22.2 14.8H463.5c0 0 0 0 0 0H472c13.3 0 24-10.7 24-24V72c0-9.7-5.8-18.5-14.8-22.2s-19.3-1.7-26.2 5.2L413.4 96.6c-87.6-86.5-228.7-86.2-315.8 1C73.2 122 55.6 150.7 44.8 181.4c-5.9 16.7 2.9 34.9 19.5 40.8s34.9-2.9 40.8-19.5z"/><path class="fa-secondary" d="M16 319.6l0-7.6c0-13.3 10.7-24 24-24h7.6c.2 0 .5 0 .7 0H168c9.7 0 18.5 5.8 22.2 14.8s1.7 19.3-5.2 26.2l-41.1 41.1c62.6 61.5 163.1 61.2 225.3-1c17.5-17.5 30.1-38 37.8-59.8c5.9-16.7 24.2-25.4 40.8-19.5s25.4 24.2 19.5 40.8c-10.8 30.6-28.4 59.3-52.9 83.8c-87.2 87.2-228.3 87.5-315.8 1L57 457c-6.9 6.9-17.2 8.9-26.2 5.2S16 449.7 16 440l0-119.6c0-.2 0-.5 0-.7z"/></svg>',
     'sooz-with-ai-for-seo': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 731.25 333.75" width="131.46" height="60" style="max-height:80px; width:auto;" xml:space="preserve"><path fill="#0066aa" d="M680.595,5.501c14.86,0,26.106,3.61,33.744,10.837c7.631,7.224,11.411,17.488,11.411,30.816c0,10.879-2.508,19.949-7.465,27.174c-4.962,7.225-12.35,12.992-22.256,17.299l-101.367,44.188c-2.998,1.341-5.275,3.212-6.896,5.642c-1.705,2.439-2.519,5.248-2.519,8.437c0,3.749,1.172,6.763,3.448,9.021c2.277,2.241,5.727,3.368,10.356,3.368H721.61v33.215H596.858c-14.862,0-26.074-3.622-33.619-10.825c-7.556-7.225-11.296-17.512-11.296-30.85c0-10.857,2.443-19.928,7.397-27.152s12.509-12.992,22.655-17.299l100.793-44.2c6.416-2.628,9.667-7.328,9.667-14.067c0-3.76-1.181-6.758-3.458-9.019c-2.353-2.249-5.884-3.378-10.597-3.378H558.526V5.501H680.595z"/><path fill="#0066aa" d="M172.98,5.501v33.206H53.139c-4.783,0-8.319,1.129-10.598,3.378c-2.31,2.261-3.448,5.259-3.448,9.019c0,6.74,3.207,11.439,9.624,14.067l100.833,44.2c10.111,4.309,17.625,10.075,22.579,17.299c4.957,7.225,7.43,16.295,7.43,27.152c0,13.338-3.733,23.625-11.287,30.85c-7.513,7.203-18.721,10.825-33.586,10.825H9.895v-33.215h122.56c4.625,0,8.044-1.127,10.355-3.368c2.277-2.259,3.449-5.271,3.449-9.021c0-3.188-0.852-5.997-2.477-8.437c-1.664-2.43-3.973-4.301-6.903-5.642L35.513,91.627c-9.945-4.309-17.375-10.075-22.329-17.299C8.227,67.104,5.75,58.033,5.75,47.154c0-13.328,3.818-23.594,11.436-30.816C24.799,9.111,36.044,5.501,50.935,5.501H172.98z"/><path fill="#0066aa" d="M521.13,29.148C506.678,13.38,485.924,5.501,458.719,5.501h-25.341c-23.143,0-41.59,5.757-55.478,17.18c-2.41,2.002-4.764,4.103-6.902,6.468c-1.857,2.041-3.607,4.24-5.24,6.568c-7.854,11.215-12.879,25.689-15.072,43.319c-0.018,0.103-0.059,0.169-0.074,0.301c-0.042,0.379-0.108,0.956-0.212,1.664c-0.018,0.173-0.025,0.354-0.042,0.515c-0.723,7.373-2.169,27.873-2.868,37.846c-0.303,4.354-0.959,8.685-2.25,12.846c-1.837,5.691-4.224,10.465-7.252,14.359c-0.304,0.388-0.59,0.848-0.91,1.229c-8.167,9.662-21.161,14.489-38.948,14.489h-25.341c-18.193,0-31.35-4.786-39.389-14.351c-8.122-9.572-12.142-25.244-12.142-47.02c0-21.947,4.098-37.801,12.264-47.566c8.161-9.75,21.239-14.639,39.266-14.639h25.341c17.991,0,31.027,4.889,39.109,14.639c0.319,0.379,0.598,0.834,0.865,1.23c3.275-11.043,7.721-20.838,13.593-29.162l1.89-2.734c-13.868-11.422-32.355-17.18-55.457-17.18h-25.341c-27.207,0-48.001,7.879-62.414,23.646c-14.419,15.76-21.606,39.689-21.606,71.777c0,31.901,7.188,55.635,21.606,71.213c14.413,15.578,35.207,23.362,62.414,23.362h25.341c23.076,0,41.541-5.691,55.407-16.929c2.448-2.002,4.82-4.086,6.973-6.433c1.866-2.034,3.599-4.21,5.249-6.499c10.266-14.483,15.609-34.501,16.232-59.908c-0.05-1.585-0.109-3.133-0.109-4.805c0-1.665,0.061-3.227,0.109-4.82c0.565-18.717,4.319-32.613,11.328-41.684c0.308-0.333,0.541-0.74,0.805-1.074c8.188-9.75,21.295-14.639,39.256-14.639h25.341c18.027,0,31.026,4.889,39.139,14.639c8.045,9.766,12.108,25.524,12.108,47.281c0,21.777-4.105,37.502-12.226,47.166c-8.204,9.662-21.161,14.489-39.023,14.489h-25.341c-18.193,0-31.291-4.786-39.395-14.351c-0.2-0.279-0.391-0.6-0.624-0.864c-3.225,10.99-7.763,20.7-13.581,28.94l-1.828,2.561c13.88,11.237,32.318,16.929,55.428,16.929h25.341c27.204,0,47.957-7.784,62.411-23.362c14.452-15.578,21.643-39.312,21.643-71.213C542.772,68.836,535.582,44.906,521.13,29.148z"/><g><path fill="#4E6C7A" stroke="#4E6C7A" stroke-width="3" stroke-miterlimit="10" d="M127.495,252.48c0.96,0,1.8,0.234,2.52,0.701c0.72,0.47,1.2,1.099,1.44,1.891L158.095,327h-10.92l-21.48-61.128c-0.321-1.008-0.66-2.033-1.02-3.078c-0.36-1.043-0.701-2.033-1.02-2.97h-3.36c-0.321,0.937-0.642,1.927-0.96,2.97c-0.321,1.045-0.681,2.07-1.08,3.078L96.775,327h-10.92l26.64-71.928c0.24-0.792,0.72-1.421,1.44-1.891c0.72-0.467,1.56-0.701,2.52-0.701H127.495z M142.855,295.464v8.208h-42v-8.208H142.855z"/><path fill="#4E6C7A" stroke="#4E6C7A" stroke-width="3" stroke-miterlimit="10" d="M183.895,252.48V327h-10.56v-74.52H183.895z"/><path fill="#4E6C7A" stroke="#4E6C7A" stroke-width="3" stroke-miterlimit="10" d="M269.214,274.404v7.235h-39.48v-6.695l11.16-0.54H269.214z M257.334,249.564c1.279,0,2.919,0.019,4.92,0.054c1.999,0.037,4.039,0.107,6.12,0.216c2.08,0.108,3.879,0.27,5.4,0.486l-0.84,6.804h-12c-3.84,0-6.54,0.686-8.1,2.052c-1.56,1.369-2.34,3.637-2.34,6.805V327h-10.2v-61.992c0-3.311,0.559-6.102,1.68-8.37c1.119-2.268,2.919-4.013,5.4-5.237C249.853,250.177,253.173,249.564,257.334,249.564z"/><path fill="#4E6C7A" stroke="#4E6C7A" stroke-width="3" stroke-miterlimit="10" d="M308.693,273.108c6.72,0,12.099,0.9,16.14,2.699c4.039,1.801,6.939,4.735,8.7,8.803c1.759,4.068,2.64,9.449,2.64,16.146s-0.881,12.079-2.64,16.146c-1.761,4.068-4.661,7.003-8.7,8.802c-4.041,1.799-9.42,2.7-16.14,2.7c-6.641,0-11.981-0.901-16.02-2.7c-4.041-1.799-6.96-4.733-8.76-8.802c-1.8-4.067-2.7-9.45-2.7-16.146s0.9-12.077,2.7-16.146c1.8-4.067,4.72-7.002,8.76-8.803C296.712,274.009,302.052,273.108,308.693,273.108z M308.693,280.884c-4.241,0-7.581,0.594-10.02,1.782c-2.441,1.188-4.181,3.223-5.22,6.102c-1.041,2.881-1.56,6.877-1.56,11.988c0,5.113,0.52,9.109,1.56,11.988c1.039,2.881,2.779,4.914,5.22,6.102c2.439,1.188,5.779,1.782,10.02,1.782c4.239,0,7.599-0.594,10.08-1.782c2.479-1.188,4.239-3.221,5.28-6.102c1.039-2.879,1.56-6.875,1.56-11.988c0-5.111-0.521-9.107-1.56-11.988c-1.041-2.879-2.801-4.914-5.28-6.102C316.292,281.478,312.933,280.884,308.693,280.884z"/><path fill="#4E6C7A" stroke="#4E6C7A" stroke-width="3" stroke-miterlimit="10" d="M363.652,274.404l1.32,10.044l0.96,1.62V327h-10.2v-52.596H363.652z M392.332,273.108l-1.2,8.64h-3.36c-3.439,0-6.881,0.631-10.319,1.89c-3.44,1.261-7.641,3.043-12.6,5.347l-0.84-5.725c4.32-3.167,8.659-5.651,13.02-7.452c4.359-1.799,8.58-2.699,12.659-2.699H392.332z"/><path fill="#4E6C7A" stroke="#4E6C7A" stroke-width="3" stroke-miterlimit="10" d="M459.41,251.184c3.918,0.073,7.959,0.254,12.119,0.54c4.159,0.289,8.319,0.829,12.48,1.62l-0.72,6.912c-3.441-0.144-7.241-0.27-11.4-0.378c-4.16-0.108-8.16-0.162-12-0.162c-2.961,0-5.501,0.091-7.62,0.271c-2.12,0.181-3.86,0.612-5.22,1.296c-1.361,0.685-2.34,1.801-2.94,3.348c-0.6,1.549-0.899,3.69-0.899,6.426c0,4.104,0.819,6.967,2.46,8.586c1.639,1.62,4.299,2.827,7.979,3.618l16.8,3.78c6.399,1.368,10.78,3.763,13.141,7.182c2.358,3.421,3.54,8.011,3.54,13.771c0,4.319-0.54,7.813-1.62,10.476c-1.08,2.665-2.741,4.698-4.98,6.103c-2.24,1.403-5.12,2.376-8.64,2.916c-3.521,0.54-7.68,0.81-12.479,0.81c-2.721,0-6.261-0.107-10.62-0.324c-4.361-0.216-9.381-0.793-15.061-1.728l0.72-7.021c4.72,0.146,8.521,0.271,11.4,0.378c2.88,0.108,5.358,0.162,7.44,0.162c2.079,0,4.239,0,6.479,0c4.239,0,7.579-0.286,10.021-0.863c2.439-0.576,4.158-1.729,5.159-3.456c1-1.729,1.5-4.283,1.5-7.668c0-2.879-0.359-5.111-1.079-6.696c-0.721-1.583-1.86-2.789-3.421-3.618c-1.56-0.827-3.539-1.493-5.939-1.998l-17.16-3.888c-6-1.367-10.221-3.743-12.66-7.128c-2.441-3.384-3.66-7.92-3.66-13.608c0-4.32,0.54-7.793,1.62-10.422c1.08-2.627,2.719-4.606,4.92-5.94c2.2-1.331,4.98-2.214,8.341-2.646C450.77,251.4,454.77,251.184,459.41,251.184z"/><path fill="#4E6C7A" stroke="#4E6C7A" stroke-width="3" stroke-miterlimit="10" d="M522.528,252.372c4,0,8.02,0,12.061,0c4.038,0,8.04,0.054,12,0.162c3.96,0.107,7.779,0.27,11.46,0.485l-0.48,7.452h-33.239c-2.481,0-4.302,0.559-5.461,1.675c-1.16,1.116-1.739,2.934-1.739,5.453v44.28c0,2.521,0.579,4.357,1.739,5.508c1.159,1.153,2.979,1.729,5.461,1.729h33.239l0.48,7.344c-3.681,0.216-7.5,0.361-11.46,0.432c-3.96,0.073-7.962,0.125-12,0.162c-4.041,0.036-8.061,0.055-12.061,0.055c-4.88,0-8.741-1.17-11.58-3.511c-2.84-2.339-4.301-5.489-4.38-9.449v-48.816c0.079-4.031,1.54-7.199,4.38-9.504C513.787,253.524,517.648,252.372,522.528,252.372z M508.729,283.8h44.16v7.668h-44.16V283.8z"/><path fill="#4E6C7A" stroke="#4E6C7A" stroke-width="3" stroke-miterlimit="10" d="M607.009,251.076c6,0,11.1,0.647,15.3,1.943c4.2,1.297,7.561,3.439,10.08,6.427c2.521,2.988,4.359,6.966,5.521,11.934c1.158,4.968,1.739,11.089,1.739,18.36c0,7.272-0.581,13.392-1.739,18.359c-1.161,4.969-3,8.947-5.521,11.935c-2.52,2.988-5.88,5.13-10.08,6.426s-9.3,1.944-15.3,1.944s-11.1-0.648-15.3-1.944s-7.581-3.438-10.141-6.426c-2.561-2.987-4.421-6.966-5.58-11.935c-1.16-4.968-1.739-11.087-1.739-18.359c0-7.271,0.579-13.393,1.739-18.36c1.159-4.968,3.02-8.945,5.58-11.934c2.56-2.987,5.94-5.13,10.141-6.427C595.909,251.724,601.009,251.076,607.009,251.076z M607.009,259.608c-5.441,0-9.74,0.937-12.9,2.808c-3.161,1.873-5.399,4.986-6.72,9.342c-1.32,4.357-1.979,10.352-1.979,17.982c0,7.56,0.659,13.537,1.979,17.928c1.32,4.393,3.559,7.524,6.72,9.396c3.16,1.873,7.459,2.808,12.9,2.808c5.439,0,9.738-0.935,12.9-2.808c3.159-1.872,5.399-5.004,6.72-9.396c1.319-4.391,1.979-10.368,1.979-17.928c0-7.631-0.66-13.625-1.979-17.982c-1.32-4.355-3.561-7.469-6.72-9.342C616.747,260.545,612.448,259.608,607.009,259.608z"/></g></svg>',
     'sooz': '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="145.28" height="40" viewBox="0 0 731.25 201.25" enable-background="new 0 0 731.25 201.25" xml:space="preserve" fill="#0066aa" style="max-height:40px; width:auto;"><path d="M680.595,5.501c14.86,0,26.106,3.61,33.744,10.837c7.631,7.224,11.411,17.488,11.411,30.816c0,10.879-2.508,19.949-7.465,27.174c-4.962,7.225-12.35,12.992-22.256,17.299l-101.367,44.188c-2.998,1.341-5.275,3.212-6.896,5.642c-1.705,2.439-2.519,5.248-2.519,8.437c0,3.749,1.172,6.763,3.448,9.021c2.277,2.241,5.727,3.368,10.356,3.368H721.61v33.215H596.858c-14.862,0-26.074-3.622-33.619-10.825c-7.556-7.225-11.296-17.512-11.296-30.85c0-10.857,2.443-19.928,7.397-27.152s12.509-12.992,22.655-17.299l100.793-44.2c6.416-2.628,9.667-7.328,9.667-14.067c0-3.76-1.181-6.758-3.458-9.019c-2.353-2.249-5.884-3.378-10.597-3.378H558.526V5.501H680.595z"/><path d="M172.98,5.501v33.206H53.139c-4.783,0-8.319,1.129-10.598,3.378c-2.31,2.261-3.448,5.259-3.448,9.019c0,6.74,3.207,11.439,9.624,14.067l100.833,44.2c10.111,4.309,17.625,10.075,22.579,17.299c4.957,7.225,7.43,16.295,7.43,27.152c0,13.338-3.733,23.625-11.287,30.85c-7.513,7.203-18.721,10.825-33.586,10.825H9.895v-33.215h122.56c4.625,0,8.044-1.127,10.355-3.368c2.277-2.259,3.449-5.271,3.449-9.021c0-3.188-0.852-5.997-2.477-8.437c-1.664-2.43-3.973-4.301-6.903-5.642L35.513,91.627c-9.945-4.309-17.375-10.075-22.329-17.299C8.227,67.104,5.75,58.033,5.75,47.154c0-13.328,3.818-23.594,11.436-30.816C24.799,9.111,36.044,5.501,50.935,5.501H172.98z"/><path d="M521.13,29.148C506.678,13.38,485.924,5.501,458.719,5.501h-25.341c-23.143,0-41.59,5.757-55.478,17.18c-2.41,2.002-4.764,4.103-6.902,6.468c-1.857,2.041-3.607,4.24-5.24,6.568c-7.854,11.215-12.879,25.689-15.072,43.319c-0.018,0.103-0.059,0.169-0.074,0.301c-0.042,0.379-0.108,0.956-0.212,1.664c-0.018,0.173-0.025,0.354-0.042,0.515c-0.723,7.373-2.169,27.873-2.868,37.846c-0.303,4.354-0.959,8.685-2.25,12.846c-1.837,5.691-4.224,10.465-7.252,14.359c-0.304,0.388-0.59,0.848-0.91,1.229c-8.167,9.662-21.161,14.489-38.948,14.489h-25.341c-18.193,0-31.35-4.786-39.389-14.351c-8.122-9.572-12.142-25.244-12.142-47.02c0-21.947,4.098-37.801,12.264-47.566c8.161-9.75,21.239-14.639,39.266-14.639h25.341c17.991,0,31.027,4.889,39.109,14.639c0.319,0.379,0.598,0.834,0.865,1.23c3.275-11.043,7.721-20.838,13.593-29.162l1.89-2.734c-13.868-11.422-32.355-17.18-55.457-17.18h-25.341c-27.207,0-48.001,7.879-62.414,23.646c-14.419,15.76-21.606,39.689-21.606,71.777c0,31.901,7.188,55.635,21.606,71.213c14.413,15.578,35.207,23.362,62.414,23.362h25.341c23.076,0,41.541-5.691,55.407-16.929c2.448-2.002,4.82-4.086,6.973-6.433c1.866-2.034,3.599-4.21,5.249-6.499c10.266-14.483,15.609-34.501,16.232-59.908c-0.05-1.585-0.109-3.133-0.109-4.805c0-1.665,0.061-3.227,0.109-4.82c0.565-18.717,4.319-32.613,11.328-41.684c0.308-0.333,0.541-0.74,0.805-1.074c8.188-9.75,21.295-14.639,39.256-14.639h25.341c18.027,0,31.026,4.889,39.139,14.639c8.045,9.766,12.108,25.524,12.108,47.281c0,21.777-4.105,37.502-12.226,47.166c-8.204,9.662-21.161,14.489-39.023,14.489h-25.341c-18.193,0-31.291-4.786-39.395-14.351c-0.2-0.279-0.391-0.6-0.624-0.864c-3.225,10.99-7.763,20.7-13.581,28.94l-1.828,2.561c13.88,11.237,32.318,16.929,55.428,16.929h25.341c27.204,0,47.957-7.784,62.411-23.362c14.452-15.578,21.643-39.312,21.643-71.213C542.772,68.836,535.582,44.906,521.13,29.148z"/></svg>',
@@ -259,6 +260,7 @@ const ai4seo_attachment_mime_type_selectors = ['.media-frame-content .attachment
 let ai4seo_allowed_ajax_actions = [
     'ai4seo_save_anything',
     'ai4seo_show_metadata_editor', 'ai4seo_show_attachment_attributes_editor',
+    'ai4seo_check_attachment_usage_context',
     'ai4seo_generate_metadata', 'ai4seo_generate_attachment_attributes',
     'ai4seo_reject_tos', 'ai4seo_accept_tos', 'ai4seo_show_terms_of_service',
     'ai4seo_dismiss_notification', 'ai4seo_reset_plugin_data', 'ai4seo_clear_debug_message_log', 'ai4seo_stop_bulk_generation',
@@ -879,6 +881,9 @@ function ai4seo_init_html_elements() {
     // init sticky-buttons-bar
     ai4seo_init_sticky_buttons_bar();
     ai4seo_init_sticky_modal_footer();
+
+    // init attachment usage context status checks
+    ai4seo_init_attachment_usage_context_statuses();
 
     // init auto resize textareas
     ai4seo_init_auto_resize_textareas();
@@ -1659,6 +1664,44 @@ function ai4seo_toggle_visibility($target, $caret_down, $caret_up, duration = 0)
 
 // =========================================================================================== \\
 
+function ai4seo_toggle_collapsible_section(trigger_element, duration = 0) {
+    const $ai4seo_trigger = ai4seo_normalize_$(trigger_element);
+
+    if (!ai4seo_exists_$($ai4seo_trigger)) {
+        console.warn(ai4seo_get_plugin_name() + ': element \"trigger_element\" missing in ai4seo_toggle_collapsible_section() \u2014 cannot toggle collapsible section.');
+        return;
+    }
+
+    const $ai4seo_target = $ai4seo_trigger.next();
+    const ai4seo_will_expand = !$ai4seo_target.is(':visible');
+
+    ai4seo_toggle_visibility(
+        $ai4seo_target,
+        $ai4seo_trigger.find('.ai4seo-caret-down'),
+        $ai4seo_trigger.find('.ai4seo-caret-up'),
+        duration
+    );
+
+    $ai4seo_trigger.attr('aria-expanded', ai4seo_will_expand ? 'true' : 'false');
+}
+
+// =========================================================================================== \\
+
+function ai4seo_handle_collapsible_section_keydown(event, trigger_element, duration = 0) {
+    if (!event) {
+        return;
+    }
+
+    if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar' && event.keyCode !== 13 && event.keyCode !== 32) {
+        return;
+    }
+
+    event.preventDefault();
+    ai4seo_toggle_collapsible_section(trigger_element, duration);
+}
+
+// =========================================================================================== \\
+
 function ai4seo_open_get_more_credits_modal() {
     ai4seo_open_modal_from_schema('get-more-credits', {modal_size: 'small'});
 
@@ -1825,6 +1868,10 @@ function ai4seo_init_generate_buttons() {
 
     // Loop through mapping and call function to add button-element
     jQuery.each(ai4seo_generate_data_for_inputs, function(this_generate_data_for_input_selector, this_generate_data_for_input_details) {
+        if (!ai4seo_should_render_generate_button_for_selector(this_generate_data_for_input_selector, this_generate_data_for_input_details)) {
+            return;
+        }
+
         let $this_generate_data_for_input = ai4seo_normalize_$(this_generate_data_for_input_selector);
 
         // keep selector intact
@@ -2363,28 +2410,157 @@ function ai4seo_toggle_autopilot_remove_generated_data_section($clicked_button) 
 
 // =========================================================================================== \\
 
+function ai4seo_escape_html(value) {
+    const $element = ai4seo_normalize_$('<div></div>');
+
+    if (!ai4seo_exists_$($element)) {
+        return String(value ?? '');
+    }
+
+    return $element.text(String(value ?? '')).html();
+}
+
+// =========================================================================================== \\
+
+function ai4seo_get_generated_data_reset_post_type_options($options_container) {
+    $options_container = ai4seo_normalize_$($options_container);
+
+    if (!ai4seo_exists_$($options_container)) {
+        return [];
+    }
+
+    const options = [];
+    const $post_type_options = $options_container.find('.ai4seo-generated-data-reset-post-type-option');
+
+    if (!ai4seo_exists_$($post_type_options)) {
+        return options;
+    }
+
+    $post_type_options.each(function() {
+        const $this_option = ai4seo_normalize_$(this);
+        const post_type = $this_option.data('post-type');
+        const label = $this_option.data('label');
+
+        if (!post_type || !label) {
+            return;
+        }
+
+        options.push({
+            post_type: String(post_type),
+            label: String(label)
+        });
+    });
+
+    return options;
+}
+
+// =========================================================================================== \\
+
+function ai4seo_get_generated_data_reset_post_type_checkboxes_html(options, checkbox_name, checkbox_class, id_prefix, checked = false) {
+    if (!Array.isArray(options) || options.length === 0) {
+        return '';
+    }
+
+    let checkboxes_html = "<div class='ai4seo-generated-data-reset-post-type-selection'>";
+    const select_all_id = 'ai4seo-select-all-' + id_prefix;
+    const checked_attribute = checked ? ' checked' : '';
+
+    checkboxes_html += "<label class='ai4seo-select-all-checkbox-label ai4seo-form-multiple-inputs' for='" + ai4seo_escape_html(select_all_id) + "'>";
+    checkboxes_html += "<input type='checkbox' class='ai4seo-select-all-checkbox' data-target='" + ai4seo_escape_html(checkbox_name) + "' id='" + ai4seo_escape_html(select_all_id) + "'" + checked_attribute + '>';
+    checkboxes_html += ai4seo_escape_html(wp.i18n.__('Select All / Unselect All', 'ai-for-seo'));
+    checkboxes_html += '</label>';
+    checkboxes_html += "<div class='ai4seo-medium-gap'></div>";
+
+    options.forEach(function(option) {
+        const post_type = String(option.post_type || '');
+        const label = String(option.label || '');
+
+        if (!post_type || !label) {
+            return;
+        }
+
+        const input_id = id_prefix + '-' + post_type.replace(/[^a-zA-Z0-9_-]/g, '-');
+
+        checkboxes_html += "<div class='ai4seo-form-multiple-inputs'>";
+        checkboxes_html += "<input type='checkbox' id='" + ai4seo_escape_html(input_id) + "' name='" + ai4seo_escape_html(checkbox_name) + "[]' value='" + ai4seo_escape_html(post_type) + "' class='ai4seo-generated-data-reset-post-type-checkbox " + ai4seo_escape_html(checkbox_class) + "'" + checked_attribute + '>';
+        checkboxes_html += "<label for='" + ai4seo_escape_html(input_id) + "'>" + ai4seo_escape_html(label) + '</label>';
+        checkboxes_html += '</div>';
+    });
+
+    checkboxes_html += '</div>';
+
+    return checkboxes_html;
+}
+
+// =========================================================================================== \\
+
+function ai4seo_get_selected_generated_data_reset_post_types(checkbox_selector) {
+    const $selected_post_type_checkboxes = ai4seo_normalize_$(checkbox_selector + ':checked');
+
+    if (!ai4seo_exists_$($selected_post_type_checkboxes)) {
+        return [];
+    }
+
+    const selected_post_types = [];
+
+    $selected_post_type_checkboxes.each(function() {
+        const post_type = String(jQuery(this).val() || '');
+
+        if (!post_type || selected_post_types.includes(post_type)) {
+            return;
+        }
+
+        selected_post_types.push(post_type);
+    });
+
+    return selected_post_types;
+}
+
+// =========================================================================================== \\
+
 function ai4seo_confirm_autopilot_remove_generated_data() {
     const $autopilot_reset_generated_data_info_tooltip = ai4seo_normalize_$('#ai4seo-autopilot-reset-generated-data-info');
+    const post_type_options = ai4seo_get_generated_data_reset_post_type_options('#ai4seo-autopilot-reset-generated-data-post-type-options');
     let confirmation_message = '';
 
     if (ai4seo_exists_$($autopilot_reset_generated_data_info_tooltip)) {
         confirmation_message = $autopilot_reset_generated_data_info_tooltip.html() + '<br><br>';
     }
 
-    confirmation_message += wp.i18n.__('Are you sure you want to remove all AI-generated data?', 'ai-for-seo');
+    if (post_type_options.length === 0) {
+        ai4seo_show_warning_toast(wp.i18n.__('There is no AI-generated data to remove.', 'ai-for-seo'));
+        return;
+    }
+
+    confirmation_message += wp.i18n.__('Choose which entry types should be cleared. Only selected entry types will be affected.', 'ai-for-seo');
+    confirmation_message += '<br><br>';
+    confirmation_message += ai4seo_get_generated_data_reset_post_type_checkboxes_html(
+        post_type_options,
+        'ai4seo-autopilot-reset-generated-data-post-type',
+        'ai4seo-autopilot-reset-generated-data-post-type-checkbox',
+        'ai4seo-autopilot-reset-generated-data-post-type',
+        true
+    );
 
     ai4seo_open_notification_modal(
         wp.i18n.__('Please confirm', 'ai-for-seo'),
         confirmation_message,
-        "<button type='button' class='ai4seo-button ai4seo-primary-button' onclick='ai4seo_close_modal_by_child(this);'>" + wp.i18n.__('Abort', 'ai-for-seo') + "</button><button type='button' class='ai4seo-button ai4seo-secondary-button' onclick='ai4seo_remove_generated_data_via_autopilot(this);'>" + wp.i18n.__('Yes, remove AI-generated data', 'ai-for-seo') + '</button>',
+        "<button type='button' class='ai4seo-button ai4seo-primary-button' onclick='ai4seo_close_modal_by_child(this);'>" + wp.i18n.__('Abort', 'ai-for-seo') + "</button><button type='button' class='ai4seo-button ai4seo-secondary-button' onclick='ai4seo_remove_generated_data_via_autopilot(this);'>" + wp.i18n.__('Remove selected data', 'ai-for-seo') + '</button>',
         {close_on_backdrop_click: false}
     );
+
+    ai4seo_init_select_all_checkboxes();
 }
 
 // =========================================================================================== \\
 
 function ai4seo_remove_generated_data_via_autopilot() {
-    ai4seo_close_notification_modal();
+    const reset_metadata_post_types = ai4seo_get_selected_generated_data_reset_post_types('.ai4seo-autopilot-reset-generated-data-post-type-checkbox');
+
+    if (reset_metadata_post_types.length === 0) {
+        ai4seo_show_warning_toast(wp.i18n.__('Please select at least one entry type.', 'ai-for-seo'));
+        return;
+    }
 
     const $autopilot_remove_generated_data_button = ai4seo_normalize_$('.ai4seo-remove-generated-data-button');
 
@@ -2392,9 +2568,16 @@ function ai4seo_remove_generated_data_via_autopilot() {
         ai4seo_add_loading_html_to_element($autopilot_remove_generated_data_button);
     }
 
+    ai4seo_close_notification_modal();
     ai4seo_lock_and_disable_lockable_input_fields();
 
-    ai4seo_perform_ajax_call('ai4seo_reset_plugin_data', {ai4seo_reset_metadata: true})
+    ai4seo_perform_ajax_call(
+        'ai4seo_reset_plugin_data',
+        {
+            ai4seo_reset_metadata: true,
+            ai4seo_reset_metadata_post_types: reset_metadata_post_types
+        }
+    )
         .then(response => { /* nothing */ })
         .catch(error => {
             ai4seo_show_error_toast(512181225, error);
@@ -3360,7 +3543,7 @@ function ai4seo_generate_with_ai($generate_button, ajax_action, generate_data_fo
             const generated_field_identifiers = Object.keys(response.generated_data);
             const human_readable_generated_field_identifiers = ai4seo_get_human_readable_generation_field_names(generated_field_identifiers);
             const success_toast_message = wp.i18n.sprintf(
-                wp.i18n.__('Successfully generated %1s. Consumed: %2s. Remaining: %3s.', 'ai-for-seo'),
+                wp.i18n.__('Generated %1s. Consumed: %2s. Remaining: %3s.', 'ai-for-seo'),
                 human_readable_generated_field_identifiers.join(', '),
                 '<span class="ai4seo-credits-usage-badge">' + credits_consumed + '</span>',
                 '<span class="ai4seo-credits-usage-badge">' + ai4seo_remaining_credits + '</span>'
@@ -4413,6 +4596,83 @@ function ai4seo_get_active_attachment_attributes() {
     return ai4seo_get_localization_parameter('ai4seo_active_attachment_attributes');
 }
 
+// =========================================================================================== \\
+
+function ai4seo_is_truthy_localization_parameter(parameter_name) {
+    const parameter_value = ai4seo_get_localization_parameter(parameter_name);
+
+    return parameter_value === true
+        || parameter_value === 1
+        || parameter_value === '1'
+        || parameter_value === 'true';
+}
+
+// =========================================================================================== \\
+
+function ai4seo_are_external_metadata_generate_buttons_enabled() {
+    return ai4seo_is_truthy_localization_parameter('ai4seo_enable_external_metadata_generate_buttons');
+}
+
+// =========================================================================================== \\
+
+function ai4seo_are_external_media_generate_buttons_enabled() {
+    return ai4seo_is_truthy_localization_parameter('ai4seo_enable_external_media_generate_buttons');
+}
+
+// =========================================================================================== \\
+
+function ai4seo_is_internal_metadata_generate_button_selector(selector) {
+    return typeof selector === 'string'
+        && selector.indexOf('#ai4seo_metadata_') === 0;
+}
+
+// =========================================================================================== \\
+
+function ai4seo_is_internal_media_generate_button_selector(selector) {
+    return typeof selector === 'string'
+        && selector.indexOf('#ai4seo_attachment_attribute_') === 0;
+}
+
+// =========================================================================================== \\
+
+function ai4seo_should_render_generate_button_for_selector(selector, generate_button_details = {}) {
+    if (ai4seo_is_internal_metadata_generate_button_selector(selector)
+        || ai4seo_is_internal_media_generate_button_selector(selector)) {
+        return true;
+    }
+
+    const processing_context = generate_button_details['processing-context'] || '';
+
+    if (processing_context === 'metadata') {
+        return ai4seo_are_external_metadata_generate_buttons_enabled();
+    }
+
+    if (processing_context === 'attachment-attributes') {
+        return ai4seo_are_external_media_generate_buttons_enabled();
+    }
+
+    return true;
+}
+
+// =========================================================================================== \\
+
+function ai4seo_should_render_generate_all_button_for_selector(processing_context, selector) {
+    if (selector === '#ai4seo-generate-all-metadata-button-hook'
+        || selector === '#ai4seo-generate-all-attachment-attributes-button-hook') {
+        return true;
+    }
+
+    if (processing_context === 'metadata') {
+        return ai4seo_are_external_metadata_generate_buttons_enabled();
+    }
+
+    if (processing_context === 'attachment-attributes') {
+        return ai4seo_are_external_media_generate_buttons_enabled();
+    }
+
+    return true;
+}
+
 
 // ___________________________________________________________________________________________ \\
 // === DASHBOARD ============================================================================= \\
@@ -4769,6 +5029,10 @@ function ai4seo_init_generate_all_buttons() {
     // Loop through selectors and add button to each selector
     for (let this_processing_context in ai4seo_generate_all_button_selectors) {
         ai4seo_generate_all_button_selectors[this_processing_context].forEach(function(this_generate_all_button_selector) {
+            if (!ai4seo_should_render_generate_all_button_for_selector(this_processing_context, this_generate_all_button_selector)) {
+                return;
+            }
+
             // skip button if no active meta tags or attachment attributes are selected
             const num_active_meta_tags = ai4seo_get_active_meta_tags() ? Object.keys(ai4seo_get_active_meta_tags()).length : 0;
             const num_active_attachment_attributes = ai4seo_get_active_attachment_attributes() ? Object.keys(ai4seo_get_active_attachment_attributes()).length : 0;
@@ -5964,7 +6228,17 @@ function ai4seo_open_modal_$(modal_id, modal_settings = {}) {
 
     // add close button
     if (modal_settings.add_close_button) {
-        $modal.append("<div class='ai4seo-modal-close-icon' onclick='ai4seo_close_modal(\"" + modal_id + "\");'>" + ai4seo_get_svg_tag('square-xmark', '', wp.i18n.__('Close modal', 'ai-for-seo')) + '</div>');
+        const ai4seo_close_modal_label = wp.i18n.__('Close modal', 'ai-for-seo');
+        const $ai4seo_close_button = jQuery('<button type="button" class="ai4seo-modal-close-icon"></button>');
+
+        $ai4seo_close_button.attr('aria-label', ai4seo_close_modal_label);
+        $ai4seo_close_button.attr('title', ai4seo_close_modal_label);
+        $ai4seo_close_button.html(ai4seo_get_svg_tag('square-xmark', '', ''));
+        $ai4seo_close_button.on('click', function() {
+            ai4seo_close_modal(modal_id);
+        });
+
+        $modal.append($ai4seo_close_button);
     }
 
     // set headline
@@ -6573,6 +6847,210 @@ function ai4seo_open_attachment_attributes_editor_modal(attachment_post_id = fal
 
 // =========================================================================================== \\
 
+function ai4seo_init_attachment_usage_context_statuses() {
+    const $usage_context_statuses = ai4seo_normalize_$('.ai4seo-attachment-usage-context-status');
+
+    if (!ai4seo_exists_$($usage_context_statuses)) {
+        return;
+    }
+
+    $usage_context_statuses.each(function() {
+        const $usage_context_status = ai4seo_normalize_$(this);
+
+        if (!ai4seo_exists_$($usage_context_status)) {
+            return;
+        }
+
+        if ($usage_context_status.data('ai4seo-usage-context-initialized')) {
+            return;
+        }
+
+        $usage_context_status.data('ai4seo-usage-context-initialized', true);
+
+        const attachment_post_id = parseInt($usage_context_status.attr('data-attachment-post-id'), 10);
+
+        if (!attachment_post_id || attachment_post_id <= 0) {
+            ai4seo_render_attachment_usage_context_status($usage_context_status, {
+                usage_context_available: false,
+                deep_context_search_enabled: true,
+                deep_context_search_supported: false,
+            });
+            return;
+        }
+
+        ai4seo_perform_ajax_call(
+            'ai4seo_check_attachment_usage_context',
+            {attachment_post_id: attachment_post_id},
+            true,
+            {},
+            false,
+            false
+        )
+            .then(response => {
+                ai4seo_render_attachment_usage_context_status($usage_context_status, response);
+            })
+            .catch(error => {
+                console.warn(ai4seo_get_plugin_name() + ': Could not check attachment usage context.', error);
+                ai4seo_render_attachment_usage_context_status($usage_context_status, {
+                    usage_context_available: false,
+                    deep_context_search_enabled: true,
+                    deep_context_search_supported: false,
+                });
+            });
+    });
+}
+
+// =========================================================================================== \\
+
+function ai4seo_render_attachment_usage_context_status($usage_context_status, response) {
+    $usage_context_status = ai4seo_normalize_$($usage_context_status);
+
+    if (!ai4seo_exists_$($usage_context_status)) {
+        return;
+    }
+
+    if (!response || typeof response !== 'object') {
+        response = {};
+    }
+
+    const post_id = parseInt(response.post_id || 0, 10);
+    const is_usage_context_available = !!response.usage_context_available && post_id > 0;
+    const $usage_context_result = $usage_context_status.find('.ai4seo-attachment-usage-context-result');
+
+    if (!ai4seo_exists_$($usage_context_result)) {
+        return;
+    }
+
+    const status_class = is_usage_context_available ? 'ai4seo-attachment-usage-context-status-success' : 'ai4seo-attachment-usage-context-status-error';
+    const result_class = is_usage_context_available ? 'ai4seo-attachment-usage-context-result-success' : 'ai4seo-attachment-usage-context-result-error';
+    const icon_name = is_usage_context_available ? 'circle-check' : 'circle-xmark';
+    const icon_css_class = is_usage_context_available ? 'ai4seo-dark-green-icon ai4seo-24x24-icon' : 'ai4seo-red-icon ai4seo-24x24-icon';
+    const icon_alt_text = is_usage_context_available ? wp.i18n.__('Usage context available', 'ai-for-seo') : wp.i18n.__('Usage context unavailable', 'ai-for-seo');
+    const $message = ai4seo_get_attachment_usage_context_status_message_element(response, is_usage_context_available, post_id);
+
+    const $result_inner = jQuery('<div></div>').addClass('ai4seo-attachment-usage-context-result-inner');
+    const $icon = jQuery('<span></span>')
+        .addClass('ai4seo-attachment-usage-context-result-icon')
+        .html(ai4seo_get_svg_tag(icon_name, icon_css_class, icon_alt_text));
+    const $text = jQuery('<div></div>').addClass('ai4seo-attachment-usage-context-result-text');
+
+    $text.append($message);
+
+    if (ai4seo_should_show_attachment_usage_context_settings_link(response, is_usage_context_available)) {
+        const settings_url = response.settings_url || ai4seo_build_custom_admin_url('settings');
+        const $settings_link = jQuery('<a></a>')
+            .attr('href', settings_url)
+            .attr('target', '_blank')
+            .attr('rel', 'noopener')
+            .text(wp.i18n.__('Open Settings', 'ai-for-seo'));
+
+        $text.append(' ').append($settings_link);
+    }
+
+    $result_inner.append($icon);
+    $result_inner.append($text);
+
+    $usage_context_result
+        .empty()
+        .removeClass('ai4seo-attachment-usage-context-result-success ai4seo-attachment-usage-context-result-error')
+        .addClass(result_class)
+        .append($result_inner);
+
+    $usage_context_status
+        .removeClass('ai4seo-attachment-usage-context-status-success ai4seo-attachment-usage-context-status-error')
+        .addClass(status_class);
+
+    ai4seo_reveal_attachment_usage_context_result($usage_context_status);
+}
+
+// =========================================================================================== \\
+
+function ai4seo_get_attachment_usage_context_status_message_element(response, is_usage_context_available, post_id) {
+    const $message = jQuery('<span></span>');
+
+    if (is_usage_context_available) {
+        let post_title = ai4seo_decode_html_entities(String(response.post_title || '').trim()).trim();
+
+        if (!post_title) {
+            post_title = wp.i18n.__('Untitled', 'ai-for-seo');
+        }
+
+        const post_reference = wp.i18n.sprintf(
+            /* translators: 1: Post ID, 2: Post title. */
+            wp.i18n.__('Post #%1$s: %2$s', 'ai-for-seo'),
+            String(post_id),
+            post_title
+        );
+
+        $message.append(jQuery('<span></span>').text(wp.i18n.__('Usage context available. ', 'ai-for-seo')));
+        $message.append(jQuery('<strong></strong>').text(post_reference));
+        $message.append(jQuery('<span></span>').text(wp.i18n.__('. This context will be used during generation.', 'ai-for-seo')));
+
+        return $message;
+    }
+
+    if (ai4seo_should_show_attachment_usage_context_settings_link(response, is_usage_context_available)) {
+        $message.text(wp.i18n.__('No usage context could be found. Go to Settings, show Advanced Settings, and activate "Deep Search for Image Usage" to improve context detection for images.', 'ai-for-seo'));
+        return $message;
+    }
+
+    $message.text(wp.i18n.__('We could not determine where this image is used, so usage context will not be available during generation. Please review the posts where you expect this image to appear. If this still seems wrong, please contact our support team.', 'ai-for-seo'));
+    return $message;
+}
+
+// =========================================================================================== \\
+
+function ai4seo_decode_html_entities(value) {
+    let decoded_value = String(value ?? '');
+
+    for (let i = 0; i < 3; i++) {
+        const next_decoded_value = ai4seo_decode_escaped_html(decoded_value);
+
+        if (next_decoded_value === decoded_value) {
+            break;
+        }
+
+        decoded_value = next_decoded_value;
+    }
+
+    return decoded_value;
+}
+
+// =========================================================================================== \\
+
+function ai4seo_should_show_attachment_usage_context_settings_link(response, is_usage_context_available) {
+    if (is_usage_context_available) {
+        return false;
+    }
+
+    return !!response.deep_context_search_supported && !response.deep_context_search_enabled;
+}
+
+// =========================================================================================== \\
+
+function ai4seo_reveal_attachment_usage_context_result($usage_context_status) {
+    const $loading = $usage_context_status.find('.ai4seo-attachment-usage-context-loading');
+    const $result = $usage_context_status.find('.ai4seo-attachment-usage-context-result');
+
+    if (!ai4seo_exists_$($result)) {
+        return;
+    }
+
+    const reveal_result = function() {
+        $usage_context_status.removeClass('ai4seo-attachment-usage-context-status-loading');
+        $result.fadeIn(200);
+    };
+
+    if (ai4seo_exists_$($loading) && $loading.is(':visible')) {
+        $loading.fadeOut(200, reveal_result);
+        return;
+    }
+
+    reveal_result();
+}
+
+// =========================================================================================== \\
+
 function ai4seo_safe_page_load(subpage = '', additional_url_parameter = {}) {
     // if inside elementor or gutenberg editor, do not reload, close all modals instead
     if (ai4seo_is_inside_elementor_editor() || ai4seo_is_inside_gutenberg_editor() || ai4seo_is_inside_muffin_builder_editor()) {
@@ -6777,6 +7255,10 @@ function ai4seo_add_open_edit_metadata_modal_button_to_edit_page_header() {
 // =========================================================================================== \\
 
 function ai4seo_add_open_edit_metadata_modal_button_to_be_builder_navigation() {
+    if (!ai4seo_are_external_metadata_generate_buttons_enabled()) {
+        return;
+    }
+
     // Define variable for the seo-title-element within the be-builder-navigation
     const $seo_title_container = ai4seo_normalize_$('.mfn-meta-seo-title');
 
@@ -6818,6 +7300,10 @@ function ai4seo_add_open_edit_metadata_modal_button_to_be_builder_navigation() {
 // =========================================================================================== \\
 
 function ai4seo_add_open_edit_metadata_modal_button_to_elementor_navigation() {
+    if (!ai4seo_are_external_metadata_generate_buttons_enabled()) {
+        return;
+    }
+
     // Read post-id from hidden container if not defined
     const post_id = ai4seo_get_post_id('metadata');
 
@@ -6990,8 +7476,13 @@ function ai4seo_save_anything($submit_button, validation_function, success_funct
     // show loading toast
     ai4seo_show_loading_toast(wp.i18n.__('Saving your data now...', 'ai-for-seo'));
 
+    const ajax_data = {
+        ai4seo_save_anything_payload: ai4seo_encode_save_anything_payload(input_values),
+        ai4seo_save_anything_payload_encoding: 'base64_json',
+    };
+
     // Perform ajax action
-    ai4seo_perform_ajax_call('ai4seo_save_anything', input_values)
+    ai4seo_perform_ajax_call('ai4seo_save_anything', ajax_data)
         .then(response => {
             // Display success message
             ai4seo_show_generic_saved_successfully_toast();
@@ -7021,6 +7512,35 @@ function ai4seo_save_anything($submit_button, validation_function, success_funct
             ai4seo_remove_loading_html_from_element($submit_button);
             ai4seo_unlock_and_enable_lockable_input_fields();
         });
+}
+
+// =========================================================================================== \\
+
+function ai4seo_encode_save_anything_payload(input_values) {
+    // Convert all collected form values into one JSON string before transport encoding.
+    const json_payload = JSON.stringify(input_values);
+
+    // Prefer TextEncoder so Unicode text is converted to bytes without deprecated APIs.
+    try {
+        // Use a byte-safe path when the browser supports TextEncoder.
+        if (typeof TextEncoder !== 'undefined') {
+            const bytes = new TextEncoder().encode(json_payload);
+            let binary_payload = '';
+
+            // Build the binary string expected by btoa() from the UTF-8 bytes.
+            for (let i = 0; i < bytes.length; i++) {
+                binary_payload += String.fromCharCode(bytes[i]);
+            }
+
+            // Base64-encode the binary payload so quotes and backslashes are safe in POST data.
+            return btoa(binary_payload);
+        }
+    } catch (error) {
+        console.warn(ai4seo_get_plugin_name() + ': TextEncoder payload encoding failed. Falling back to URI encoding.', error);
+    }
+
+    // Use the legacy URI-encoding fallback for older browsers without TextEncoder support.
+    return btoa(unescape(encodeURIComponent(json_payload)));
 }
 
 // =========================================================================================== \\
@@ -8155,6 +8675,8 @@ function ai4seo_validate_settings_inputs(input_values) {
         return false;
     }
 
+    let has_invalid_input = false;
+
     $prefix_suffix_inputs.each(function () {
         const $this_input = ai4seo_normalize_$(this);
 
@@ -8164,13 +8686,19 @@ function ai4seo_validate_settings_inputs(input_values) {
         }
 
         const this_input_value = $this_input.val();
+        const max_length = parseInt($this_input.attr('maxlength'), 10) || 48;
 
-        if (this_input_value.length > 0 && this_input_value.length > 48) {
+        if (this_input_value.length > 0 && this_input_value.length > max_length) {
             ai4seo_show_warning_toast(wp.i18n.__("Please don't exceed the maximum length-requirement for prefix- and suffix-input-fields (max. 48 characters).", 'ai-for-seo'));
             console.warn(ai4seo_get_plugin_name() + ': Validation failed for prefix/suffix input field with value \"' + this_input_value + '\" in ai4seo_validate_settings_inputs() \u2014 maximum length exceeded.');
+            has_invalid_input = true;
             return false;
         }
     });
+
+    if (has_invalid_input) {
+        return false;
+    }
 
     return true;
 }
@@ -8268,14 +8796,33 @@ function ai4seo_validate_ajax_action(action) {
 function ai4seo_build_ajax_payload(action, data) {
     const nonce = ai4seo_get_ajax_nonce();
     const bypass_incognito_mode = ai4seo_get_localization_parameter('ai4seo_bypass_incognito_mode');
+    const reserved_keys = [
+        'action',
+        AI4SEO_GLOBAL_NONCE_IDENTIFIER,
+        'security',
+        'ai4seo_debug_bypass_incognito_mode',
+        'ai4seo_ajax_payload_complete',
+    ];
 
-    return {
-        ...(data || {}),
+    const payload = {
+        action: action,
         [AI4SEO_GLOBAL_NONCE_IDENTIFIER]: nonce,
         security: nonce,
-        action: action,
         ai4seo_debug_bypass_incognito_mode: bypass_incognito_mode,
     };
+
+    for (const [key, value] of Object.entries(data || {})) {
+        if (reserved_keys.includes(key)) {
+            console.warn(ai4seo_get_plugin_name() + ': AJAX payload skipped reserved key: ' + key);
+            continue;
+        }
+
+        payload[key] = value;
+    }
+
+    payload.ai4seo_ajax_payload_complete = '1';
+
+    return payload;
 }
 
 // =========================================================================================== \\
@@ -8299,7 +8846,12 @@ function ai4seo_execute_ajax_request(payload) {
             })
             .done((response) => resolve(response))
             .fail((jqXHR, textStatus, errorThrown) =>
-                reject({ jqXHR, textStatus, errorThrown })
+                reject({
+                    jqXHR,
+                    textStatus,
+                    errorThrown,
+                    action: payload?.action || '',
+                })
             );
     });
 }
@@ -8437,7 +8989,7 @@ function ai4seo_log_special_zero_ajax_error(jqXHR) {
             : '';
 
     if (raw === '0') {
-        console.warn(ai4seo_get_plugin_name() + ': Server responded with "0" (possible nonce/auth issue).');
+        console.warn(ai4seo_get_plugin_name() + ': Server responded with "0" (possible POST truncation, missing action handler, missing action parameter, or nonce/auth issue).');
     }
 }
 
@@ -8477,7 +9029,7 @@ function ai4seo_normalize_ajax_error(response) {
     // ---------------------------------------------------------------------
     // 2) Extract typical jQuery AJAX failCtx
     // ---------------------------------------------------------------------
-    const { jqXHR = {}, textStatus, errorThrown } = response || {};
+    const { jqXHR = {}, textStatus, errorThrown, action = '' } = response || {};
     let raw = '';
     let parsed = null;
 
@@ -8509,6 +9061,10 @@ function ai4seo_normalize_ajax_error(response) {
         error = errorThrown;
     }
 
+    if (status === 400 && raw === '0') {
+        error = 'WordPress could not route the AJAX request';
+    }
+
     // ---------------------------------------------------------------------
     // 4) Build details
     // ---------------------------------------------------------------------
@@ -8526,14 +9082,27 @@ function ai4seo_normalize_ajax_error(response) {
         details = 'No further details';
     }
 
+    if (status === 400 && raw === '0') {
+        details = 'Server returned "0". This usually means WordPress did not receive a usable action parameter. On large settings pages, PHP max_input_vars truncation is a common cause.';
+    }
+
     // ---------------------------------------------------------------------
     // 5) Logging (dev-friendly, compact)
     // ---------------------------------------------------------------------
-    console.groupCollapsed(ai4seo_get_plugin_name() + ': AJAX Error (${status || "n/a"}) – click for details');
+    console.groupCollapsed(ai4seo_get_plugin_name() + ': AJAX Error (' + (status || 'n/a') + ') - click for details');
+    if (action) {
+        console.info('Action:', action);
+    }
+    console.info('HTTP status:', status || 'n/a');
     console.error('Error:', error);
     console.warn('Details:', details);
-    if (readyState !== 4) console.info('XHR readyState:', readyState);
-    if (parsed) console.info('Parsed JSON:', parsed);
+    if (readyState !== 4) {
+        console.info('XHR readyState:', readyState);
+    }
+    if (parsed) {
+        console.info('Parsed JSON:', parsed);
+    }
+    ai4seo_log_special_zero_ajax_error(jqXHR);
 
     if (readyState === 0 && status === 0) {
         console.warn(ai4seo_get_plugin_name() + ': Request not sent. Possible network, CORS, SSL, or mixed-content issue.');
@@ -8713,8 +9282,8 @@ function ai4seo_validate_troubleshooting_settings(input_values) {
 }
 
 function ai4seo_confirm_reset_plugin_data() {
-    const $reset_metadata_checkbox = ai4seo_normalize_$('#ai4seo-troubleshooting-reset-metadata');
-    const ai4seo_reset_metadata = ai4seo_exists_$($reset_metadata_checkbox) && $reset_metadata_checkbox.is(':checked');
+    const ai4seo_reset_metadata_post_types = ai4seo_get_selected_generated_data_reset_post_types('.ai4seo-troubleshooting-reset-generated-data-post-type-checkbox');
+    const ai4seo_reset_metadata = ai4seo_reset_metadata_post_types.length > 0;
 
     let ai4seo_notification_modal_message = '';
 
@@ -8765,13 +9334,13 @@ function ai4seo_reset_plugin_data() {
     const $reset_notifications_checkbox = ai4seo_normalize_$('#ai4seo-troubleshooting-reset-notifications');
     const $reset_environmental_variables_checkbox = ai4seo_normalize_$('#ai4seo-troubleshooting-reset-env');
     const $reset_settings_checkbox = ai4seo_normalize_$('#ai4seo-troubleshooting-reset-settings');
-    const $reset_metadata_checkbox = ai4seo_normalize_$('#ai4seo-troubleshooting-reset-metadata');
+    const reset_metadata_post_types = ai4seo_get_selected_generated_data_reset_post_types('.ai4seo-troubleshooting-reset-generated-data-post-type-checkbox');
 
     let reset_cache = ai4seo_exists_$($reset_cache_checkbox) && $reset_cache_checkbox.is(':checked');
     let reset_notifications = ai4seo_exists_$($reset_notifications_checkbox) && $reset_notifications_checkbox.is(':checked');
     let reset_environmental_variables = ai4seo_exists_$($reset_environmental_variables_checkbox) && $reset_environmental_variables_checkbox.is(':checked');
     let reset_settings = ai4seo_exists_$($reset_settings_checkbox) && $reset_settings_checkbox.is(':checked');
-    let reset_metadata = ai4seo_exists_$($reset_metadata_checkbox) && $reset_metadata_checkbox.is(':checked');
+    let reset_metadata = reset_metadata_post_types.length > 0;
 
     // Check if at least one option is selected
     if (!reset_cache && !reset_notifications && !reset_environmental_variables && !reset_settings && !reset_metadata) {
@@ -8797,7 +9366,8 @@ function ai4seo_reset_plugin_data() {
         ai4seo_reset_notifications: reset_notifications,
         ai4seo_reset_environmental_variables: reset_environmental_variables,
         ai4seo_reset_settings: reset_settings,
-        ai4seo_reset_metadata: reset_metadata
+        ai4seo_reset_metadata: reset_metadata,
+        ai4seo_reset_metadata_post_types: reset_metadata_post_types
     };
 
     // show loading toast
@@ -9195,9 +9765,6 @@ function ai4seo_init_export_settings() {
         return;
     }
 
-    // Add loading animation
-    ai4seo_add_loading_html_to_element($export_button);
-
     // save any unsaved changes before exporting
     const $save_settings_button = ai4seo_normalize_$('.ai4seo-save-settings-button');
 
@@ -9338,6 +9905,7 @@ function ai4seo_init_import_settings() {
                     44186725,
                     wp.i18n.__("Invalid JSON file format. The file must contain the 'ai4seo_plugin_version' property.", 'ai-for-seo')
                 );
+                return;
             }
 
             // check for settings property
@@ -11100,7 +11668,7 @@ function ai4seo_show_warning_toast(message, duration) {
 // =========================================================================================== \\
 
 function ai4seo_show_generic_saved_successfully_toast() {
-    return ai4seo_show_success_toast(wp.i18n.__('Saved successfully.', 'ai-for-seo'));
+    return ai4seo_show_success_toast(wp.i18n.__('Saved.', 'ai-for-seo'));
 }
 
 // =========================================================================================== \\

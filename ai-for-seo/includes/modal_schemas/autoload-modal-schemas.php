@@ -54,6 +54,7 @@ if ($is_user_inside_plugin_admin_pages) {
 
 if ($is_user_inside_installed_plugins_page) {
     $ai4seo_modal_schemas[] = "plugin-deactivation-feedback";
+    $ai4seo_modal_schemas[] = "customize-pay-as-you-go";
 }
 
 if (!$ai4seo_modal_schemas) {

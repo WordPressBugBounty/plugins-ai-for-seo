@@ -3,8 +3,8 @@ Tags: seo, ai, google search console, alt text, bulk
 Contributors: spacecodes
 Donate link: https://spa.ce.codes
 Requires at least: 4.7
-Tested up to: 6.9
-Stable tag: 2.3.4
+Tested up to: 7.0
+Stable tag: 2.3.5
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -28,8 +28,8 @@ Achieve better metadata and alt text results than with ChatGPT. *SOOZ - AI for S
 1. **Open the Dashboard:** Go to "SOOZ - AI for SEO" to view statistics about your current SEO coverage.
 2. **Review your content:** Open "Pages", "Posts", "Products", or "Media" and check its SEO status.
 3. **Set up Autopilot:** Click "Set up SEO Autopilot", choose content types (Pages/Posts/Products/Media), and start bulk generation.
-4. **Get a first win (optional):** In the "Media Library", click "Generate with SOOZ" on one image to create optimized alt text within seconds.
-5. **Fine-tune manually:** Use "Generate with SOOZ" buttons or the top admin-bar "SOOZ - AI for SEO" button to open the Metadata Editor for any page or post.
+4. **Get a first win (optional):** In the "Media Library", click "Generate with SOOZ" on one image to create optimized alt text within seconds. The Media Library buttons has to be activated in the plugin settings first.
+5. **Fine-tune manually:** Use "Generate with SOOZ" buttons or the top admin-bar "SOOZ - AI for SEO" button to open the Metadata Editor for any page or post. Additional editor buttons have to be activated in the plugin settings first.
 6. **Sync with your SEO plugin (optional):** In "Settings" -> Sync "SOOZ - AI for SEO" Changes, select Yoast SEO, Rank Math, SEOPress or many more to keep metadata updated.
 
 For a step-by-step guide, see "Help" -> "Getting Started" -> "First Steps".
@@ -47,7 +47,7 @@ Create and edit metadata right where you work, no context switching.
 - **BeTheme BeBuilder**
 - **Yoast SEO Settings**
 
-We add 'Generate with SOOZ' buttons in these editors so you can create SEO titles, descriptions, and image attributes in one click. It’s like having an SEO Copilot inside each editor.
+We add 'Generate with SOOZ' buttons in these editors so you can create SEO titles, descriptions, and image attributes in one click. These additional editor buttons have to be activated in the plugin settings first. It’s like having an SEO Copilot inside each editor.
 You can also click the *SOOZ - AI for SEO* button in the top admin bar to open the Metadata Editor from any page or post.
 
 = 🎯 Key Features =
@@ -161,7 +161,7 @@ A download link for your invoice is included in the confirmation email sent afte
 If you currently have an active subscription, you can also access and download your invoices through the WordPress plugin under “SOOZ – AI for SEO” > “Account” > “Manage Subscription / Invoices”.
 
 = Does *SOOZ - AI for SEO* support multi-language websites? =
-Yes, the plugin does support multi-language websites. The plugin also supports the WPML-plugin through which you can generate metadata and media attributes for all available languages separately.
+Yes, the plugin supports multi-language websites and WPML. For media attributes, the Automatic language setting analyzes the image usage context first. If the context is unavailable or unclear, it falls back to the WPML language when available, then to the system language.
 
 = Does *SOOZ - AI for SEO* support Multisite installations? =
 Yes, *SOOZ - AI for SEO* fully supports Multisite installations. Simply purchase a subscription on your primary website and use the same license owner and license key across all your sub-sites.
@@ -170,7 +170,7 @@ Yes, *SOOZ - AI for SEO* fully supports Multisite installations. Simply purchase
 Yes, you can use *SOOZ - AI for SEO* on staging or local development sites.
 
 = What editors are supported? =
-*SOOZ - AI for SEO* supports most editors and themes. For extra convenience, we've added dedicated “Generate with SOOZ” buttons in Elementor, BeTheme (Muffin-Builder / Be-Builder), and the standard editor. You can also generate metadata directly from the plugin dashboard, the metadata editor, or SEO Autopilot without using any page builder.
+*SOOZ - AI for SEO* supports most editors and themes. For extra convenience, we've added dedicated “Generate with SOOZ” buttons in Elementor, BeTheme (Muffin-Builder / Be-Builder), and the standard editor. These additional editor buttons have to be activated in the plugin settings first. You can also generate metadata directly from the plugin dashboard, the metadata editor, or SEO Autopilot without using any page builder.
 
 = Can I link multiple sites and share credits/settings? =
 Yes. Enter the same license owner and key under *SOOZ - AI for SEO* > Account on each website to link them. Linked websites share the same credits pool, and you can export/import settings between them. Works with Multisite and staging.
@@ -196,28 +196,19 @@ It depends on how the metadata is stored and used. If *SOOZ - AI for SEO* has sy
 = Can you add feature x, y or z to the plugin? =
 We are always open to suggestions and feedback. Please email us at [support@sooz.ai](mailto:support@sooz.ai) with your suggestions.
 
-
 == Changelog ==
+
+= 2.3.5 =
+* WordPress 7.0 compatibility
+* Improved Automatic language detection for media attributes by using image usage context first, with WPML and system language fallbacks.
+* Added a usage context status to the media attributes editor, showing when image context is available for generation and how to improve detection when it is not.
+* Added separate entry type choices when removing AI-generated data, including media files, so users can reset only selected generated data.
+* Added settings to control where additional "Generate with SOOZ" buttons appear in third-party SEO plugins, page builders, and WordPress media screens.
+* Bug Fixes & Maintenance: Implemented 1 security fix, 2 minor bug fixes, and 2 performance improvements.
 
 = 2.3.4 =
 * Improved "Generate with SOOZ" button behavior in Yoast SEO and Rank Math
 * Bug Fixes & Maintenance: Fixed 6 minor bugs and resolved 2 security issues.
-
-= 2.3.3 =
-* Better image usage detection for Elementor and BeTheme. To ensure this works properly, please enable the "Deep Search for Image Usage" setting.
-* Moved the "Active Authors", "Active Media Authors", and "Active Categories (taxonomy terms)" settings out of Advanced Settings so they are easier to find.
-* Moved the "SEO Autopilot: Include Complete Entries When Overwriting" settings for Metadata and Media Attributes out of Advanced Settings so they are easier to find.
-* Moved the metadata and media attribute "Prefix / Suffix" settings into Advanced Settings.
-* Added keyboard shortcuts for faster confirmations: Press Escape to close the active modal, or Enter to trigger the first primary button in the active modal or current page.
-
-= 2.3.2 =
-* Added an advanced setting to filter posts by author
-* Added an advanced setting to filter media files by author
-* Added an advanced setting to filter by category (taxonomy terms) and a setting to always exclude entries with disabled categories.
-* Bug Fixes & Maintenance: Fixed 3 minor bugs and resolved 1 security issue.
-
-= 2.3.1 =
-* Bug Fixes & Maintenance: Fixed 6 minor bugs and resolved 3 security issues.
 
 = 2.3.0 =
 * Changed branding from "AI for SEO" to "SOOZ - AI for SEO". Visit sooz.ai for more information.
@@ -230,10 +221,6 @@ We are always open to suggestions and feedback. Please email us at [support@sooz
 * Added a new "Remove License" button on the account page.
 * Added a new setting "Query IDs Chunk Size": Advanced troubleshooting option to adjust chunk size when processing large amounts of entries. Lower values may reduce database load and fix MySQL-related issues. Higher values can improve performance if your database allows it.
 * Bug Fixes & Maintenance: Fixed 21 minor bugs, implemented 9 usability improvements, implemented 14 performance optimizations, and resolved 13 security issues.
-
-= 2.2.5 =
-* Added an advanced setting to adjust the Focus Keyphrase behavior during SEO Autopilot when existing metadata is present.
-* Bug Fixes & Maintenance: Fixed 4 minor bugs and implemented 2 usability improvements, and resolved 2 security issues.
 
 = 2.2.0 =
 * Changed how Credits are consumed. Credits are now charged per generated field instead of per entry. Use the “Active Meta Tags” and “Active Media Attributes” settings to control which fields are generated and how many Credits each action requires.
@@ -327,9 +314,10 @@ We are always open to suggestions and feedback. Please email us at [support@sooz
 
 == Upgrade Notice ==
 
-= 2.3.0 =
-We changed our branding from "AI for SEO" to "SOOZ - AI for SEO". Visit sooz.ai for more information.
-This update also includes significant improvements to the quality of alt text and image attribute generation, performance optimizations, and various bug fixes.
-We recommend updating to benefit from these enhancements.
-Please note that this is a major update with significant changes, so we recommend backing up your website before proceeding with the update.
-If you encounter any issues or have questions about the new features, please don't hesitate to contact our support team at [support@sooz.ai](mailto:support@sooz.ai).
+= 2.3.5 =
+* WordPress 7.0 compatibility
+* Improved Automatic language detection for media attributes by using image usage context first, with WPML and system language fallbacks.
+* Added a usage context status to the media attributes editor, showing when image context is available for generation and how to improve detection when it is not.
+* Added separate entry type choices when removing AI-generated data, including media files, so users can reset only selected generated data.
+* Added settings to control where additional "Generate with SOOZ" buttons appear in third-party SEO plugins, page builders, and WordPress media screens.
+* Bug Fixes & Maintenance: Implemented 1 security fix, 2 minor bug fixes, and 2 performance improvements.

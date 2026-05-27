@@ -82,7 +82,7 @@ class Ai4Seo_RobHubApiCommunicator {
 
     private bool $show_more_detailed_debug_messages = false; // set to true to enable debug logging for api calls
 
-    private const ENDPOINT_LOCK_DURATIONS = array( # in seconds
+    private array $endpoint_lock_durations = array( # in seconds
         "ai4seo/generate-all-metadata" => 1,
         "ai4seo/generate-all-attachment-attributes" => 1,
         "client/get-free-account" => 5,
@@ -173,6 +173,7 @@ class Ai4Seo_RobHubApiCommunicator {
         "client/reject-terms",
         "client/product-deactivated",
     );
+    private array $html_value_paths = array();
 
 
     // ___________________________________________________________________________________________ \\
@@ -206,6 +207,122 @@ class Ai4Seo_RobHubApiCommunicator {
 
     function set_does_user_need_to_accept_tos_toc_and_pp(bool $does_user_need_to_accept_tos_toc_and_pp): void {
         $this->does_user_need_to_accept_tos_toc_and_pp = $does_user_need_to_accept_tos_toc_and_pp;
+    }
+
+    // =========================================================================================== \\
+
+    /**
+     * Extend the non-retriable API error code list.
+     *
+     * @param array $error_codes Error codes to append.
+     * @return void
+     */
+    function extend_non_retriable_error_codes(array $error_codes): void {
+        $this->non_retriable_error_codes = $this->merge_integer_list($this->non_retriable_error_codes, $error_codes);
+    }
+
+    // =========================================================================================== \\
+
+    /**
+     * Extend the non-post-related API error code list.
+     *
+     * @param array $error_codes Error codes to append.
+     * @return void
+     */
+    function extend_non_post_related_error_codes(array $error_codes): void {
+        $this->non_post_related_error_codes = $this->merge_integer_list($this->non_post_related_error_codes, $error_codes);
+    }
+
+    // =========================================================================================== \\
+
+    /**
+     * Extend endpoint lock durations.
+     *
+     * @param array $endpoint_lock_durations Endpoint lock durations keyed by endpoint.
+     * @return void
+     */
+    function extend_endpoint_lock_durations(array $endpoint_lock_durations): void {
+        foreach ($endpoint_lock_durations as $endpoint => $duration) {
+            $endpoint = $this->normalize_endpoint_identifier((string) $endpoint);
+
+            if (!$endpoint) {
+                continue;
+            }
+
+            $this->endpoint_lock_durations[$endpoint] = max(0, (int) $duration);
+        }
+    }
+
+    // =========================================================================================== \\
+
+    /**
+     * Extend the allowed endpoint list.
+     *
+     * @param array $endpoints Endpoints to append.
+     * @return void
+     */
+    function extend_allowed_endpoints(array $endpoints): void {
+        $this->allowed_endpoints = $this->merge_endpoint_list($this->allowed_endpoints, $endpoints);
+    }
+
+    // =========================================================================================== \\
+
+    /**
+     * Extend the generation endpoint list.
+     *
+     * @param array $endpoints Endpoints to append.
+     * @return void
+     */
+    function extend_generation_endpoints(array $endpoints): void {
+        $this->generation_endpoints = $this->merge_endpoint_list($this->generation_endpoints, $endpoints);
+    }
+
+    // =========================================================================================== \\
+
+    /**
+     * Extend the free endpoint list.
+     *
+     * @param array $endpoints Endpoints to append.
+     * @return void
+     */
+    function extend_free_endpoints(array $endpoints): void {
+        $this->free_endpoints = $this->merge_endpoint_list($this->free_endpoints, $endpoints);
+    }
+
+    // =========================================================================================== \\
+
+    /**
+     * Extend the endpoints that do not require accepted terms.
+     *
+     * @param array $endpoints Endpoints to append.
+     * @return void
+     */
+    function extend_no_need_to_accept_tos_endpoints(array $endpoints): void {
+        $this->no_need_to_accept_tos_endpoints = $this->merge_endpoint_list($this->no_need_to_accept_tos_endpoints, $endpoints);
+    }
+
+    // =========================================================================================== \\
+
+    /**
+     * Extend payload paths that should preserve safe HTML fragments during request sanitization.
+     *
+     * @param array $paths Payload paths. Use * as a wildcard path segment.
+     * @return void
+     */
+    function extend_html_value_paths(array $paths): void {
+        foreach ($paths as $path) {
+            if (!is_scalar($path)) {
+                continue;
+            }
+
+            $path = $this->normalize_payload_path((string) $path);
+
+            if (!$path || in_array($path, $this->html_value_paths, true)) {
+                continue;
+            }
+
+            $this->html_value_paths[] = $path;
+        }
     }
 
 
@@ -277,7 +394,7 @@ class Ai4Seo_RobHubApiCommunicator {
 
                 // check and normalize response
                 $raw_response = $this->check_raw_response( $raw_response, $api_url );
-                $normalized_response = $this->normalize_response($raw_response);
+                $normalized_response = $this->normalize_response($raw_response, $endpoint);
 
             } catch ( TypeError $e ) {
                 ai4seo_debug_message(834181462, 'TypeError while making API call to ' . $api_url . ': ' . $e->getMessage(), true);
@@ -384,7 +501,7 @@ class Ai4Seo_RobHubApiCommunicator {
         }
 
         // check if this endpoint/parameter/method combination is locked by an active transient
-        $endpoint_lock_duration = self::ENDPOINT_LOCK_DURATIONS[$endpoint] ?? 0;
+        $endpoint_lock_duration = $this->endpoint_lock_durations[$endpoint] ?? 0;
 
         if ($endpoint_lock_duration > 0) {
             $last_api_call_checksum = get_transient($transient_name);
@@ -526,8 +643,8 @@ class Ai4Seo_RobHubApiCommunicator {
         }
 
         // sanitize and encode parameters
-        $parameters = $this->deep_sanitize( $parameters );
-        $parameters = $this->deep_sanitize( $parameters, 'html_entity_decode'); # necessary?
+        $parameters = $this->deep_sanitize_for_endpoint( $parameters, $endpoint );
+        $parameters = $this->deep_sanitize_for_endpoint( $parameters, $endpoint, 'html_entity_decode'); # necessary?
 
         $api_arguments = $this->compress_api_call_parameters( $parameters, $headers );
 
@@ -718,7 +835,7 @@ class Ai4Seo_RobHubApiCommunicator {
 
     // =========================================================================================== \\
 
-    function normalize_response(array $raw_response): array {
+    function normalize_response(array $raw_response, string $endpoint = ''): array {
         $normalized_response = array();
 
 
@@ -773,7 +890,7 @@ class Ai4Seo_RobHubApiCommunicator {
         }
 
         // sanitize data
-        $raw_response["data"] = $this->deep_sanitize($raw_response["data"], 'ai4seo_wp_kses');
+        $raw_response["data"] = $this->deep_sanitize_for_endpoint($raw_response["data"], $endpoint, 'ai4seo_wp_kses');
 
         if (empty($raw_response["data"])) {
             return $this->respond_error("Could not decode or sanitize API call data.", 341823824);
@@ -1331,12 +1448,230 @@ class Ai4Seo_RobHubApiCommunicator {
     // =========================================================================================== \\
 
     /**
+     * Function to sanitize endpoint data recursively.
+     *
+     * @param mixed  $data                         The payload or response data.
+     * @param string $endpoint                     Endpoint name.
+     * @param string $sanitize_value_function_name The value sanitizer.
+     * @param array  $path                         Internal recursive path.
+     *
+     * @return mixed Sanitized data.
+     */
+    function deep_sanitize_for_endpoint($data, string $endpoint, string $sanitize_value_function_name = 'sanitize_text_field', array $path = array()) {
+        if (!is_array($data)) {
+            if (is_bool($data)) {
+                return $data;
+            }
+
+            if (
+                $this->is_html_value_path($path)
+                && in_array($sanitize_value_function_name, array('sanitize_text_field', 'ai4seo_wp_kses'), true)
+            ) {
+                return $this->sanitize_html_value_for_endpoint((string) $data);
+            }
+
+            return $sanitize_value_function_name($data);
+        }
+
+        $sanitized_data = array();
+
+        foreach ($data as $key => $value) {
+            $sanitized_key = sanitize_key($key);
+            $child_path    = array_merge($path, array($sanitized_key));
+
+            $sanitized_data[$sanitized_key] = $this->deep_sanitize_for_endpoint(
+                $value,
+                $endpoint,
+                $sanitize_value_function_name,
+                $child_path
+            );
+        }
+
+        return $sanitized_data;
+    }
+
+    // =========================================================================================== \\
+
+    /**
+     * Normalize a payload path for internal matching.
+     *
+     * @param string $path Payload path.
+     * @return string Normalized path.
+     */
+    private function normalize_payload_path(string $path): string {
+        $path_parts = preg_split('#[/.]+#', $path);
+        $path_parts = is_array($path_parts) ? $path_parts : array();
+        $normalized_path_parts = array();
+
+        foreach ($path_parts as $this_path_part) {
+            $this_path_part = trim((string) $this_path_part);
+
+            if ($this_path_part === '') {
+                continue;
+            }
+
+            $normalized_path_parts[] = ($this_path_part === '*')
+                ? '*'
+                : sanitize_key($this_path_part);
+        }
+
+        return implode('/', $normalized_path_parts);
+    }
+
+    // =========================================================================================== \\
+
+    /**
+     * Sanitize HTML values while preserving safe WordPress block comment artifacts.
+     *
+     * @param string $html HTML value.
+     * @return string Sanitized HTML.
+     */
+    private function sanitize_html_value_for_endpoint(string $html): string {
+        $editor_comments = array();
+        $html = $this->protect_editor_artifact_comments($html, $editor_comments);
+        $html = wp_kses_post($html);
+
+        if ($editor_comments) {
+            $html = strtr($html, $editor_comments);
+        }
+
+        return $html;
+    }
+
+    // =========================================================================================== \\
+
+    /**
+     * Replace safe Gutenberg block comments with temporary placeholders.
+     *
+     * @param string $html            HTML value.
+     * @param array  $editor_comments Placeholder map.
+     * @return string HTML with placeholders.
+     */
+    private function protect_editor_artifact_comments(string $html, array &$editor_comments): string {
+        $editor_comments = array();
+
+        return (string) preg_replace_callback(
+            '#<!--\s*/?wp:[A-Za-z0-9_/-]+(?:\s+\{.*?\})?\s*-->#s',
+            static function (array $matches) use (&$editor_comments): string {
+                $comment = (string) ($matches[0] ?? '');
+
+                if ($comment === '') {
+                    return '';
+                }
+
+                $placeholder = 'AI4SEO_EDITOR_ARTIFACT_COMMENT_' . count($editor_comments) . '_';
+                $editor_comments[$placeholder] = $comment;
+
+                return $placeholder;
+            },
+            $html
+        );
+    }
+
+    // =========================================================================================== \\
+
+    /**
+     * Check whether the current recursive payload path should preserve safe HTML.
+     *
+     * @param array $path Current sanitized payload path.
+     * @return bool Whether safe HTML should be preserved.
+     */
+    private function is_html_value_path(array $path): bool {
+        if (!$this->html_value_paths || !$path) {
+            return false;
+        }
+
+        foreach ($this->html_value_paths as $this_pattern) {
+            $pattern_parts = explode('/', $this_pattern);
+
+            if (count($pattern_parts) !== count($path)) {
+                continue;
+            }
+
+            foreach ($pattern_parts as $this_index => $this_pattern_part) {
+                if ($this_pattern_part === '*') {
+                    continue;
+                }
+
+                if ($this_pattern_part !== (string) ($path[$this_index] ?? '')) {
+                    continue 2;
+                }
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    // =========================================================================================== \\
+
+    /**
      * Checks if this endpoint is allowed.
      * @param $endpoint string The endpoint to check.
      * @return bool True if the endpoint is allowed, false otherwise.
      */
     function is_endpoint_allowed(string $endpoint): bool {
         return in_array($endpoint, $this->allowed_endpoints);
+    }
+
+    // =========================================================================================== \\
+
+    /**
+     * Merge endpoint identifiers into a unique endpoint list.
+     *
+     * @param array $current_endpoints Current endpoint list.
+     * @param array $new_endpoints     New endpoint list.
+     * @return array Merged endpoint list.
+     */
+    private function merge_endpoint_list(array $current_endpoints, array $new_endpoints): array {
+        foreach ($new_endpoints as $this_endpoint) {
+            $this_endpoint = $this->normalize_endpoint_identifier((string) $this_endpoint);
+
+            if (!$this_endpoint) {
+                continue;
+            }
+
+            $current_endpoints[] = $this_endpoint;
+        }
+
+        return array_values(array_unique($current_endpoints));
+    }
+
+    // =========================================================================================== \\
+
+    /**
+     * Merge integer values into a unique integer list.
+     *
+     * @param array $current_values Current values.
+     * @param array $new_values     New values.
+     * @return array Merged integer list.
+     */
+    private function merge_integer_list(array $current_values, array $new_values): array {
+        foreach ($new_values as $this_value) {
+            if (!is_numeric($this_value)) {
+                continue;
+            }
+
+            $current_values[] = (int) $this_value;
+        }
+
+        return array_values(array_unique($current_values));
+    }
+
+    // =========================================================================================== \\
+
+    /**
+     * Normalize an API endpoint identifier while preserving service slashes.
+     *
+     * @param string $endpoint Endpoint identifier.
+     * @return string Normalized endpoint identifier.
+     */
+    private function normalize_endpoint_identifier(string $endpoint): string {
+        $endpoint = trim($endpoint);
+        $endpoint = preg_replace('/[^a-zA-Z0-9_\/-]/', '', $endpoint);
+
+        return trim((string) $endpoint, '/');
     }
 
     // =========================================================================================== \\
@@ -1830,7 +2165,7 @@ class Ai4Seo_RobHubApiCommunicator {
      * Function to tidy up all existing api lock transients
      */
     function tidy_up_api_locks(): void {
-        foreach (self::ENDPOINT_LOCK_DURATIONS as $endpoint => $duration) {
+        foreach ($this->endpoint_lock_durations as $endpoint => $duration) {
             $endpoint_checksum = $this->get_api_call_endpoint_checksum($endpoint);
             $transient_name = "robhub_api_lock_" . $endpoint_checksum;
             delete_transient($transient_name);

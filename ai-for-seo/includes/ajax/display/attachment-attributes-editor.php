@@ -130,6 +130,16 @@ echo "<div id='ai4seo-generate-all-attachment-attributes-button-hook'></div>";
 // small gap
 echo "<div class='ai4seo-clear-both'></div>";
 
+// Usage context status
+echo "<div class='ai4seo-attachment-usage-context-status' data-attachment-post-id='" . esc_attr($ai4seo_this_attachment_post_id) . "'>";
+    echo "<div class='ai4seo-attachment-usage-context-loading'>";
+        ai4seo_echo_wp_kses(ai4seo_get_svg_tag("rotate", __("Loading", "ai-for-seo"), "ai4seo-spinning-icon ai4seo-gray-icon ai4seo-16x16-icon"));
+        echo "<span>" . esc_html__("Checking image usage context...", "ai-for-seo") . "</span>";
+    echo "</div>";
+
+    echo "<div class='ai4seo-attachment-usage-context-result'></div>";
+echo "</div>";
+
 // Form
 echo "<div class='ai4seo-form ai4seo-editor-form'>";
 

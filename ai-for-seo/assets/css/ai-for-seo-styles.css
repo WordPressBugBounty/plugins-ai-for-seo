@@ -1648,6 +1648,19 @@ div.ai4seo-recent-plugin-updates-content li::marker {
 }
 
 /* type: module — help module */
+.ai4seo-help-content .ai4seo-accordion-content ul {
+    list-style: disc outside;
+    margin: 0 0 1rem 1.5rem;
+    padding-left: 1.2rem;
+}
+
+/* type: module — help module */
+.ai4seo-help-content .ai4seo-accordion-content li {
+    display: list-item;
+    margin-bottom: .5rem;
+}
+
+/* type: module — help module */
 .ai4seo-help-content h1 {
     margin-bottom: 1rem;
 }
@@ -2145,6 +2158,7 @@ div.ai4seo-sidebar-headline {
     font-size: 0.75rem;
     line-height: 1.2;
     font-weight: 600;
+    font-family: inherit;
     border: 1px solid var(--ai4seo-border-light);
     background-color: var(--ai4seo-off-white);
     color: var(--ai4seo-dark-text);
@@ -3428,6 +3442,9 @@ div.ai4seo-credits-pack-selection-container .ai4seo-credits-pack-show-more-optio
     right: .7rem;
     cursor: pointer;
     padding: .5rem;
+    border: 0;
+    background: transparent;
+    line-height: 1;
 }
 
 /* type: module — modal */
@@ -4396,6 +4413,71 @@ div.ai4seo-recent-plugin-updates-title > .ai4seo-bubble, div.ai4seo-recent-plugi
     border-radius: 5px;
 }
 
+/* type: content — Media Library → Attachment usage context status */
+.ai4seo-attachment-usage-context-status {
+    clear: both;
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    margin: 10px 0 30px 0;
+    padding: 10px 12px;
+    border: 1px solid var(--ai4seo-border-light);
+    border-left: 4px solid var(--ai4seo-gray);
+    border-radius: 6px;
+    background: var(--ai4seo-off-white);
+    color: var(--ai4seo-gray-dark);
+}
+
+/* type: content — Media Library → Attachment usage context status */
+.ai4seo-attachment-usage-context-loading,
+.ai4seo-attachment-usage-context-result-inner {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+/* type: content — Media Library → Attachment usage context status */
+.ai4seo-attachment-usage-context-loading {
+    align-items: center;
+}
+
+/* type: content — Media Library → Attachment usage context status */
+.ai4seo-attachment-usage-context-result {
+    display: none;
+}
+
+/* type: content — Media Library → Attachment usage context status */
+.ai4seo-attachment-usage-context-result-success {
+    color: var(--ai4seo-dark-green);
+}
+
+/* type: content — Media Library → Attachment usage context status */
+.ai4seo-attachment-usage-context-result-error {
+    color: var(--ai4seo-red);
+}
+
+/* type: content — Media Library → Attachment usage context status */
+.ai4seo-attachment-usage-context-status-success {
+    border-left-color: var(--ai4seo-dark-green);
+}
+
+/* type: content — Media Library → Attachment usage context status */
+.ai4seo-attachment-usage-context-status-error {
+    border-left-color: var(--ai4seo-red);
+}
+
+/* type: content — Media Library → Attachment usage context status */
+.ai4seo-attachment-usage-context-result-icon {
+    flex: 0 0 auto;
+    line-height: 1;
+}
+
+/* type: content — Media Library → Attachment usage context status */
+.ai4seo-attachment-usage-context-result-text {
+    flex: 1 1 auto;
+    line-height: 1.45;
+}
+
 /* type: content — Media Library → Attachment AI controls */
 .ai4seo-attachment-list-image-preview {
     max-width: 48px;
@@ -5133,6 +5215,24 @@ div.ai4seo-bulk-generation-status-animated-logo-container > img.ai4seo-bulk-gene
     width: 100%;
     min-height: 50px;
     resize: vertical;
+}
+
+.ai4seo-plugin-deactivation-feedback-billing-warning {
+    background: var(--ai4seo-warning-soft);
+    border-left: 4px solid var(--ai4seo-warning);
+    padding: 8px 12px;
+}
+
+.ai4seo-plugin-deactivation-feedback-billing-warning p {
+    margin: 0;
+}
+
+.ai4seo-plugin-deactivation-feedback-billing-warning p + p {
+    margin-top: 0.5rem;
+}
+
+.ai4seo-plugin-deactivation-feedback-billing-warning-actions {
+    margin-top: 0.5rem;
 }
 
 .ai4seo-plugin-deactivation-feedback-hint {
