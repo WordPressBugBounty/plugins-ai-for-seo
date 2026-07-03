@@ -6,7 +6,7 @@
  * @since 2.0.0
  */
 
-if (!defined("ABSPATH")) {
+if (!defined('ABSPATH')) {
     exit;
 }
 
@@ -95,7 +95,7 @@ if ( ! empty( $ai4seo_recent_environmental_variable_changes ) && is_array( $ai4s
 
         if ( $ai4seo_bulk_result['success'] !== true ) {
             ai4seo_debug_message(3217171025, 'Bulk update failed to persist changes.');
-            ai4seo_send_ajax_error(esc_html__( "Failed to update environmental variables.", "ai-for-seo" ), 3217171);
+            ai4seo_send_ajax_error(esc_html__( 'Failed to update environmental variables.', 'ai-for-seo' ), 3217171);
             wp_die();
         }
     }
@@ -115,7 +115,8 @@ $ai4seo_analysis_trigger_environmental_variables = [
 
 foreach ( $ai4seo_analysis_trigger_environmental_variables as $ai4seo_this_environmental_variable_key ) {
     if ( isset( $ai4seo_recent_environmental_variable_changes[ $ai4seo_this_environmental_variable_key ] ) ) {
-        ai4seo_try_start_posts_table_analysis( true );
+        // Refresh analysis after this already-authorized environmental variable mutation changes table-status inputs.
+        ai4seo_force_posts_table_analysis_refresh_after_admin_mutation();
         break;
     }
 }
@@ -129,13 +130,13 @@ if (isset($ai4seo_recent_environmental_variable_changes[AI4SEO_ENVIRONMENTAL_VAR
         ai4seo_update_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_ENHANCED_REPORTING_ACCEPTED_TIME, time());
 
         // send newest info to robhub
-        ai4seo_set_tos_accept_details(true, "accepted enhanced reporting");
+        ai4seo_set_tos_accept_details(true, 'accepted enhanced reporting');
 
         // Revoked
     } else {
         ai4seo_update_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_ENHANCED_REPORTING_REVOKED_TIME, time());
 
         // send newest info to robhub
-        ai4seo_set_tos_accept_details(false, "revoked enhanced reporting");
+        ai4seo_set_tos_accept_details(false, 'revoked enhanced reporting');
     }
 }

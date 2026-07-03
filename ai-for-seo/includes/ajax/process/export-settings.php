@@ -5,7 +5,7 @@
  * @since 2.1.0
  */
 
-if (!defined("ABSPATH")) {
+if (!defined('ABSPATH')) {
     exit;
 }
 
@@ -25,7 +25,7 @@ $ai4seo_export_data['ai4seo_export_timestamp'] = time();
 $ai4seo_export_data['settings'] = ai4seo_get_exportable_settings();
 
 // Generate filename with version
-$ai4seo_filename = "sooz-settings-" . AI4SEO_PLUGIN_VERSION_NUMBER . ".json";
+$ai4seo_filename = 'sooz-settings-' . AI4SEO_PLUGIN_VERSION_NUMBER . '.json';
 
 // Return data for download
 ai4seo_send_ajax_success(array(

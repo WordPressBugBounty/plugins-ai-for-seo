@@ -6,7 +6,7 @@
  * @since 2.0.0
  */
 
-if (!defined("ABSPATH")) {
+if (!defined('ABSPATH')) {
     exit;
 }
 
@@ -93,7 +93,7 @@ if ( ! empty( $ai4seo_recent_robhub_environmental_variable_changes ) && is_array
 
         if ( $ai4seo_robhub_bulk_result['success'] !== true ) {
             ai4seo_debug_message(3517171025, 'RobHub: Bulk update failed to persist changes.');
-            ai4seo_send_ajax_error(esc_html__( "Failed to update RobHub environmental variables.", "ai-for-seo" ), 3517171);
+            ai4seo_send_ajax_error(esc_html__( 'Failed to update RobHub environmental variables.', 'ai-for-seo' ), 3517171);
             wp_die();
         }
     }
@@ -122,9 +122,9 @@ if (isset($ai4seo_recent_robhub_environmental_variable_changes[$ai4seo_robhub_ap
         ai4seo_robhub_api()->set_auth_data_locked(false);
         ai4seo_robhub_api()->use_this_credentials($ai4seo_new_api_username, $ai4seo_new_api_password);
 
-        $ai4seo_robhub_api_response = ai4seo_robhub_api()->call("client/changed-api-user",
-            array("old-api-username" => $ai4seo_old_api_username,
-                "new-api-username" => $ai4seo_new_api_username));
+        $ai4seo_robhub_api_response = ai4seo_robhub_api()->call('client/changed-api-user',
+            array('old-api-username' => $ai4seo_old_api_username,
+                'new-api-username' => $ai4seo_new_api_username));
 
         // check if the response is valid
         if (ai4seo_robhub_api()->was_call_successful($ai4seo_robhub_api_response)) {
@@ -150,7 +150,7 @@ if (isset($ai4seo_recent_robhub_environmental_variable_changes[$ai4seo_robhub_ap
             }
 
             // build error message from response, if available
-            $ai4seo_api_response_error_message = $ai4seo_robhub_api_response['message'] ?? esc_html__("Please try to reconnect account", "ai-for-seo");
+            $ai4seo_api_response_error_message = $ai4seo_robhub_api_response['message'] ?? esc_html__('Please try to reconnect account', 'ai-for-seo');
             $ai4seo_ajax_error_message = sprintf(
                 /* translators: %s: API Error message. */
                 esc_html__('Could not verify new credentials: %s', 'ai-for-seo'),

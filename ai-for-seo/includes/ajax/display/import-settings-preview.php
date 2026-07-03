@@ -5,7 +5,7 @@
  * @since 2.1.0
  */
 
-if (!defined("ABSPATH")) {
+if (!defined('ABSPATH')) {
     exit;
 }
 
@@ -21,4 +21,4 @@ if (!ai4seo_can_manage_this_plugin()) {
 
 // requires the import settings process file in preview mode
 $ai4seo_import_mode = 'preview';
-require_once(ai4seo_get_includes_ajax_process_path("import-settings.php"));
+require_once(ai4seo_get_includes_ajax_process_path('import-settings.php'));

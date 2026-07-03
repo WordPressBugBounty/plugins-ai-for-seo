@@ -5,7 +5,7 @@
  * @since 2.0
  */
 
-if (!defined("ABSPATH")) {
+if (!defined('ABSPATH')) {
     exit;
 }
 
@@ -34,7 +34,7 @@ $ai4seo_enhanced_reporting_accepted = ai4seo_read_environmental_variable(AI4SEO_
 $ai4seo_is_user_inside_plugin_admin_pages = ai4seo_is_user_inside_our_plugin_admin_pages();
 $ai4seo_is_user_inside_installed_plugins_page = ai4seo_is_user_inside_installed_plugins_page();
 
-$ai4seo_extended_data_collection_tooltip_text = esc_html__("This data includes feature usage, performance metrics, and error logs. It will be stored for up to 30 days to assist with improving the plugin. You can opt out of data collection at any time through the plugin settings.", "ai-for-seo");
+$ai4seo_extended_data_collection_tooltip_text = esc_html__('This data includes feature usage, performance metrics, and error logs. It will be stored for up to 30 days to assist with improving the plugin. You can opt out of data collection at any time through the plugin settings.', 'ai-for-seo');
 
 
 // ___________________________________________________________________________________________ \\
@@ -42,27 +42,27 @@ $ai4seo_extended_data_collection_tooltip_text = esc_html__("This data includes f
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 echo "<div class='ai4seo-modal-schema-headline'>";
-    echo "<center>";
+    echo '<center>';
 
         ai4seo_echo_wp_kses(ai4seo_get_sooz_logo_image_tag());
-        echo esc_html__("Terms of Service", "ai-for-seo");
+        echo esc_html__('Terms of Service', 'ai-for-seo');
 
         if ($ai4seo_tos_toc_and_pp_accepted_time) {
-            echo "<p>" . sprintf(
+            echo '<p>' . sprintf(
                 /* translators: %s: date of change */
-                esc_html__("Please review and accept the updated Terms of Service, effective from %s.", "ai-for-seo"),
+                esc_html__('Please review and accept the updated Terms of Service, effective from %s.', 'ai-for-seo'),
                 esc_html($ai4seo_datetime_of_change)
-            ) . "</p>";
+            ) . '</p>';
         } else {
-            echo "<p>" . sprintf(
+            echo '<p>' . sprintf(
                 /* translators: %s: plugin name */
-                esc_html__("Please accept the Terms of Service to start using the %s plugin.", "ai-for-seo"),
-                "<span class='ai4seo-plugin-name'>" . esc_html(AI4SEO_PLUGIN_NAME) . "</span>"
-            ) . "</p>";
+                esc_html__('Please accept the Terms of Service to start using the %s plugin.', 'ai-for-seo'),
+                "<span class='ai4seo-plugin-name'>" . esc_html(AI4SEO_PLUGIN_NAME) . '</span>'
+            ) . '</p>';
         }
 
-    echo "</center>";
-echo "</div>";
+    echo '</center>';
+echo '</div>';
 
 
 // ___________________________________________________________________________________________ \\
@@ -72,7 +72,7 @@ echo "</div>";
 echo "<div class='ai4seo-modal-schema-content'>";
     echo "<div class='ai4seo-tos-box'>";
 
-        echo "<div class='ai4seo-tos-version-number'>" . esc_html($ai4seo_latest_tos_and_toc_and_pp_version) . "</div>";
+        echo "<div class='ai4seo-tos-version-number'>" . esc_html($ai4seo_latest_tos_and_toc_and_pp_version) . '</div>';
 
         // get the terms of service
         $tos_content = get_tos_content();
@@ -80,31 +80,30 @@ echo "<div class='ai4seo-modal-schema-content'>";
         if ($tos_content) {
             ai4seo_echo_wp_kses($tos_content);
         } else {
-            echo "<p>" . esc_html__("The Terms of Service could not be loaded. Please try again later.", "ai-for-seo") . "</p>";
+            echo '<p>' . esc_html__('The Terms of Service could not be loaded. Please try again later.', 'ai-for-seo') . '</p>';
         }
 
-    echo "</div>";
+    echo '</div>';
 
     // CHECKBOXES
     echo "<div class='ai4seo-tos-checkboxes-wrapper'>";
-        // Checkbox "I have read and agree to the Terms and Conditions."
+        // The shared switch class is visual only; TOS state still uses the original accept-checkbox selector.
         echo "<div class='ai4seo-tos-checkbox ai4seo-accept-tos-checkbox-wrapper'>";
-            echo "<input type='checkbox' class='ai4seo-accept-tos-checkbox' id='ai4seo-accept-tos-checkbox' name='ai4seo-accept-tos-checkbox' value='1' onchange='ai4seo_refresh_tos_accept_button_state();'>";
-            echo "<label for='ai4seo-accept-tos-checkbox'><strong>" . esc_html__("I have read and agree to the Terms and Service.", "ai-for-seo") . "</strong></label>";
-        echo "</div>";
+            echo "<input type='checkbox' class='ai4seo-accept-tos-checkbox ai4seo-single-checkbox' id='ai4seo-accept-tos-checkbox' name='ai4seo-accept-tos-checkbox' value='1'>";
+            echo "<label for='ai4seo-accept-tos-checkbox'><strong>" . esc_html__('I have read and agree to the Terms and Service.', 'ai-for-seo') . '</strong></label>';
+        echo '</div>';
 
-        // only show enhanced reporting checkbox if the user has not accepted it before
+        // Only show enhanced reporting consent when existing TOS or reporting acceptance state still needs it.
         if (!$ai4seo_tos_toc_and_pp_accepted_time || !$ai4seo_enhanced_reporting_accepted) {
-            // Checkbox "I agree to share extended data, stored for up to 30 days, to support the ongoing development of the plugin. I may opt out at any time."
-
+            // Enhanced reporting keeps its original selector while opting into shared single-toggle styling.
             echo "<div class='ai4seo-tos-checkbox'>";
-                echo "<input type='checkbox' class='ai4seo-accept-enhanced-reporting-checkbox' id='ai4seo-accept-enhanced-reporting-checkbox' name='ai4seo-accept-enhanced-reporting-checkbox' value='1'>";
-                echo "<label for='ai4seo-accept-enhanced-reporting-checkbox'><strong>" . esc_html__("I agree to share extended data to support the ongoing development of the plugin. I may opt out at any time.", "ai-for-seo") . " (" . esc_html__("optional", "ai-for-seo") . ")" . "</strong></label>";
+                echo "<input type='checkbox' class='ai4seo-accept-enhanced-reporting-checkbox ai4seo-single-checkbox' id='ai4seo-accept-enhanced-reporting-checkbox' name='ai4seo-accept-enhanced-reporting-checkbox' value='1'>";
+                echo "<label for='ai4seo-accept-enhanced-reporting-checkbox'><strong>" . esc_html__('I agree to share extended data to support the ongoing development of the plugin. I may opt out at any time.', 'ai-for-seo') . ' (' . esc_html__('optional', 'ai-for-seo') . ')' . '</strong></label>';
                 ai4seo_echo_wp_kses(ai4seo_get_icon_with_tooltip_tag($ai4seo_extended_data_collection_tooltip_text));
-            echo "</div>";
+            echo '</div>';
         }
-    echo "</div>";
-echo "</div>";
+    echo '</div>';
+echo '</div>';
 
 
 // ___________________________________________________________________________________________ \\
@@ -113,19 +112,19 @@ echo "</div>";
 
 echo "<div class='ai4seo-modal-schema-footer'>";
     // reject button
-    ai4seo_echo_wp_kses(ai4seo_get_abort_button_tag("", esc_html__("Reject & Uninstall", "ai-for-seo"), "", "ai4seo_confirm_to_reject_tos();"));
+    ai4seo_echo_wp_kses(ai4seo_get_abort_button_tag('', esc_html__('Reject & Uninstall', 'ai-for-seo'), '', 'ai4seo_confirm_to_reject_tos();'));
 
     // hide modal if we see this modal outside the plugin pages
-    $additional_accept_tos_javascript = "";
-    $additional_accept_tos_parameter = "";
+    $additional_accept_tos_javascript = '';
+    $additional_accept_tos_parameter = '';
 
     if (!$ai4seo_is_user_inside_plugin_admin_pages && !$ai4seo_is_user_inside_installed_plugins_page) {
-        $additional_accept_tos_javascript = "ai4seo_hide_modal(this);";
-        $additional_accept_tos_parameter = "false"; # do not reload page parameter
+        $additional_accept_tos_javascript = 'ai4seo_hide_modal(this);';
+        $additional_accept_tos_parameter = 'false'; # do not reload page parameter
     }
 
     // accept button
     echo "<div onclick='ai4seo_check_if_user_accepted_tos();'>";
-        ai4seo_echo_wp_kses(ai4seo_get_button_tag(esc_html__("Accept & Continue", "ai-for-seo"), "ai4seo-inactive-button ai4seo-accept-tos-button", "ai4seo_accept_tos(" . esc_js($additional_accept_tos_parameter) . ");"));
-    echo "</div>";
-echo "</div>";
+        ai4seo_echo_wp_kses(ai4seo_get_button_tag(esc_html__('Accept & Continue', 'ai-for-seo'), 'ai4seo-inactive-button ai4seo-accept-tos-button', 'ai4seo_accept_tos(' . esc_js($additional_accept_tos_parameter) . ');'));
+    echo '</div>';
+echo '</div>';

@@ -6,7 +6,7 @@
  * @since 2.0.0
  */
 
-if (!defined("ABSPATH")) {
+if (!defined('ABSPATH')) {
     exit;
 }
 
@@ -63,6 +63,14 @@ if (isset($upcoming_save_anything_updates[AI4SEO_SETTING_DISABLED_POST_AUTHORS])
     $ai4seo_disabled_post_author_ids = array_values(array_diff($ai4seo_available_post_author_ids, $ai4seo_submitted_active_post_author_ids));
 
     $upcoming_save_anything_updates[AI4SEO_SETTING_DISABLED_POST_AUTHORS] = $ai4seo_disabled_post_author_ids;
+}
+
+// Normalize active metadata WPML language selection (UI shows active languages, setting stores disabled ones).
+if (isset($upcoming_save_anything_updates[AI4SEO_SETTING_DISABLED_METADATA_WPML_LANGUAGES])) {
+    // Reuse the WPML helper so metadata and media attributes store disabled languages identically.
+    $upcoming_save_anything_updates[AI4SEO_SETTING_DISABLED_METADATA_WPML_LANGUAGES] = ai4seo_get_disabled_wpml_language_codes_from_active_selection(
+        $upcoming_save_anything_updates[AI4SEO_SETTING_DISABLED_METADATA_WPML_LANGUAGES]
+    );
 }
 
 // Normalize active taxonomy term selection (UI shows active terms, setting stores disabled ones).
@@ -129,6 +137,14 @@ if (isset($upcoming_save_anything_updates[AI4SEO_SETTING_DISABLED_ATTACHMENT_POS
     $upcoming_save_anything_updates[AI4SEO_SETTING_DISABLED_ATTACHMENT_POST_AUTHORS] = $ai4seo_disabled_attachment_post_author_ids;
 }
 
+// Normalize active attachment attributes WPML language selection (UI shows active languages, setting stores disabled ones).
+if (isset($upcoming_save_anything_updates[AI4SEO_SETTING_DISABLED_ATTACHMENT_ATTRIBUTES_WPML_LANGUAGES])) {
+    // Reuse the WPML helper so metadata and media attributes store disabled languages identically.
+    $upcoming_save_anything_updates[AI4SEO_SETTING_DISABLED_ATTACHMENT_ATTRIBUTES_WPML_LANGUAGES] = ai4seo_get_disabled_wpml_language_codes_from_active_selection(
+        $upcoming_save_anything_updates[AI4SEO_SETTING_DISABLED_ATTACHMENT_ATTRIBUTES_WPML_LANGUAGES]
+    );
+}
+
 
 // ___________________________________________________________________________________________ \\
 // === VALIDATES AND COLLECTS UPCOMING SETTING UPDATES ======================================= \\
@@ -145,6 +161,9 @@ foreach (AI4SEO_DEFAULT_SETTINGS as $ai4seo_this_setting_name => $ai4seo_this_de
 
     $ai4seo_this_old_setting_value = $ai4seo_settings[$ai4seo_this_setting_name];
     $ai4seo_this_new_setting_value = $upcoming_save_anything_updates[$ai4seo_this_setting_name];
+
+    // Custom-instruction settings use the same cleanup and subscription cap as editor postmeta.
+    $ai4seo_this_new_setting_value = ai4seo_normalize_custom_instructions_setting_value($ai4seo_this_setting_name, $ai4seo_this_new_setting_value);
 
     // is equal to old setting -> ignore it
     if ($ai4seo_this_new_setting_value == $ai4seo_this_old_setting_value) {
@@ -194,6 +213,8 @@ $ai4seo_analysis_trigger_settings = [
     AI4SEO_SETTING_DISABLED_TAXONOMY_TERMS,
     AI4SEO_SETTING_EXCLUDE_POSTS_IF_ANY_DISABLED_TAXONOMY_TERM,
     AI4SEO_SETTING_DISABLED_ATTACHMENT_POST_AUTHORS,
+    AI4SEO_SETTING_DISABLED_METADATA_WPML_LANGUAGES,
+    AI4SEO_SETTING_DISABLED_ATTACHMENT_ATTRIBUTES_WPML_LANGUAGES,
     AI4SEO_SETTING_OVERWRITE_EXISTING_METADATA,
     AI4SEO_SETTING_OVERWRITE_EXISTING_ATTACHMENT_ATTRIBUTES,
     AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER
@@ -201,28 +222,30 @@ $ai4seo_analysis_trigger_settings = [
 
 foreach ( $ai4seo_analysis_trigger_settings as $ai4seo_this_setting_key ) {
     if ( isset( $ai4seo_recent_setting_changes[ $ai4seo_this_setting_key ] ) ) {
-        ai4seo_try_start_posts_table_analysis( true );
+        // Refresh analysis after this already-authorized settings mutation changes table-status inputs.
+        ai4seo_force_posts_table_analysis_refresh_after_admin_mutation();
         break;
     }
 }
 
-
 // === INCOGNITO MODE -> SAVE USER ID AS SETTING TOO ================================================================ \\
 
 if (isset($ai4seo_recent_setting_changes[AI4SEO_SETTING_ENABLE_INCOGNITO_MODE])) {
-    if ($ai4seo_recent_setting_changes[AI4SEO_SETTING_ENABLE_INCOGNITO_MODE][1] && function_exists("get_current_user_id")) {
+    if ($ai4seo_recent_setting_changes[AI4SEO_SETTING_ENABLE_INCOGNITO_MODE][1] && function_exists('get_current_user_id')) {
         // Get current user-id
         $ai4seo_current_user_id = get_current_user_id();
 
         // Save current user-id as setting
         ai4seo_update_setting(AI4SEO_SETTING_INCOGNITO_MODE_USER_ID, $ai4seo_current_user_id);
     } else {
-        ai4seo_update_setting(AI4SEO_SETTING_INCOGNITO_MODE_USER_ID, "0");
+        ai4seo_update_setting(AI4SEO_SETTING_INCOGNITO_MODE_USER_ID, '0');
     }
 }
 
 
 // === ENABLED BULK GENERATION POST TYPES  ================================================================================== \\
+
+$ai4seo_bulk_generation_cron_was_injected = false;
 
 if (isset($ai4seo_recent_setting_changes[AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES])) {
     $ai4seo_old_enabled_bulk_generation_post_types = $ai4seo_recent_setting_changes[AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES][0];
@@ -233,20 +256,11 @@ if (isset($ai4seo_recent_setting_changes[AI4SEO_SETTING_ENABLED_BULK_GENERATION_
     $ai4seo_just_disabled_post_types = array_diff($ai4seo_old_enabled_bulk_generation_post_types, $ai4seo_new_enabled_bulk_generation_post_types);
 
     if ($ai4seo_new_enabled_bulk_generation_post_types) {
-        // excavate new post types
-        if (in_array("attachment", $ai4seo_new_enabled_bulk_generation_post_types)) {
-            ai4seo_excavate_attachments_with_missing_attributes();
-        }
-
-        foreach ($ai4seo_new_enabled_bulk_generation_post_types AS $ai4seo_new_enabled_bulk_generation_post_type) {
-            if ($ai4seo_new_enabled_bulk_generation_post_type != "attachment") {
-                ai4seo_excavate_post_entries_with_missing_metadata();
-                break;
-            }
-        }
+        ai4seo_try_excavate_bulk_generation_entries_for_enabled_post_types();
 
         // try to start the generation of data asap
         ai4seo_inject_additional_cronjob_call(AI4SEO_BULK_GENERATION_CRON_JOB_NAME);
+        $ai4seo_bulk_generation_cron_was_injected = true;
 
         // set the SEO Autopilot starting time
         ai4seo_update_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_SEO_AUTOPILOT_SET_UP_TIME, time());
@@ -260,12 +274,25 @@ if (isset($ai4seo_recent_setting_changes[AI4SEO_SETTING_ENABLED_BULK_GENERATION_
     }
 }
 
+// === BULK GENERATION AUTO QUEUE ENTRIES  ================================================================================== \\
+
+// If Auto Queue Entries gets re-enabled while SEO Autopilot is active, excavate applicable entries immediately and kick the cron.
+if (isset($ai4seo_recent_setting_changes[AI4SEO_SETTING_BULK_GENERATION_AUTO_QUEUE_ENTRIES])
+    && $ai4seo_recent_setting_changes[AI4SEO_SETTING_BULK_GENERATION_AUTO_QUEUE_ENTRIES][1] === true
+    && ai4seo_is_any_bulk_generation_enabled()) {
+    ai4seo_try_excavate_bulk_generation_entries_for_enabled_post_types();
+
+    if (!$ai4seo_bulk_generation_cron_was_injected) {
+        ai4seo_inject_additional_cronjob_call(AI4SEO_BULK_GENERATION_CRON_JOB_NAME);
+    }
+}
+
 
 // === BULK GENERATION NEW OR EXISTING TIMESTAMP ============================================================================== \\
 
 if (isset($ai4seo_recent_setting_changes[AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER])) {
     // only if the new and the old one are NOT "new" and "existing", as we allow those to swap without resetting the timestamp
-    if ($ai4seo_recent_setting_changes[AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER][0] != "new" && $ai4seo_recent_setting_changes[AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER][0] != "existing") {
+    if ($ai4seo_recent_setting_changes[AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER][0] != 'new' && $ai4seo_recent_setting_changes[AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER][0] != 'existing') {
         ai4seo_update_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME, time());
     }
 }
@@ -277,7 +304,7 @@ if (isset($upcoming_save_anything_updates[AI4SEO_SETTING_PAYG_ENABLED]) && $upco
     $ai4seo_sent_pay_as_you_go_settings_response = ai4seo_send_pay_as_you_go_settings();
 
     if ($ai4seo_sent_pay_as_you_go_settings_response === false) {
-        ai4seo_send_ajax_error(esc_html__("Could not send pay-as-you-go settings to RobHub", "ai-for-seo"), 401217325);
+        ai4seo_send_ajax_error(esc_html__('Could not send pay-as-you-go settings to RobHub', 'ai-for-seo'), 401217325);
         wp_die();
     }
 }

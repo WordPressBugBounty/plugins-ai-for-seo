@@ -50,6 +50,7 @@
     --ai4seo-sooz-ci-blue-input: #1177bb;
     --ai4seo-sooz-ci-blue-input-light: #3399cc;
     --ai4seo-sooz-ci-blue-input-dark: #005599;
+    --ai4seo-form-control-max-width: 620px;
 }
 
 /* ========================================================================== */
@@ -288,6 +289,14 @@
 /* type: content — Settings → Automated generation panel */
 .ai4seo-is-advanced-setting {
     background-color: var(--ai4seo-warning-soft) !important;
+}
+
+/* type: component — generated-data reset full-reset note */
+.ai4seo-generated-data-reset-full-reset-note {
+    background: var(--ai4seo-warning-soft);
+    border-left: 4px solid var(--ai4seo-warning);
+    margin-top: .75rem;
+    padding: 8px 12px;
 }
 
 /* type: content — Settings → Alt text injection controls */
@@ -1254,16 +1263,41 @@ div.ai4seo-recent-plugin-updates-content li::marker {
     margin-top: 1rem;
 }
 
-/* type: content — Dashboard → Recent plugin updates */
+/* type: content - PAYG customization: confirmation rows can place the toggle at the far edge while keeping copy first. */
 .ai4seo-confirmation-checkbox-container-left {
     flex-grow: 1;
 }
 
-/* type: content — Dashboard → Recent plugin updates */
-.ai4seo-confirmation-checkbox-container-right {
+/* type: content - PAYG customization: right-align native single checkboxes without changing the modal markup contract. */
+.ai4seo-confirmation-checkbox-container-left:has(input.ai4seo-single-checkbox[type="checkbox"]) {
+    order: 2;
+    flex-grow: 0;
+    align-self: flex-start;
+    margin-left: auto;
 }
 
-/* type: content — Dashboard → Recent plugin updates */
+/* type: content - PAYG customization: the toggle owns spacing through its container so the shared switch margin does not add drift. */
+.ai4seo-confirmation-checkbox-container-left:has(input.ai4seo-single-checkbox[type="checkbox"]) input.ai4seo-single-checkbox[type="checkbox"] {
+    margin-left: 0 !important;
+}
+
+/* type: content - PAYG customization: copy remains the leading flex item when the checkbox column is visually moved right. */
+.ai4seo-confirmation-checkbox-container-right {
+    order: 1;
+}
+
+/* type: content - PAYG customization: two-line confirmation copy should align toggles to the first line instead of the row center. */
+.ai4seo-confirmation-checkbox-container:has(input.ai4seo-single-checkbox[type="checkbox"]) {
+    align-items: flex-start;
+    gap: 16px;
+}
+
+/* type: content - PAYG customization: let confirmation copy consume the remaining row width beside the right-aligned toggle. */
+.ai4seo-confirmation-checkbox-container:has(input.ai4seo-single-checkbox[type="checkbox"]) .ai4seo-confirmation-checkbox-container-right {
+    flex: 1 1 auto;
+}
+
+/* type: content - PAYG customization: labels in confirmation rows keep their larger modal emphasis. */
 .ai4seo-confirmation-checkbox-container-right > label {
     font-size: larger;
 }
@@ -1306,7 +1340,6 @@ div.ai4seo-recent-plugin-updates-content li::marker {
 /* type: module — form layout */
 .ai4seo-form-section > h2 {
     margin: 0 !important;
-    margin-bottom: 1.5rem !important;
     width: 100%;
     background-color: #eee;
     padding: .7rem 1rem;
@@ -1342,7 +1375,7 @@ div.ai4seo-recent-plugin-updates-content li::marker {
     flex-wrap: wrap; /* Ensure that items can wrap */
     font-size: .9rem;
     line-height: 1.4rem;
-    padding: 0 2rem 1.5rem 2rem;
+    padding: 2.5rem 2rem;
     border-radius: .5rem;
 }
 
@@ -1355,13 +1388,14 @@ div.ai4seo-recent-plugin-updates-content li::marker {
 /* type: module — form layout */
 .ai4seo-form-item-divider {
     border-top: 1px solid #eee;
-    padding-bottom: 1rem;
     margin: 0;
     border-bottom: 0;
 }
 
 /* type: module — form layout */
-.ai4seo-form-item > label {
+.ai4seo-form-item > label,
+.ai4seo-form-item > .ai4seo-form-item-label {
+    display: block;
     flex-shrink: 0;
     margin-right: .7rem;
     margin-bottom: 1rem;
@@ -1370,10 +1404,12 @@ div.ai4seo-recent-plugin-updates-content li::marker {
     line-height: 150%;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
     width: 300px;
+    max-width: var(--ai4seo-form-control-max-width);
 }
 
 /* type: module — icon */
-.ai4seo-form-item > label > .ai4seo-24x24-icon {
+.ai4seo-form-item > label > .ai4seo-24x24-icon,
+.ai4seo-form-item > .ai4seo-form-item-label > .ai4seo-24x24-icon {
     margin-top: -3px;
     margin-right: 3px;
 }
@@ -1381,40 +1417,166 @@ div.ai4seo-recent-plugin-updates-content li::marker {
 /* type: module — form layout */
 .ai4seo-form-item-input-wrapper {
     flex-grow: 1;
+    max-width: var(--ai4seo-form-control-max-width);
 }
 
 /* type: module — form layout */
 .ai4seo-form-item-input-wrapper > label {
-    max-width: 620px;
+    max-width: var(--ai4seo-form-control-max-width);
     display: block;
 }
 
 /* type: module — form layout */
 .ai4seo-form-item-description {
     color: var(--ai4seo-gray-dark);
-    max-width: 620px;
-    margin-top: 20px;
+    max-width: var(--ai4seo-form-control-max-width);
+    margin-top: 1.5rem;
     display: block;
     margin-bottom: 0 !important;
     text-align: justify;
 }
 
-/* type: module — form layout */
+/* type: module - form control: shared base keeps helper-rendered and manual fields visually aligned without button shadows. */
 .ai4seo-form-item-input-wrapper input:not([type="checkbox"]):not([type="radio"]),
 .ai4seo-form-item-input-wrapper select,
-.ai4seo-form-item-input-wrapper textarea {
-    padding: 8px 14px !important;
+.ai4seo-form-item-input-wrapper textarea,
+input.ai4seo-textfield,
+select.ai4seo-textfield,
+input.ai4seo-editor-textfield,
+input.ai4seo-help-search,
+select.ai4seo-select,
+select.ai4seo-editor-select,
+textarea.ai4seo-textarea,
+textarea.ai4seo-editor-textarea {
     width: 100%;
-    background-color: white !important;
-    color: black !important;
-    box-sizing: border-box !important;
-    border: 1px solid #ddd !important;
-    border-radius: 5px !important;
-    margin-bottom: 0 !important;
-    line-height: 1.6 !important;
-    font-size: 1rem;
     max-width: 100%;
+    padding: 8px 14px !important;
+    background: var(--ai4seo-white) !important;
+    color: var(--ai4seo-dark-text) !important;
+    box-sizing: border-box !important;
+    border: 1px solid var(--ai4seo-border-light) !important;
+    border-radius: .45rem !important;
+    box-shadow: none !important;
+    margin-bottom: 0 !important;
+    line-height: 1.45 !important;
+    font-size: 1rem !important;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif !important;
+    transition: background-color .15s ease, border-color .15s ease, color .15s ease, outline-color .15s ease;
+}
+
+/* type: module - form control: single-line fields match the established button height while textareas keep multiline sizing. */
+.ai4seo-form-item-input-wrapper input:not([type="checkbox"]):not([type="radio"]),
+.ai4seo-form-item-input-wrapper select,
+input.ai4seo-textfield,
+select.ai4seo-textfield,
+input.ai4seo-editor-textfield,
+input.ai4seo-help-search,
+select.ai4seo-select,
+select.ai4seo-editor-select {
+    height: 40px !important;
+    min-height: 40px !important;
+}
+
+/* type: module - form control: selects use a shared SVG caret so WordPress and browser chrome do not style them differently. */
+.ai4seo-form-item-input-wrapper select,
+select.ai4seo-textfield,
+select.ai4seo-select,
+select.ai4seo-editor-select {
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    background-color: var(--ai4seo-white) !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 512'%3E%3Cpath fill='%236f7782' d='M31.3 192h257.4c17.8 0 26.7 21.5 14.1 34.1L174.1 354.8c-7.8 7.8-20.5 7.8-28.3 0L17.2 226.1C4.6 213.5 13.5 192 31.3 192z'/%3E%3C/svg%3E") !important;
+    background-position: right 14px center !important;
+    background-repeat: no-repeat !important;
+    background-size: 10px 16px !important;
+    cursor: default !important;
+    padding-right: 42px !important;
+}
+
+/* type: module - form control: text-entry controls keep the text cursor so polished fields do not feel like action buttons. */
+.ai4seo-form-item-input-wrapper input:not([type="checkbox"]):not([type="radio"]),
+.ai4seo-form-item-input-wrapper textarea,
+input.ai4seo-textfield,
+input.ai4seo-editor-textfield,
+input.ai4seo-help-search,
+textarea.ai4seo-textarea,
+textarea.ai4seo-editor-textarea {
+    cursor: text !important;
+}
+
+/* type: module - form control: hover state is intentionally limited to the border to avoid a button-like raised affordance. */
+.ai4seo-form-item-input-wrapper input:not([type="checkbox"]):not([type="radio"]):hover,
+.ai4seo-form-item-input-wrapper select:hover,
+.ai4seo-form-item-input-wrapper textarea:hover,
+input.ai4seo-textfield:hover,
+input.ai4seo-editor-textfield:hover,
+input.ai4seo-help-search:hover,
+select.ai4seo-textfield:hover,
+select.ai4seo-select:hover,
+select.ai4seo-editor-select:hover,
+textarea.ai4seo-textarea:hover,
+textarea.ai4seo-editor-textarea:hover {
+    border-color: var(--ai4seo-border-muted) !important;
+}
+
+/* type: module - form control: focus outline mirrors admin accessibility while preserving the flat white field surface. */
+.ai4seo-form-item-input-wrapper input:not([type="checkbox"]):not([type="radio"]):focus,
+.ai4seo-form-item-input-wrapper select:focus,
+.ai4seo-form-item-input-wrapper textarea:focus,
+input.ai4seo-textfield:focus,
+input.ai4seo-editor-textfield:focus,
+input.ai4seo-help-search:focus,
+select.ai4seo-textfield:focus,
+select.ai4seo-select:focus,
+select.ai4seo-editor-select:focus,
+textarea.ai4seo-textarea:focus,
+textarea.ai4seo-editor-textarea:focus {
+    border-color: var(--ai4seo-sooz-ci-blue-input) !important;
+    box-shadow: none !important;
+    outline: 2px solid rgba(17, 119, 187, .18) !important;
+    outline-offset: 1px !important;
+}
+
+/* type: module - form control: inactive states preserve field geometry so settings pages do not reflow when controls lock. */
+.ai4seo-form-item-input-wrapper input:not([type="checkbox"]):not([type="radio"]):disabled,
+.ai4seo-form-item-input-wrapper select:disabled,
+.ai4seo-form-item-input-wrapper textarea:disabled,
+.ai4seo-form-item-input-wrapper input:not([type="checkbox"]):not([type="radio"]):read-only,
+.ai4seo-form-item-input-wrapper textarea:read-only,
+input.ai4seo-textfield:disabled,
+input.ai4seo-editor-textfield:disabled,
+input.ai4seo-help-search:disabled,
+input.ai4seo-textfield:read-only,
+input.ai4seo-editor-textfield:read-only,
+input.ai4seo-help-search:read-only,
+select.ai4seo-textfield:disabled,
+select.ai4seo-select:disabled,
+select.ai4seo-editor-select:disabled,
+textarea.ai4seo-textarea:disabled,
+textarea.ai4seo-editor-textarea:disabled,
+textarea.ai4seo-textarea:read-only,
+textarea.ai4seo-editor-textarea:read-only {
+    background: #f6f7f7 !important;
+    border-color: var(--ai4seo-border-light) !important;
+    color: var(--ai4seo-muted-text) !important;
+    cursor: not-allowed !important;
+    opacity: 1 !important;
+}
+
+/* type: module - form control: disabled selects need their own muted caret because the normal caret is embedded as a background. */
+.ai4seo-form-item-input-wrapper select:disabled,
+select.ai4seo-textfield:disabled,
+select.ai4seo-select:disabled,
+select.ai4seo-editor-select:disabled {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 512'%3E%3Cpath fill='%23bbbbbb' d='M31.3 192h257.4c17.8 0 26.7 21.5 14.1 34.1L174.1 354.8c-7.8 7.8-20.5 7.8-28.3 0L17.2 226.1C4.6 213.5 13.5 192 31.3 192z'/%3E%3C/svg%3E") !important;
+    background-position: right 14px center !important;
+    background-repeat: no-repeat !important;
+    background-size: 10px 16px !important;
+}
+
+/* type: module - account form: presentation-only license spacing lives in CSS instead of the account template markup. */
+.ai4seo-account-license-description {
+    margin: 2rem 2rem 0 2rem !important;
 }
 
 .ai4seo-auto-resize-textarea {
@@ -1439,6 +1601,526 @@ div.ai4seo-recent-plugin-updates-content li::marker {
     display: block;
     margin-bottom: .5rem;
     margin-left: 1.1rem;
+}
+
+/* type: module - toggle checkbox: keep native checkbox inputs for save flows while rendering the single-checkbox class as a switch. */
+input.ai4seo-single-checkbox[type="checkbox"] {
+    position: relative !important;
+    display: inline-block !important;
+    width: 46px !important;
+    min-width: 46px !important;
+    height: 26px !important;
+    min-height: 26px !important;
+    margin: 0 0 0 9px !important;
+    vertical-align: middle !important;
+    background: #e8eaed !important;
+    border: 1px solid var(--ai4seo-border) !important;
+    border-radius: 999px !important;
+    box-shadow: none !important;
+    cursor: pointer !important;
+    outline: none !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    transform: none !important;
+    transition: background-color .18s ease, border-color .18s ease;
+}
+
+/* type: module - toggle checkbox: the knob is separated from the icon so the X/check can be tuned independently. */
+input.ai4seo-single-checkbox[type="checkbox"]::before {
+    content: "" !important;
+    position: absolute !important;
+    top: 2px !important;
+    left: 2px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 20px !important;
+    height: 20px !important;
+    margin: 0 !important;
+    background: var(--ai4seo-white) !important;
+    border-radius: 50% !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .22) !important;
+    float: none !important;
+    transition: transform .18s ease;
+}
+
+/* type: module - toggle checkbox: the unchecked X is positioned against the knob, not the full track. */
+input.ai4seo-single-checkbox[type="checkbox"]::after {
+    content: "x" !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 1.4px !important;
+    display: block !important;
+    width: 20px !important;
+    height: 20px !important;
+    margin: 0 !important;
+    color: #a9b2bd !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    line-height: 20px !important;
+    text-align: center !important;
+    text-indent: 0 !important;
+    pointer-events: none !important;
+    speak: never !important;
+    transition: color .18s ease, transform .18s ease;
+}
+
+/* type: module - toggle checkbox: checked state uses the AI4SEO blue track while the native checked value stays unchanged. */
+input.ai4seo-single-checkbox[type="checkbox"]:checked {
+    background: var(--ai4seo-sooz-ci-blue-input) !important;
+    border-color: var(--ai4seo-sooz-ci-blue-input-dark) !important;
+}
+
+/* type: module - toggle checkbox: the 20px travel matches the track width minus knob and 2px side offsets. */
+input.ai4seo-single-checkbox[type="checkbox"]:checked::before {
+    transform: translateX(20px) !important;
+}
+
+/* type: module - toggle checkbox: the check icon follows the knob and keeps its earlier smaller visual weight. */
+input.ai4seo-single-checkbox[type="checkbox"]:checked::after {
+    content: "\2713" !important;
+    color: var(--ai4seo-sooz-ci-blue-input) !important;
+    left: 2px !important;
+    top: 2px !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    transform: translateX(20px) !important;
+}
+
+/* type: module - toggle checkbox: hover only adjusts the outline so the switch does not look like a raised button. */
+input.ai4seo-single-checkbox[type="checkbox"]:hover {
+    border-color: var(--ai4seo-border-muted) !important;
+}
+
+/* type: module - toggle checkbox: checked hover keeps the stronger blue border used by active controls. */
+input.ai4seo-single-checkbox[type="checkbox"]:checked:hover {
+    border-color: var(--ai4seo-sooz-ci-blue-input-dark) !important;
+}
+
+/* type: module - toggle checkbox: keyboard focus remains visible after removing the browser checkbox appearance. */
+input.ai4seo-single-checkbox[type="checkbox"]:focus-visible {
+    outline: 2px solid rgba(17, 119, 187, .28) !important;
+    outline-offset: 2px !important;
+}
+
+/* type: module - toggle checkbox: disabled switches stay readable but no longer invite interaction. */
+input.ai4seo-single-checkbox[type="checkbox"]:disabled {
+    background: #edf0f2 !important;
+    border-color: var(--ai4seo-border-light) !important;
+    cursor: not-allowed !important;
+    opacity: .75 !important;
+}
+
+/* type: module - toggle checkbox: disabled icon color follows the muted border palette used for locked controls. */
+input.ai4seo-single-checkbox[type="checkbox"]:disabled::after {
+    color: var(--ai4seo-border-muted) !important;
+}
+
+/* type: module - toggle checkbox: labels containing a single toggle become full-width rows so copy leads and switch trails. */
+.ai4seo-form-item-input-wrapper label:has(> input.ai4seo-single-checkbox[type="checkbox"]),
+.ai4seo-tos-checkbox label:has(> input.ai4seo-single-checkbox[type="checkbox"]) {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    width: 100%;
+}
+
+/* type: module - toggle checkbox: nested helper wrappers should not constrain right-aligned switch rows. */
+.ai4seo-form-item-input-wrapper > div:has(> label > input.ai4seo-single-checkbox[type="checkbox"]) {
+    width: 100%;
+    max-width: none !important;
+}
+
+/* type: module - toggle checkbox: switch inputs align to the top of multiline labels and occupy the row's far edge. */
+.ai4seo-form-item-input-wrapper label:has(> input.ai4seo-single-checkbox[type="checkbox"]) > input.ai4seo-single-checkbox[type="checkbox"],
+.ai4seo-tos-checkbox label:has(> input.ai4seo-single-checkbox[type="checkbox"]) > input.ai4seo-single-checkbox[type="checkbox"] {
+    order: 2;
+    flex: 0 0 auto;
+    align-self: flex-start;
+    margin-top: 0 !important;
+    margin-right: 0 !important;
+    margin-left: auto !important;
+}
+
+/* type: module - toggle checkbox: legacy line breaks inside checkbox labels are hidden once flex layout controls spacing. */
+.ai4seo-form-item-input-wrapper label:has(> input.ai4seo-single-checkbox[type="checkbox"]) > br,
+.ai4seo-tos-checkbox label:has(> input.ai4seo-single-checkbox[type="checkbox"]) > br {
+    display: none;
+}
+
+/* type: module - slider input */
+/* Root variables connect the PHP helper arguments to the shared slider layout rules. */
+.ai4seo-slider-input {
+    --ai4seo-slider-marker-size: 18px;
+    --ai4seo-slider-track-background: linear-gradient(90deg, var(--ai4seo-sooz-ci-blue-input) 0%, var(--ai4seo-gray) 50%, var(--ai4seo-red) 100%);
+    --ai4seo-slider-track-thickness: 5px;
+    --ai4seo-slider-track-length: 100%;
+    --ai4seo-slider-track-opacity: 1;
+    width: 100%;
+    max-width: var(--ai4seo-form-control-max-width);
+    margin-top: 5px;
+}
+
+/* The control wrapper positions optional controls relative to the visible slider bar. */
+.ai4seo-slider-input-control-wrapper {
+    position: relative;
+    max-width: 100%;
+}
+
+/* The control defines the track positioning context for both orientations. */
+.ai4seo-slider-input-control {
+    position: relative;
+    max-width: 100%;
+    cursor: pointer;
+}
+
+/* Horizontal sliders default to the settings page's left-bound input alignment. */
+.ai4seo-slider-input-horizontal .ai4seo-slider-input-control-wrapper {
+    width: min(var(--ai4seo-slider-track-length), 100%);
+    margin-right: auto;
+    margin-left: 0;
+}
+
+/* Sliders with help icons reserve space so the icon does not overlap the final stage. */
+.ai4seo-slider-input-has-help.ai4seo-slider-input-horizontal .ai4seo-slider-input-control-wrapper {
+    width: min(var(--ai4seo-slider-track-length), calc(100% - 44px));
+}
+
+/* Horizontal controls fill the wrapper that owns slider alignment and help-icon positioning. */
+.ai4seo-slider-input-horizontal .ai4seo-slider-input-control {
+    width: 100%;
+}
+
+/* Center alignment lets future settings opt into a balanced visual layout. */
+.ai4seo-slider-input-align-center.ai4seo-slider-input-horizontal .ai4seo-slider-input-control-wrapper {
+    margin-right: auto;
+    margin-left: auto;
+}
+
+/* Right alignment is available for compact controls placed near right-aligned UI. */
+.ai4seo-slider-input-align-right.ai4seo-slider-input-horizontal .ai4seo-slider-input-control-wrapper {
+    margin-right: 0;
+    margin-left: auto;
+}
+
+/* Rotated labels need right-side breathing room so the final label does not clip. */
+.ai4seo-slider-input-rotate-labels.ai4seo-slider-input-horizontal .ai4seo-slider-input-control-wrapper {
+    max-width: calc(100% - 80px);
+}
+
+/* The optional help icon floats just above and to the right of the slider bar. */
+.ai4seo-slider-input-help {
+    position: absolute;
+    z-index: 3;
+    top: -14px;
+    right: -26px;
+    line-height: 1;
+}
+
+/* The active slider help wrapper must sit above later help icons while its tooltip is open. */
+.ai4seo-slider-input-help:hover,
+.ai4seo-slider-input-help:focus-within {
+    z-index: 160011;
+}
+
+/* Slider help icons opt out of the inline-label icon offset used by regular form tooltips. */
+.ai4seo-slider-input-help .ai4seo-icon-with-tooltip {
+    line-height: 1;
+    margin-left: 0;
+}
+
+/* Slider help icons are already positioned by their wrapper. */
+.ai4seo-slider-input-help .ai4seo-icon-with-tooltip svg {
+    margin-top: 0 !important;
+    vertical-align: middle;
+}
+
+/* Slider help tooltip content is a compact option list. */
+.ai4seo-slider-input-help .ai4seo-tooltip {
+    text-align: left;
+}
+
+/* Slider help list uses tooltip padding for its outer spacing. */
+.ai4seo-slider-input-help-list {
+    margin: 0;
+    padding-left: 18px;
+}
+
+/* Slider help list items stay compact but readable. */
+.ai4seo-slider-input-help-list li {
+    margin: 0;
+}
+
+/* Separate stage descriptions inside the slider help tooltip. */
+.ai4seo-slider-input-help-list li + li {
+    margin-top: 10px;
+}
+
+/* The visual track is mapped to the nearest real radio by JavaScript. */
+.ai4seo-slider-input-track {
+    position: absolute;
+    z-index: 0;
+    background: var(--ai4seo-slider-track-background);
+    border-radius: 999px;
+    opacity: var(--ai4seo-slider-track-opacity);
+    pointer-events: none;
+}
+
+/* Horizontal tracks start and end around marker centers, with 1px extra to avoid end gaps. */
+.ai4seo-slider-input-horizontal .ai4seo-slider-input-track {
+    top: calc((var(--ai4seo-slider-marker-size) - var(--ai4seo-slider-track-thickness)) / 2);
+    right: calc((var(--ai4seo-slider-marker-size) - var(--ai4seo-slider-track-thickness)) / 2 - 1px);
+    left: calc((var(--ai4seo-slider-marker-size) - var(--ai4seo-slider-track-thickness)) / 2 - 1px);
+    height: var(--ai4seo-slider-track-thickness);
+}
+
+/* Stages sit above the decorative track to keep marker hover/focus states visible. */
+.ai4seo-slider-input-stages {
+    position: relative;
+    z-index: 1;
+}
+
+/* Horizontal stage distribution keeps the first and last radio centered over the track ends. */
+.ai4seo-slider-input-horizontal .ai4seo-slider-input-stages {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+}
+
+/* Labels own the click target for their hidden radio and custom marker. */
+.ai4seo-slider-input-stage {
+    position: relative;
+    min-width: 0;
+    cursor: pointer;
+    color: var(--ai4seo-gray-dark);
+}
+
+/* Horizontal labels stack below markers unless long labels switch to rotation. */
+.ai4seo-slider-input-horizontal .ai4seo-slider-input-stage {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    margin: 0 -18px;
+    padding: 0 18px;
+    text-align: center;
+}
+
+/* Native radios stay accessible while the custom marker carries the visual state. */
+.ai4seo-slider-input-radio {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* The marker mirrors the plugin's small circular control styling. */
+.ai4seo-slider-input-marker {
+    display: block;
+    width: var(--ai4seo-slider-marker-size);
+    height: var(--ai4seo-slider-marker-size);
+    box-sizing: border-box;
+    background: var(--ai4seo-white);
+    border: 2px solid var(--ai4seo-border);
+    border-radius: 50%;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .14);
+    transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+
+/* Selected stages use the plugin blue ring so slider state matches other active controls. */
+.ai4seo-slider-input-stage-selected .ai4seo-slider-input-marker {
+    background: var(--ai4seo-blue);
+    border-color: var(--ai4seo-white);
+    box-shadow: 0 0 0 2px var(--ai4seo-blue);
+}
+
+/* Track hover previews the nearest stage without changing the saved radio value. */
+.ai4seo-slider-input-stage-previewed:not(.ai4seo-slider-input-stage-selected) .ai4seo-slider-input-marker {
+    border-color: var(--ai4seo-blue);
+    box-shadow: 0 0 0 2px rgba(0, 115, 170, .25);
+}
+
+/* Active stage feedback previews the click target before the radio change event fires. */
+.ai4seo-slider-input-stage:active .ai4seo-slider-input-marker {
+    border-color: var(--ai4seo-blue);
+    box-shadow: 0 0 0 2px rgba(0, 115, 170, .25);
+}
+
+/* Focus visibility keeps keyboard review possible even though radios are visually hidden. */
+.ai4seo-slider-input-radio:focus-visible + .ai4seo-slider-input-marker {
+    outline: 2px solid var(--ai4seo-blue);
+    outline-offset: 3px;
+}
+
+/* Default labels are compact enough for numeric and short-word slider stages. */
+.ai4seo-slider-input-label {
+    max-width: 90px;
+    color: var(--ai4seo-dark-text);
+    font-size: .82rem;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+}
+
+/* Long labels rotate down and right so their first letter starts below the marker center. */
+.ai4seo-slider-input-rotate-labels .ai4seo-slider-input-label {
+    position: absolute;
+    top: calc(var(--ai4seo-slider-marker-size) + 6px);
+    left: calc(50% + 5px);
+    width: max-content;
+    max-width: none;
+    white-space: nowrap;
+    transform: rotate(45deg);
+    transform-origin: top left;
+}
+
+/* Rotated horizontal stages reserve enough height for labels before the description block. */
+.ai4seo-slider-input-rotate-labels.ai4seo-slider-input-horizontal .ai4seo-slider-input-stage {
+    min-height: 115px;
+    align-items: center;
+}
+
+/* Explicit marker centering prevents rotated label offsets from shifting the control point. */
+.ai4seo-slider-input-rotate-labels.ai4seo-slider-input-horizontal .ai4seo-slider-input-marker {
+    align-self: center;
+}
+
+/* The description area is shared by hover previews and the currently selected stage. */
+.ai4seo-slider-input-selected-description {
+    max-width: var(--ai4seo-form-control-max-width);
+    min-height: 1.4rem;
+    margin-top: 12px;
+    color: #000;
+    font-size: .9rem;
+    line-height: 1.4rem;
+}
+
+/* Vertical sliders place the persistent description beside the stacked radio group. */
+.ai4seo-slider-input-vertical {
+    --ai4seo-slider-track-background: linear-gradient(180deg, var(--ai4seo-sooz-ci-blue-input) 0%, var(--ai4seo-gray) 50%, var(--ai4seo-red) 100%);
+    display: flex;
+    align-items: center;
+    gap: 2.5rem;
+}
+
+/* Vertical controls use the configured track length as height instead of width. */
+.ai4seo-slider-input-vertical .ai4seo-slider-input-control {
+    width: max-content;
+    height: var(--ai4seo-slider-track-length);
+    min-height: 180px;
+}
+
+/* Vertical tracks use the same center-to-center geometry as horizontal tracks. */
+.ai4seo-slider-input-vertical .ai4seo-slider-input-track {
+    top: calc((var(--ai4seo-slider-marker-size) - var(--ai4seo-slider-track-thickness)) / 2);
+    bottom: calc((var(--ai4seo-slider-marker-size) - var(--ai4seo-slider-track-thickness)) / 2);
+    left: calc((var(--ai4seo-slider-marker-size) - var(--ai4seo-slider-track-thickness)) / 2);
+    width: var(--ai4seo-slider-track-thickness);
+}
+
+/* Stacked stages fill the configured height so endpoints align with the vertical track. */
+.ai4seo-slider-input-vertical .ai4seo-slider-input-stages {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100%;
+}
+
+/* Vertical stage labels sit beside markers for compact settings-page rows. */
+.ai4seo-slider-input-vertical .ai4seo-slider-input-stage {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Vertical labels have a wider cap because they are not rotated. */
+.ai4seo-slider-input-vertical .ai4seo-slider-input-label {
+    max-width: 140px;
+    text-align: left;
+}
+
+/* Vertical descriptions opt out of the horizontal top margin and use the flex row gap. */
+.ai4seo-slider-input-vertical .ai4seo-slider-input-selected-description {
+    flex: 1;
+    margin-top: 0;
+}
+
+/* type: content - Settings -> Metadata custom instructions */
+.ai4seo-post-type-custom-instructions-item {
+    margin-bottom: 14px;
+}
+
+/* type: content - Settings -> Metadata custom instructions */
+.ai4seo-post-type-custom-instructions-caption {
+    display: block;
+    max-width: var(--ai4seo-form-control-max-width);
+    margin: 0 0 6px 0;
+    padding: 0;
+    color: var(--ai4seo-dark-text);
+    font-size: .95rem;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+/* type: content - Custom instructions examples tooltip */
+.ai4seo-custom-instructions-examples {
+    display: inline-block;
+    position: relative;
+    white-space: nowrap;
+}
+
+/* type: content - Custom instructions examples tooltip */
+.ai4seo-custom-instructions-examples-trigger {
+    color: var(--ai4seo-blue);
+    cursor: help;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+/* type: content - Custom instructions examples tooltip */
+.ai4seo-custom-instructions-examples .ai4seo-tooltip {
+    text-align: left;
+    white-space: normal;
+}
+
+/* type: content - Custom instructions examples tooltip */
+.ai4seo-custom-instructions-examples-description {
+    display: block;
+    margin: 0 0 10px 0;
+}
+
+/* type: content - Custom instructions examples tooltip */
+.ai4seo-custom-instructions-examples-caption {
+    display: block;
+}
+
+/* type: content - Custom instructions examples tooltip */
+.ai4seo-custom-instructions-examples-list {
+    display: block;
+    margin: 10px 0 0 0;
+}
+
+/* type: content - Custom instructions examples tooltip */
+.ai4seo-custom-instructions-examples-item {
+    display: list-item;
+    margin-left: 18px;
+}
+
+/* type: content - Custom instructions examples tooltip */
+.ai4seo-custom-instructions-examples-item + .ai4seo-custom-instructions-examples-item {
+    margin-top: 8px;
+}
+
+/* type: content - Settings -> Subscription feature upgrade prompt */
+.ai4seo-setting-upgrade-prompt {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .4rem;
+    max-width: var(--ai4seo-form-control-max-width);
+    margin-top: 8px;
+    color: var(--ai4seo-gray-dark);
 }
 
 /* type: content — Editor → AI form layout */
@@ -1485,67 +2167,276 @@ div.ai4seo-recent-plugin-updates-content li::marker {
 
 /* type: module — Content listings → Filter bar wrapper */
 .ai4seo-filter-bar {
-    margin: 0 0 1rem;
+    margin: 0 0 .5rem;
+    width: 100%;
 }
 
-/* type: module — Content listings → Filter bar layout */
-.ai4seo-filter-bar__fields {
+/* type: module — Content listings → Native-style controls layout */
+.ai4seo-content-list-controls__top {
     display: flex;
     flex-wrap: wrap;
-    align-items: flex-end;
-    gap: 12px;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    width: 100%;
 }
 
-/* type: module — Content listings → Filter bar field label */
-.ai4seo-filter-bar__label {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+/* type: module — Content listings → Status filter area */
+.ai4seo-content-list-controls__views {
+    flex: 1 1 auto;
+    min-width: 260px;
+    padding-top: 10px;
+}
+
+/* type: module — Content listings → Status filter links */
+.ai4seo-content-list-status-filters {
+    float: none;
     margin: 0;
-    font-weight: 600;
 }
 
-/* type: module — Content listings → Filter inputs */
-.ai4seo-filter-bar__label input,
-.ai4seo-filter-bar__label select {
+/* type: module — Content listings → Status filter item */
+.ai4seo-content-list-status-filters li {
+    display: inline-block;
+    margin: 0;
+    white-space: nowrap;
+}
+
+/* type: module - Content listings: the search area grows, while child controls keep fixed caps for post/media alignment. */
+.ai4seo-content-list-controls__search {
+    flex: 1 1 760px;
+    margin-left: auto;
+    min-width: 0;
+    text-align: right;
+}
+
+/* type: module - Content listings: desktop filters stay on one row so text search sits directly beside language selection. */
+.ai4seo-content-list-search-form {
+    display: flex;
+    float: none;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    margin: 0;
+}
+
+/* type: module - Content listings: cap text search on post and attachment screens so it does not dominate the filter row. */
+.ai4seo-content-list-search-form input[type="search"] {
+    flex: 1 1 345px;
+    width: auto !important;
+    min-width: 260px;
+    max-width: 345px;
+}
+
+/* type: module - Content listings: language filters keep a predictable width beside the capped text search field. */
+.ai4seo-content-list-search-form select {
+    flex: 0 0 300px;
+    width: 300px !important;
     min-width: 220px;
     max-width: 100%;
 }
 
-/* type: module — Content listings → Filter actions */
-.ai4seo-filter-bar__actions {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    gap: 8px;
+/* type: module — Content listings → Total count */
+.ai4seo-content-list-total-count {
+    display: inline-block;
 }
 
-/* type: module — Content listings → Filter action buttons */
-.ai4seo-filter-bar__actions .button {
+/* type: module — Content listings → Sortable table header */
+.ai4seo-posts-table th.ai4seo-content-list-sortable-column {
+    padding: 8px 10px;
+}
+
+/* type: module — Content listings → Sortable table title */
+.ai4seo-content-list-sortable-column-title {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+}
+
+/* type: module — Content listings → Sortable table title label */
+.ai4seo-content-list-sortable-column-label {
+    display: inline-block;
+}
+
+/* type: module — Content listings → Sort indicators */
+.ai4seo-content-list-sort-indicators {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 2px;
+    justify-content: center;
+    line-height: 1;
+    vertical-align: middle;
+}
+
+/* type: module — Content listings → Sort indicator */
+.ai4seo-content-list-sort-indicator.sorting-indicator {
+    border-left: 4px solid transparent !important;
+    border-right: 4px solid transparent !important;
+    cursor: pointer;
+    display: block !important;
+    height: 0 !important;
+    margin: 0 !important;
+    opacity: 1;
+    padding: 0 !important;
+    width: 0 !important;
+}
+
+/* type: module — Content listings → Ascending sort indicator */
+.ai4seo-content-list-sort-indicator--asc.sorting-indicator {
+    border-bottom: 5px solid #a7aaad !important;
+}
+
+/* type: module — Content listings → Descending sort indicator */
+.ai4seo-content-list-sort-indicator--desc.sorting-indicator {
+    border-top: 5px solid #a7aaad !important;
+}
+
+/* type: module — Content listings → Active ascending sort indicator */
+.ai4seo-content-list-sort-indicator--asc.ai4seo-content-list-sort-indicator--active.sorting-indicator {
+    border-bottom-color: #1d2327 !important;
+}
+
+/* type: module — Content listings → Active descending sort indicator */
+.ai4seo-content-list-sort-indicator--desc.ai4seo-content-list-sort-indicator--active.sorting-indicator {
+    border-top-color: #1d2327 !important;
+}
+
+/* type: module — Content listings → Hovered ascending sort indicator */
+.ai4seo-content-list-sort-indicator--asc.sorting-indicator:hover,
+.ai4seo-content-list-sort-indicator--asc.sorting-indicator:focus {
+    border-bottom-color: #2271b1 !important;
+}
+
+/* type: module — Content listings → Hovered descending sort indicator */
+.ai4seo-content-list-sort-indicator--desc.sorting-indicator:hover,
+.ai4seo-content-list-sort-indicator--desc.sorting-indicator:focus {
+    border-top-color: #2271b1 !important;
+}
+
+/* type: module — Content listings → Bulk action row */
+.ai4seo-content-list-controls__bulk {
+    clear: both;
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    height: auto !important;
+    margin: 14px 0 .5rem;
+    min-height: auto;
+    overflow: visible;
+    visibility: visible;
+    width: 100%;
+}
+
+/* type: module — Content listings → Bulk action wrapper */
+.ai4seo-content-list-controls__bulk .alignleft.actions {
+    display: block !important;
+    float: none;
+    margin: 0;
+    overflow: visible;
+    visibility: visible;
+}
+
+/* type: module — Content listings → Bulk action count */
+.ai4seo-content-list-controls__count {
+    float: none;
+    height: auto;
+    margin-left: auto;
+    text-align: right;
+    white-space: nowrap;
+}
+
+/* type: module - Content listings: bulk actions stay on one line with the styled select and apply button aligned. */
+.ai4seo-content-list-controls__bulk .ai4seo-bulk-generation-queue-action-form {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 8px;
     margin: 0;
 }
 
+/* type: module - Content listings: bulk action selects share the polished field height without stretching across the row. */
+.ai4seo-content-list-controls__bulk select.ai4seo-bulk-generation-queue-action-select {
+    box-sizing: border-box;
+    display: block !important;
+    flex: 0 0 auto;
+    height: 40px !important;
+    line-height: 1.45 !important;
+    max-width: 330px !important;
+    min-height: 40px !important;
+    min-width: 220px;
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+    visibility: visible;
+    width: 330px !important;
+}
+
 @media (max-width: 782px) {
-    /* type: module — Content listings → Responsive filter layout */
-    .ai4seo-filter-bar__fields {
+    /* type: module — Content listings → Responsive controls layout */
+    .ai4seo-content-list-controls__top {
         flex-direction: column;
         align-items: stretch;
         gap: 10px;
     }
 
-    /* type: module — Content listings → Responsive labels */
-    .ai4seo-filter-bar__label {
+    /* type: module — Content listings → Responsive search block */
+    .ai4seo-content-list-controls__search {
+        margin-left: 0;
+        text-align: left;
         width: 100%;
     }
 
-    /* type: module — Content listings → Responsive actions */
-    .ai4seo-filter-bar__actions {
+    /* type: module — Content listings → Responsive search form */
+    .ai4seo-content-list-search-form {
+        flex-direction: column;
+        align-items: stretch;
         width: 100%;
-        justify-content: flex-start;
     }
 
-    /* type: module — Content listings → Responsive buttons */
-    .ai4seo-filter-bar__actions .button {
+    /* type: module — Content listings → Responsive bulk row */
+    .ai4seo-content-list-controls__bulk {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    /* type: module — Content listings → Responsive form controls */
+    .ai4seo-content-list-search-form input[type="search"],
+    .ai4seo-content-list-search-form select,
+    .ai4seo-content-list-search-form .ai4seo-button,
+    .ai4seo-content-list-controls__bulk .ai4seo-bulk-generation-queue-action-form,
+    .ai4seo-content-list-controls__bulk .ai4seo-bulk-generation-queue-action-form select,
+    .ai4seo-content-list-controls__bulk .ai4seo-bulk-generation-queue-action-select,
+    .ai4seo-content-list-controls__bulk .ai4seo-button {
+        width: 100% !important;
+    }
+
+    /* type: module - Content listings: small screens trade the desktop cap for full-width stacked filters. */
+    .ai4seo-content-list-search-form input[type="search"],
+    .ai4seo-content-list-search-form select {
+        flex: 1 1 auto;
+        max-width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    /* type: module — Content listings → Responsive bulk action selector */
+    .ai4seo-content-list-controls__bulk .ai4seo-bulk-generation-queue-action-form select,
+    .ai4seo-content-list-controls__bulk .ai4seo-bulk-generation-queue-action-select {
+        flex: 1 1 100%;
+        max-width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    /* type: module — Content listings → Responsive bulk controls */
+    .ai4seo-content-list-controls__bulk .ai4seo-bulk-generation-queue-action-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    /* type: module — Content listings → Responsive total count */
+    .ai4seo-content-list-controls__count {
+        margin-left: 0;
+        text-align: left;
         width: 100%;
     }
 }
@@ -1582,7 +2473,7 @@ div.ai4seo-recent-plugin-updates-content li::marker {
 
 /* type: module — form layout */
 .ai4seo-small-form .ai4seo-form-section .ai4seo-form-item {
-    padding: 1rem 1.5rem;
+    padding: 2rem 1.5rem;
 }
 
 /* type: module — form layout */
@@ -1611,7 +2502,7 @@ div.ai4seo-recent-plugin-updates-content li::marker {
 
 /* type: module — form layout */
 .ai4seo-no-borders .ai4seo-form-item {
-    padding: 1rem 0 !important;
+    padding: 2rem 0 !important;
     border: none !important;
     box-shadow: none !important;
 }
@@ -1744,11 +2635,11 @@ div.ai4seo-recent-plugin-updates-content li::marker {
     margin: 10px 0;
     fill: #665;
     position: absolute;
-    left: 10px;
+    left: 13px;
 }
 
 /* type: module — help module */
-.ai4seo-help-search {
+input.ai4seo-help-search {
     width: 100%;
     min-width: 255px;
     max-width: 520px;
@@ -1878,14 +2769,24 @@ div.ai4seo-recent-plugin-updates-content li::marker {
     position: relative;
 }
 
-/* type: module — form control */
+/* type: module - tos layout: default input alignment remains for any TOS checkbox that does not use the switch class. */
 .ai4seo-tos-checkbox input {
-    margin-top: 1px; /* Optional: Align the checkbox vertically with the label text */
+    margin-top: 1px;
 }
 
-/* type: module — tos layout */
+/* type: module - tos layout: TOS checkboxes use the shared switch rendering while the label text remains the leading item. */
+.ai4seo-tos-checkbox input.ai4seo-single-checkbox {
+    order: 2;
+    flex: 0 0 auto;
+    margin-top: 0 !important;
+    margin-right: 0 !important;
+    margin-left: 10px !important;
+}
+
+/* type: module - tos layout: TOS consent copy leads the row while the shared switch remains visually trailing. */
 .ai4seo-tos-checkbox label {
-    flex: 1; /* Ensures the label text takes up the remaining space */
+    order: 1;
+    flex: 1;
 }
 
 /* type: module — tos layout */
@@ -2807,11 +3708,19 @@ div.ai4seo-pay-as-you-go-summary-container {
     color: var(--ai4seo-white) !important;
 }
 
-/* type: module — button */
-.ai4seo-submit-button.ai4seo-inactive-button, .ai4seo-primary-button.ai4seo-inactive-button,
-.ai4seo-submit-button.ai4seo-start-inactive, .ai4seo-primary-button.ai4seo-start-inactive,
-.ai4seo-submit-button.ai4seo-inactive-button:disabled, .ai4seo-primary-button.ai4seo-inactive-button:disabled,
-.ai4seo-submit-button.ai4seo-start-inactive:disabled, .ai4seo-primary-button.ai4seo-start-inactive:disabled {
+/* type: module - inactive button states shared by primary, submit, and modal save-next actions */
+.ai4seo-submit-button.ai4seo-inactive-button,
+.ai4seo-primary-button.ai4seo-inactive-button,
+.ai4seo-save-button.ai4seo-inactive-button,
+.ai4seo-submit-button.ai4seo-start-inactive,
+.ai4seo-primary-button.ai4seo-start-inactive,
+.ai4seo-save-button.ai4seo-start-inactive,
+.ai4seo-submit-button.ai4seo-inactive-button:disabled,
+.ai4seo-primary-button.ai4seo-inactive-button:disabled,
+.ai4seo-save-button.ai4seo-inactive-button:disabled,
+.ai4seo-submit-button.ai4seo-start-inactive:disabled,
+.ai4seo-primary-button.ai4seo-start-inactive:disabled,
+.ai4seo-save-button.ai4seo-start-inactive:disabled {
     background-color: var(--ai4seo-border) !important;
     background: var(--ai4seo-border) !important;
     box-shadow: none !important;
@@ -2823,11 +3732,19 @@ div.ai4seo-pay-as-you-go-summary-container {
     pointer-events: none !important;
 }
 
-/* type: module — button */
-.ai4seo-submit-button.ai4seo-inactive-button > span, .ai4seo-primary-button.ai4seo-inactive-button > span,
-.ai4seo-submit-button.ai4seo-start-inactive > span, .ai4seo-primary-button.ai4seo-start-inactive > span,
-.ai4seo-submit-button.ai4seo-inactive-button:disabled > span, .ai4seo-primary-button.ai4seo-inactive-button:disabled > span,
-.ai4seo-submit-button.ai4seo-start-inactive:disabled > span, .ai4seo-primary-button.ai4seo-start-inactive:disabled > span {
+/* type: module - inactive button label states match the parent disabled styling above */
+.ai4seo-submit-button.ai4seo-inactive-button > span,
+.ai4seo-primary-button.ai4seo-inactive-button > span,
+.ai4seo-save-button.ai4seo-inactive-button > span,
+.ai4seo-submit-button.ai4seo-start-inactive > span,
+.ai4seo-primary-button.ai4seo-start-inactive > span,
+.ai4seo-save-button.ai4seo-start-inactive > span,
+.ai4seo-submit-button.ai4seo-inactive-button:disabled > span,
+.ai4seo-primary-button.ai4seo-inactive-button:disabled > span,
+.ai4seo-save-button.ai4seo-inactive-button:disabled > span,
+.ai4seo-submit-button.ai4seo-start-inactive:disabled > span,
+.ai4seo-primary-button.ai4seo-start-inactive:disabled > span,
+.ai4seo-save-button.ai4seo-start-inactive:disabled > span {
     color: var(--ai4seo-muted-text) !important;
 }
 
@@ -2839,13 +3756,16 @@ div.ai4seo-pay-as-you-go-summary-container {
     transform-style: unset !important;
 }
 
-/* type: module — button */
+/* type: module - inactive button interaction states must not visually re-enable dirty-state-gated actions */
 .ai4seo-submit-button.ai4seo-inactive-button:hover,
 .ai4seo-primary-button.ai4seo-inactive-button:hover,
+.ai4seo-save-button.ai4seo-inactive-button:hover,
 .ai4seo-submit-button.ai4seo-inactive-button:focus,
 .ai4seo-primary-button.ai4seo-inactive-button:focus,
+.ai4seo-save-button.ai4seo-inactive-button:focus,
 .ai4seo-submit-button.ai4seo-inactive-button:active,
-.ai4seo-primary-button.ai4seo-inactive-button:active {
+.ai4seo-primary-button.ai4seo-inactive-button:active,
+.ai4seo-save-button.ai4seo-inactive-button:active {
     background-color: var(--ai4seo-border) !important;
     border-color: var(--ai4seo-border-muted) !important;
     color: var(--ai4seo-muted-text) !important;
@@ -2889,6 +3809,7 @@ div.ai4seo-pay-as-you-go-summary-container {
 .ai4seo-sticky-buttons-bar {
     position: fixed;
     bottom: 0;
+    z-index: 1000;
     padding: 30px 0 0 0;
     width: calc(100% - 260px - 160px); /* account for sidebars */
     overflow: hidden;
@@ -3064,9 +3985,10 @@ div.ai4seo-latest-activity-item-buttons a, div.ai4seo-latest-activity-item-butto
     box-shadow: none !important;
 }
 
-/* type: module — button */
+/* type: module - button: icon-only SVGs are nudged to sit optically centered inside compact square buttons. */
 .ai4seo-icon-only-button svg {
-    margin: 0;
+    margin-top: -2px;
+    margin-right: -1px !important;
 }
 
 /* type: module — button */
@@ -3303,11 +4225,6 @@ div.ai4seo-credits-pack-selection-container .ai4seo-credits-pack-show-more-optio
 /*  MODALS & NOTIFICATIONS                                                    */
 /* ========================================================================== */
 
-/* type: module — notice */
-.ai4seo-hidden-notices-area {
-    display: none;
-}
-
 .ai4seo-success-message,
 /* type: content — Global UI → Modals and notifications */
 .ai4seo-green-message {
@@ -3333,6 +4250,24 @@ div.ai4seo-credits-pack-selection-container .ai4seo-credits-pack-show-more-optio
 /* type: content — Global UI → Modals and notifications */
 .ai4seo-gray-message {
     color: var(--ai4seo-gray) !important;
+}
+
+/* type: content — Editor field source hints */
+.ai4seo-editor-field-source-message,
+.ai4seo-editor-field-warning-message {
+    display: block;
+    font-weight: 400;
+    line-height: 1.35;
+}
+
+/* type: content — Editor field source hints */
+.ai4seo-editor-field-source-message {
+    margin-top: 4px;
+}
+
+/* type: content — Editor field follow-up warning */
+.ai4seo-editor-field-warning-message {
+    margin-top: 6px;
 }
 
 /* type: module — badge */
@@ -3435,7 +4370,98 @@ div.ai4seo-credits-pack-selection-container .ai4seo-credits-pack-show-more-optio
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
 }
 
-/* type: module — icon */
+/* type: content - Metadata Editor - Entry context */
+.ai4seo-modal .ai4seo-metadata-editor-entry-context {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .75rem 1rem;
+    margin-top: -1rem;
+    margin-bottom: 2rem;
+}
+
+/* type: content - Metadata Editor - Entry context */
+.ai4seo-modal .ai4seo-metadata-editor-entry-context .ai4seo-modal-sub-headline {
+    margin: 0;
+}
+
+/* type: content - Metadata Editor - Header actions */
+.ai4seo-metadata-editor-header-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .5rem;
+}
+
+/* type: content - Metadata Editor - Header actions */
+.ai4seo-metadata-editor-header-actions .ai4seo-button {
+    padding: .45rem .75rem !important;
+    font-size: .95rem !important;
+    line-height: 1rem !important;
+}
+
+/* type: content - Metadata Editor - Header actions */
+.ai4seo-metadata-editor-header-actions .ai4seo-button svg {
+    height: .95rem;
+    margin-top: -3px;
+}
+
+/* type: content - Editor custom instructions */
+.ai4seo-editor-custom-instructions-form-item {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+}
+
+/* type: content - Bulk custom instructions modal - warning copy before shared editor field */
+.ai4seo-bulk-custom-instructions-warning {
+    margin: .75rem 0 2rem 0;
+}
+
+/* type: content - Bulk custom instructions modal - keep warning paragraphs compact without notice-box styling */
+.ai4seo-bulk-custom-instructions-warning p {
+    margin: 0 0 .75rem 0;
+}
+
+/* type: content - Bulk custom instructions modal - remove trailing paragraph gap before the shared field wrapper */
+.ai4seo-bulk-custom-instructions-warning p:last-child {
+    margin-bottom: 0;
+}
+
+/* type: content - Bulk custom instructions modal - align shared custom-instructions field with modal copy */
+.ai4seo-bulk-custom-instructions-form-item {
+    padding-left: 0;
+    padding-right: 0;
+}
+
+/* type: content - Bulk custom instructions confirmation - show the exact pending instructions safely in the stacked modal */
+.ai4seo-bulk-custom-instructions-confirmation-preview {
+    background: var(--ai4seo-panel-bg);
+    border: 1px solid var(--ai4seo-border-light);
+    border-radius: 5px;
+    margin-top: 1rem;
+    max-height: 220px;
+    overflow: auto;
+    padding: .75rem;
+    text-align: left;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+@media (max-width: 600px) {
+    /* type: content - Metadata Editor - Entry context */
+    .ai4seo-modal .ai4seo-metadata-editor-entry-context {
+        justify-content: center;
+        text-align: center;
+    }
+
+    /* type: content - Metadata Editor - Header actions */
+    .ai4seo-metadata-editor-header-actions {
+        justify-content: center;
+        width: 100%;
+    }
+}
+
+/* type: module - icon */
 .ai4seo-modal .ai4seo-modal-close-icon {
     position: absolute;
     top: 1rem;
@@ -3463,6 +4489,17 @@ div.ai4seo-credits-pack-selection-container .ai4seo-credits-pack-show-more-optio
     font-size: 1rem;
     line-height: 160%;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+}
+
+/* type: module — modal */
+.ai4seo-modal-content .ai4seo-sub-info {
+    font-size: smaller;
+}
+
+/* type: module — modal */
+.ai4seo-modal-content .ai4seo-editor-field-source-message,
+.ai4seo-modal-content .ai4seo-editor-field-warning-message {
+    line-height: 1.35;
 }
 
 @media (max-width: 600px) {
@@ -3848,6 +4885,80 @@ div.ai4seo-notice li {
     height: 24px;
 }
 
+/* type: module - collapsible */
+.ai4seo-collapsible {
+    font-size: inherit;
+    line-height: inherit;
+}
+
+/* type: module - collapsible */
+.ai4seo-collapsible-summary {
+    align-items: center;
+    color: var(--ai4seo-blue);
+    cursor: pointer;
+    display: inline-flex;
+    gap: .35rem;
+    font-weight: 600;
+    list-style: none;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+}
+
+/* type: module - collapsible */
+.ai4seo-collapsible-summary::-webkit-details-marker {
+    display: none;
+}
+
+/* type: module - collapsible */
+.ai4seo-collapsible-summary::after {
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid currentColor;
+    content: "";
+    display: inline-block;
+    height: 0;
+    transform: translateY(2px);
+    transition: transform .15s ease;
+    width: 0;
+}
+
+/* type: module - collapsible */
+.ai4seo-collapsible[open] > .ai4seo-collapsible-summary::after {
+    transform: rotate(180deg) translateY(2px);
+}
+
+/* type: module - collapsible */
+.ai4seo-collapsible-summary:hover,
+.ai4seo-collapsible-summary:focus {
+    color: var(--ai4seo-blue-dark, #135e96);
+    text-decoration-thickness: 2px;
+}
+
+/* type: module - collapsible */
+.ai4seo-collapsible-content {
+    margin-top: .5rem;
+}
+
+/* type: module - notice */
+.ai4seo-notice-technical-details {
+    margin-top: .75rem;
+    font-size: .875rem;
+    line-height: 1.35rem;
+}
+
+/* type: module - notice */
+.ai4seo-notice-technical-details-list {
+    margin: 0;
+    padding-left: 1rem;
+}
+
+/* type: module - notice */
+.ai4seo-notice-technical-details-list code {
+    white-space: normal;
+    word-break: break-word;
+}
+
 /* type: content — Global UI → Notices */
 div.ai4seo-discount-available-message {
     position: relative;
@@ -4010,8 +5121,8 @@ div.ai4seo-recent-plugin-updates-title > .ai4seo-bubble, div.ai4seo-recent-plugi
     z-index: 160010;
     margin-bottom: 10px;
     font-weight: normal !important;
-    max-width: 500px;
-    min-width: 300px;
+    max-width: min(750px, calc(100vw - 40px));
+    min-width: min(450px, calc(100vw - 40px));
     cursor: text;
     line-height: 150%;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
@@ -4056,7 +5167,8 @@ div.ai4seo-recent-plugin-updates-title > .ai4seo-bubble, div.ai4seo-recent-plugi
     }
 
     /* type: module — form layout */
-    .ai4seo-modal-content .ai4seo-form-item > label {
+    .ai4seo-modal-content .ai4seo-form-item > label,
+    .ai4seo-modal-content .ai4seo-form-item > .ai4seo-form-item-label {
         width: 100%;
         margin-right: 0;
     }
@@ -4251,8 +5363,97 @@ div.ai4seo-recent-plugin-updates-title > .ai4seo-bubble, div.ai4seo-recent-plugi
 }
 
 /* type: module — table */
+.ai4seo-posts-table th {
+    vertical-align: middle;
+}
+
+/* type: module — table */
+.ai4seo-posts-table th.ai4seo-hidden-on-mobile,
+.ai4seo-posts-table td.ai4seo-hidden-on-mobile {
+    display: table-cell;
+}
+
+/* type: module — table */
 .ai4seo-posts-table td:first-child, .ai4seo-posts-table th:first-child {
     width: 30px;
+}
+
+/* type: module — table */
+.ai4seo-posts-table td:nth-child(2), .ai4seo-posts-table th:nth-child(2) {
+    width: 60px;
+    white-space: nowrap;
+}
+
+/* type: module - table bulk actions */
+.ai4seo-bulk-generation-queue-action-form {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: .5rem;
+    margin: 1rem 0;
+}
+
+/* type: module - table bulk actions */
+.ai4seo-bulk-generation-queue-action-form select {
+    min-width: 260px;
+    max-width: 100%;
+}
+
+/* type: module - table bulk actions - positions SOOZ help icon beside the custom select */
+.ai4seo-bulk-generation-queue-action-help {
+    display: inline-flex;
+    align-items: center;
+    align-self: center;
+    flex: 0 0 auto;
+    left: -8px;
+    line-height: 1;
+    position: relative;
+    top: -10px;
+    vertical-align: middle;
+}
+
+/* type: module - table bulk actions - keeps Apply aligned after the help icon offset */
+.ai4seo-bulk-generation-queue-action-form .ai4seo-bulk-generation-queue-action-submit {
+    margin-left: -8px;
+}
+
+/* type: module - table bulk actions */
+.ai4seo-bulk-generation-queue-action-help .ai4seo-icon-with-tooltip {
+    line-height: 1;
+    margin-left: 0;
+}
+
+/* type: module - table bulk actions */
+.ai4seo-bulk-generation-queue-action-help .ai4seo-icon-with-tooltip svg {
+    margin-top: 0 !important;
+    vertical-align: middle;
+}
+
+/* type: module - table bulk actions */
+.ai4seo-bulk-generation-queue-action-help .ai4seo-tooltip {
+    text-align: left;
+}
+
+/* type: module - table bulk actions */
+.ai4seo-posts-table .ai4seo-bulk-generation-queue-checkbox-column {
+    width: 30px;
+    text-align: center;
+}
+
+/* type: module - table bulk actions */
+.ai4seo-posts-table th.ai4seo-bulk-generation-queue-checkbox-column {
+    vertical-align: middle;
+}
+
+/* type: module - table bulk actions */
+.ai4seo-posts-table td.ai4seo-bulk-generation-queue-checkbox-column {
+    vertical-align: top;
+}
+
+/* type: module - table bulk actions */
+.ai4seo-posts-table .ai4seo-bulk-generation-queue-checkbox-column input[type="checkbox"] {
+    margin: 0;
 }
 
 /* type: module — table */
@@ -4264,6 +5465,20 @@ div.ai4seo-recent-plugin-updates-title > .ai4seo-bubble, div.ai4seo-recent-plugi
 .ai4seo-posts-table td:last-child, .ai4seo-posts-table th:last-child {
     width: 50px;
     white-space: nowrap;
+}
+
+/* type: module - table - keep page row action buttons away from the right viewport edge */
+.ai4seo-posts-table.pages td:last-child,
+.ai4seo-posts-table.pages th:last-child {
+    padding-right: 1rem;
+}
+
+/* type: module - table - row action buttons must stay side-by-side in the compact options column */
+.ai4seo-posts-table .ai4seo-row-action-buttons {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    gap: .75rem;
+    justify-content: flex-end;
 }
 
 /* type: module — table */
@@ -4295,6 +5510,20 @@ div.ai4seo-recent-plugin-updates-title > .ai4seo-bubble, div.ai4seo-recent-plugi
 /* type: module — table */
     .ai4seo-table-content-link {
         display: block;
+    }
+
+    /* type: module — table */
+    .ai4seo-posts-table td:nth-child(2), .ai4seo-posts-table th:nth-child(2) {
+        max-width: 44px;
+        width: 44px;
+    }
+}
+
+@media screen and (max-width: 960px) {
+    /* type: module — table */
+    .ai4seo-posts-table th.ai4seo-hidden-on-mobile,
+    .ai4seo-posts-table td.ai4seo-hidden-on-mobile {
+        display: none;
     }
 }
 
@@ -4414,12 +5643,33 @@ div.ai4seo-recent-plugin-updates-title > .ai4seo-bubble, div.ai4seo-recent-plugi
 }
 
 /* type: content — Media Library → Attachment usage context status */
+.ai4seo-attachment-usage-context-form-item {
+    flex-wrap: nowrap;
+    margin-top: 0;
+    padding-top: 0;
+    padding-bottom: 2rem;
+}
+
+/* type: content - Media Library - Attachment usage context status */
+.ai4seo-attachment-usage-context-form-item .ai4seo-form-item-input-wrapper {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+/* type: content - Media Library - Attachment usage context status */
+.ai4seo-attachment-usage-context-label-spacer {
+    flex: 0 0 300px;
+    width: 300px;
+    margin-right: .7rem;
+}
+
+/* type: content - Media Library - Attachment usage context status */
 .ai4seo-attachment-usage-context-status {
-    clear: both;
+    clear: none;
     display: block;
     box-sizing: border-box;
     width: 100%;
-    margin: 10px 0 30px 0;
+    margin: 0;
     padding: 10px 12px;
     border: 1px solid var(--ai4seo-border-light);
     border-left: 4px solid var(--ai4seo-gray);
@@ -4448,22 +5698,22 @@ div.ai4seo-recent-plugin-updates-title > .ai4seo-bubble, div.ai4seo-recent-plugi
 
 /* type: content — Media Library → Attachment usage context status */
 .ai4seo-attachment-usage-context-result-success {
-    color: var(--ai4seo-dark-green);
+    color: var(--ai4seo-gray-dark);
 }
 
 /* type: content — Media Library → Attachment usage context status */
 .ai4seo-attachment-usage-context-result-error {
-    color: var(--ai4seo-red);
+    color: var(--ai4seo-gray-dark);
 }
 
 /* type: content — Media Library → Attachment usage context status */
 .ai4seo-attachment-usage-context-status-success {
-    border-left-color: var(--ai4seo-dark-green);
+    border-left-color: var(--ai4seo-gray);
 }
 
 /* type: content — Media Library → Attachment usage context status */
 .ai4seo-attachment-usage-context-status-error {
-    border-left-color: var(--ai4seo-red);
+    border-left-color: var(--ai4seo-gray);
 }
 
 /* type: content — Media Library → Attachment usage context status */
@@ -4478,7 +5728,32 @@ div.ai4seo-recent-plugin-updates-title > .ai4seo-bubble, div.ai4seo-recent-plugi
     line-height: 1.45;
 }
 
-/* type: content — Media Library → Attachment AI controls */
+/* type: content - Media Library - Attachment usage context status */
+.ai4seo-attachment-usage-context-result-text a {
+    color: inherit;
+    text-decoration: underline;
+}
+
+/* type: content - Media Library - Attachment custom instructions */
+.ai4seo-attachment-custom-instructions-form-item {
+    padding-bottom: 2.25rem !important;
+}
+
+/* type: content - Media Library - Attachment custom instructions */
+.ai4seo-attachment-custom-instructions-form-item .ai4seo-form-item-description {
+    max-width: 100%;
+    margin-bottom: .75rem !important;
+    text-align: left;
+}
+
+@media (max-width: 1480px) {
+    /* type: content - Media Library - Attachment usage context status */
+    .ai4seo-attachment-usage-context-label-spacer {
+        display: none;
+    }
+}
+
+/* type: content - Media Library - Attachment AI controls */
 .ai4seo-attachment-list-image-preview {
     max-width: 48px;
     width: 48px;
@@ -5017,11 +6292,12 @@ div.ai4seo-bulk-generation-status-animated-logo-container > img.ai4seo-bulk-gene
     /* type: module — form layout */
     .ai4seo-form-item {
         flex-direction: column;
-        padding: 0 1rem .75rem 1rem;
+        padding: 2.25rem 1.5rem;
     }
 
     /* type: module — form layout */
-    .ai4seo-form-item > label {
+    .ai4seo-form-item > label,
+    .ai4seo-form-item > .ai4seo-form-item-label {
         width: 100%;
         margin-right: 0;
     }
@@ -5035,6 +6311,12 @@ div.ai4seo-bulk-generation-status-animated-logo-container > img.ai4seo-bulk-gene
     .ai4seo-form-item-description {
         width: 100%;
         margin-top: 20px;
+    }
+
+    /* type: module — form layout */
+    .ai4seo-form-section > .ai4seo-form-item-description {
+        margin-right: 1.5rem !important;
+        margin-left: 1.5rem !important;
     }
 
     /* type: module — form layout */

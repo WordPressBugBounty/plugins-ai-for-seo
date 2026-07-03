@@ -5,7 +5,7 @@
  * @since 1.2.0
  */
 
-if (!defined("ABSPATH")) {
+if (!defined('ABSPATH')) {
     exit;
 }
 
@@ -56,8 +56,8 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
     // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
     echo "<div class='ai4seo-settings-top-buttons'>";
-        ai4seo_echo_wp_kses(ai4seo_get_small_icon_button_tag("download", esc_html__("Export/Import", "ai-for-seo"), "ai4seo-lockable", "ai4seo_open_modal_from_schema(\"export-import-settings\", {modal_size: \"small\", unsaved_changes_warnings: true});"));
-        ai4seo_echo_wp_kses(ai4seo_get_small_icon_button_tag("rotate", esc_html__("Restore Default", "ai-for-seo"), "ai4seo-lockable", "ai4seo_restore_default_settings(this);"));
+        ai4seo_echo_wp_kses(ai4seo_get_small_icon_button_tag('download', esc_html__('Export/Import', 'ai-for-seo'), 'ai4seo-lockable', 'ai4seo_open_modal_from_schema("export-import-settings", {modal_size: "small", unsaved_changes_warnings: true});'));
+        ai4seo_echo_wp_kses(ai4seo_get_small_icon_button_tag('rotate', esc_html__('Restore Default', 'ai-for-seo'), 'ai4seo-lockable', 'ai4seo_restore_default_settings(this);'));
 
 
         // === SHOW ADVANCED SETTINGS =============================================================================== \\
@@ -67,13 +67,88 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
 
         echo "<input type='hidden' value='" . esc_attr($ai4seo_this_setting_input_value) . "' id='ai4seo-advanced-setting-state' name='" . esc_attr($ai4seo_this_setting_input_name) . "' />";
-        echo "<div style='display: " . ($ai4seo_this_setting_input_value === "show" ? "none" : "block") . "' id='ai4seo-show-advanced-settings-container'>";
-            ai4seo_echo_wp_kses(ai4seo_get_small_icon_button_tag("eye", esc_html__("Show Advanced Settings", "ai-for-seo"), "", "ai4seo_show_advanced_settings(true);"));
-        echo "</div>";
-        echo "<div style='display: " . ($ai4seo_this_setting_input_value === "show" ? "block" : "none") . "' id='ai4seo-hide-advanced-settings-container'>";
-            ai4seo_echo_wp_kses(ai4seo_get_small_icon_button_tag("eye-slash", esc_html__("Hide Advanced Settings", "ai-for-seo"), "ai4seo-advanced-settings-highlight", "ai4seo_hide_advanced_settings(true);"));
-        echo "</div>";
-    echo "</div>";
+        echo "<div style='display: " . ($ai4seo_this_setting_input_value === 'show' ? 'none' : 'block') . "' id='ai4seo-show-advanced-settings-container'>";
+            ai4seo_echo_wp_kses(ai4seo_get_small_icon_button_tag('eye', esc_html__('Show Advanced Settings', 'ai-for-seo'), '', 'ai4seo_show_advanced_settings(true);'));
+        echo '</div>';
+        echo "<div style='display: " . ($ai4seo_this_setting_input_value === 'show' ? 'block' : 'none') . "' id='ai4seo-hide-advanced-settings-container'>";
+            ai4seo_echo_wp_kses(ai4seo_get_small_icon_button_tag('eye-slash', esc_html__('Hide Advanced Settings', 'ai-for-seo'), 'ai4seo-advanced-settings-highlight', 'ai4seo_hide_advanced_settings(true);'));
+        echo '</div>';
+    echo '</div>';
+
+
+    // ___________________________________________________________________________________________ \\
+    // === GENERAL =============================================================================== \\
+    // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
+
+    echo "<div class='card ai4seo-form-section'>";
+        echo '<h2>';
+            echo '<i class="dashicons dashicons-admin-generic ai4seo-menu-item-icon"></i>';
+            echo esc_html__('General', 'ai-for-seo');
+        echo '</h2>';
+
+        // === AI4SEO_SETTING_GLOBAL_CUSTOM_INSTRUCTIONS ========================================== \\
+
+        $ai4seo_this_setting_name = AI4SEO_SETTING_GLOBAL_CUSTOM_INSTRUCTIONS;
+        $ai4seo_this_setting_description = esc_html__('These instructions are added to every metadata and media attribute generation prompt.', 'ai-for-seo');
+
+        // Render the setting through the shared wrapper so save-anything names and counters stay aligned.
+        ai4seo_echo_wp_kses(ai4seo_get_custom_instructions_setting_form_item_tag(
+            $ai4seo_this_setting_name,
+            esc_html__('Global Custom Instructions:', 'ai-for-seo'),
+            $ai4seo_this_setting_description,
+            esc_html__('Global Custom Instructions', 'ai-for-seo'),
+            '',
+            '',
+            'global'
+        ));
+
+
+        // === AI4SEO_SETTING_ENABLE_NATIVE_BULK_ACTIONS ========================================== \\
+
+        $ai4seo_this_setting_name = AI4SEO_SETTING_ENABLE_NATIVE_BULK_ACTIONS;
+        $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
+        $ai4seo_this_setting_input_value = (bool) ai4seo_get_setting($ai4seo_this_setting_name);
+
+        // Resolve plugin-name text once so native-list integration copy stays aligned; escape at output boundaries.
+        $ai4seo_plugin_name = ai4seo_get_plugin_name();
+        $ai4seo_this_setting_checkbox_label = sprintf(
+            /* translators: %s: Plugin name. */
+            __('Show %s bulk actions in native WordPress lists', 'ai-for-seo'),
+            $ai4seo_plugin_name
+        );
+        $ai4seo_this_setting_description = sprintf(
+            /* translators: %1$s: Plugin name, %2$s: Plugin name. */
+            __(
+                'Enable this to add %1$s bulk actions to native WordPress post, page, product, and Media Library tables. When disabled, bulk actions remain available only inside %2$s plugin pages.',
+                'ai-for-seo'
+            ),
+            $ai4seo_plugin_name,
+            $ai4seo_plugin_name
+        );
+
+        // Separate this site-integration toggle from the global prompt instructions above it.
+        echo "<hr class='ai4seo-form-item-divider'>";
+
+        // Render as a normal boolean setting so the shared save-anything handler can persist the checkbox value.
+        echo "<div class='ai4seo-form-item'>";
+            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
+                // Keep the NEW badge inline for this manually rendered setting label.
+                echo "<span class='ai4seo-green-bubble'>" . esc_html__('NEW', 'ai-for-seo') . '</span> ';
+                echo esc_html__('Native WordPress bulk actions:', 'ai-for-seo');
+            echo '</label>';
+
+            echo "<div class='ai4seo-form-item-input-wrapper'>";
+                echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
+                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' value='1' class='ai4seo-single-checkbox'" . ($ai4seo_this_setting_input_value ? " checked='checked'" : '') . ' /> ';
+                    echo esc_html($ai4seo_this_setting_checkbox_label);
+                echo '</label>';
+
+                echo "<p class='ai4seo-form-item-description'>";
+                    echo esc_html($ai4seo_this_setting_description);
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
+    echo '</div>';
 
 
     // ___________________________________________________________________________________________ \\
@@ -82,10 +157,10 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
     echo "<div class='card ai4seo-form-section'>";
         // Headline
-        echo "<h2>";
+        echo '<h2>';
             echo '<i class="dashicons dashicons-admin-site ai4seo-menu-item-icon"></i>';
-            echo esc_html__("Metadata", "ai-for-seo") . " <span style='font-size: small'>(" . esc_html__("for pages/posts/products etc.", "ai-for-seo") . ")</span>";
-        echo "</h2>";
+            echo esc_html__('Metadata', 'ai-for-seo') . " <span style='font-size: small'>(" . esc_html__('for pages/posts/products etc.', 'ai-for-seo') . ')</span>';
+        echo '</h2>';
 
 
         // === AI4SEO_SETTING_ACTIVE_META_TAGS ========================================================== \\
@@ -93,16 +168,16 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_this_setting_name = AI4SEO_SETTING_ACTIVE_META_TAGS;
         $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
         $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
-        $ai4seo_this_setting_description = esc_html__("Select which meta tags to include or exclude from plugin generation. Does not affect meta tags from other plugins.", "ai-for-seo");
+        $ai4seo_this_setting_description = esc_html__('Select which meta tags to include or exclude from plugin generation. Does not affect meta tags from other plugins.', 'ai-for-seo');
 
         // Divider
         #echo "<hr class='ai4seo-form-item-divider'>";
 
         // Display form elements
         echo "<div class='ai4seo-form-item'>";
-            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                echo esc_html__("Active Meta Tags:", "ai-for-seo") ;
-            echo "</label>";
+            echo "<span class='ai4seo-form-item-label'>";
+                echo esc_html__('Active Meta Tags:', 'ai-for-seo') ;
+            echo '</span>';
 
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                 // Define variable for the selected user-roles based on plugin-settings
@@ -114,24 +189,174 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
                 // Loop through all available user-roles and display checkboxes for each of them
                 foreach (AI4SEO_METADATA_DETAILS as $ai4seo_this_metadata_identifier => $ai4seo_this_metadata_details) {
-                    $ai4seo_this_translated_checkbox_label = $ai4seo_this_metadata_details["name"] ?? $ai4seo_this_metadata_identifier;
+                    $ai4seo_this_translated_checkbox_label = $ai4seo_this_metadata_details['name'] ?? $ai4seo_this_metadata_identifier;
                     $ai4seo_this_checkbox_id = "{$ai4seo_this_setting_input_name}-{$ai4seo_this_metadata_identifier}";
 
                     // Determine whether this role is supported
                     $ai4seo_is_this_checkbox_checked = in_array($ai4seo_this_metadata_identifier, $ai4seo_this_checked_values);
 
                     echo "<label for='" . esc_attr($ai4seo_this_checkbox_id) . "' class='ai4seo-form-multiple-inputs'>";
-                        echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "[]' value='" . esc_attr($ai4seo_this_metadata_identifier) . "'" . ($ai4seo_is_this_checkbox_checked ? " checked='checked'" : "") . "/> ";
+                        echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "[]' value='" . esc_attr($ai4seo_this_metadata_identifier) . "'" . ($ai4seo_is_this_checkbox_checked ? " checked='checked'" : '') . '/> ';
                         echo esc_html($ai4seo_this_translated_checkbox_label);
-                        echo "<br>";
-                    echo "</label>";
+                        echo '<br>';
+                    echo '</label>';
                 }
 
                 echo "<p class='ai4seo-form-item-description'>";
                     ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
+
+
+        // Reuse the active SEO plugin details for the external metadata button copy and the third-party sync settings below.
+        $ai4seo_active_third_party_seo_plugin_details = ai4seo_get_active_third_party_seo_plugin_details();
+
+        // === AI4SEO_SETTING_ENABLE_EXTERNAL_METADATA_GENERATE_BUTTONS ======================================= \\
+
+        $ai4seo_this_setting_name = AI4SEO_SETTING_ENABLE_EXTERNAL_METADATA_GENERATE_BUTTONS;
+        $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
+        $ai4seo_this_setting_input_value = (bool) ai4seo_get_setting($ai4seo_this_setting_name);
+        $ai4seo_external_metadata_generate_button_location_names = array();
+
+        // List only SEO integrations where external metadata buttons can appear on this site.
+        $ai4seo_external_metadata_generate_button_seo_plugin_identifiers = array(
+            AI4SEO_THIRD_PARTY_PLUGIN_YOAST_SEO,
+            AI4SEO_THIRD_PARTY_PLUGIN_RANK_MATH,
+            AI4SEO_THIRD_PARTY_PLUGIN_SEO_KEY,
+        );
+
+        foreach ($ai4seo_external_metadata_generate_button_seo_plugin_identifiers as $ai4seo_this_external_metadata_generate_button_seo_plugin_identifier) {
+            if (empty($ai4seo_active_third_party_seo_plugin_details[$ai4seo_this_external_metadata_generate_button_seo_plugin_identifier])) {
+                continue;
+            }
+
+            $ai4seo_this_external_metadata_generate_button_seo_plugin_details = $ai4seo_active_third_party_seo_plugin_details[$ai4seo_this_external_metadata_generate_button_seo_plugin_identifier];
+            $ai4seo_external_metadata_generate_button_location_names[] = $ai4seo_this_external_metadata_generate_button_seo_plugin_details['name'] ?? $ai4seo_this_external_metadata_generate_button_seo_plugin_identifier;
+        }
+
+        // Add page-builder locations separately because they do not live in the active SEO plugin details map.
+        if (ai4seo_is_plugin_or_theme_active(AI4SEO_THIRD_PARTY_PLUGIN_ELEMENTOR)) {
+            $ai4seo_external_metadata_generate_button_location_names[] = 'Elementor';
+        }
+
+        if (ai4seo_is_plugin_or_theme_active(AI4SEO_THIRD_PARTY_PLUGIN_BETHEME)) {
+            $ai4seo_external_metadata_generate_button_location_names[] = 'BeBuilder (BeTheme)';
+        }
+
+        $ai4seo_external_metadata_generate_button_location_names = array_unique($ai4seo_external_metadata_generate_button_location_names);
+        $ai4seo_this_setting_description = esc_html__('Show "Generate with SOOZ" buttons and Metadata Editor shortcuts in supported third-party SEO plugins and page builders.', 'ai-for-seo');
+
+        if ($ai4seo_external_metadata_generate_button_location_names) {
+            $ai4seo_this_setting_description .= ' ';
+
+            // Wrap active location names after de-duplication so the dynamic list can be safely passed through KSES.
+            $ai4seo_external_metadata_generate_button_location_name_tags = array_map(
+                function($ai4seo_this_external_metadata_generate_button_location_name) {
+                    return '<strong>' . esc_html($ai4seo_this_external_metadata_generate_button_location_name) . '</strong>';
+                },
+                $ai4seo_external_metadata_generate_button_location_names
+            );
+
+            /* translators: %s: comma-separated list of active third-party plugins and page builders */
+            $ai4seo_this_setting_description .= sprintf(esc_html__('Currently active external metadata locations: %s.', 'ai-for-seo'), implode(', ', $ai4seo_external_metadata_generate_button_location_name_tags));
+        } else {
+            $ai4seo_this_setting_description .= ' ' . esc_html__('No supported third-party SEO plugin or page builder with additional metadata buttons or shortcuts is currently active.', 'ai-for-seo');
+        }
+
+        // Build logo-aware labels manually because the visible copy includes the sanitized SOOZ SVG.
+        $ai4seo_this_setting_description .= ' ' . esc_html__('Disable this to keep external metadata editors unchanged while keeping the Metadata Editor available from the top bar.', 'ai-for-seo');
+        $ai4seo_sooz_logo_tag = ai4seo_get_svg_tag('sooz', 'SOOZ', 'ai4seo-sooz-logo');
+        /* translators: %s: SOOZ logo */
+        $ai4seo_generate_with_sooz_buttons_label = sprintf(esc_html__('"Generate with %s" buttons', 'ai-for-seo'), $ai4seo_sooz_logo_tag);
+        /* translators: %s: SOOZ logo */
+        $ai4seo_generate_with_sooz_buttons_toggle_label = sprintf(esc_html__('Show additional "Generate with %s" buttons in external editors', 'ai-for-seo'), $ai4seo_sooz_logo_tag);
+
+        echo "<hr class='ai4seo-form-item-divider'>";
+
+        echo "<div class='ai4seo-form-item'>";
+            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
+                ai4seo_echo_wp_kses($ai4seo_generate_with_sooz_buttons_label . ':');
+            echo '</label>';
+
+            echo "<div class='ai4seo-form-item-input-wrapper'>";
+                echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
+                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' value='1' class='ai4seo-single-checkbox'" . ($ai4seo_this_setting_input_value ? " checked='checked'" : '') . '/> ';
+                    ai4seo_echo_wp_kses($ai4seo_generate_with_sooz_buttons_toggle_label);
+                    echo '<br>';
+                echo '</label>';
+
+                echo "<p class='ai4seo-form-item-description'>";
+                    ai4seo_echo_wp_kses($ai4seo_this_setting_description);
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
+
+        // === AI4SEO_SETTING_METADATA_CUSTOM_INSTRUCTIONS ======================================== \\
+
+        $ai4seo_this_setting_name = AI4SEO_SETTING_METADATA_CUSTOM_INSTRUCTIONS;
+        $ai4seo_this_setting_description = esc_html__('These instructions are added to every metadata generation prompt.', 'ai-for-seo');
+
+        echo "<hr class='ai4seo-form-item-divider'>";
+
+        // Render the setting through the shared wrapper so save-anything names and counters stay aligned.
+        ai4seo_echo_wp_kses(ai4seo_get_custom_instructions_setting_form_item_tag(
+            $ai4seo_this_setting_name,
+            esc_html__('Metadata Custom Instructions:', 'ai-for-seo'),
+            $ai4seo_this_setting_description,
+            esc_html__('Metadata Custom Instructions', 'ai-for-seo'),
+            '',
+            '',
+            'metadata'
+        ));
+
+
+        // === METADATA PROMPT SLIDER SETTINGS ================================================== \\
+
+        // Keep prompt-control ordering explicit while sharing the same slider form-item renderer.
+        $ai4seo_metadata_prompt_slider_settings = array(
+            array(
+                'setting_name' => AI4SEO_SETTING_METADATA_TONE_VARIANT,
+                'label' => esc_html__('Metadata Tone Variant:', 'ai-for-seo'),
+            ),
+            array(
+                'setting_name' => AI4SEO_SETTING_METADATA_COMMERCIAL_TONE,
+                'label' => esc_html__('CTA / Commercial Tone:', 'ai-for-seo'),
+            ),
+            array(
+                'setting_name' => AI4SEO_SETTING_METADATA_FOCUS_KEYPHRASE_INFLUENCE,
+                'label' => esc_html__('Focus Keyphrase Influence:', 'ai-for-seo'),
+                'is_advanced_setting' => true,
+            ),
+            array(
+                'setting_name' => AI4SEO_SETTING_METADATA_SEO_KEYWORD_INTENSITY,
+                'label' => esc_html__('SEO Keyword Intensity:', 'ai-for-seo'),
+                'is_advanced_setting' => true,
+            ),
+            array(
+                'setting_name' => AI4SEO_SETTING_METADATA_SOCIAL_VARIATION,
+                'label' => esc_html__('Social Metadata Variation:', 'ai-for-seo'),
+                'is_advanced_setting' => true,
+            ),
+            array(
+                'setting_name' => AI4SEO_SETTING_METADATA_WEBSITE_BRAND_CONTEXT_INFLUENCE,
+                'label' => esc_html__('Website / Brand Context Influence:', 'ai-for-seo'),
+                'is_advanced_setting' => true,
+            ),
+            array(
+                'setting_name' => AI4SEO_SETTING_METADATA_EXISTING_VALUES_REFERENCE_STRENGTH,
+                'label' => esc_html__('Existing Values Reference Strength:', 'ai-for-seo'),
+            ),
+        );
+
+        foreach ($ai4seo_metadata_prompt_slider_settings as $ai4seo_this_prompt_slider_setting) {
+            // Render each saved slider through the reusable radio-group helper so save-anything stays unchanged.
+            ai4seo_echo_wp_kses(ai4seo_get_prompt_slider_setting_form_item_tag(
+                $ai4seo_this_prompt_slider_setting['setting_name'],
+                $ai4seo_this_prompt_slider_setting['label'],
+                !empty($ai4seo_this_prompt_slider_setting['is_advanced_setting'])
+            ));
+        }
 
 
         // === AI4SEO_SETTING_DISABLED_POST_TYPES ===================================================== \\
@@ -144,15 +369,15 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_active_post_types = array_values(array_diff($ai4seo_all_supported_post_types, $ai4seo_disabled_post_types));
 
         /* translators: %s: plugin name */
-        $ai4seo_this_setting_description = sprintf(esc_html__("Uncheck any post type you want to hide from %s dashboards, widgets, and automations. Newly detected post types stay active by default.", "ai-for-seo"), esc_html(AI4SEO_PLUGIN_NAME));
+        $ai4seo_this_setting_description = sprintf(esc_html__('Uncheck any post type you want to hide from %s dashboards, widgets, and automations. Newly detected post types stay active by default.', 'ai-for-seo'), esc_html(AI4SEO_PLUGIN_NAME));
 
         #
         echo "<hr class='ai4seo-form-item-divider'>";
 
         echo "<div class='ai4seo-form-item'>";
-            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                echo esc_html__("Active Post Types:", "ai-for-seo");
-            echo "</label>";
+            echo "<span class='ai4seo-form-item-label'>";
+                echo esc_html__('Active Post Types:', 'ai-for-seo');
+            echo '</span>';
 
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                 if ($ai4seo_all_supported_post_types) {
@@ -162,25 +387,97 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
                     foreach ($ai4seo_all_supported_post_types as $ai4seo_this_post_type) {
                         $ai4seo_this_checkbox_id = "{$ai4seo_this_setting_input_name}-{$ai4seo_this_post_type}";
                         $ai4seo_is_checkbox_checked = in_array($ai4seo_this_post_type, $ai4seo_active_post_types, true);
+
+                        // Use the shared label formatter so custom post type names follow existing dashboard naming.
                         $ai4seo_post_type_label = ai4seo_get_post_type_translation($ai4seo_this_post_type, true);
+                        $ai4seo_post_type_label = ai4seo_get_nice_label($ai4seo_post_type_label);
 
                         echo "<label for='" . esc_attr($ai4seo_this_checkbox_id) . "' class='ai4seo-form-multiple-inputs'>";
-                            echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "[]' value='" . esc_attr($ai4seo_this_post_type) . "'" . ($ai4seo_is_checkbox_checked ? " checked='checked'" : "") . " /> ";
+                            echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "[]' value='" . esc_attr($ai4seo_this_post_type) . "'" . ($ai4seo_is_checkbox_checked ? " checked='checked'" : '') . ' /> ';
                             echo esc_html($ai4seo_post_type_label);
-                            echo "<br>";
-                        echo "</label>";
+                            echo '<br>';
+                        echo '</label>';
                     }
                 } else {
                     echo "<p class='ai4seo-form-item-description'>";
-                        echo esc_html__("No supported post types detected.", "ai-for-seo");
-                    echo "</p>";
+                        echo esc_html__('No supported post types detected.', 'ai-for-seo');
+                    echo '</p>';
+                }
+
+                echo "<p class='ai4seo-form-item-description'>";
+                    ai4seo_echo_wp_kses($ai4seo_this_setting_description . ' ' . ai4seo_get_custom_instructions_examples_tooltip_tag('metadata-post-type'));
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
+
+
+        // === AI4SEO_SETTING_METADATA_POST_TYPE_CUSTOM_INSTRUCTIONS =============================== \\
+
+        $ai4seo_this_setting_name = AI4SEO_SETTING_METADATA_POST_TYPE_CUSTOM_INSTRUCTIONS;
+        $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
+        $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
+        $ai4seo_this_setting_input_value = is_array($ai4seo_this_setting_input_value) ? $ai4seo_this_setting_input_value : array();
+        $ai4seo_metadata_custom_instructions_post_types = ai4seo_get_supported_metadata_custom_instructions_post_types();
+        $ai4seo_this_setting_description = esc_html__('These instructions are added only when metadata is generated for the selected post type.', 'ai-for-seo');
+
+        echo "<hr class='ai4seo-form-item-divider ai4seo-is-advanced-setting'>";
+
+        // Render nested post-type instruction inputs manually because each textarea saves into one setting map.
+        echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
+            echo "<span class='ai4seo-form-item-label'>";
+                // Keep the NEW badge inline for this manually rendered setting label.
+                echo "<span class='ai4seo-green-bubble'>" . esc_html__('NEW', 'ai-for-seo') . '</span> ';
+                echo esc_html__('Post Type Custom Instructions:', 'ai-for-seo');
+            echo '</span>';
+
+            echo "<div class='ai4seo-form-item-input-wrapper'>";
+                if ($ai4seo_metadata_custom_instructions_post_types) {
+                    // Keep one textarea per active metadata-capable post type so removed post types cannot be edited.
+                    foreach ($ai4seo_metadata_custom_instructions_post_types as $ai4seo_this_post_type) {
+                        // Keep instruction labels aligned with the active-post-type checkbox labels above.
+                        $ai4seo_this_post_type_label = ai4seo_get_post_type_translation($ai4seo_this_post_type, true);
+                        $ai4seo_this_post_type_label = ai4seo_get_nice_label($ai4seo_this_post_type_label);
+                        $ai4seo_this_post_type_input_name = $ai4seo_this_setting_input_name . '[' . $ai4seo_this_post_type . ']';
+                        $ai4seo_this_post_type_input_id = $ai4seo_this_setting_input_name . '-' . $ai4seo_this_post_type;
+                        $ai4seo_this_post_type_input_value = $ai4seo_this_setting_input_value[$ai4seo_this_post_type] ?? '';
+
+                        echo "<div class='ai4seo-post-type-custom-instructions-item'>";
+                            echo "<label for='" . esc_attr($ai4seo_this_post_type_input_id) . "' class='ai4seo-post-type-custom-instructions-caption'>";
+                                echo esc_html($ai4seo_this_post_type_label);
+                            echo '</label>';
+
+                            ai4seo_echo_wp_kses(ai4seo_get_custom_instructions_textarea_tag(
+                                $ai4seo_this_post_type_input_id,
+                                $ai4seo_this_post_type_input_name,
+                                $ai4seo_this_post_type_input_value,
+                                '',
+                                sprintf(
+                                    /* translators: %s: Post type label. */
+                                    esc_html__('Custom Instructions for %s', 'ai-for-seo'),
+                                    $ai4seo_this_post_type_label
+                                )
+                            ));
+                            ai4seo_echo_wp_kses(ai4seo_get_custom_instructions_character_counter_tag($ai4seo_this_post_type_input_id));
+                        echo '</div>';
+
+                        // Separate repeated post-type instruction editors without adding a trailing divider after the final one.
+                        if ($ai4seo_this_post_type !== end($ai4seo_metadata_custom_instructions_post_types)) {
+                            echo "<div class='ai4seo-gap'></div>";
+                            echo "<hr class='ai4seo-form-item-divider ai4seo-is-advanced-setting'>";
+                            echo "<div class='ai4seo-medium-gap'></div>";
+                        }
+                    }
+                } else {
+                    echo "<p class='ai4seo-form-item-description'>";
+                        echo esc_html__('No supported post types detected.', 'ai-for-seo');
+                    echo '</p>';
                 }
 
                 echo "<p class='ai4seo-form-item-description'>";
                     ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
 
 
         // === AI4SEO_SETTING_DISABLED_POST_AUTHORS =================================================== \\
@@ -193,14 +490,14 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_active_post_author_ids = array_values(array_diff($ai4seo_available_post_author_ids, $ai4seo_disabled_post_author_ids));
 
         /* translators: %s: plugin name */
-        $ai4seo_this_setting_description = esc_html__("Uncheck any author if you don’t want their posts to be included in the dashboard and the SEO Autopilot. Newly detected authors remain enabled by default.", "ai-for-seo");
+        $ai4seo_this_setting_description = esc_html__('Uncheck any author if you don’t want their posts to be included in the dashboard and the SEO Autopilot. Newly detected authors remain enabled by default.', 'ai-for-seo');
 
         echo "<hr class='ai4seo-form-item-divider'>";
 
         echo "<div class='ai4seo-form-item'>";
-            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                echo esc_html__("Active Authors:", "ai-for-seo");
-            echo "</label>";
+            echo "<span class='ai4seo-form-item-label'>";
+                echo esc_html__('Active Authors:', 'ai-for-seo');
+            echo '</span>';
 
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                 if ($ai4seo_available_post_authors) {
@@ -212,22 +509,22 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
                         $ai4seo_is_checkbox_checked = in_array((int) $ai4seo_this_post_author_id, $ai4seo_active_post_author_ids, true);
 
                         echo "<label for='" . esc_attr($ai4seo_this_checkbox_id) . "' class='ai4seo-form-multiple-inputs'>";
-                            echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "[]' value='" . esc_attr($ai4seo_this_post_author_id) . "'" . ($ai4seo_is_checkbox_checked ? " checked='checked'" : "") . " /> ";
+                            echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "[]' value='" . esc_attr($ai4seo_this_post_author_id) . "'" . ($ai4seo_is_checkbox_checked ? " checked='checked'" : '') . ' /> ';
                             echo esc_html($ai4seo_this_post_author_label);
-                            echo "<br>";
-                        echo "</label>";
+                            echo '<br>';
+                        echo '</label>';
                     }
                 } else {
                     echo "<p class='ai4seo-form-item-description'>";
-                        echo esc_html__("No authors with supported posts detected.", "ai-for-seo");
-                    echo "</p>";
+                        echo esc_html__('No authors with supported posts detected.', 'ai-for-seo');
+                    echo '</p>';
                 }
 
                 echo "<p class='ai4seo-form-item-description'>";
                     ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
 
 
         // === AI4SEO_SETTING_DISABLED_TAXONOMY_TERMS ================================================ \\
@@ -238,14 +535,14 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_supported_taxonomy_terms = ai4seo_get_supported_taxonomy_terms();
 
         /* translators: %s: plugin name */
-        $ai4seo_this_setting_description = esc_html__("Uncheck any categories if you don’t want their content to be included in the dashboard and the SEO Autopilot. Categories (taxonomy terms) are grouped by taxonomy, and newly detected entries remain enabled by default.", "ai-for-seo");
+        $ai4seo_this_setting_description = esc_html__('Uncheck any categories if you don’t want their content to be included in the dashboard and the SEO Autopilot. Categories (taxonomy terms) are grouped by taxonomy, and newly detected entries remain enabled by default.', 'ai-for-seo');
 
         echo "<hr class='ai4seo-form-item-divider'>";
 
         echo "<div class='ai4seo-form-item'>";
-            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                echo esc_html__("Active Categories (taxonomy terms):", "ai-for-seo");
-            echo "</label>";
+            echo "<span class='ai4seo-form-item-label'>";
+                echo esc_html__('Active Categories (taxonomy terms):', 'ai-for-seo');
+            echo '</span>';
 
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                 if ($ai4seo_supported_taxonomy_terms) {
@@ -259,7 +556,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
                         }
 
                         $ai4seo_this_taxonomy_label = sanitize_text_field($ai4seo_this_supported_taxonomy['label'] ?? $ai4seo_this_taxonomy_name);
-                        $ai4seo_this_taxonomy_input_name = $ai4seo_this_setting_input_name . "[" . $ai4seo_this_taxonomy_name . "]";
+                        $ai4seo_this_taxonomy_input_name = $ai4seo_this_setting_input_name . '[' . $ai4seo_this_taxonomy_name . ']';
                         $ai4seo_this_disabled_term_ids = array_map('intval', (array) ($ai4seo_disabled_taxonomy_terms[$ai4seo_this_taxonomy_name] ?? array()));
                         $ai4seo_this_supported_term_ids = array_map('intval', array_keys($ai4seo_this_taxonomy_terms));
                         $ai4seo_this_active_term_ids = array_values(array_diff($ai4seo_this_supported_term_ids, $ai4seo_this_disabled_term_ids));
@@ -268,7 +565,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
                             echo "<div class='ai4seo-medium-gap'></div>";
                         }
 
-                        echo "<strong>" . esc_html($ai4seo_this_taxonomy_label) . "</strong>";
+                        echo '<strong>' . esc_html($ai4seo_this_taxonomy_label) . '</strong>';
                         echo "<div class='ai4seo-small-gap'></div>";
                         ai4seo_echo_wp_kses(ai4seo_get_select_all_checkbox($ai4seo_this_taxonomy_input_name));
                         echo "<div class='ai4seo-medium-gap'></div>";
@@ -281,42 +578,42 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
                             $ai4seo_is_checkbox_checked = in_array((int) $ai4seo_this_term_id, $ai4seo_this_active_term_ids, true);
 
                             echo "<label for='" . esc_attr($ai4seo_this_checkbox_id) . "' class='ai4seo-form-multiple-inputs'>";
-                                echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_taxonomy_input_name) . "[]' value='" . esc_attr($ai4seo_this_term_id) . "'" . ($ai4seo_is_checkbox_checked ? " checked='checked'" : "") . " /> ";
+                                echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_taxonomy_input_name) . "[]' value='" . esc_attr($ai4seo_this_term_id) . "'" . ($ai4seo_is_checkbox_checked ? " checked='checked'" : '') . ' /> ';
                                 echo esc_html($ai4seo_this_term_name);
-                                echo "<br>";
-                            echo "</label>";
+                                echo '<br>';
+                            echo '</label>';
                         }
 
                         if ($ai4seo_hidden_taxonomy_terms) {
                             echo "<details class='ai4seo-more-setting-entries'>";
-                                echo "<summary>" . esc_html__("See more entries", "ai-for-seo") . "</summary>";
+                                echo '<summary>' . esc_html__('See more entries', 'ai-for-seo') . '</summary>';
 
                                 foreach ($ai4seo_hidden_taxonomy_terms as $ai4seo_this_term_id => $ai4seo_this_term_name) {
                                     $ai4seo_this_checkbox_id = "{$ai4seo_this_setting_input_name}-{$ai4seo_this_taxonomy_name}-{$ai4seo_this_term_id}";
                                     $ai4seo_is_checkbox_checked = in_array((int) $ai4seo_this_term_id, $ai4seo_this_active_term_ids, true);
 
                                     echo "<label for='" . esc_attr($ai4seo_this_checkbox_id) . "' class='ai4seo-form-multiple-inputs'>";
-                                        echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_taxonomy_input_name) . "[]' value='" . esc_attr($ai4seo_this_term_id) . "'" . ($ai4seo_is_checkbox_checked ? " checked='checked'" : "") . " /> ";
+                                        echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_taxonomy_input_name) . "[]' value='" . esc_attr($ai4seo_this_term_id) . "'" . ($ai4seo_is_checkbox_checked ? " checked='checked'" : '') . ' /> ';
                                         echo esc_html($ai4seo_this_term_name);
-                                        echo "<br>";
-                                    echo "</label>";
+                                        echo '<br>';
+                                    echo '</label>';
                                 }
-                            echo "</details>";
+                            echo '</details>';
                         }
 
                         $ai4seo_taxonomy_group_index++;
                     }
                 } else {
                     echo "<p class='ai4seo-form-item-description'>";
-                        echo esc_html__("No supported categories (taxonomy terms) detected.", "ai-for-seo");
-                    echo "</p>";
+                        echo esc_html__('No supported categories (taxonomy terms) detected.', 'ai-for-seo');
+                    echo '</p>';
                 }
 
                 echo "<p class='ai4seo-form-item-description'>";
                     ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
 
 
         // === AI4SEO_SETTING_EXCLUDE_POSTS_IF_ANY_DISABLED_TAXONOMY_TERM ======================= \\
@@ -325,28 +622,80 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
         $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
 
-        $ai4seo_this_setting_description = esc_html__("Keep this disabled to exclude entries only when all assigned categories (taxonomy terms) covered by the filter are disabled.", "ai-for-seo");
-        $ai4seo_this_setting_description .= "<br><br>" . esc_html__("Enable it if a single disabled category (taxonomy term) should always exclude the entry, even when additional active categories are assigned.", "ai-for-seo");
+        $ai4seo_this_setting_description = __('Keep this disabled to exclude entries only when <u>all</u> assigned categories (taxonomy terms) covered by the filter are disabled.', 'ai-for-seo');
+        $ai4seo_this_setting_description .= '<br><br>' . esc_html__('Enable it if a single disabled category (taxonomy term) should always exclude the entry, even when additional active categories are assigned.', 'ai-for-seo');
 
         echo "<hr class='ai4seo-form-item-divider ai4seo-is-advanced-setting'>";
 
         echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
             echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                echo esc_html__("Always exclude entries with disabled categories (taxonomy terms):", "ai-for-seo");
-            echo "</label>";
+                echo esc_html__('Always exclude entries with disabled categories (taxonomy terms):', 'ai-for-seo');
+            echo '</label>';
 
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                 echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' value='1' class='ai4seo-single-checkbox'" . ($ai4seo_this_setting_input_value ? " checked='checked'" : "") . " /> ";
-                    echo esc_html__("Exclude an entry as soon as one disabled category (taxonomy term) is assigned", "ai-for-seo");
-                    echo "<br>";
-                echo "</label>";
+                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' value='1' class='ai4seo-single-checkbox'" . ($ai4seo_this_setting_input_value ? " checked='checked'" : '') . ' /> ';
+                    echo esc_html__('Exclude an entry as soon as one disabled category (taxonomy term) is assigned', 'ai-for-seo');
+                    echo '<br>';
+                echo '</label>';
 
                 echo "<p class='ai4seo-form-item-description'>";
                     ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
+
+
+        // === AI4SEO_SETTING_DISABLED_METADATA_WPML_LANGUAGES ===================================== \\
+
+        if (ai4seo_is_plugin_or_theme_active(AI4SEO_THIRD_PARTY_PLUGIN_WPML)) {
+            $ai4seo_this_setting_name = AI4SEO_SETTING_DISABLED_METADATA_WPML_LANGUAGES;
+            $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
+            $ai4seo_disabled_metadata_wpml_language_codes = ai4seo_get_disabled_metadata_wpml_language_codes();
+            $ai4seo_available_wpml_languages = ai4seo_get_available_wpml_languages();
+            $ai4seo_available_wpml_language_codes = array_keys($ai4seo_available_wpml_languages);
+            $ai4seo_active_metadata_wpml_language_codes = array_values(array_diff($ai4seo_available_wpml_language_codes, $ai4seo_disabled_metadata_wpml_language_codes));
+            $ai4seo_this_setting_description = esc_html__('Uncheck any WPML language if you do not want posts WPML assigns to that language to be included in the dashboard and the SEO Autopilot. Newly detected WPML languages stay active by default.', 'ai-for-seo');
+
+            echo "<hr class='ai4seo-form-item-divider'>";
+
+            echo "<div class='ai4seo-form-item'>";
+                echo "<span class='ai4seo-form-item-label'>";
+                    // Keep the NEW badge inline for this manually rendered WPML language setting label.
+                    echo "<span class='ai4seo-green-bubble'>" . esc_html__('NEW', 'ai-for-seo') . '</span> ';
+                    ai4seo_echo_wp_kses(ai4seo_get_svg_tag('wpml', 'WPML', 'ai4seo-medium-icon'));
+                    echo ' ';
+                    echo esc_html__('Active Languages:', 'ai-for-seo');
+                echo '</span>';
+
+                echo "<div class='ai4seo-form-item-input-wrapper'>";
+                    if ($ai4seo_available_wpml_languages) {
+                        ai4seo_echo_wp_kses(ai4seo_get_select_all_checkbox($ai4seo_this_setting_input_name));
+                        echo "<div class='ai4seo-medium-gap'></div>";
+
+                        // WPML language checkboxes submit active languages; save normalization stores only unchecked codes.
+                        foreach ($ai4seo_available_wpml_languages as $ai4seo_this_wpml_language_code => $ai4seo_this_wpml_language_label) {
+                            $ai4seo_this_checkbox_id = "{$ai4seo_this_setting_input_name}-{$ai4seo_this_wpml_language_code}";
+                            $ai4seo_is_checkbox_checked = in_array($ai4seo_this_wpml_language_code, $ai4seo_active_metadata_wpml_language_codes, true);
+
+                            echo "<label for='" . esc_attr($ai4seo_this_checkbox_id) . "' class='ai4seo-form-multiple-inputs'>";
+                                echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "[]' value='" . esc_attr($ai4seo_this_wpml_language_code) . "'" . ($ai4seo_is_checkbox_checked ? " checked='checked'" : '') . ' /> ';
+                                echo esc_html($ai4seo_this_wpml_language_label);
+                                echo '<br>';
+                            echo '</label>';
+                        }
+                    } else {
+                        echo "<p class='ai4seo-form-item-description'>";
+                            echo esc_html__('No WPML languages detected.', 'ai-for-seo');
+                        echo '</p>';
+                    }
+
+                    echo "<p class='ai4seo-form-item-description'>";
+                        ai4seo_echo_wp_kses($ai4seo_this_setting_description);
+                    echo '</p>';
+                echo '</div>';
+            echo '</div>';
+        }
 
 
         // === AI4SEO_SETTING_METADATA_GENERATION_LANGUAGE =========================================== \\
@@ -355,17 +704,17 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
         $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
 
-        $ai4seo_this_setting_description = "";
+        $ai4seo_this_setting_description = '';
 
         if (ai4seo_is_plugin_or_theme_active(AI4SEO_THIRD_PARTY_PLUGIN_WPML)) {
             $ai4seo_this_setting_description .= sprintf(
                 /* translators: 1: WPML (plugin name), 2: WPML (plugin name) */
-                esc_html__('%1$s detected. Use “Automatic” to determine which language to use based on %2$s.', "ai-for-seo"),
-                "<strong>WPML</strong>",
-                "<strong>WPML</strong>"
+                esc_html__('%1$s detected. Use “Automatic” to determine which language to use based on %2$s.', 'ai-for-seo'),
+                '<strong>WPML</strong>',
+                '<strong>WPML</strong>'
             );
         } else {
-            $ai4seo_this_setting_description .= esc_html__("Select a specific language or choose 'Automatic' to let AI determine the best language for each content entry.", "ai-for-seo");
+            $ai4seo_this_setting_description .= esc_html__("Select a specific language or choose 'Automatic' to let AI determine the best language for each content entry.", 'ai-for-seo');
         }
 
         // Divider
@@ -373,19 +722,19 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
         echo "<div class='ai4seo-form-item'>";
             echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                echo esc_html__("Language for Metadata Generation", "ai-for-seo") . ":";
-            echo "</label>";
+                echo esc_html__('Language for Metadata Generation', 'ai-for-seo') . ':';
+            echo '</label>';
 
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                 echo "<select id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
                     ai4seo_echo_wp_kses(ai4seo_get_generation_language_select_options_html($ai4seo_this_setting_input_value));
-                echo "</select>";
+                echo '</select>';
 
                 echo "<p class='ai4seo-form-item-description'>";
                     ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
 
 
         // === AI4SEO_SETTING_METADATA_FALLBACKS ========================================================= \\
@@ -393,9 +742,9 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         echo "<hr class='ai4seo-form-item-divider ai4seo-is-advanced-setting'>";
 
         echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
-            echo "<label>";
-                echo esc_html__("Meta Tag Fallbacks:", "ai-for-seo");
-            echo "</label>";
+            echo "<span class='ai4seo-form-item-label'>";
+                echo esc_html__('Meta Tag Fallbacks:', 'ai-for-seo');
+            echo '</span>';
 
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                 foreach (AI4SEO_METADATA_FALLBACK_MAPPING as $ai4seo_this_metadata_identifier => $ai4seo_this_fallback_setting_name) {
@@ -410,22 +759,22 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
                     echo "<div class='ai4seo-prefix-suffix-setting-holder'>";
                         echo "<label class='ai4seo-prefix-suffix-setting-headline' for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                            echo esc_html($ai4seo_this_label) . ":";
-                        echo "</label>";
+                            echo esc_html($ai4seo_this_label) . ':';
+                        echo '</label>';
 
                         echo "<select id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
                             foreach ($ai4seo_this_allowed_options as $ai4seo_this_option_value => $ai4seo_this_option_label) {
-                                echo "<option value='" . esc_attr($ai4seo_this_option_value) . "'" . ($ai4seo_this_setting_input_value === $ai4seo_this_option_value ? " selected='selected'" : "") . ">" . esc_html($ai4seo_this_option_label) . "</option>";
+                                echo "<option value='" . esc_attr($ai4seo_this_option_value) . "'" . ($ai4seo_this_setting_input_value === $ai4seo_this_option_value ? " selected='selected'" : '') . '>' . esc_html($ai4seo_this_option_label) . '</option>';
                             }
-                        echo "</select>";
-                    echo "</div>";
+                        echo '</select>';
+                    echo '</div>';
                 }
 
                 echo "<p class='ai4seo-form-item-description'>";
-                    echo esc_html__("Choose how each meta tag should behave when no value is available or has not been generated.", "ai-for-seo");
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
+                    echo esc_html__('Choose how each meta tag should behave when no value is available or has not been generated.', 'ai-for-seo');
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
 
 
         // === AI4SEO_SETTING_METADATA_PREFIXES & AI4SEO_SETTING_METADATA_SUFFIXES =================== \\
@@ -442,19 +791,19 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_metadata_suffix_setting_input_value = ai4seo_get_setting($ai4seo_metadata_suffix_setting_name);
 
         // Description for both prefix and suffix
-        $ai4seo_this_setting_description = esc_html__("Add prefix and suffix text to metadata fields. Applied only when 'Meta Tag Output Mode' is set to 'Replace' or 'Force'. Useful for including website name or branding elements consistently across all metadata.", "ai-for-seo");
+        $ai4seo_this_setting_description = esc_html__("Add prefix and suffix text to metadata fields. Applied only when 'Meta Tag Output Mode' is set to 'Replace' or 'Force'. Useful for including website name or branding elements consistently across all metadata.", 'ai-for-seo');
 
-        $ai4seo_metadata_placeholders_tooltip = __("<strong>Available placeholders</strong> (case-insensitive; supports {PLACEHOLDER}, [PLACEHOLDER], or %%placeholder%% formats):<br>WEBSITE_URL - Site URL.<br>WEBSITE_NAME - Site name.<br>POST_ID - Current entry ID.<br>TITLE - Current entry title.<br>PRODUCT_NAME - WooCommerce product title (products only).<br>PRODUCT_PRICE - WooCommerce product price (products only).<br><br>Placeholders are replaced automatically when meta tags are injected on the frontend.", "ai-for-seo");
+        $ai4seo_metadata_placeholders_tooltip = __('<strong>Available placeholders</strong> (case-insensitive; supports {PLACEHOLDER}, [PLACEHOLDER], or %%placeholder%% formats):<br>WEBSITE_URL - Site URL.<br>WEBSITE_NAME - Site name.<br>POST_ID - Current entry ID.<br>TITLE - Current entry title.<br>PRODUCT_NAME - WooCommerce product title (products only).<br>PRODUCT_PRICE - WooCommerce product price (products only).<br><br>Placeholders are replaced automatically when meta tags are injected on the frontend.', 'ai-for-seo');
 
         // Divider
         echo "<hr class='ai4seo-form-item-divider ai4seo-is-advanced-setting'>";
 
         // Display form elements
         echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
-            echo "<label>";
-                echo esc_html__("Prefix / Suffix:", "ai-for-seo") ;
+            echo "<span class='ai4seo-form-item-label'>";
+                echo esc_html__('Prefix / Suffix:', 'ai-for-seo') ;
                 ai4seo_echo_wp_kses(ai4seo_get_icon_with_tooltip_tag($ai4seo_metadata_placeholders_tooltip));
-            echo "</label>";
+            echo '</span>';
 
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                 // Loop through all available metadata-details and display input-fields for each of them
@@ -464,40 +813,39 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
                         continue;
                     }
 
-                    $ai4seo_this_translated_setting_label = $ai4seo_this_metadata_details["name"] ?? $ai4seo_this_metadata_identifier;
+                    $ai4seo_this_translated_setting_label = $ai4seo_this_metadata_details['name'] ?? $ai4seo_this_metadata_identifier;
                     $ai4seo_this_metadata_prefix_setting_input_name = "{$ai4seo_metadata_prefix_setting_input_name}[{$ai4seo_this_metadata_identifier}]";
                     $ai4seo_this_metadata_suffix_setting_input_name = "{$ai4seo_metadata_suffix_setting_input_name}[{$ai4seo_this_metadata_identifier}]";
-                    $ai4seo_this_metadata_prefix_setting_input_value = $ai4seo_metadata_prefix_setting_input_value[$ai4seo_this_metadata_identifier] ?? "";
-                    $ai4seo_this_metadata_suffix_setting_input_value = $ai4seo_metadata_suffix_setting_input_value[$ai4seo_this_metadata_identifier] ?? "";
+                    $ai4seo_this_metadata_prefix_setting_input_value = $ai4seo_metadata_prefix_setting_input_value[$ai4seo_this_metadata_identifier] ?? '';
+                    $ai4seo_this_metadata_suffix_setting_input_value = $ai4seo_metadata_suffix_setting_input_value[$ai4seo_this_metadata_identifier] ?? '';
 
                     // Display translated headline for this setting
                     echo "<div class='ai4seo-prefix-suffix-setting-holder'>";
                         echo "<div class='ai4seo-prefix-suffix-setting-headline'>";
-                            echo esc_html($ai4seo_this_translated_setting_label) . ":";
-                        echo "</div>";
+                            echo esc_html($ai4seo_this_translated_setting_label) . ':';
+                        echo '</div>';
 
                         // Display input for prefix
-                        echo "<input type='text' class='ai4seo-prefix-suffix-setting-textfield' name='" . esc_attr($ai4seo_this_metadata_prefix_setting_input_name) . "' value='" . esc_attr($ai4seo_this_metadata_prefix_setting_input_value) . "' placeholder='" . esc_attr("Prefix") . "' maxlength='48' />";
+                        echo "<input type='text' class='ai4seo-prefix-suffix-setting-textfield' name='" . esc_attr($ai4seo_this_metadata_prefix_setting_input_name) . "' value='" . esc_attr($ai4seo_this_metadata_prefix_setting_input_value) . "' placeholder='" . esc_attr('Prefix') . "' maxlength='48' />";
 
-                        echo " {" . esc_html__("TEXT", "ai-for-seo") . "} ";
+                        echo ' {' . esc_html__('TEXT', 'ai-for-seo') . '} ';
 
                         // Display input for suffix
-                        echo "<input type='text' class='ai4seo-prefix-suffix-setting-textfield' name='" . esc_attr($ai4seo_this_metadata_suffix_setting_input_name) . "' value='" . esc_attr($ai4seo_this_metadata_suffix_setting_input_value) . "' placeholder='" . esc_attr("Suffix") . "' maxlength='48' />";
-                    echo "</div>";
+                        echo "<input type='text' class='ai4seo-prefix-suffix-setting-textfield' name='" . esc_attr($ai4seo_this_metadata_suffix_setting_input_name) . "' value='" . esc_attr($ai4seo_this_metadata_suffix_setting_input_value) . "' placeholder='" . esc_attr('Suffix') . "' maxlength='48' />";
+                    echo '</div>';
                 }
 
                 echo "<p class='ai4seo-form-item-description'>";
                     ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
 
 
         // === AI4SEO_SETTING_APPLY_CHANGES_TO_THIRD_PARTY_SEO_PLUGIN ============================================= \\
 
         $ai4seo_this_setting_name = AI4SEO_SETTING_APPLY_CHANGES_TO_THIRD_PARTY_SEO_PLUGINS;
         $ai4seo_sync_activated_third_party_seo_plugins = array();
-        $ai4seo_active_third_party_seo_plugin_details = ai4seo_get_active_third_party_seo_plugin_details();
         $ai4seo_uses_workarounds_for_third_party_seo_plugins = false;
 
         foreach ($ai4seo_active_third_party_seo_plugin_details AS $ai4seo_active_third_party_seo_plugin_identifier => $ai4seo_active_third_party_seo_plugin_detail) {
@@ -511,11 +859,11 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
 
         /* translators: %s: plugin name */
-        $ai4seo_this_setting_description = sprintf(esc_html__("Sync %s changes to selected third-party SEO plugins for further analysis.", "ai-for-seo"), esc_html(AI4SEO_PLUGIN_NAME));
+        $ai4seo_this_setting_description = sprintf(esc_html__('Sync %s changes to selected third-party SEO plugins for further analysis.', 'ai-for-seo'), esc_html(AI4SEO_PLUGIN_NAME));
 
         if ($ai4seo_uses_workarounds_for_third_party_seo_plugins) {
-            $ai4seo_this_setting_description .= "<br><br>";
-            $ai4seo_this_setting_description .= __("<strong>WARNING:</strong> May permanently change third-party plugin data. Backup recommended.", "ai-for-seo");
+            $ai4seo_this_setting_description .= '<br><br>';
+            $ai4seo_this_setting_description .= __('<strong>WARNING:</strong> May permanently change third-party plugin data. Backup recommended.', 'ai-for-seo');
         }
 
         // Divider
@@ -523,10 +871,10 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
         // Form element
         echo "<div class='ai4seo-form-item'>";
-            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
+            echo "<span class='ai4seo-form-item-label'>";
                 /* translators: %s: plugin name */
-                echo sprintf(esc_html__("Sync '%s' Changes:", "ai-for-seo"), esc_html(AI4SEO_PLUGIN_NAME));
-            echo "</label>";
+                echo sprintf(esc_html__("Sync '%s' Changes:", 'ai-for-seo'), esc_html(AI4SEO_PLUGIN_NAME));
+            echo '</span>';
 
             echo "<div class='ai4seo-form-item-input-wrapper'>";
 
@@ -547,108 +895,34 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
                         $ai4seo_this_checkbox_id = "{$ai4seo_this_setting_input_name}-{$ai4seo_this_third_party_seo_plugin_identifier}";
 
                         echo "<label for='" . esc_attr($ai4seo_this_checkbox_id) . "' class='ai4seo-form-multiple-inputs'>";
-                            echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "[]' value='" . esc_attr($ai4seo_this_third_party_seo_plugin_identifier) . "'" . ($ai4seo_is_this_checkbox_checked ? " checked='checked'" : "") . " onchange='ai4seo_toggle_sync_only_these_metadata_container();' class='ai4seo_third_party_sync_checkbox'/> ";
+                            echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "[]' value='" . esc_attr($ai4seo_this_third_party_seo_plugin_identifier) . "'" . ($ai4seo_is_this_checkbox_checked ? " checked='checked'" : '') . " onchange='ai4seo_toggle_sync_only_these_metadata_container();' class='ai4seo_third_party_sync_checkbox'/> ";
 
                             // Display the icon
-                            if (!empty($ai4seo_this_third_party_seo_plugin_details["icon"])) {
-                                $ai4seo_this_icon_css_class = "ai4seo-large-icon";
+                            if (!empty($ai4seo_this_third_party_seo_plugin_details['icon'])) {
+                                $ai4seo_this_icon_css_class = 'ai4seo-large-icon';
 
-                                if (!empty($ai4seo_this_third_party_seo_plugin_details["icon-css-class"])) {
-                                    $ai4seo_this_icon_css_class .= " " . $ai4seo_this_third_party_seo_plugin_details["icon-css-class"];
+                                if (!empty($ai4seo_this_third_party_seo_plugin_details['icon-css-class'])) {
+                                    $ai4seo_this_icon_css_class .= ' ' . $ai4seo_this_third_party_seo_plugin_details['icon-css-class'];
                                 }
 
-                                ai4seo_echo_wp_kses(ai4seo_get_svg_tag($ai4seo_this_third_party_seo_plugin_details["icon"], $ai4seo_this_third_party_seo_plugin_details["mame"] ?? "", $ai4seo_this_icon_css_class));
-                                echo " ";
+                                ai4seo_echo_wp_kses(ai4seo_get_svg_tag($ai4seo_this_third_party_seo_plugin_details['icon'], $ai4seo_this_third_party_seo_plugin_details['mame'] ?? '', $ai4seo_this_icon_css_class));
+                                echo ' ';
                             }
 
                             // Display the name
-                            echo esc_html($ai4seo_this_third_party_seo_plugin_details["name"] ?? $ai4seo_this_third_party_seo_plugin_identifier);
-                            echo "<br>";
-                        echo "</label>";
+                            echo esc_html($ai4seo_this_third_party_seo_plugin_details['name'] ?? $ai4seo_this_third_party_seo_plugin_identifier);
+                            echo '<br>';
+                        echo '</label>';
                     }
 
                     echo "<p class='ai4seo-form-item-description'>";
                         ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                    echo "</p>";
+                    echo '</p>';
                 } else {
-                    echo "<i>" . esc_html__("No supported and active third-party SEO plugins found.", "ai-for-seo") . "</i>";
+                    echo '<i>' . esc_html__('No supported and active third-party SEO plugins found.', 'ai-for-seo') . '</i>';
                 }
-            echo "</div>";
-        echo "</div>";
-
-
-        // === AI4SEO_SETTING_ENABLE_EXTERNAL_METADATA_GENERATE_BUTTONS ======================================= \\
-
-        $ai4seo_this_setting_name = AI4SEO_SETTING_ENABLE_EXTERNAL_METADATA_GENERATE_BUTTONS;
-        $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
-        $ai4seo_this_setting_input_value = (bool) ai4seo_get_setting($ai4seo_this_setting_name);
-        $ai4seo_external_metadata_generate_button_location_names = array();
-        $ai4seo_external_metadata_generate_button_seo_plugin_identifiers = array(
-            AI4SEO_THIRD_PARTY_PLUGIN_YOAST_SEO,
-            AI4SEO_THIRD_PARTY_PLUGIN_RANK_MATH,
-            AI4SEO_THIRD_PARTY_PLUGIN_SEO_KEY,
-        );
-
-        foreach ($ai4seo_external_metadata_generate_button_seo_plugin_identifiers as $ai4seo_this_external_metadata_generate_button_seo_plugin_identifier) {
-            if (empty($ai4seo_active_third_party_seo_plugin_details[$ai4seo_this_external_metadata_generate_button_seo_plugin_identifier])) {
-                continue;
-            }
-
-            $ai4seo_this_external_metadata_generate_button_seo_plugin_details = $ai4seo_active_third_party_seo_plugin_details[$ai4seo_this_external_metadata_generate_button_seo_plugin_identifier];
-            $ai4seo_external_metadata_generate_button_location_names[] = $ai4seo_this_external_metadata_generate_button_seo_plugin_details["name"] ?? $ai4seo_this_external_metadata_generate_button_seo_plugin_identifier;
-        }
-
-        if (ai4seo_is_plugin_or_theme_active(AI4SEO_THIRD_PARTY_PLUGIN_ELEMENTOR)) {
-            $ai4seo_external_metadata_generate_button_location_names[] = "Elementor";
-        }
-
-        if (ai4seo_is_plugin_or_theme_active(AI4SEO_THIRD_PARTY_PLUGIN_BETHEME)) {
-            $ai4seo_external_metadata_generate_button_location_names[] = "BeBuilder (BeTheme)";
-        }
-
-        $ai4seo_external_metadata_generate_button_location_names = array_unique($ai4seo_external_metadata_generate_button_location_names);
-        $ai4seo_this_setting_description = esc_html__("Show \"Generate with SOOZ\" buttons in supported third-party SEO plugins and page builders.", "ai-for-seo");
-
-        if ($ai4seo_external_metadata_generate_button_location_names) {
-            $ai4seo_this_setting_description .= " ";
-            $ai4seo_external_metadata_generate_button_location_names = array_map(
-                function($ai4seo_this_external_metadata_generate_button_location_name) {
-                    return "<strong>" . esc_html($ai4seo_this_external_metadata_generate_button_location_name) . "</strong>";
-                },
-                $ai4seo_external_metadata_generate_button_location_names
-            );
-            /* translators: %s: comma-separated list of active third-party plugins and page builders */
-            $ai4seo_this_setting_description .= sprintf(esc_html__("Currently active button locations: %s.", "ai-for-seo"), implode(", ", $ai4seo_external_metadata_generate_button_location_names));
-        } else {
-            $ai4seo_this_setting_description .= " " . esc_html__("No supported third-party SEO plugin or page builder with additional buttons is currently active.", "ai-for-seo");
-        }
-
-        $ai4seo_this_setting_description .= " " . esc_html__("Disable this to keep external editors unchanged while keeping the Metadata Editor available from the top bar.", "ai-for-seo");
-        $ai4seo_sooz_logo_tag = ai4seo_get_svg_tag('sooz', 'SOOZ', 'ai4seo-sooz-logo');
-        /* translators: %s: SOOZ logo */
-        $ai4seo_generate_with_sooz_buttons_label = '"' . sprintf(esc_html__("Generate with %s", "ai-for-seo"), $ai4seo_sooz_logo_tag) . '" ' . esc_html__("buttons", "ai-for-seo");
-        $ai4seo_show_additional_generate_with_sooz_buttons_label = esc_html__("Show additional", "ai-for-seo") . " " . $ai4seo_generate_with_sooz_buttons_label;
-
-        echo "<hr class='ai4seo-form-item-divider'>";
-
-        echo "<div class='ai4seo-form-item'>";
-            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                echo "<span class='ai4seo-green-bubble'>" . esc_html__("NEW", "ai-for-seo") . "</span> ";
-                ai4seo_echo_wp_kses($ai4seo_generate_with_sooz_buttons_label . ":");
-            echo "</label>";
-
-            echo "<div class='ai4seo-form-item-input-wrapper'>";
-                echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' value='1' class='ai4seo-single-checkbox'" . ($ai4seo_this_setting_input_value ? " checked='checked'" : "") . "/> ";
-                    ai4seo_echo_wp_kses($ai4seo_show_additional_generate_with_sooz_buttons_label);
-                    echo "<br>";
-                echo "</label>";
-
-                echo "<p class='ai4seo-form-item-description'>";
-                    ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
+            echo '</div>';
+        echo '</div>';
 
 
         // === AI4SEO_SETTING_SYNC_ONLY_THESE_METADATA ========================================================== \\
@@ -657,18 +931,18 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
         $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
         $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
-        $ai4seo_this_setting_description = __("Choose which metadata to sync with selected third-party SEO plugins.", "ai-for-seo");
+        $ai4seo_this_setting_description = __('Choose which metadata to sync with selected third-party SEO plugins.', 'ai-for-seo');
 
-        echo "<div style='display: " . ($ai4seo_sync_activated_third_party_seo_plugins ? "block" : "none") . "' id='ai4seo-sync-only-these-metadata-container'>";
+        echo "<div style='display: " . ($ai4seo_sync_activated_third_party_seo_plugins ? 'block' : 'none') . "' id='ai4seo-sync-only-these-metadata-container'>";
 
             // Divider
             echo "<hr class='ai4seo-form-item-divider'>";
 
             // Display form elements
             echo "<div class='ai4seo-form-item'>";
-                echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                    echo esc_html__("Metadata to Sync with Third-Party Plugins:", "ai-for-seo") ;
-                echo "</label>";
+                echo "<span class='ai4seo-form-item-label'>";
+                    echo esc_html__('Metadata to Sync with Third-Party Plugins:', 'ai-for-seo') ;
+                echo '</span>';
 
                 echo "<div class='ai4seo-form-item-input-wrapper'>";
                     // Define variable for the selected user-roles based on plugin-settings
@@ -685,26 +959,26 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
                             continue;
                         }
 
-                        $ai4seo_this_translated_checkbox_label = $ai4seo_this_metadata_details["name"] ?? $ai4seo_this_metadata_identifier;
+                        $ai4seo_this_translated_checkbox_label = $ai4seo_this_metadata_details['name'] ?? $ai4seo_this_metadata_identifier;
                         $ai4seo_this_checkbox_id = "{$ai4seo_this_setting_input_name}-{$ai4seo_this_metadata_identifier}";
 
                         // Determine whether this role is supported
                         $ai4seo_is_this_checkbox_checked = in_array($ai4seo_this_metadata_identifier, $ai4seo_this_checked_values);
 
                         echo "<label for='" . esc_attr($ai4seo_this_checkbox_id) . "' class='ai4seo-form-multiple-inputs'>";
-                        echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "[]' value='" . esc_attr($ai4seo_this_metadata_identifier) . "'" . ($ai4seo_is_this_checkbox_checked ? " checked='checked'" : "") . "/> ";
+                        echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "[]' value='" . esc_attr($ai4seo_this_metadata_identifier) . "'" . ($ai4seo_is_this_checkbox_checked ? " checked='checked'" : '') . '/> ';
                         echo esc_html($ai4seo_this_translated_checkbox_label);
 
-                        echo "<br>";
-                        echo "</label>";
+                        echo '<br>';
+                        echo '</label>';
                     }
 
                     echo "<p class='ai4seo-form-item-description'>";
                         ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                    echo "</p>";
-                echo "</div>";
-        echo "</div>";
-        echo "</div>";
+                    echo '</p>';
+                echo '</div>';
+        echo '</div>';
+        echo '</div>';
 
     // === AI4SEO_SETTING_INCLUDE_PRODUCT_PRICE_IN_METADATA ===================================== \\
 
@@ -724,10 +998,10 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
             echo "<div class='ai4seo-form-item'>";
                 echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                    ai4seo_echo_wp_kses(ai4seo_get_svg_tag('woocommerce', "WooCommerce", 'ai4seo-medium-icon'));
-                    echo " ";
-                    echo esc_html__("Include product price in metadata", "ai-for-seo") . ":";
-                echo "</label>";
+                    ai4seo_echo_wp_kses(ai4seo_get_svg_tag('woocommerce', 'WooCommerce', 'ai4seo-medium-icon'));
+                    echo ' ';
+                    echo esc_html__('Include product price in metadata', 'ai-for-seo') . ':';
+                echo '</label>';
 
                 echo "<div class='ai4seo-form-item-input-wrapper'>";
                     echo "<select id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' class='ai4seo-select'>";
@@ -737,62 +1011,32 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
                                 esc_html( $ai4seo_option_label ) .
                                 '</option>';
                         }
-                    echo "</select>";
+                    echo '</select>';
 
                     echo "<p class='ai4seo-form-item-description'>";
-                        echo esc_html__("Choose how WooCommerce product prices should be handled in generated metadata: never include them, store a fixed price, or use a dynamic placeholder that updates at render time.", "ai-for-seo");
-                    echo "</p>";
-                echo "</div>";
-            echo "</div>";
+                        echo esc_html__('Choose how WooCommerce product prices should be handled in generated metadata: never include them, store a fixed price, or use a dynamic placeholder that updates at render time.', 'ai-for-seo');
+                    echo '</p>';
+                echo '</div>';
+            echo '</div>';
         }
-
-        // === AI4SEO_SETTING_USE_EXISTING_METADATA_AS_REFERENCE ====================================== \\
-
-        echo "<hr class='ai4seo-form-item-divider'>";
-
-        $ai4seo_this_setting_name = AI4SEO_SETTING_USE_EXISTING_METADATA_AS_REFERENCE;
-        $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
-        $ai4seo_this_setting_input_value = (bool) ai4seo_get_setting($ai4seo_this_setting_name);
-        /* translators: %s: plugin name */
-        $ai4seo_this_setting_description = sprintf(esc_html__("Let %s include your existing metadata and focus keyphrases as additional context for generation.", "ai-for-seo"), esc_html(AI4SEO_PLUGIN_NAME));
-
-
-        echo "<div class='ai4seo-form-item'>"; 
-            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                echo esc_html__("Use existing metadata as reference", "ai-for-seo") . ":";
-            echo "</label>";
-
-            echo "<div class='ai4seo-form-item-input-wrapper'>";
-                echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' value='1' class='ai4seo-single-checkbox'" . ($ai4seo_this_setting_input_value ? " checked='checked'" : "") . " /> ";
-                    echo esc_html__("Use existing metadata as reference", "ai-for-seo");
-                    echo "<br>";
-                echo "</label>";
-
-                echo "<p class='ai4seo-form-item-description'>";
-                    ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
-
 
         // === AI4SEO_SETTING_OVERWRITE_EXISTING_META_TAGS ========================================================== \\
 
         $ai4seo_this_setting_name = AI4SEO_SETTING_OVERWRITE_EXISTING_METADATA;
         $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
         $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
-        $ai4seo_this_setting_description = __("Overwrite existing metadata when using SEO Autopilot. If disabled, only missing metadata will be generated.", "ai-for-seo");
-        $ai4seo_this_setting_description .= "<br><br>";
-        $ai4seo_this_setting_description .= __("<strong>WARNING:</strong> Permanently overwrites existing data. Backup recommended before activating SEO Autopilot.", "ai-for-seo");
+        $ai4seo_this_setting_description = __('Overwrite existing metadata when using SEO Autopilot. If disabled, only missing metadata will be generated.', 'ai-for-seo');
+        $ai4seo_this_setting_description .= '<br><br>';
+        $ai4seo_this_setting_description .= __('<strong>WARNING:</strong> Permanently overwrites existing data. Backup recommended before activating SEO Autopilot.', 'ai-for-seo');
 
         // Divider
         echo "<hr class='ai4seo-form-item-divider'>";
 
         // Display form elements
         echo "<div class='ai4seo-form-item'>";
-            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-            echo esc_html__("SEO Autopilot: Overwrite Existing Metadata:", "ai-for-seo") ;
-            echo "</label>";
+            echo "<span class='ai4seo-form-item-label'>";
+            echo esc_html__('SEO Autopilot: Overwrite Existing Metadata:', 'ai-for-seo') ;
+            echo '</span>';
 
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                 // Define variable for the selected user-roles based on plugin-settings
@@ -804,25 +1048,25 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
                 // Loop through all available user-roles and display checkboxes for each of them
                 foreach (AI4SEO_METADATA_DETAILS as $ai4seo_this_metadata_identifier => $ai4seo_this_metadata_details) {
-                    $ai4seo_this_translated_checkbox_label = $ai4seo_this_metadata_details["name"] ?? $ai4seo_this_metadata_identifier;
+                    $ai4seo_this_translated_checkbox_label = $ai4seo_this_metadata_details['name'] ?? $ai4seo_this_metadata_identifier;
                     $ai4seo_this_checkbox_id = "{$ai4seo_this_setting_input_name}-{$ai4seo_this_metadata_identifier}";
 
                     // Determine whether this role is supported
                     $ai4seo_is_this_checkbox_checked = in_array($ai4seo_this_metadata_identifier, $ai4seo_this_checked_values);
 
                     echo "<label for='" . esc_attr($ai4seo_this_checkbox_id) . "' class='ai4seo-form-multiple-inputs'>";
-                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "[]' value='" . esc_attr($ai4seo_this_metadata_identifier) . "'" . ($ai4seo_is_this_checkbox_checked ? " checked='checked'" : "") . "/> ";
+                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "[]' value='" . esc_attr($ai4seo_this_metadata_identifier) . "'" . ($ai4seo_is_this_checkbox_checked ? " checked='checked'" : '') . '/> ';
                     echo esc_html($ai4seo_this_translated_checkbox_label);
 
-                    echo "<br>";
-                    echo "</label>";
+                    echo '<br>';
+                    echo '</label>';
                 }
 
                 echo "<p class='ai4seo-form-item-description'>";
                     ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
 
 
         // === AI4SEO_SETTING_GENERATE_METADATA_FOR_FULLY_COVERED_ENTRIES ========================================================== \\
@@ -830,7 +1074,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_this_setting_name = AI4SEO_SETTING_GENERATE_METADATA_FOR_FULLY_COVERED_ENTRIES;
         $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
         $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
-        $ai4seo_this_setting_description = __("Generate metadata for entries that already have a complete set of metadata. Disable this option to generate metadata only for entries with at least one missing field. Note: Enable at least one field under 'Overwrite Existing Metadata' for this setting to take effect.", "ai-for-seo");
+        $ai4seo_this_setting_description = __("Generate metadata for entries that already have a complete set of metadata. Disable this option to generate metadata only for entries with at least one missing field. Note: Enable at least one field under 'Overwrite Existing Metadata' for this setting to take effect.", 'ai-for-seo');
 
         // Divider
         echo "<hr class='ai4seo-form-item-divider'>";
@@ -838,22 +1082,22 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         // Display form elements
         echo "<div class='ai4seo-form-item'>";
             echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-            echo esc_html__("SEO Autopilot: Include Complete Entries When Overwriting:", "ai-for-seo") ;
-            echo "</label>";
+            echo esc_html__('SEO Autopilot: Include Complete Entries When Overwriting:', 'ai-for-seo') ;
+            echo '</label>';
 
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                     echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' value='1' class='ai4seo-single-checkbox'" . ($ai4seo_this_setting_input_value ? " checked='checked'" : "") . "/> ";
-                    echo esc_html__("Include Complete Entries", "ai-for-seo");
+                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' value='1' class='ai4seo-single-checkbox'" . ($ai4seo_this_setting_input_value ? " checked='checked'" : '') . '/> ';
+                    echo esc_html__('Include Complete Entries', 'ai-for-seo');
 
-                    echo "<br>";
-                    echo "</label>";
+                    echo '<br>';
+                    echo '</label>';
 
                 echo "<p class='ai4seo-form-item-description'>";
                     ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
 
 
         // === AI4SEO_SETTING_FOCUS_KEYPHRASE_BEHAVIOR_ON_EXISTING_METADATA ============================ \\
@@ -871,23 +1115,23 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
         echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
             echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                echo esc_html__("Focus Keyphrase behavior", "ai-for-seo") . ":";
-            echo "</label>";
+                echo esc_html__('Focus Keyphrase behavior', 'ai-for-seo') . ':';
+            echo '</label>';
 
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                 echo "<select id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' class='ai4seo-select'>";
                     foreach ($ai4seo_focus_keyphrase_behavior_options as $ai4seo_option_value => $ai4seo_option_label) {
-                        echo "<option value='" . esc_attr($ai4seo_option_value) . "'" . (($ai4seo_option_value === $ai4seo_this_setting_input_value) ? " selected='selected'" : "") . ">" . esc_html($ai4seo_option_label) . "</option>";
+                        echo "<option value='" . esc_attr($ai4seo_option_value) . "'" . (($ai4seo_option_value === $ai4seo_this_setting_input_value) ? " selected='selected'" : '') . '>' . esc_html($ai4seo_option_label) . '</option>';
                     }
-                echo "</select>";
+                echo '</select>';
 
                 echo "<p class='ai4seo-form-item-description'>";
-                    ai4seo_echo_wp_kses(__("Control how focus keyphrases are generated <strong>when a meta title and meta description already exist</strong> for an entry. This only affects SEO Autopilot (bulk generation).", "ai-for-seo"));
-                    echo "<br><br>";
-                    ai4seo_echo_wp_kses(__("<strong>Attention:</strong> For \"Regenerate metadata\", make sure that Meta Title and Meta Description are checked in the \"Overwrite Existing Metadata\" setting.", "ai-for-seo"));
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
+                    ai4seo_echo_wp_kses(__('Control how focus keyphrases are generated <strong>when a meta title and meta description already exist</strong> for an entry. This only affects SEO Autopilot (bulk generation).', 'ai-for-seo'));
+                    echo '<br><br>';
+                    ai4seo_echo_wp_kses(__('<strong>Attention:</strong> For "Regenerate metadata", make sure that Meta Title and Meta Description are checked in the "Overwrite Existing Metadata" setting.', 'ai-for-seo'));
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
 
 
         // === AI4SEO_SETTING_META_TAG_OUTPUT_MODE ================================================================================= \\
@@ -901,34 +1145,35 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
         echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
             echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                echo esc_html__("Meta Tag Output Mode", "ai-for-seo") . ":";
-            echo "</label>";
+                echo esc_html__('Meta Tag Output Mode', 'ai-for-seo') . ':';
+            echo '</label>';
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                 echo "<select id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
                     foreach ($ai4seo_setting_meta_tag_output_mode_allowed_values AS $ai4seo_this_option_value => $ai4seo_this_option_label) {
-                        echo "<option value='" . esc_attr($ai4seo_this_option_value) . "'" . ($ai4seo_this_setting_input_value == $ai4seo_this_option_value ? " selected='selected'" : "") . ">" . esc_html($ai4seo_this_option_label) . "</option>";
+                        echo "<option value='" . esc_attr($ai4seo_this_option_value) . "'" . ($ai4seo_this_setting_input_value == $ai4seo_this_option_value ? " selected='selected'" : '') . '>' . esc_html($ai4seo_this_option_label) . '</option>';
                     }
-                echo "</select>";
+                echo '</select>';
 
                 echo "<p class='ai4seo-form-item-description'>";
                     // Disable 'AI for SEO' Meta Tags
-                    ai4seo_echo_wp_kses(__("<strong>Disable:</strong> Disables all plugin meta tags. Only useful when completely syncing to other SEO plugins.", "ai-for-seo"));
-                    echo "<br><br>";
+                    ai4seo_echo_wp_kses(__('<strong>Disable:</strong> Disables all plugin meta tags. Only useful when completely syncing to other SEO plugins.', 'ai-for-seo'));
+                    echo '<br><br>';
 
                     // Force 'AI for SEO' Meta Tags
-                    ai4seo_echo_wp_kses(__("<strong>Force:</strong> Outputs plugin meta tags regardless of other plugins. May create duplicates.", "ai-for-seo"));
-                    echo "<br><br>";
+                    ai4seo_echo_wp_kses(__('<strong>Force:</strong> Outputs plugin meta tags regardless of other plugins. May create duplicates.', 'ai-for-seo'));
+                    echo '<br><br>';
 
                     // Replace Existing Meta Tags
-                    ai4seo_echo_wp_kses(__("<strong>Replace (Recommended):</strong> Replaces existing meta tags, preventing duplicates and cleaning HTML header.", "ai-for-seo"));
-                    echo "<br><br>";
+                    ai4seo_echo_wp_kses(__('<strong>Replace (Recommended):</strong> Replaces existing meta tags, preventing duplicates and cleaning HTML header.', 'ai-for-seo'));
+                    echo '<br><br>';
 
                     // Complement Existing Meta Tags
-                    ai4seo_echo_wp_kses(__("<strong>Complement:</strong> Adds missing meta tags without overwriting existing ones.", "ai-for-seo"));
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
-    echo "</div>";
+                    ai4seo_echo_wp_kses(__('<strong>Complement:</strong> Adds missing meta tags without overwriting existing ones.', 'ai-for-seo'));
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
+
+    echo '</div>';
 
 
     // ___________________________________________________________________________________________ \\
@@ -937,10 +1182,10 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
     echo "<div class='card ai4seo-form-section'>";
         // Headline
-        echo "<h2>";
+        echo '<h2>';
         echo '<i class="dashicons dashicons-admin-media ai4seo-menu-item-icon"></i>';
-        echo esc_html__("Media attributes", "ai-for-seo") . " <span style='font-size: small'>(" . esc_html__("for images", "ai-for-seo") . ")</span>";
-        echo "</h2>";
+        echo esc_html__('Media attributes', 'ai-for-seo') . " <span style='font-size: small'>(" . esc_html__('for images', 'ai-for-seo') . ')</span>';
+        echo '</h2>';
 
 
         // === AI4SEO_SETTING_ACTIVE_ATTACHMENT_ATTRIBUTES ========================================================== \\
@@ -948,16 +1193,16 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_this_setting_name = AI4SEO_SETTING_ACTIVE_ATTACHMENT_ATTRIBUTES;
         $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
         $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
-        $ai4seo_this_setting_description = esc_html__("Select which media attributes to include or exclude from plugin generation. Does not affect existing attributes.", "ai-for-seo");
+        $ai4seo_this_setting_description = esc_html__('Select which media attributes to include or exclude from plugin generation. Does not affect existing attributes.', 'ai-for-seo');
 
         // Divider
         #echo "<hr class='ai4seo-form-item-divider'>";
 
         // Display form elements
         echo "<div class='ai4seo-form-item'>";
-            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-            echo esc_html__("Active Media Attributes:", "ai-for-seo") ;
-            echo "</label>";
+            echo "<span class='ai4seo-form-item-label'>";
+            echo esc_html__('Active Media Attributes:', 'ai-for-seo') ;
+            echo '</span>';
 
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                 // Define variable for the selected user-roles based on plugin-settings
@@ -969,25 +1214,124 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
                 // Loop through all available user-roles and display checkboxes for each of them
                 foreach (AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS as $ai4seo_this_media_attribute_identifier => $ai4seo_this_media_attribute_details) {
-                    $ai4seo_this_translated_checkbox_label = $ai4seo_this_media_attribute_details["name"] ?? $ai4seo_this_media_attribute_identifier;
+                    $ai4seo_this_translated_checkbox_label = $ai4seo_this_media_attribute_details['name'] ?? $ai4seo_this_media_attribute_identifier;
                     $ai4seo_this_checkbox_id = "{$ai4seo_this_setting_input_name}-{$ai4seo_this_media_attribute_identifier}";
 
                     // Determine whether this role is supported
                     $ai4seo_is_this_checkbox_checked = in_array($ai4seo_this_media_attribute_identifier, $ai4seo_this_checked_values);
 
                     echo "<label for='" . esc_attr($ai4seo_this_checkbox_id) . "' class='ai4seo-form-multiple-inputs'>";
-                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "[]' value='" . esc_attr($ai4seo_this_media_attribute_identifier) . "'" . ($ai4seo_is_this_checkbox_checked ? " checked='checked'" : "") . "/> ";
+                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "[]' value='" . esc_attr($ai4seo_this_media_attribute_identifier) . "'" . ($ai4seo_is_this_checkbox_checked ? " checked='checked'" : '') . '/> ';
                     echo esc_html($ai4seo_this_translated_checkbox_label);
 
-                    echo "<br>";
-                    echo "</label>";
+                    echo '<br>';
+                    echo '</label>';
                 }
 
                 echo "<p class='ai4seo-form-item-description'>";
                     ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
+
+        // === AI4SEO_SETTING_ENABLE_EXTERNAL_MEDIA_GENERATE_BUTTONS ======================================= \\
+
+        $ai4seo_this_setting_name = AI4SEO_SETTING_ENABLE_EXTERNAL_MEDIA_GENERATE_BUTTONS;
+        $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
+        $ai4seo_this_setting_input_value = (bool) ai4seo_get_setting($ai4seo_this_setting_name);
+        $ai4seo_this_setting_description = esc_html__('Show "Generate with SOOZ" buttons in WordPress media editing screens outside the plugin, including the Media Library, media upload sidebar, attachment edit screen, and Gutenberg image sidebar.', 'ai-for-seo');
+
+        // Build logo-aware labels manually because the visible copy includes the sanitized SOOZ SVG.
+        $ai4seo_sooz_logo_tag = ai4seo_get_svg_tag('sooz', 'SOOZ', 'ai4seo-sooz-logo');
+        /* translators: %s: SOOZ logo */
+        $ai4seo_generate_with_sooz_buttons_label = sprintf(esc_html__('"Generate with %s" buttons', 'ai-for-seo'), $ai4seo_sooz_logo_tag);
+        /* translators: %s: SOOZ logo */
+        $ai4seo_generate_with_sooz_buttons_toggle_label = sprintf(esc_html__('Show additional "Generate with %s" buttons in external editors', 'ai-for-seo'), $ai4seo_sooz_logo_tag);
+
+        echo "<hr class='ai4seo-form-item-divider'>";
+
+        echo "<div class='ai4seo-form-item'>";
+            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
+                ai4seo_echo_wp_kses($ai4seo_generate_with_sooz_buttons_label . ':');
+            echo '</label>';
+
+            echo "<div class='ai4seo-form-item-input-wrapper'>";
+                echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
+                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' value='1' class='ai4seo-single-checkbox'" . ($ai4seo_this_setting_input_value ? " checked='checked'" : '') . ' /> ';
+                    ai4seo_echo_wp_kses($ai4seo_generate_with_sooz_buttons_toggle_label);
+                    echo '<br>';
+                echo '</label>';
+
+                echo "<p class='ai4seo-form-item-description'>";
+                    ai4seo_echo_wp_kses($ai4seo_this_setting_description);
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
+
+        // === AI4SEO_SETTING_ATTACHMENT_ATTRIBUTES_CUSTOM_INSTRUCTIONS ============================ \\
+
+        $ai4seo_this_setting_name = AI4SEO_SETTING_ATTACHMENT_ATTRIBUTES_CUSTOM_INSTRUCTIONS;
+        $ai4seo_this_setting_description = esc_html__('These instructions are added to every media attribute generation prompt.', 'ai-for-seo');
+
+        echo "<hr class='ai4seo-form-item-divider'>";
+
+        // Render the setting through the shared wrapper so save-anything names and counters stay aligned.
+        ai4seo_echo_wp_kses(ai4seo_get_custom_instructions_setting_form_item_tag(
+            $ai4seo_this_setting_name,
+            esc_html__('Media Attribute Custom Instructions:', 'ai-for-seo'),
+            $ai4seo_this_setting_description,
+            esc_html__('Media Attribute Custom Instructions', 'ai-for-seo'),
+            '',
+            '',
+            'media-attributes'
+        ));
+
+
+        // === MEDIA ATTRIBUTE PROMPT SLIDER SETTINGS ============================================ \\
+
+        // Keep media prompt-control ordering explicit while sharing the same slider form-item renderer.
+        $ai4seo_attachment_attributes_prompt_slider_settings = array(
+            array(
+                'setting_name' => AI4SEO_SETTING_ATTACHMENT_ATTRIBUTES_TONE_VARIANT,
+                'label' => esc_html__('Media Attribute Tone Variant:', 'ai-for-seo'),
+            ),
+            array(
+                'setting_name' => AI4SEO_SETTING_ATTACHMENT_ATTRIBUTES_SURROUNDING_CONTEXT_INFLUENCE,
+                'label' => esc_html__('Surrounding / Page Context Influence:', 'ai-for-seo'),
+            ),
+            array(
+                'setting_name' => AI4SEO_SETTING_ATTACHMENT_ATTRIBUTES_FILE_NAME_INFLUENCE,
+                'label' => esc_html__('File Name Influence:', 'ai-for-seo'),
+            ),
+            array(
+                'setting_name' => AI4SEO_SETTING_ATTACHMENT_ATTRIBUTES_SEO_KEYWORD_INTENSITY,
+                'label' => esc_html__('SEO Keyword Intensity:', 'ai-for-seo'),
+                'is_advanced_setting' => true,
+            ),
+            array(
+                'setting_name' => AI4SEO_SETTING_ATTACHMENT_ATTRIBUTES_RECOGNIZABLE_ENTITY_INCLUSION,
+                'label' => esc_html__('Recognizable Entity Inclusion:', 'ai-for-seo'),
+                'is_advanced_setting' => true,
+            ),
+            array(
+                'setting_name' => AI4SEO_SETTING_ATTACHMENT_ATTRIBUTES_WEBSITE_BRAND_CONTEXT_INFLUENCE,
+                'label' => esc_html__('Website / Brand Context Influence:', 'ai-for-seo'),
+                'is_advanced_setting' => true,
+            ),
+            array(
+                'setting_name' => AI4SEO_SETTING_ATTACHMENT_ATTRIBUTES_EXISTING_VALUES_REFERENCE_STRENGTH,
+                'label' => esc_html__('Existing Values Reference Strength:', 'ai-for-seo'),
+            ),
+        );
+
+        foreach ($ai4seo_attachment_attributes_prompt_slider_settings as $ai4seo_this_prompt_slider_setting) {
+            // Render each saved slider through the reusable radio-group helper so save-anything stays unchanged.
+            ai4seo_echo_wp_kses(ai4seo_get_prompt_slider_setting_form_item_tag(
+                $ai4seo_this_prompt_slider_setting['setting_name'],
+                $ai4seo_this_prompt_slider_setting['label'],
+                !empty($ai4seo_this_prompt_slider_setting['is_advanced_setting'])
+            ));
+        }
 
 
         // === AI4SEO_SETTING_DISABLED_ATTACHMENT_POST_AUTHORS =============================================== \\
@@ -999,14 +1343,14 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_available_attachment_post_author_ids = array_map('intval', array_keys($ai4seo_available_attachment_post_authors));
         $ai4seo_active_attachment_post_author_ids = array_values(array_diff($ai4seo_available_attachment_post_author_ids, $ai4seo_disabled_attachment_post_author_ids));
 
-        $ai4seo_this_setting_description = esc_html__("Uncheck any author whose media files you want to exclude from the dashboard and the SEO Autopilot. Newly detected authors stay active by default.", "ai-for-seo");
+        $ai4seo_this_setting_description = esc_html__('Uncheck any author whose media files you want to exclude from the dashboard and the SEO Autopilot. Newly detected authors stay active by default.', 'ai-for-seo');
 
         echo "<hr class='ai4seo-form-item-divider'>";
 
         echo "<div class='ai4seo-form-item'>";
-            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                echo esc_html__("Active Media Authors:", "ai-for-seo");
-            echo "</label>";
+            echo "<span class='ai4seo-form-item-label'>";
+                echo esc_html__('Active Media Authors:', 'ai-for-seo');
+            echo '</span>';
 
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                 if ($ai4seo_available_attachment_post_authors) {
@@ -1018,22 +1362,74 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
                         $ai4seo_is_checkbox_checked = in_array((int) $ai4seo_this_post_author_id, $ai4seo_active_attachment_post_author_ids, true);
 
                         echo "<label for='" . esc_attr($ai4seo_this_checkbox_id) . "' class='ai4seo-form-multiple-inputs'>";
-                            echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "[]' value='" . esc_attr($ai4seo_this_post_author_id) . "'" . ($ai4seo_is_checkbox_checked ? " checked='checked'" : "") . " /> ";
+                            echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "[]' value='" . esc_attr($ai4seo_this_post_author_id) . "'" . ($ai4seo_is_checkbox_checked ? " checked='checked'" : '') . ' /> ';
                             echo esc_html($ai4seo_this_post_author_label);
-                            echo "<br>";
-                        echo "</label>";
+                            echo '<br>';
+                        echo '</label>';
                     }
                 } else {
                     echo "<p class='ai4seo-form-item-description'>";
-                        echo esc_html__("No authors with supported media files detected.", "ai-for-seo");
-                    echo "</p>";
+                        echo esc_html__('No authors with supported media files detected.', 'ai-for-seo');
+                    echo '</p>';
                 }
 
                 echo "<p class='ai4seo-form-item-description'>";
                     ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
+
+
+        // === AI4SEO_SETTING_DISABLED_ATTACHMENT_ATTRIBUTES_WPML_LANGUAGES =========================== \\
+
+        if (ai4seo_is_plugin_or_theme_active(AI4SEO_THIRD_PARTY_PLUGIN_WPML)) {
+            $ai4seo_this_setting_name = AI4SEO_SETTING_DISABLED_ATTACHMENT_ATTRIBUTES_WPML_LANGUAGES;
+            $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
+            $ai4seo_disabled_attachment_attributes_wpml_language_codes = ai4seo_get_disabled_attachment_attributes_wpml_language_codes();
+            $ai4seo_available_wpml_languages = ai4seo_get_available_wpml_languages();
+            $ai4seo_available_wpml_language_codes = array_keys($ai4seo_available_wpml_languages);
+            $ai4seo_active_attachment_attributes_wpml_language_codes = array_values(array_diff($ai4seo_available_wpml_language_codes, $ai4seo_disabled_attachment_attributes_wpml_language_codes));
+            $ai4seo_this_setting_description = esc_html__('Uncheck any WPML language if you do not want media entries WPML assigns to that language to be included in the dashboard and the SEO Autopilot. Newly detected WPML languages stay active by default.', 'ai-for-seo');
+
+            echo "<hr class='ai4seo-form-item-divider'>";
+
+            echo "<div class='ai4seo-form-item'>";
+                echo "<span class='ai4seo-form-item-label'>";
+                    // Keep the NEW badge inline for this manually rendered WPML language setting label.
+                    echo "<span class='ai4seo-green-bubble'>" . esc_html__('NEW', 'ai-for-seo') . '</span> ';
+                    ai4seo_echo_wp_kses(ai4seo_get_svg_tag('wpml', 'WPML', 'ai4seo-medium-icon'));
+                    echo ' ';
+                    echo esc_html__('Active Languages:', 'ai-for-seo');
+                echo '</span>';
+
+                echo "<div class='ai4seo-form-item-input-wrapper'>";
+                    if ($ai4seo_available_wpml_languages) {
+                        ai4seo_echo_wp_kses(ai4seo_get_select_all_checkbox($ai4seo_this_setting_input_name));
+                        echo "<div class='ai4seo-medium-gap'></div>";
+
+                        // WPML language checkboxes submit active languages; save normalization stores only unchecked codes.
+                        foreach ($ai4seo_available_wpml_languages as $ai4seo_this_wpml_language_code => $ai4seo_this_wpml_language_label) {
+                            $ai4seo_this_checkbox_id = "{$ai4seo_this_setting_input_name}-{$ai4seo_this_wpml_language_code}";
+                            $ai4seo_is_checkbox_checked = in_array($ai4seo_this_wpml_language_code, $ai4seo_active_attachment_attributes_wpml_language_codes, true);
+
+                            echo "<label for='" . esc_attr($ai4seo_this_checkbox_id) . "' class='ai4seo-form-multiple-inputs'>";
+                                echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "[]' value='" . esc_attr($ai4seo_this_wpml_language_code) . "'" . ($ai4seo_is_checkbox_checked ? " checked='checked'" : '') . ' /> ';
+                                echo esc_html($ai4seo_this_wpml_language_label);
+                                echo '<br>';
+                            echo '</label>';
+                        }
+                    } else {
+                        echo "<p class='ai4seo-form-item-description'>";
+                            echo esc_html__('No WPML languages detected.', 'ai-for-seo');
+                        echo '</p>';
+                    }
+
+                    echo "<p class='ai4seo-form-item-description'>";
+                        ai4seo_echo_wp_kses($ai4seo_this_setting_description);
+                    echo '</p>';
+                echo '</div>';
+            echo '</div>';
+        }
 
 
         // === AI4SEO_SETTING_ATTACHMENT_ATTRIBUTES_GENERATION_LANGUAGE ============================== \\
@@ -1044,14 +1440,14 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         if (ai4seo_is_plugin_or_theme_active(AI4SEO_THIRD_PARTY_PLUGIN_WPML)) {
             $ai4seo_this_setting_description = sprintf(
                 /* translators: %s: WordPress language */
-                esc_html__("WPML detected. Use \"Automatic\" to detect the language from the image usage context. If the context is unavailable or unclear, it falls back to the WPML language first and then the system language (%s).", "ai-for-seo"),
-                "<strong>" . $ai4seo_wordpress_language . "</strong>",
+                esc_html__('WPML detected. Use "Automatic" to detect the language from the image usage context. If the context is unavailable or unclear, it falls back to the WPML language first and then the system language (%s).', 'ai-for-seo'),
+                '<strong>' . $ai4seo_wordpress_language . '</strong>',
             );
         } else {
             $ai4seo_this_setting_description = sprintf(
                 /* translators: %s: WordPress language */
-                esc_html__('Select a specific language, or choose "- Automatic -" to let the plugin detect the language from the context where the image is used. If the context is unavailable or unclear, it will fall back to the system language (%s).', "ai-for-seo"),
-                "<strong>" . $ai4seo_wordpress_language . "</strong>",
+                esc_html__('Select a specific language, or choose "- Automatic -" to let the plugin detect the language from the context where the image is used. If the context is unavailable or unclear, it will fall back to the system language (%s).', 'ai-for-seo'),
+                '<strong>' . $ai4seo_wordpress_language . '</strong>',
             );
         }
 
@@ -1061,18 +1457,18 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         // Form element
         echo "<div class='ai4seo-form-item'>";
             echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                echo esc_html__("Language for Media Attributes Generation", "ai-for-seo") . ":";
-            echo "</label>";
+                echo esc_html__('Language for Media Attributes Generation', 'ai-for-seo') . ':';
+            echo '</label>';
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                 echo "<select id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
                     ai4seo_echo_wp_kses(ai4seo_get_generation_language_select_options_html($ai4seo_this_setting_input_value));
-                echo "</select>";
+                echo '</select>';
 
                 echo "<p class='ai4seo-form-item-description'>";
                     ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
 
 
         // === AI4SEO_SETTING_ATTACHMENT_ATTRIBUTES_PREFIXES & AI4SEO_SETTING_ATTACHMENT_ATTRIBUTES_SUFFIXES =================== \\
@@ -1088,110 +1484,50 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_attachment_attributes_suffix_setting_input_value = ai4seo_get_setting($ai4seo_attachment_attributes_suffix_setting_name);
 
         // Description for both prefix and suffix
-        $ai4seo_this_setting_description = esc_html__("Add prefix and suffix text to media attributes for consistent branding. Note: Only applied to newly generated attributes, not existing ones.", "ai-for-seo");
+        $ai4seo_this_setting_description = esc_html__('Add prefix and suffix text to media attributes for consistent branding. Note: Only applied to newly generated attributes, not existing ones.', 'ai-for-seo');
 
-        $ai4seo_attachment_placeholders_tooltip = __("<strong>Available placeholders</strong> (case-insensitive):<br>{WEBSITE_URL} - Site URL.<br>{WEBSITE_NAME} - Site name.<br>{FILE_NAME} - File name without extension.<br>{FILE_TYPE} - File extension.<br>{FILE_SIZE} - File size in kilobytes.<br>{IMAGE_DIMENSIONS} - Image width x height.<br><br>Placeholders are replaced when attributes are saved or injected into the frontend.", "ai-for-seo");
+        $ai4seo_attachment_placeholders_tooltip = __('<strong>Available placeholders</strong> (case-insensitive):<br>{WEBSITE_URL} - Site URL.<br>{WEBSITE_NAME} - Site name.<br>{FILE_NAME} - File name without extension.<br>{FILE_TYPE} - File extension.<br>{FILE_SIZE} - File size in kilobytes.<br>{IMAGE_DIMENSIONS} - Image width x height.<br><br>Placeholders are replaced when attributes are saved or injected into the frontend.', 'ai-for-seo');
 
         // Divider
         echo "<hr class='ai4seo-form-item-divider ai4seo-is-advanced-setting'>";
 
         // Display form elements
         echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
-            echo "<label>";
-                echo esc_html__("Prefix / Suffix:", "ai-for-seo") ;
+            echo "<span class='ai4seo-form-item-label'>";
+                echo esc_html__('Prefix / Suffix:', 'ai-for-seo') ;
                 ai4seo_echo_wp_kses(ai4seo_get_icon_with_tooltip_tag($ai4seo_attachment_placeholders_tooltip));
-            echo "</label>";
+            echo '</span>';
 
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                 // Loop through all available attachment-attributes-details and display input-fields for each of them
                 foreach (AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS as $ai4seo_this_attachment_attributes_identifier => $ai4seo_this_attachment_attributes_details) {
-                    $ai4seo_this_translated_setting_label = $ai4seo_this_attachment_attributes_details["name"] ?? $ai4seo_this_attachment_attributes_identifier;
+                    $ai4seo_this_translated_setting_label = $ai4seo_this_attachment_attributes_details['name'] ?? $ai4seo_this_attachment_attributes_identifier;
                     $ai4seo_this_attachment_attributes_prefix_setting_input_name = "{$ai4seo_attachment_attributes_prefix_setting_input_name}[{$ai4seo_this_attachment_attributes_identifier}]";
                     $ai4seo_this_attachment_attributes_suffix_setting_input_name = "{$ai4seo_attachment_attributes_suffix_setting_input_name}[{$ai4seo_this_attachment_attributes_identifier}]";
-                    $ai4seo_this_attachment_attributes_prefix_setting_input_value = $ai4seo_attachment_attributes_prefix_setting_input_value[$ai4seo_this_attachment_attributes_identifier] ?? "";
-                    $ai4seo_this_attachment_attributes_suffix_setting_input_value = $ai4seo_attachment_attributes_suffix_setting_input_value[$ai4seo_this_attachment_attributes_identifier] ?? "";
+                    $ai4seo_this_attachment_attributes_prefix_setting_input_value = $ai4seo_attachment_attributes_prefix_setting_input_value[$ai4seo_this_attachment_attributes_identifier] ?? '';
+                    $ai4seo_this_attachment_attributes_suffix_setting_input_value = $ai4seo_attachment_attributes_suffix_setting_input_value[$ai4seo_this_attachment_attributes_identifier] ?? '';
 
                     // Display translated headline for this setting
                     echo "<div class='ai4seo-prefix-suffix-setting-holder'>";
                         echo "<div class='ai4seo-prefix-suffix-setting-headline'>";
-                            echo esc_html($ai4seo_this_translated_setting_label) . ":";
-                        echo "</div>";
+                            echo esc_html($ai4seo_this_translated_setting_label) . ':';
+                        echo '</div>';
 
                         // Display input for prefix
-                        echo "<input type='text' class='ai4seo-prefix-suffix-setting-textfield' name='" . esc_attr($ai4seo_this_attachment_attributes_prefix_setting_input_name) . "' value='" . esc_attr($ai4seo_this_attachment_attributes_prefix_setting_input_value) . "' placeholder='" . esc_attr("Prefix") . "' maxlength='48' />";
+                        echo "<input type='text' class='ai4seo-prefix-suffix-setting-textfield' name='" . esc_attr($ai4seo_this_attachment_attributes_prefix_setting_input_name) . "' value='" . esc_attr($ai4seo_this_attachment_attributes_prefix_setting_input_value) . "' placeholder='" . esc_attr('Prefix') . "' maxlength='48' />";
 
-                        echo " {" . esc_html__("TEXT", "ai-for-seo") . "} ";
+                        echo ' {' . esc_html__('TEXT', 'ai-for-seo') . '} ';
 
                         // Display input for suffix
-                        echo "<input type='text' class='ai4seo-prefix-suffix-setting-textfield' name='" . esc_attr($ai4seo_this_attachment_attributes_suffix_setting_input_name) . "' value='" . esc_attr($ai4seo_this_attachment_attributes_suffix_setting_input_value) . "' placeholder='" . esc_attr("Suffix") . "' maxlength='48' />";
-                    echo "</div>";
+                        echo "<input type='text' class='ai4seo-prefix-suffix-setting-textfield' name='" . esc_attr($ai4seo_this_attachment_attributes_suffix_setting_input_name) . "' value='" . esc_attr($ai4seo_this_attachment_attributes_suffix_setting_input_value) . "' placeholder='" . esc_attr('Suffix') . "' maxlength='48' />";
+                    echo '</div>';
                 }
 
                 echo "<p class='ai4seo-form-item-description'>";
                     ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
-
-        // === AI4SEO_SETTING_ENABLE_EXTERNAL_MEDIA_GENERATE_BUTTONS ======================================= \\
-
-        $ai4seo_this_setting_name = AI4SEO_SETTING_ENABLE_EXTERNAL_MEDIA_GENERATE_BUTTONS;
-        $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
-        $ai4seo_this_setting_input_value = (bool) ai4seo_get_setting($ai4seo_this_setting_name);
-        $ai4seo_this_setting_description = esc_html__("Show \"Generate with SOOZ\" buttons in WordPress media editing screens outside the plugin, including the Media Library, media upload sidebar, attachment edit screen, and Gutenberg image sidebar.", "ai-for-seo");
-        $ai4seo_sooz_logo_tag = ai4seo_get_svg_tag('sooz', 'SOOZ', 'ai4seo-sooz-logo');
-        /* translators: %s: SOOZ logo */
-        $ai4seo_generate_with_sooz_buttons_label = '"' . sprintf(esc_html__("Generate with %s", "ai-for-seo"), $ai4seo_sooz_logo_tag) . '" ' . esc_html__("buttons", "ai-for-seo");
-        $ai4seo_show_additional_generate_with_sooz_buttons_label = esc_html__("Show additional", "ai-for-seo") . " " . $ai4seo_generate_with_sooz_buttons_label;
-
-        echo "<hr class='ai4seo-form-item-divider'>";
-
-        echo "<div class='ai4seo-form-item'>";
-            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                echo "<span class='ai4seo-green-bubble'>" . esc_html__("NEW", "ai-for-seo") . "</span> ";
-                ai4seo_echo_wp_kses($ai4seo_generate_with_sooz_buttons_label . ":");
-            echo "</label>";
-
-            echo "<div class='ai4seo-form-item-input-wrapper'>";
-                echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' value='1' class='ai4seo-single-checkbox'" . ($ai4seo_this_setting_input_value ? " checked='checked'" : "") . " /> ";
-                    ai4seo_echo_wp_kses($ai4seo_show_additional_generate_with_sooz_buttons_label);
-                    echo "<br>";
-                echo "</label>";
-
-                echo "<p class='ai4seo-form-item-description'>";
-                    ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
-
-        // === AI4SEO_SETTING_ENABLE_ENHANCED_ENTITY_RECOGNITION ============================================================ \\
-
-        echo "<hr class='ai4seo-form-item-divider'>";
-
-        $ai4seo_this_setting_name = AI4SEO_SETTING_ENABLE_ENHANCED_ENTITY_RECOGNITION;
-        $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
-        $ai4seo_this_setting_input_value = (bool) ai4seo_get_setting($ai4seo_this_setting_name);
-        $ai4seo_this_setting_description = esc_html__("Using a more complex prompt, our AI is able to find most brands, places, landmarks, companies, products, movie titles and more in your images.", "ai-for-seo");
-
-
-        echo "<div class='ai4seo-form-item'>";
-            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                echo esc_html__("Enhanced Entity Recognition", "ai-for-seo") . ":";
-            echo "</label>";
-
-            echo "<div class='ai4seo-form-item-input-wrapper'>";
-                echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' value='1' class='ai4seo-single-checkbox'" . ($ai4seo_this_setting_input_value ? " checked='checked'" : "") . " /> ";
-                    echo esc_html__("Enhanced Entity Recognition", "ai-for-seo");
-                    echo "<br>";
-                echo "</label>";
-
-                echo "<p class='ai4seo-form-item-description'>";
-                    ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
 
 
         // === AI4SEO_SETTING_ENABLE_ENHANCED_CELEBRITY_RECOGNITION ======================================================== \\
@@ -1201,62 +1537,49 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_this_setting_name = AI4SEO_SETTING_ENABLE_ENHANCED_CELEBRITY_RECOGNITION;
         $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
         $ai4seo_this_setting_input_value = (bool) ai4seo_get_setting($ai4seo_this_setting_name);
-        $ai4seo_this_setting_description = esc_html__("Using advanced face detection tools we are able to recognize 99% of all publicly known people in images.", "ai-for-seo");
+        $ai4seo_this_setting_description = esc_html__('Using advanced face detection tools we are able to recognize 99% of all publicly known people in images.', 'ai-for-seo');
+        $ai4seo_premium_plan_html = '';
+        $ai4seo_upgrade_to_premium_html = '';
 
+        // Paid users keep the compact badge, while lower tiers see the shared direct-pricing upgrade prompt.
         if (!$ai4seo_user_has_premium_plan_or_higher) {
-            $ai4seo_this_setting_description .= ' ' . esc_html__("Requires Premium Plan.", "ai-for-seo");
+            $ai4seo_upgrade_to_premium_html = ai4seo_get_subscription_upgrade_prompt_tag(
+                'l',
+                'use_this_feature',
+                'ai4seo-setting-upgrade-prompt'
+            );
+        } else {
+            $ai4seo_premium_plan_html = ai4seo_get_plan_badge('l');
         }
 
-        $ai4seo_plan_badge_html = ai4seo_get_plan_badge('l');
-
         echo "<div class='ai4seo-form-item'>";
             echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                echo esc_html__("Enhanced Celebrity Recognition", "ai-for-seo") . ":";
-            echo "</label>";
-
-            echo "<div class='ai4seo-form-item-input-wrapper'>";
-                echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' value='1' class='ai4seo-single-checkbox'" . ($ai4seo_this_setting_input_value ? " checked='checked'" : "") . ($ai4seo_user_has_premium_plan_or_higher ? "" : " disabled='disabled'") . " /> ";
-                    echo esc_html__("Enhanced Celebrity Recognition", "ai-for-seo");
-                echo "</label>";
-                echo " ";
-                ai4seo_echo_wp_kses($ai4seo_plan_badge_html);
+                echo esc_html__('Enhanced Celebrity Recognition', 'ai-for-seo') . ':';
                 echo "<br>";
-
-                echo "<p class='ai4seo-form-item-description'>";
-                    ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
-
-        // === AI4SEO_SETTING_USE_EXISTING_ATTACHMENT_ATTRIBUTES_AS_REFERENCE ================================================ \\
-
-        echo "<hr class='ai4seo-form-item-divider'>";
-
-        $ai4seo_this_setting_name = AI4SEO_SETTING_USE_EXISTING_ATTACHMENT_ATTRIBUTES_AS_REFERENCE;
-        $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
-        $ai4seo_this_setting_input_value = (bool) ai4seo_get_setting($ai4seo_this_setting_name);
-        /* translators: %s: plugin name */
-        $ai4seo_this_setting_description = sprintf(esc_html__("Let %s include your existing media attributes (existing alt text, title, caption or description) as additional context for generation.", "ai-for-seo"), esc_html(AI4SEO_PLUGIN_NAME));
-
-
-        echo "<div class='ai4seo-form-item'>";
-            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                echo esc_html__("Use existing media attributes as reference", "ai-for-seo") . ":";
-            echo "</label>";
+                // Keep the Premium badge in the heading while the boolean switch remains in the input row.
+                ai4seo_echo_wp_kses(ai4seo_get_plan_badge('l'));
+            echo '</label>';
 
             echo "<div class='ai4seo-form-item-input-wrapper'>";
+                // Keep active Premium accounts visually compact and use the upgrade prompt only when the setting is disabled.
+                if ($ai4seo_user_has_premium_plan_or_higher) {
+                    echo ' ';
+                    ai4seo_echo_wp_kses($ai4seo_premium_plan_html);
+                } else {
+                    ai4seo_echo_wp_kses($ai4seo_upgrade_to_premium_html);
+                }
+                echo '<br>';
+
                 echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' value='1' class='ai4seo-single-checkbox'" . ($ai4seo_this_setting_input_value ? " checked='checked'" : "") . " /> ";
-                    echo esc_html__("Use existing media attributes as reference", "ai-for-seo");
-                    echo "<br>";
-                echo "</label>";
+                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' value='1' class='ai4seo-single-checkbox'" . ($ai4seo_this_setting_input_value ? " checked='checked'" : '') . ($ai4seo_user_has_premium_plan_or_higher ? '' : " disabled='disabled'") . ' /> ';
+                    echo esc_html__('Enhanced Celebrity Recognition', 'ai-for-seo');
+                echo '</label>';
 
                 echo "<p class='ai4seo-form-item-description'>";
                     ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
 
 
         // === AI4SEO_SETTING_OVERWRITE_EXISTING_ATTACHMENT_ATTRIBUTES ========================================================== \\
@@ -1264,18 +1587,18 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_this_setting_name = AI4SEO_SETTING_OVERWRITE_EXISTING_ATTACHMENT_ATTRIBUTES;
         $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
         $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
-        $ai4seo_this_setting_description = __("Overwrite existing media attributes when using SEO Autopilot. If disabled, only missing attributes will be generated.", "ai-for-seo");
-        $ai4seo_this_setting_description .= "<br><br>";
-        $ai4seo_this_setting_description .= __("<strong>WARNING:</strong> Permanently overwrites existing data. Backup recommended.", "ai-for-seo");
+        $ai4seo_this_setting_description = __('Overwrite existing media attributes when using SEO Autopilot. If disabled, only missing attributes will be generated.', 'ai-for-seo');
+        $ai4seo_this_setting_description .= '<br><br>';
+        $ai4seo_this_setting_description .= __('<strong>WARNING:</strong> Permanently overwrites existing data. Backup recommended.', 'ai-for-seo');
 
         // Divider
         echo "<hr class='ai4seo-form-item-divider'>";
 
         // Display form elements
         echo "<div class='ai4seo-form-item'>";
-            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-            echo esc_html__("SEO Autopilot: Overwrite Existing Media Attributes:", "ai-for-seo") ;
-            echo "</label>";
+            echo "<span class='ai4seo-form-item-label'>";
+            echo esc_html__('SEO Autopilot: Overwrite Existing Media Attributes:', 'ai-for-seo') ;
+            echo '</span>';
 
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                 // Define variable for the selected user-roles based on plugin-settings
@@ -1287,25 +1610,25 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
                 // Loop through all available user-roles and display checkboxes for each of them
                 foreach (AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS as $ai4seo_attachment_attribute_name => $ai4seo_attachment_attribute_details) {
-                    $ai4seo_this_translated_checkbox_label = $ai4seo_attachment_attribute_details["name"] ?? $ai4seo_attachment_attribute_name;
+                    $ai4seo_this_translated_checkbox_label = $ai4seo_attachment_attribute_details['name'] ?? $ai4seo_attachment_attribute_name;
                     $ai4seo_this_checkbox_id = "{$ai4seo_this_setting_input_name}-{$ai4seo_attachment_attribute_name}";
 
                     // Determine whether this role is supported
                     $ai4seo_is_this_checkbox_checked = in_array($ai4seo_attachment_attribute_name, $ai4seo_this_checked_values);
 
                     echo "<label for='" . esc_attr($ai4seo_this_checkbox_id) . "' class='ai4seo-form-multiple-inputs'>";
-                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "[]' value='" . esc_attr($ai4seo_attachment_attribute_name) . "'" . ($ai4seo_is_this_checkbox_checked ? " checked='checked'" : "") . "/> ";
+                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "[]' value='" . esc_attr($ai4seo_attachment_attribute_name) . "'" . ($ai4seo_is_this_checkbox_checked ? " checked='checked'" : '') . '/> ';
                     echo esc_html($ai4seo_this_translated_checkbox_label);
 
-                    echo "<br>";
-                    echo "</label>";
+                    echo '<br>';
+                    echo '</label>';
                 }
 
                 echo "<p class='ai4seo-form-item-description'>";
                     ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
 
 
         // === AI4SEO_SETTING_GENERATE_ATTACHMENT_ATTRIBUTES_FOR_FULLY_COVERED_ENTRIES =========================================== \\
@@ -1313,7 +1636,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_this_setting_name = AI4SEO_SETTING_GENERATE_ATTACHMENT_ATTRIBUTES_FOR_FULLY_COVERED_ENTRIES;
         $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
         $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
-        $ai4seo_this_setting_description = __("Generate media attributes for entries that already have a complete set of attributes. Disable this option to generate media attributes only for entries with missing attributes. Note: Enable at least one attribute under 'Overwrite Existing Media Attributes' for this setting to take effect.", "ai-for-seo");
+        $ai4seo_this_setting_description = __("Generate media attributes for entries that already have a complete set of attributes. Disable this option to generate media attributes only for entries with missing attributes. Note: Enable at least one attribute under 'Overwrite Existing Media Attributes' for this setting to take effect.", 'ai-for-seo');
 
         // Divider
         echo "<hr class='ai4seo-form-item-divider'>";
@@ -1321,24 +1644,24 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         // Display form elements
         echo "<div class='ai4seo-form-item'>";
             echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-            echo esc_html__("SEO Autopilot: Include Complete Entries When Overwriting:", "ai-for-seo") ;
-            echo "</label>";
+            echo esc_html__('SEO Autopilot: Include Complete Entries When Overwriting:', 'ai-for-seo') ;
+            echo '</label>';
 
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                     echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' value='1' class='ai4seo-single-checkbox'" . ($ai4seo_this_setting_input_value ? " checked='checked'" : "") . "/> ";
-                    echo esc_html__("Include Complete Entries When Overwriting", "ai-for-seo");
+                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' value='1' class='ai4seo-single-checkbox'" . ($ai4seo_this_setting_input_value ? " checked='checked'" : '') . '/> ';
+                    echo esc_html__('Include Complete Entries When Overwriting', 'ai-for-seo');
 
-                    echo "<br>";
-                    echo "</label>";
+                    echo '<br>';
+                    echo '</label>';
 
                 echo "<p class='ai4seo-form-item-description'>";
                     ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
 
-    echo "</div>";
+    echo '</div>';
 
 
     // ___________________________________________________________________________________________ \\
@@ -1347,10 +1670,10 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
     echo "<div class='card ai4seo-form-section ai4seo-is-advanced-setting'>";
         // Headline
-        echo "<h2>";
+        echo '<h2>';
         echo '<i class="dashicons dashicons-admin-users ai4seo-menu-item-icon"></i>';
-        echo esc_html__("User Management", "ai-for-seo");
-        echo "</h2>";
+        echo esc_html__('User Management', 'ai-for-seo');
+        echo '</h2>';
 
 
         // === ALLOWED USER ROLES =========================================================================== \\
@@ -1358,13 +1681,13 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_this_setting_name = AI4SEO_SETTING_ALLOWED_USER_ROLES;
         $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
         $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
-        $ai4seo_this_setting_description = esc_html__("Select user roles that should have access to this plugin. Only roles with 'edit_posts' capability are listed.", "ai-for-seo");
+        $ai4seo_this_setting_description = esc_html__("Select user roles that should have access to this plugin. Only roles with 'edit_posts' capability are listed.", 'ai-for-seo');
 
         // Display form elements
         echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
-            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                echo esc_html__("Allowed User Roles:", "ai-for-seo") ;
-            echo "</label>";
+            echo "<span class='ai4seo-form-item-label'>";
+                echo esc_html__('Allowed User Roles:', 'ai-for-seo') ;
+            echo '</span>';
 
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                 // Define variable for the selected user-roles based on plugin-settings
@@ -1385,21 +1708,21 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
                     $ai4seo_this_checkbox_id = "{$ai4seo_this_setting_input_name}-{$ai4seo_this_user_role_identifier}";
 
                     // Determine whether this role is supported
-                    $ai4seo_is_this_checkbox_checked = (in_array($ai4seo_this_user_role_identifier, $ai4seo_this_checked_values) || $ai4seo_this_user_role_identifier == "administrator");
+                    $ai4seo_is_this_checkbox_checked = (in_array($ai4seo_this_user_role_identifier, $ai4seo_this_checked_values) || $ai4seo_this_user_role_identifier == 'administrator');
 
                     echo "<label for='" . esc_attr($ai4seo_this_checkbox_id) . "' class='ai4seo-form-multiple-inputs'>";
-                        echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "[]' value='" . esc_attr($ai4seo_this_user_role_identifier) . "'" . ($ai4seo_is_this_checkbox_checked ? " checked='checked'" : "") . ($ai4seo_this_user_role_identifier == "administrator" ? " class='ai4seo-disabled-form-input' disabled='disabled'" : "") . " /> ";
+                        echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_checkbox_id) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "[]' value='" . esc_attr($ai4seo_this_user_role_identifier) . "'" . ($ai4seo_is_this_checkbox_checked ? " checked='checked'" : '') . ($ai4seo_this_user_role_identifier == 'administrator' ? " class='ai4seo-disabled-form-input' disabled='disabled'" : '') . ' /> ';
                         echo esc_html($ai4seo_this_user_role);
-                        echo "<br>";
-                    echo "</label>";
+                        echo '<br>';
+                    echo '</label>';
                 }
 
                 echo "<p class='ai4seo-form-item-description'>";
                     ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
-    echo "</div>";
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
+    echo '</div>';
 
 
     // ___________________________________________________________________________________________ \\
@@ -1408,10 +1731,10 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
     echo "<div class='card ai4seo-form-section ai4seo-is-advanced-setting'>";
         // Headline
-        echo "<h2>";
+        echo '<h2>';
             echo '<i class="dashicons dashicons-sos ai4seo-menu-item-icon"></i>';
-            echo esc_html__("Troubleshooting & Experimental", "ai-for-seo");
-        echo "</h2>";
+            echo esc_html__('Troubleshooting & Experimental', 'ai-for-seo');
+        echo '</h2>';
 
 
         // === BULK GENERATION DURATION ================================================================================= \\
@@ -1419,46 +1742,46 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_this_setting_name = AI4SEO_SETTING_BULK_GENERATION_DURATION;
         $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
         $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
-        $ai4seo_this_setting_description = "";
+        $ai4seo_this_setting_description = '';
 
         if (ai4seo_is_wordpress_cron_disabled()) {
-            $ai4seo_this_setting_description = __("Set duration to match your cron job frequency. Best performance: server cron every minute with 1-minute duration.", "ai-for-seo");
+            $ai4seo_this_setting_description = __('Set duration to match your cron job frequency. Best performance: server cron every minute with 1-minute duration.', 'ai-for-seo');
         } else {
-            $ai4seo_this_setting_description = "<strong>" . __("Attention:", "ai-for-seo") . "</strong> ";
-            $ai4seo_this_setting_description .= __("WordPress cron is enabled, which may limit SEO Autopilot efficiency. Recommend setting up server cron (every minute) or gradually increase duration.", "ai-for-seo");
+            $ai4seo_this_setting_description = '<strong>' . __('Attention:', 'ai-for-seo') . '</strong> ';
+            $ai4seo_this_setting_description .= __('WordPress cron is enabled, which may limit SEO Autopilot efficiency. Recommend setting up server cron (every minute) or gradually increase duration.', 'ai-for-seo');
         }
 
-        $ai4seo_this_setting_description .= "<br /><br />";
-        $ai4seo_this_setting_description .= __("Reduce duration if server experiences performance issues during bulk generation.", "ai-for-seo");
+        $ai4seo_this_setting_description .= '<br /><br />';
+        $ai4seo_this_setting_description .= __('Reduce duration if server experiences performance issues during bulk generation.', 'ai-for-seo');
 
         echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
-            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>" . esc_html__("SEO Autopilot (Bulk Generation) Duration", "ai-for-seo") . ":</label>";
+            echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>" . esc_html__('SEO Autopilot (Bulk Generation) Duration', 'ai-for-seo') . ':</label>';
 
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                 // Bulk generation duration  select field, containing 10, 20, 30, 40, 50, 60, 120, 180, 240 and 300
                 echo "<select class='ai4seo-editor-select' id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' value='" . esc_attr($ai4seo_this_setting_input_value) . "'>";
                     for ($ai4seo_this_duration = 10; $ai4seo_this_duration <= 50; $ai4seo_this_duration += 10) {
-                        echo "<option value='" . esc_attr($ai4seo_this_duration) . "' " . selected($ai4seo_this_setting_input_value, $ai4seo_this_duration, false) . ">" . sprintf(
+                        echo "<option value='" . esc_attr($ai4seo_this_duration) . "' " . selected($ai4seo_this_setting_input_value, $ai4seo_this_duration, false) . '>' . sprintf(
                             /* translators: %s: number of seconds */
-                            esc_html__("%s seconds", "ai-for-seo"),
-                            esc_html(number_format_i18n($ai4seo_this_duration))
-                        ) . "</option>";
+                            esc_html__('%s seconds', 'ai-for-seo'),
+                            esc_html(ai4seo_format_number_i18n($ai4seo_this_duration))
+                        ) . '</option>';
                     }
                     for ($ai4seo_this_duration = 60; $ai4seo_this_duration <= 300; $ai4seo_this_duration += 60) {
-                        echo "<option value='" . esc_attr($ai4seo_this_duration) . "' " . selected($ai4seo_this_setting_input_value, $ai4seo_this_duration, false) . ">" . sprintf(
+                        echo "<option value='" . esc_attr($ai4seo_this_duration) . "' " . selected($ai4seo_this_setting_input_value, $ai4seo_this_duration, false) . '>' . sprintf(
                             /* translators: %s: number of minutes */
-                            esc_html(_n("%s minute", "%s minutes", ($ai4seo_this_duration / 60), "ai-for-seo")),
-                            esc_html(number_format_i18n($ai4seo_this_duration / 60))
-                        ) . "</option>";
+                            esc_html(_n('%s minute', '%s minutes', ($ai4seo_this_duration / 60), 'ai-for-seo')),
+                            esc_html(ai4seo_format_number_i18n($ai4seo_this_duration / 60))
+                        ) . '</option>';
                     }
-                echo "</select>";
+                echo '</select>';
                 echo "<div class='ai4seo-medium-gap'></div>";
 
                 echo "<p class='ai4seo-form-item-description'>";
                     ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
 
         // Divider
         echo "<hr class='ai4seo-form-item-divider ai4seo-is-advanced-setting'>";
@@ -1469,26 +1792,26 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_this_setting_name = AI4SEO_SETTING_ENABLE_FRONTEND_CACHE_PURGE;
         $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
         $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
-        $ai4seo_this_setting_description = __("Trigger a best-effort frontend cache purge (LiteSpeed, WP Rocket, W3 Total Cache, WP Super Cache, SiteGround Optimizer, Cache Enabler) after metadata updates.", "ai-for-seo");
-        $ai4seo_this_setting_description .= "<br><br>" . __("Keep disabled unless you need automatic cache purging for your setup. Default remains off for safer debugging.", "ai-for-seo");
+        $ai4seo_this_setting_description = __('Trigger a best-effort frontend cache purge (LiteSpeed, WP Rocket, W3 Total Cache, WP Super Cache, SiteGround Optimizer, Cache Enabler) after metadata updates.', 'ai-for-seo');
+        $ai4seo_this_setting_description .= '<br><br>' . __('Keep disabled unless you need automatic cache purging for your setup. Default remains off for safer debugging.', 'ai-for-seo');
 
         echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
             echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                echo esc_html__("Frontend Cache Purge:", "ai-for-seo");
-            echo "</label>";
+                echo esc_html__('Frontend Cache Purge:', 'ai-for-seo');
+            echo '</label>';
 
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                 echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' value='1' class='ai4seo-single-checkbox'" . ($ai4seo_this_setting_input_value ? " checked='checked'" : "") . " /> ";
-                echo esc_html__("Purge caches after saving metadata", "ai-for-seo");
-                echo "<br>";
-                echo "</label>";
+                echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' value='1' class='ai4seo-single-checkbox'" . ($ai4seo_this_setting_input_value ? " checked='checked'" : '') . ' /> ';
+                echo esc_html__('Purge caches after saving metadata', 'ai-for-seo');
+                echo '<br>';
+                echo '</label>';
 
                 echo "<p class='ai4seo-form-item-description'>";
                     ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
 
         // Divider
         echo "<hr class='ai4seo-form-item-divider ai4seo-is-advanced-setting'>";
@@ -1512,10 +1835,10 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
             $ai4seo_this_setting_input_value = false;
         }
 
-        $ai4seo_this_setting_description = "";
+        $ai4seo_this_setting_description = '';
 
         if (!$ai4seo_is_deep_context_search_supported) {
-            $ai4seo_this_setting_description .= "<strong>" . esc_html__("Note:", "ai-for-seo") . "</strong> ";
+            $ai4seo_this_setting_description .= '<strong>' . esc_html__('Note:', 'ai-for-seo') . '</strong> ';
 
             if ($ai4seo_are_deep_context_search_counts_unavailable) {
                 $ai4seo_this_setting_description .= esc_html__('We could not verify the current database size, so this function is unavailable for safety.', 'ai-for-seo');
@@ -1523,34 +1846,34 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
                 $ai4seo_this_setting_description .= sprintf(
                 /* translators: 1: posts table entry limit, 2: postmeta table entry limit. */
                     esc_html__('We currently do not support this function for large websites. It is unavailable when the posts table has at least %1$s entries or the postmeta table has at least %2$s entries.', 'ai-for-seo'),
-                    esc_html(number_format_i18n(AI4SEO_LARGE_SITE_POSTS_THRESHOLD)),
-                    esc_html(number_format_i18n(AI4SEO_DEEP_CONTEXT_SEARCH_POSTMETA_THRESHOLD))
+                    esc_html(ai4seo_format_number_i18n(AI4SEO_LARGE_SITE_POSTS_THRESHOLD)),
+                    esc_html(ai4seo_format_number_i18n(AI4SEO_DEEP_CONTEXT_SEARCH_POSTMETA_THRESHOLD))
                 );
             }
 
-            $ai4seo_this_setting_description .= "<br><br>";
+            $ai4seo_this_setting_description .= '<br><br>';
         }
 
-        $ai4seo_this_setting_description .= esc_html__("Enable this option to allow deeper database searches to determine the usage context of images. This can improve the relevance of generated image metadata, especially when context is missing.", "ai-for-seo");
-        $ai4seo_this_setting_description .= "<br><br>" . esc_html__("On large websites, these extended searches may increase database load during generation. Use this setting if many images lack context and you are comfortable with potential performance impact while content is being processed.", "ai-for-seo");
+        $ai4seo_this_setting_description .= esc_html__('Enable this option to allow deeper database searches to determine the usage context of images. This can improve the relevance of generated image metadata, especially when context is missing.', 'ai-for-seo');
+        $ai4seo_this_setting_description .= '<br><br>' . esc_html__('On large websites, these extended searches may increase database load during generation. Use this setting if many images lack context and you are comfortable with potential performance impact while content is being processed.', 'ai-for-seo');
 
         echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
             echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                echo esc_html__("Deep Search for Image Usage:", "ai-for-seo");
-            echo "</label>";
+                echo esc_html__('Deep Search for Image Usage:', 'ai-for-seo');
+            echo '</label>';
 
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                 echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' value='1' class='ai4seo-single-checkbox'" . ($ai4seo_this_setting_input_value ? " checked='checked'" : "") . ($ai4seo_is_deep_context_search_supported ? "" : " disabled='disabled'") . " /> ";
-                echo esc_html__("Allow deep search for image usage (experimental)", "ai-for-seo");
-                echo "<br>";
-                echo "</label>";
+                echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' value='1' class='ai4seo-single-checkbox'" . ($ai4seo_this_setting_input_value ? " checked='checked'" : '') . ($ai4seo_is_deep_context_search_supported ? '' : " disabled='disabled'") . ' /> ';
+                echo esc_html__('Allow deep search for image usage (experimental)', 'ai-for-seo');
+                echo '<br>';
+                echo '</label>';
 
                 echo "<p class='ai4seo-form-item-description'>";
                     ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
 
 
         // === AI4SEO_SETTING_ENABLE_RENDER_LEVEL_ALT_TEXT_INJECTION ========================================================== \\
@@ -1558,8 +1881,8 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_this_setting_name = AI4SEO_SETTING_ENABLE_RENDER_LEVEL_ALT_TEXT_INJECTION;
         $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
         $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
-        $ai4seo_this_setting_description = __("Inject alt text at render time and dynamically via JavaScript so images always include the correct alt text, even when themes or page builders omit it.", "ai-for-seo");
-        $ai4seo_this_setting_description .= "<br><br>" . __("Enable this setting if your theme or page builder does not display alt text generated by the plugin (or omits alt text entirely).", "ai-for-seo");
+        $ai4seo_this_setting_description = __('Inject alt text at render time and dynamically via JavaScript so images always include the correct alt text, even when themes or page builders omit it.', 'ai-for-seo');
+        $ai4seo_this_setting_description .= '<br><br>' . __('Enable this setting if your theme or page builder does not display alt text generated by the plugin (or omits alt text entirely).', 'ai-for-seo');
 
         // Divider
         echo "<hr class='ai4seo-form-item-divider ai4seo-is-advanced-setting'>";
@@ -1567,22 +1890,22 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         // Display form elements
         echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
             echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-            echo esc_html__("Alt Text Injection:", "ai-for-seo") ;
+            echo esc_html__('Alt Text Injection:', 'ai-for-seo') ;
 
-            echo "</label>";
+            echo '</label>';
 
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                     echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' value='1' class='ai4seo-single-checkbox ai4seo-alt-text-injection-toggle'" . ($ai4seo_this_setting_input_value ? " checked='checked'" : "") . "/> ";
-                    echo esc_html__("Inject alt text (experimental)", "ai-for-seo");
-                    echo "<br>";
-                    echo "</label>";
+                    echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' value='1' class='ai4seo-single-checkbox ai4seo-alt-text-injection-toggle'" . ($ai4seo_this_setting_input_value ? " checked='checked'" : '') . '/> ';
+                    echo esc_html__('Inject alt text (experimental)', 'ai-for-seo');
+                    echo '<br>';
+                    echo '</label>';
 
                 echo "<p class='ai4seo-form-item-description'>";
                     ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
 
         $ai4seo_alt_injection_enabled = (bool) $ai4seo_this_setting_input_value;
 
@@ -1592,26 +1915,26 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_this_setting_name = AI4SEO_SETTING_ENABLE_JS_ALT_TEXT_INJECTION;
         $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
         $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
-        $ai4seo_this_setting_description = __("Load a JavaScript fallback that injects alt text on the frontend after the page loads. Disable if another script handles this or if only server-side injection should be used. Attention: Can cause slower page loads on some setups.", "ai-for-seo");
+        $ai4seo_this_setting_description = __('Load a JavaScript fallback that injects alt text on the frontend after the page loads. Disable if another script handles this or if only server-side injection should be used. Attention: Can cause slower page loads on some setups.', 'ai-for-seo');
 
         $ai4seo_potential_js_alt_text_setting_hidden_class = $ai4seo_alt_injection_enabled ? '' : ' ai4seo-js-alt-text-setting-hidden';
 
         echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting" . esc_attr($ai4seo_potential_js_alt_text_setting_hidden_class) . "' id='ai4seo-js-alt-text-injection-setting'>";
             echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-            echo "</label>";
+            echo '</label>';
 
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                 echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-                echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' value='1' class='ai4seo-single-checkbox'" . ($ai4seo_this_setting_input_value ? " checked='checked'" : "") . "/> ";
-                echo esc_html__("Inject alt text with JavaScript (experimental)", "ai-for-seo");
-                echo "<br>";
-                echo "</label>";
+                echo "<input type='checkbox' id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "' value='1' class='ai4seo-single-checkbox'" . ($ai4seo_this_setting_input_value ? " checked='checked'" : '') . '/> ';
+                echo esc_html__('Inject alt text with JavaScript (experimental)', 'ai-for-seo');
+                echo '<br>';
+                echo '</label>';
 
                 echo "<p class='ai4seo-form-item-description'>";
                     ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
 
 
         // === AI4SEO_SETTING_ENABLE_RENDER_LEVEL_IMAGE_TITLE_INJECTION ============================================= \\
@@ -1619,7 +1942,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_this_setting_name = AI4SEO_SETTING_IMAGE_TITLE_INJECTION_MODE;
         $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
         $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
-        $ai4seo_this_setting_description = __("Choose what to inject as the title attribute of image elements. Provides hover information for images.", "ai-for-seo");
+        $ai4seo_this_setting_description = __('Choose what to inject as the title attribute of image elements. Provides hover information for images.', 'ai-for-seo');
 
         // Divider
         echo "<hr class='ai4seo-form-item-divider ai4seo-is-advanced-setting'>";
@@ -1627,8 +1950,8 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         // Display form elements
         echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
             echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-            echo esc_html__("Image Title Injection:", "ai-for-seo") ;
-            echo "</label>";
+            echo esc_html__('Image Title Injection:', 'ai-for-seo') ;
+            echo '</label>';
 
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                 $ai4seo_title_injection_options = ai4seo_get_setting_render_level_title_injection_allowed_values();
@@ -1640,13 +1963,13 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
                         esc_html( $ai4seo_option_label ) .
                         '</option>';
                 }
-                echo "</select>";
+                echo '</select>';
 
                 echo "<p class='ai4seo-form-item-description'>";
                     ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
 
 
         // === AI4SEO_SETTING_QUERY_IDS_CHUNK_SIZE ===================================================== \
@@ -1654,16 +1977,16 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_this_setting_name = AI4SEO_SETTING_QUERY_IDS_CHUNK_SIZE;
         $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
         $ai4seo_this_setting_input_value = (int) ai4seo_get_setting($ai4seo_this_setting_name);
-        $ai4seo_this_setting_description = __("Controls how many IDs are grouped per database query when processing large batches.", "ai-for-seo");
-        $ai4seo_this_setting_description .= "<br><br>" . __("Depending on your MySQL configuration, lowering this value can help resolve query or packet size issues. Higher values can improve performance when your MySQL limits allow larger queries.", "ai-for-seo");
+        $ai4seo_this_setting_description = __('Controls how many IDs are grouped per database query when processing large batches.', 'ai-for-seo');
+        $ai4seo_this_setting_description .= '<br><br>' . __('Depending on your MySQL configuration, lowering this value can help resolve query or packet size issues. Higher values can improve performance when your MySQL limits allow larger queries.', 'ai-for-seo');
 
         // Divider
         echo "<hr class='ai4seo-form-item-divider ai4seo-is-advanced-setting'>";
 
         echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
             echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-            echo esc_html__("Query IDs Chunk Size:", "ai-for-seo");
-            echo "</label>";
+            echo esc_html__('Query IDs Chunk Size:', 'ai-for-seo');
+            echo '</label>';
 
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                 $ai4seo_query_ids_chunk_size_options = ai4seo_get_query_ids_chunk_size_options();
@@ -1676,13 +1999,13 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
                     foreach ($ai4seo_query_ids_chunk_size_options as $ai4seo_option_value => $ai4seo_option_label) {
                         echo '<option value="' . esc_attr($ai4seo_option_value) . '" ' . selected($ai4seo_option_value, $ai4seo_this_setting_input_value, false) . '>' . esc_html($ai4seo_option_label) . '</option>';
                     }
-                echo "</select>";
+                echo '</select>';
 
                 echo "<p class='ai4seo-form-item-description'>";
                     ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
 
 
         // === AI4SEO_SETTING_IMAGE_UPLOAD_METHOD ============================== \\
@@ -1690,9 +2013,9 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         $ai4seo_this_setting_name = AI4SEO_SETTING_IMAGE_UPLOAD_METHOD;
         $ai4seo_this_setting_input_name = ai4seo_get_prefixed_input_name($ai4seo_this_setting_name);
         $ai4seo_this_setting_input_value = ai4seo_get_setting($ai4seo_this_setting_name);
-        $ai4seo_this_setting_description = __("Choose how images are sent to our server: <strong>Auto (recommended)</strong>: Selects method based on accessibility. <strong>URL</strong>: Always sends image URL. <strong>Data</strong>: Always sends full image data.", "ai-for-seo");
-        $ai4seo_this_setting_description .= "<br><br>";
-        $ai4seo_this_setting_description .= __("Try 'Data' if you experience generation issues. Slower but more reliable in some situations.", "ai-for-seo");
+        $ai4seo_this_setting_description = __('Choose how images are sent to our server: <strong>Auto (recommended)</strong>: Selects method based on accessibility. <strong>URL</strong>: Always sends image URL. <strong>Data</strong>: Always sends full image data.', 'ai-for-seo');
+        $ai4seo_this_setting_description .= '<br><br>';
+        $ai4seo_this_setting_description .= __("Try 'Data' if you experience generation issues. Slower but more reliable in some situations.", 'ai-for-seo');
 
         // Divider
         echo "<hr class='ai4seo-form-item-divider ai4seo-is-advanced-setting'>";
@@ -1700,14 +2023,14 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
         // Display form elements
         echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
             echo "<label for='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
-            echo esc_html__("Image Upload Method:", "ai-for-seo") ;
-            echo "</label>";
+            echo esc_html__('Image Upload Method:', 'ai-for-seo') ;
+            echo '</label>';
 
             echo "<div class='ai4seo-form-item-input-wrapper'>";
                 $ai4seo_image_upload_method_options = array(
-                    "auto" => __("Auto (default & recommended)", "ai-for-seo"),
-                    "url" => __("URL", "ai-for-seo"),
-                    "base64" => __("Data", "ai-for-seo")
+                    'auto' => __('Auto (default & recommended)', 'ai-for-seo'),
+                    'url' => __('URL', 'ai-for-seo'),
+                    'base64' => __('Data', 'ai-for-seo')
                 );
 
                 echo "<select id='" . esc_attr($ai4seo_this_setting_input_name) . "' name='" . esc_attr($ai4seo_this_setting_input_name) . "'>";
@@ -1717,19 +2040,19 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
                         esc_html( $ai4seo_option_label ) .
                         '</option>';
                 }
-                echo "</select>";
+                echo '</select>';
 
                 echo "<p class='ai4seo-form-item-description'>";
                     ai4seo_echo_wp_kses($ai4seo_this_setting_description);
-                echo "</p>";
-            echo "</div>";
-        echo "</div>";
-    echo "</div>";
+                echo '</p>';
+            echo '</div>';
+        echo '</div>';
+    echo '</div>';
 
     // Submit button
     echo "<div class='ai4seo-sticky-buttons-bar'>";
         echo "<div class='ai4seo-buttons-wrapper'>";
-            ai4seo_echo_wp_kses(ai4seo_get_submit_button_tag(esc_html__("Save changes", "ai-for-seo"), "ai4seo-start-inactive ai4seo-big-button ai4seo-save-settings-button", "ai4seo_save_anything(jQuery(this), ai4seo_validate_settings_inputs);"));
-        echo "</div>";
-    echo "</div>";
-echo "</div>";
+            ai4seo_echo_wp_kses(ai4seo_get_submit_button_tag(esc_html__('Save changes', 'ai-for-seo'), 'ai4seo-start-inactive ai4seo-big-button ai4seo-save-settings-button', 'ai4seo_save_anything(jQuery(this), ai4seo_validate_settings_inputs);'));
+        echo '</div>';
+    echo '</div>';
+echo '</div>';

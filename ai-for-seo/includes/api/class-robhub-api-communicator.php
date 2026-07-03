@@ -5,24 +5,24 @@
  * @since 1.0
  */
 
-if (!defined("ABSPATH")) {
+if (!defined('ABSPATH')) {
     exit;
 }
 
 class Ai4Seo_RobHubApiCommunicator {
     public bool $is_initialized = false;
-    private string $version = "v1";
-    private string $api_url = "https://api.robhub.ai";
-    private string $api_username = "";
-    private string $api_password = "";
-    private string $public_get_free_account_api_password = "_get-free-account-with-some-credits-to-play-with";
-    private string $public_client_operations_api_password = "_this-secret-can-be-used-when-no-client-id-isset";
-    private string $product = "robhub";
-    private string $product_version = "0.0.0";
+    private string $version = 'v1';
+    private string $api_url = 'https://api.robhub.ai';
+    private string $api_username = '';
+    private string $api_password = '';
+    private string $public_get_free_account_api_password = '_get-free-account-with-some-credits-to-play-with';
+    private string $public_client_operations_api_password = '_this-secret-can-be-used-when-no-client-id-isset';
+    private string $product = 'robhub';
+    private string $product_version = '0.0.0';
     private int $min_credits_balance = 1; # todo: will be replaced by the users settings based on the quality of the ai generations
     private bool $does_user_need_to_accept_tos_toc_and_pp = false;
     private bool $is_local_api_enabled = false;
-    private string $local_api_url = "http://localhost";
+    private string $local_api_url = 'http://localhost';
     public int $product_activation_time = 0;
     public const ACCOUNT_SYNC_INTERVAL = 3600; // 1 hour in seconds
     public const BACKGROUND_ACCOUNT_SYNC_INTERVAL = 86400; // 24 hours in seconds
@@ -42,7 +42,12 @@ class Ai4Seo_RobHubApiCommunicator {
         218101024, # blocked from using the service
         3204525, # cloudflare challenge detected
         311014824, # file not accessible at given URL
+        391014824, # attachment URL content is empty or invalid
         71214326, # file too large
+        5810211026, # RobHub API runtime configuration error: PHP cURL unavailable
+        5910211026, # RobHub API server-side runtime error
+        571716925, # could not send email (send-licence-data)
+        581317325, # payg_stripe_price_id parameter is invalid
     );
 
     public array $invalidate_auth_data_error_codes = array(
@@ -73,6 +78,8 @@ class Ai4Seo_RobHubApiCommunicator {
         361823824, # api call did not return consumed credits
         371823824, # api call did not return new credits balance
         571716925, # could not send email (send-licence-data)
+        5810211026, # RobHub API runtime configuration error: PHP cURL unavailable
+        5910211026, # RobHub API server-side runtime error
     );
 
     private int $max_api_payload_size_bytes = 2097152; // 2 MB
@@ -83,41 +90,41 @@ class Ai4Seo_RobHubApiCommunicator {
     private bool $show_more_detailed_debug_messages = false; // set to true to enable debug logging for api calls
 
     private array $endpoint_lock_durations = array( # in seconds
-        "ai4seo/generate-all-metadata" => 1,
-        "ai4seo/generate-all-attachment-attributes" => 1,
-        "client/get-free-account" => 5,
-        "client/accept-terms" => 60,
-        "client/reject-terms" => 60,
-        "client/product-deactivated" => 60,
-        "client/product-updated" => 60,
-        "client/changed-api-user" => 5,
-        "client/payg-settings" => 5,
-        "client/init-purchase" => 5,
-        "client/send-licence-data" => 61,
-        "client/feedback" => 5,
+        'ai4seo/generate-all-metadata' => 1,
+        'ai4seo/generate-all-attachment-attributes' => 1,
+        'client/get-free-account' => 5,
+        'client/accept-terms' => 60,
+        'client/reject-terms' => 60,
+        'client/product-deactivated' => 60,
+        'client/product-updated' => 60,
+        'client/changed-api-user' => 5,
+        'client/payg-settings' => 5,
+        'client/init-purchase' => 5,
+        'client/send-licence-data' => 61,
+        'client/feedback' => 5,
     );
 
     private array $recent_endpoint_responses = array();
 
     // === ENVIRONMENTAL VARIABLES ================================================================================= \\
 
-    public string $environmental_variables_option_name = "robhub_environmental_variables";
+    public string $environmental_variables_option_name = 'robhub_environmental_variables';
 
-    public const ENVIRONMENTAL_VARIABLE_DEPRECATED_API_AUTH_DATA = "auth_data";
-    public const ENVIRONMENTAL_VARIABLE_API_USERNAME = "api_username";
-    public const ENVIRONMENTAL_VARIABLE_API_PASSWORD = "api_password";
-    public const ENVIRONMENTAL_VARIABLE_CREDITS_BALANCE = "credits_balance";
-    public const ENVIRONMENTAL_VARIABLE_NEXT_FREE_CREDITS_TIMESTAMP = "next_free_credits";
-    public const ENVIRONMENTAL_VARIABLE_SUBSCRIPTION = "subscription";
-    public const ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC = "last_account_sync";
-    public const ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED = "is_account_synced";
-    public const ENVIRONMENTAL_VARIABLE_IS_AUTH_LOCKED = "is_auth_locked";
-    public const ENVIRONMENTAL_VARIABLE_GROUP = "group";
+    public const ENVIRONMENTAL_VARIABLE_DEPRECATED_API_AUTH_DATA = 'auth_data';
+    public const ENVIRONMENTAL_VARIABLE_API_USERNAME = 'api_username';
+    public const ENVIRONMENTAL_VARIABLE_API_PASSWORD = 'api_password';
+    public const ENVIRONMENTAL_VARIABLE_CREDITS_BALANCE = 'credits_balance';
+    public const ENVIRONMENTAL_VARIABLE_NEXT_FREE_CREDITS_TIMESTAMP = 'next_free_credits';
+    public const ENVIRONMENTAL_VARIABLE_SUBSCRIPTION = 'subscription';
+    public const ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC = 'last_account_sync';
+    public const ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED = 'is_account_synced';
+    public const ENVIRONMENTAL_VARIABLE_IS_AUTH_LOCKED = 'is_auth_locked';
+    public const ENVIRONMENTAL_VARIABLE_GROUP = 'group';
 
     public const DEFAULT_ENVIRONMENTAL_VARIABLES = array(
         self::ENVIRONMENTAL_VARIABLE_DEPRECATED_API_AUTH_DATA => array(),
-        self::ENVIRONMENTAL_VARIABLE_API_USERNAME => "",
-        self::ENVIRONMENTAL_VARIABLE_API_PASSWORD => "",
+        self::ENVIRONMENTAL_VARIABLE_API_USERNAME => '',
+        self::ENVIRONMENTAL_VARIABLE_API_PASSWORD => '',
         self::ENVIRONMENTAL_VARIABLE_CREDITS_BALANCE => 0,
         self::ENVIRONMENTAL_VARIABLE_NEXT_FREE_CREDITS_TIMESTAMP => 0,
         self::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION => array(),
@@ -130,48 +137,48 @@ class Ai4Seo_RobHubApiCommunicator {
 
     // all allowed endpoints / whitelist
     private array $allowed_endpoints = array(
-        "ai4seo/generate-all-metadata",
-        "ai4seo/generate-all-attachment-attributes",
+        'ai4seo/generate-all-metadata',
+        'ai4seo/generate-all-attachment-attributes',
 
-        "client/get-free-account",
-        "client/sync",
-        "client/accept-terms",
-        "client/reject-terms",
-        "client/product-deactivated",
-        "client/product-updated",
-        "client/changed-api-user",
-        "client/payg-settings",
-        "client/init-purchase",
-        "client/send-licence-data",
-        "client/feedback",
+        'client/get-free-account',
+        'client/sync',
+        'client/accept-terms',
+        'client/reject-terms',
+        'client/product-deactivated',
+        'client/product-updated',
+        'client/changed-api-user',
+        'client/payg-settings',
+        'client/init-purchase',
+        'client/send-licence-data',
+        'client/feedback',
     );
 
     // endpoints that are used to generate output
     private array $generation_endpoints = array(
-        "ai4seo/generate-all-metadata",
-        "ai4seo/generate-all-attachment-attributes",
+        'ai4seo/generate-all-metadata',
+        'ai4seo/generate-all-attachment-attributes',
     );
 
     // endpoints that do not cost Credits and therefor a Credits check is not necessary among other things
     private array $free_endpoints = array(
-        "client/get-free-account",
-        "client/sync",
-        "client/accept-terms",
-        "client/reject-terms",
-        "client/product-deactivated",
-        "client/product-updated",
-        "client/changed-api-user",
-        "client/payg-settings",
-        "client/init-purchase",
-        "client/send-licence-data",
-        "client/feedback",
+        'client/get-free-account',
+        'client/sync',
+        'client/accept-terms',
+        'client/reject-terms',
+        'client/product-deactivated',
+        'client/product-updated',
+        'client/changed-api-user',
+        'client/payg-settings',
+        'client/init-purchase',
+        'client/send-licence-data',
+        'client/feedback',
     );
 
     // these endpoints can be used without the user having to accept the terms of service, terms of conditions and privacy policy first
     # note: tos is currently disabled
     private array $no_need_to_accept_tos_endpoints = array(
-        "client/reject-terms",
-        "client/product-deactivated",
+        'client/reject-terms',
+        'client/product-deactivated',
     );
     private array $html_value_paths = array();
 
@@ -344,7 +351,7 @@ class Ai4Seo_RobHubApiCommunicator {
      */
     function call( string $endpoint, array $parameters = array(), string $request_method = 'POST', bool $fallback_to_public_client_operation_credentials = false ) {
         if ($this->is_auth_data_locked() && !$fallback_to_public_client_operation_credentials) {
-            return $this->respond_error("Authentication data is locked due to previous errors. Please update your API credentials to unlock.", 581715426);
+            return $this->respond_error('Authentication data is locked due to previous errors. Please update your API credentials to unlock.', 581715426);
         }
 
         $api_call_checksum = $this->prepare_call( $endpoint, $parameters, $request_method, $fallback_to_public_client_operation_credentials );
@@ -393,7 +400,7 @@ class Ai4Seo_RobHubApiCommunicator {
                 $raw_response = wp_safe_remote_request( $api_url, $api_arguments );
 
                 // check and normalize response
-                $raw_response = $this->check_raw_response( $raw_response, $api_url );
+                $raw_response = $this->check_raw_response( $raw_response, $api_url, $endpoint );
                 $normalized_response = $this->normalize_response($raw_response, $endpoint);
 
             } catch ( TypeError $e ) {
@@ -416,8 +423,8 @@ class Ai4Seo_RobHubApiCommunicator {
                 $this->recent_endpoint_responses[ $api_call_checksum ] = $normalized_response;
 
                 // update new credits balance
-                if (isset($normalized_response["new-credits-balance"]) && is_numeric($normalized_response["new-credits-balance"])) {
-                    $this->update_environmental_variable(self::ENVIRONMENTAL_VARIABLE_CREDITS_BALANCE, $normalized_response["new-credits-balance"]);
+                if (isset($normalized_response['new-credits-balance']) && is_numeric($normalized_response['new-credits-balance'])) {
+                    $this->update_environmental_variable(self::ENVIRONMENTAL_VARIABLE_CREDITS_BALANCE, $normalized_response['new-credits-balance']);
                 }
 
                 return $normalized_response;
@@ -485,13 +492,13 @@ class Ai4Seo_RobHubApiCommunicator {
         // except for the endpoints in no_need_to_accept_tos_endpoints
         if ($this->does_user_need_to_accept_tos_toc_and_pp && !in_array($endpoint, $this->no_need_to_accept_tos_endpoints)) {
             ai4seo_debug_message(385474374, 'User did not accept Terms of Service, Terms of Conditions and Privacy Policy. Endpoint: ' . $endpoint);
-            return $this->respond_error("Terms of Service have to be accepted first.", 2411301024);
+            return $this->respond_error('Terms of Service have to be accepted first.', 2411301024);
         }
 
         // check if we already have a response for this endpoint and parameters
         $api_call_checksum = $this->get_api_call_checksum($endpoint, $parameters, $request_method);
         $api_call_endpoint_checksum = $this->get_api_call_endpoint_checksum($endpoint);
-        $transient_name = "robhub_api_lock_" . $api_call_endpoint_checksum;
+        $transient_name = 'robhub_api_lock_' . $api_call_endpoint_checksum;
 
         if (isset($this->recent_endpoint_responses[$api_call_checksum])) {
             if ($this->show_more_detailed_debug_messages) {
@@ -507,32 +514,32 @@ class Ai4Seo_RobHubApiCommunicator {
             $last_api_call_checksum = get_transient($transient_name);
 
             if ($last_api_call_checksum == $api_call_checksum) {
-                ai4seo_debug_message(116644117, "Endpoint " . $endpoint . " is locked for " . $endpoint_lock_duration . " seconds. Last API call checksum: " . $last_api_call_checksum);
-                return $this->respond_error("This endpoint is still locked for " . $endpoint_lock_duration . " seconds.", 521561224);
+                ai4seo_debug_message(116644117, 'Endpoint ' . $endpoint . ' is locked for ' . $endpoint_lock_duration . ' seconds. Last API call checksum: ' . $last_api_call_checksum);
+                return $this->respond_error('This endpoint is still locked for ' . $endpoint_lock_duration . ' seconds.', 521561224);
             }
         }
 
         // check if endpoint is allowed
         if (!$this->is_endpoint_allowed($endpoint)) {
-            ai4seo_debug_message(919071686, "Endpoint " . $endpoint . " is not allowed. Allowed endpoints: " . implode(", ", $this->allowed_endpoints), true);
-            return $this->respond_error("Endpoint " . $endpoint . " is not allowed.", 201313823);
+            ai4seo_debug_message(919071686, 'Endpoint ' . $endpoint . ' is not allowed. Allowed endpoints: ' . implode(', ', $this->allowed_endpoints), true);
+            return $this->respond_error('Endpoint ' . $endpoint . ' is not allowed.', 201313823);
         }
 
         // check request method
         $request_method = sanitize_text_field($request_method);
 
-        if (!in_array($request_method, array("GET", "POST", "PUT", "DELETE"))) {
-            ai4seo_debug_message(817248407, "Request method " . $request_method . " is not allowed for endpoint " . $endpoint . ". Allowed methods: GET, POST, PUT, DELETE.", true);
-            return $this->respond_error("Request method " . $request_method . " is not allowed.", 211313823);
+        if (!in_array($request_method, array('GET', 'POST', 'PUT', 'DELETE'))) {
+            ai4seo_debug_message(817248407, 'Request method ' . $request_method . ' is not allowed for endpoint ' . $endpoint . '. Allowed methods: GET, POST, PUT, DELETE.', true);
+            return $this->respond_error('Request method ' . $request_method . ' is not allowed.', 211313823);
         }
 
         // Public client operation fallbacks may continue without stored credentials or an unlocked auth state.
         // In that case build_api_arguments() swaps in the public credentials later in the request pipeline.
-        if (!$fallback_to_public_client_operation_credentials && !$this->check_credentials() && $endpoint !== "client/get-free-account") {
+        if (!$fallback_to_public_client_operation_credentials && !$this->check_credentials() && $endpoint !== 'client/get-free-account') {
             $api_response = $this->init_free_account();
 
             if (!$this->was_call_successful($api_response)) {
-                $api_response_error_message = $api_response['message'] ?? esc_html__("Please try to reconnect account", "ai-for-seo");
+                $api_response_error_message = $api_response['message'] ?? esc_html__('Please try to reconnect account', 'ai-for-seo');
                 return $this->respond_error("Could not initialize credentials: $api_response_error_message", 251118426);
             }
         }
@@ -542,17 +549,17 @@ class Ai4Seo_RobHubApiCommunicator {
             $credits_balance = $this->get_credits_balance();
 
             if ($credits_balance < 1) {
-                ai4seo_debug_message(746394278, "No credits left for endpoint " . $endpoint . ". Current balance: " . $credits_balance, true);
-                return $this->respond_error("No Credits left. Please get more Credits.", 1115424);
+                ai4seo_debug_message(746394278, 'No credits left for endpoint ' . $endpoint . '. Current balance: ' . $credits_balance, true);
+                return $this->respond_error('No Credits left. Please get more Credits.', 1115424);
             }
 
             // if we have the approximate cost parameter, we use this here for comparison
-            if (isset($parameters["approximate_cost"]) && is_numeric($parameters["approximate_cost"])) {
-                $approximate_cost = (int) $parameters["approximate_cost"];
+            if (isset($parameters['approximate_cost']) && is_numeric($parameters['approximate_cost'])) {
+                $approximate_cost = (int) $parameters['approximate_cost'];
 
                 if ($credits_balance < $approximate_cost) {
-                    ai4seo_debug_message(442448289, "Not enough credits to call endpoint " . $endpoint . ". Required: " . $approximate_cost . ", available: " . $credits_balance, true);
-                    return $this->respond_error("Not enough Credits left. Please get more Credits.", 1215424);
+                    ai4seo_debug_message(442448289, 'Not enough credits to call endpoint ' . $endpoint . '. Required: ' . $approximate_cost . ', available: ' . $credits_balance, true);
+                    return $this->respond_error('Not enough Credits left. Please get more Credits.', 1215424);
                 }
             }
         }
@@ -574,13 +581,13 @@ class Ai4Seo_RobHubApiCommunicator {
         }
 
         // build URL (without query string)
-        $api_url = $this->api_url . "/" . $this->version . "/" . $endpoint;
+        $api_url = $this->api_url . '/' . $this->version . '/' . $endpoint;
         $api_url = esc_url_raw($api_url);
         $api_url = filter_var($api_url, FILTER_VALIDATE_URL);
 
         if ( ! $api_url ) {
-            ai4seo_debug_message(344171208, "Invalid URL for endpoint " . $endpoint . ": " . $api_url, true);
-            return $this->respond_error( "Invalid URL", 1913111223 );
+            ai4seo_debug_message(344171208, 'Invalid URL for endpoint ' . $endpoint . ': ' . $api_url, true);
+            return $this->respond_error( 'Invalid URL', 1913111223 );
         }
 
         return $api_url;
@@ -606,7 +613,7 @@ class Ai4Seo_RobHubApiCommunicator {
         }
 
         if (!$api_username || !$api_password) {
-            return $this->respond_error("API credentials are missing. Please connect your account first.", 172125426);
+            return $this->respond_error('API credentials are missing. Please connect your account first.', 172125426);
         }
 
         // prepare headers
@@ -617,29 +624,29 @@ class Ai4Seo_RobHubApiCommunicator {
 
         // add generation_settings if available
         if (in_array($endpoint, $this->generation_endpoints)) {
-            $use_existing_metadata_as_reference = (bool) ai4seo_get_setting(AI4SEO_SETTING_USE_EXISTING_METADATA_AS_REFERENCE);
-            $use_existing_attachment_attributes_as_reference = (bool) ai4seo_get_setting(AI4SEO_SETTING_USE_EXISTING_ATTACHMENT_ATTRIBUTES_AS_REFERENCE);
-            $enable_enhanced_entity_recognition = (bool) ai4seo_get_setting(AI4SEO_SETTING_ENABLE_ENHANCED_ENTITY_RECOGNITION);
-            $enable_enhanced_celebrity_recognition = (bool) ai4seo_get_setting(AI4SEO_SETTING_ENABLE_ENHANCED_CELEBRITY_RECOGNITION);
+            // Send staged prompt controls directly; the RobHub API still accepts old booleans from older plugin versions.
+            $generation_settings = array();
 
-            $parameters["generation_settings"] = array(
-                "use_existing_metadata_as_reference" => $use_existing_metadata_as_reference,
-                "use_existing_attachment_attributes_as_reference" => $use_existing_attachment_attributes_as_reference,
-                "enable_enhanced_entity_recognition" => $enable_enhanced_entity_recognition,
-                "enable_enhanced_celebrity_recognition" => $enable_enhanced_celebrity_recognition,
-            );
+            foreach (array_keys(AI4SEO_PROMPT_SLIDER_SETTING_STAGE_COUNTS) as $this_prompt_slider_setting_name) {
+                $generation_settings[$this_prompt_slider_setting_name] = (string) ai4seo_get_setting($this_prompt_slider_setting_name);
+            }
+
+            // Celebrity recognition remains a separate plan-gated setting, not part of the prompt slider map.
+            $generation_settings['enable_enhanced_celebrity_recognition'] = (bool) ai4seo_get_setting(AI4SEO_SETTING_ENABLE_ENHANCED_CELEBRITY_RECOGNITION);
+
+            $parameters['generation_settings'] = $generation_settings;
         }
 
         // add product parameter
-        $parameters["product"] = $this->product;
-        $parameters["product_version"] = $this->product_version;
-        $parameters["credits_balance"] = $this->get_credits_balance();
+        $parameters['product'] = $this->product;
+        $parameters['product_version'] = $this->product_version;
+        $parameters['credits_balance'] = $this->get_credits_balance();
 
         // add website context
         $website_url = get_bloginfo('url');
 
         if ($website_url) {
-            $parameters["website_url"] = $website_url;
+            $parameters['website_url'] = $website_url;
         }
 
         // sanitize and encode parameters
@@ -659,7 +666,7 @@ class Ai4Seo_RobHubApiCommunicator {
         );
 
         if ($this->show_more_detailed_debug_messages) {
-            ai4seo_debug_message(923566643, "API arguments for endpoint: " . ai4seo_stringify( $api_arguments));
+            ai4seo_debug_message(923566643, 'API arguments for endpoint: ' . ai4seo_stringify( $api_arguments));
         }
 
         return $api_arguments;
@@ -694,7 +701,7 @@ class Ai4Seo_RobHubApiCommunicator {
 
         if ( $json === false ) {
             // Malformed or unencodable data.
-            ai4seo_debug_message(205987913, "Failed to JSON encode API call parameters.", true);
+            ai4seo_debug_message(205987913, 'Failed to JSON encode API call parameters.', true);
             return false;
         }
 
@@ -752,9 +759,10 @@ class Ai4Seo_RobHubApiCommunicator {
      *
      * @param mixed  $raw_response The WP HTTP raw response.
      * @param string $api_url      The requested API URL.
+     * @param string $endpoint     The endpoint that was requested.
      * @return array               Normalized array or ai4seo error array.
      */
-    function check_raw_response($raw_response, string $api_url ): array {
+    function check_raw_response($raw_response, string $api_url, string $endpoint = '' ): array {
         // === CHECK FOR WP AND NETWORK ERRORS ================================================ \\
 
         if ( is_wp_error( $raw_response ) ) {
@@ -787,7 +795,15 @@ class Ai4Seo_RobHubApiCommunicator {
             // Do not log multi-MB bodies; log only a prefix.
             $log_snippet = is_string( $raw_response_body ) ? substr( $raw_response_body, 0, 2048 ) : '';
             ai4seo_debug_message(104498924, 'API request failed with HTTP status ' . $http_status . ' for api url ' . $api_url . '. Response (first 2KB): ' . $log_snippet, true);
-            return $this->respond_error( 'API request failed with HTTP status ' . $http_status . ' - Please check your network connection and try again.', 261823824 );
+
+            $raw_response_body = is_string( $raw_response_body ) ? $raw_response_body : '';
+            $api_error_response = $this->get_api_error_from_response_body( $raw_response_body );
+
+            if ( $api_error_response ) {
+                return $api_error_response;
+            }
+
+            return $this->get_http_status_error_response( (int) $http_status, $api_url, $raw_response_body, $endpoint );
         }
 
 
@@ -832,6 +848,80 @@ class Ai4Seo_RobHubApiCommunicator {
         }
     }
 
+    // =========================================================================================== \\
+
+    /**
+     * Return a RobHub API error object from a non-200 response body, if available.
+     *
+     * @param string $raw_response_body The raw response body.
+     * @return array                    The decoded API error response or an empty array.
+     */
+    function get_api_error_from_response_body( string $raw_response_body ): array {
+        $raw_response_body = trim( $raw_response_body );
+
+        if ( $raw_response_body === '' || ! $this->is_json( $raw_response_body ) ) {
+            return array();
+        }
+
+        $raw_response_array = json_decode( $raw_response_body, true );
+
+        if ( ! is_array( $raw_response_array ) || empty( $raw_response_array ) ) {
+            return array();
+        }
+
+        $has_error_flag = (
+            ( isset( $raw_response_array['error'] ) && ( $raw_response_array['error'] === true || $raw_response_array['error'] === 'true' ) )
+            || ( isset( $raw_response_array['success'] ) && ( $raw_response_array['success'] === false || $raw_response_array['success'] === 'false' ) )
+        );
+
+        if ( ! $has_error_flag ) {
+            return array();
+        }
+
+        return $raw_response_array;
+    }
+
+    // =========================================================================================== \\
+
+    /**
+     * Build a clearer error response for non-200 HTTP statuses.
+     *
+     * @param int    $http_status       The HTTP status returned by the API.
+     * @param string $api_url           The requested API URL.
+     * @param string $raw_response_body The raw response body.
+     * @param string $endpoint          The endpoint that was requested.
+     * @return array                    The ai4seo error response.
+     */
+    function get_http_status_error_response( int $http_status, string $api_url, string $raw_response_body, string $endpoint = '' ): array {
+        $is_generation_endpoint = in_array( $endpoint, $this->generation_endpoints, true );
+
+        if ( stripos( $raw_response_body, 'curl_init' ) !== false ) {
+            return $this->respond_error(
+                'The RobHub API could not call the AI service because a required server component is unavailable. Please try again later. Technical detail: PHP cURL is unavailable in the API environment.',
+                5810211026
+            );
+        }
+
+        if ( stripos( $raw_response_body, 'Fatal error' ) !== false || stripos( $raw_response_body, 'Uncaught Error' ) !== false ) {
+            return $this->respond_error(
+                'The RobHub API encountered a server-side runtime error and could not complete the request. Please try again later. If the issue persists, contact support.',
+                5910211026
+            );
+        }
+
+        if ( $http_status >= 500 ) {
+            $error_message = 'The RobHub API returned HTTP status ' . $http_status . '. Please try again later. If the issue persists, contact support.';
+
+            if ( $is_generation_endpoint ) {
+                $error_message = 'The RobHub API returned HTTP status ' . $http_status . ' while generating AI content. Please try again later. If the issue persists, contact support.';
+            }
+
+            return $this->respond_error( $error_message, 261823824 );
+        }
+
+        return $this->respond_error( 'API request failed with HTTP status ' . $http_status . '. Please try again later.', 261823824 );
+    }
+
 
     // =========================================================================================== \\
 
@@ -841,73 +931,73 @@ class Ai4Seo_RobHubApiCommunicator {
 
         // === CHECK SUCCESS PARAMETER ============================================================================ \\
 
-        if (isset($raw_response["success"]) && $raw_response["success"] === "true") {
-            $raw_response["success"] = true;
+        if (isset($raw_response['success']) && $raw_response['success'] === 'true') {
+            $raw_response['success'] = true;
         }
 
-        if (isset($raw_response["success"]) && $raw_response["success"] === "false") {
-            $raw_response["success"] = false;
+        if (isset($raw_response['success']) && $raw_response['success'] === 'false') {
+            $raw_response['success'] = false;
         }
 
-        if (isset($raw_response["error"]) && $raw_response["error"] === "true") {
-            $raw_response["success"] = false;
+        if (isset($raw_response['error']) && $raw_response['error'] === 'true') {
+            $raw_response['success'] = false;
         }
 
-        if (isset($raw_response["error"]) && $raw_response["error"] === "false") {
-            $raw_response["success"] = true;
+        if (isset($raw_response['error']) && $raw_response['error'] === 'false') {
+            $raw_response['success'] = true;
         }
 
-        if (isset($raw_response["error"]) && $raw_response["error"] === true) {
-            $raw_response["success"] = false;
+        if (isset($raw_response['error']) && $raw_response['error'] === true) {
+            $raw_response['success'] = false;
         }
 
 
         // === ALREADY AN RAW OR NORMALIZED ERROR -> MAKE SURE TO NORMALIZE IT PROPERLY! ========================== \\
 
-        if (!isset($raw_response["success"]) || $raw_response["success"] !== true) {
-            $raw_response["code"] = isset($raw_response["code"]) ? (int) $raw_response["code"] : 391124725;
-            $raw_response["message"] = isset($raw_response["message"]) ? sanitize_text_field($raw_response["message"]) : "API call returned an error without a message.";
-            $raw_response["message"] = "API-Error #{$raw_response["code"]}: " . $raw_response["message"];
+        if (!isset($raw_response['success']) || $raw_response['success'] !== true) {
+            $raw_response['code'] = isset($raw_response['code']) ? (int) $raw_response['code'] : 391124725;
+            $raw_response['message'] = isset($raw_response['message']) ? sanitize_text_field($raw_response['message']) : 'API call returned an error without a message.';
+            $raw_response['message'] = "API-Error #{$raw_response['code']}: " . $raw_response['message'];
 
-            return $this->respond_error($raw_response["message"], $raw_response["code"]);
+            return $this->respond_error($raw_response['message'], $raw_response['code']);
         }
 
 
         // === CHECK PAYLOAD COMPLETENESS ======================================================================== \\
 
         // check if data is set
-        if (!isset($raw_response["data"])) {
-            return $this->respond_error("API call did not return any data.", 331823824);
+        if (!isset($raw_response['data'])) {
+            return $this->respond_error('API call did not return any data.', 331823824);
         }
 
-        if (empty($raw_response["data"])) {
-            return $this->respond_error("API call did not return any data.", 341823824);
+        if (empty($raw_response['data'])) {
+            return $this->respond_error('API call did not return any data.', 341823824);
         }
 
         // check if data is an array
-        if ($this->is_json($raw_response["data"])) {
-            $raw_response["data"] = json_decode($raw_response["data"], true);
+        if ($this->is_json($raw_response['data'])) {
+            $raw_response['data'] = json_decode($raw_response['data'], true);
         }
 
         // sanitize data
-        $raw_response["data"] = $this->deep_sanitize_for_endpoint($raw_response["data"], $endpoint, 'ai4seo_wp_kses');
+        $raw_response['data'] = $this->deep_sanitize_for_endpoint($raw_response['data'], $endpoint, 'ai4seo_wp_kses');
 
-        if (empty($raw_response["data"])) {
-            return $this->respond_error("Could not decode or sanitize API call data.", 341823824);
+        if (empty($raw_response['data'])) {
+            return $this->respond_error('Could not decode or sanitize API call data.', 341823824);
         }
 
         // check if credits are set (mandatory for all calls)
-        if (!isset($raw_response["credits-consumed"])) {
-            $raw_response["credits-consumed"] = 0;
+        if (!isset($raw_response['credits-consumed'])) {
+            $raw_response['credits-consumed'] = 0;
         }
 
-        $normalized_response["success"] = (bool) $raw_response["success"];
-        $normalized_response["data"] = $raw_response["data"];
-        $normalized_response["credits-consumed"] = (int) $raw_response["credits-consumed"];
+        $normalized_response['success'] = (bool) $raw_response['success'];
+        $normalized_response['data'] = $raw_response['data'];
+        $normalized_response['credits-consumed'] = (int) $raw_response['credits-consumed'];
 
         // check if new credits balance is set (mandatory for all calls)
-        if (isset($raw_response["new-credits-balance"]) && is_numeric($raw_response["new-credits-balance"])) {
-            $normalized_response["new-credits-balance"] = (int) $raw_response["new-credits-balance"];
+        if (isset($raw_response['new-credits-balance']) && is_numeric($raw_response['new-credits-balance'])) {
+            $normalized_response['new-credits-balance'] = (int) $raw_response['new-credits-balance'];
         }
 
         return $normalized_response;
@@ -926,7 +1016,7 @@ class Ai4Seo_RobHubApiCommunicator {
         }
 
         // check if string starts with { or [
-        if ($string[0] !== "{" && $string[0] !== "[") {
+        if ($string[0] !== '{' && $string[0] !== '[') {
             return false;
         }
 
@@ -938,7 +1028,7 @@ class Ai4Seo_RobHubApiCommunicator {
     // =========================================================================================== \\
 
     function was_call_successful($response): bool {
-        if (is_array($response) && isset($response["success"]) && $response["success"] === true) {
+        if (is_array($response) && isset($response['success']) && $response['success'] === true) {
             return true;
         }
 
@@ -948,13 +1038,13 @@ class Ai4Seo_RobHubApiCommunicator {
     // =========================================================================================== \\
 
     function can_retry_generation_with_base64($response): bool {
-        if (isset($response["code"]) && is_numeric($response["code"])) {
-            if (in_array($response["code"], $this->non_post_related_error_codes)) {
+        if (isset($response['code']) && is_numeric($response['code'])) {
+            if (in_array($response['code'], $this->non_post_related_error_codes)) {
                 return false;
             }
 
             // inappropriate content -> do not retry
-            if ($response["code"] == 3619101024) {
+            if ($response['code'] == 3619101024) {
                 return false;
             }
         }
@@ -965,9 +1055,9 @@ class Ai4Seo_RobHubApiCommunicator {
     // =========================================================================================== \\
 
     function try_handle_special_api_errors($response) {
-        if (isset($response["code"]) && is_numeric($response["code"])) {
+        if (isset($response['code']) && is_numeric($response['code'])) {
             # insufficient credits -> discard cache
-            if ($response["code"] == 371816823) {
+            if ($response['code'] == 371816823) {
                 // singleton -> only do this once per request
                 if ($this->has_reset_last_account_sync) {
                     return;
@@ -977,7 +1067,7 @@ class Ai4Seo_RobHubApiCommunicator {
 
                 // fetch the current credits balance by syncing the account
                 $this->reset_last_account_sync();
-                $this->sync_account("insufficient-credits");
+                $this->sync_account('insufficient-credits');
             }
         }
     }
@@ -1021,7 +1111,7 @@ class Ai4Seo_RobHubApiCommunicator {
      * @param $update_to_database bool Whether to save the new credentials to the database.
      * @return array The API response from the free account creation call, or an error array if the process failed.
      */
-    function init_free_account(string $base_username = "", bool $update_to_database = true): array {
+    function init_free_account(string $base_username = '', bool $update_to_database = true): array {
         // build pseudo api username and password first
         $new_api_username = $this->build_api_username($base_username);
 
@@ -1033,20 +1123,20 @@ class Ai4Seo_RobHubApiCommunicator {
         $parameters = $this->build_client_context_parameters();
 
         // retrieve our real credentials
-        $response = $this->call("client/get-free-account", $parameters);
+        $response = $this->call('client/get-free-account', $parameters);
 
         // check response
-        if (!$this->was_call_successful($response) || !isset($response["data"]["api_username"]) || !isset($response["data"]["api_password"])) {
-            $this->api_username = "";
-            $this->api_password = "";
+        if (!$this->was_call_successful($response) || !isset($response['data']['api_username']) || !isset($response['data']['api_password'])) {
+            $this->api_username = '';
+            $this->api_password = '';
             ai4seo_debug_message(704894316, 'Could not create free account. Response:' . ai4seo_stringify($response), true);
             return $response;
         }
 
         // try save new credentials
-        if (!$this->use_this_credentials($response["data"]["api_username"], $response["data"]["api_password"], $update_to_database)) {
-            $this->api_username = "";
-            $this->api_password = "";
+        if (!$this->use_this_credentials($response['data']['api_username'], $response['data']['api_password'], $update_to_database)) {
+            $this->api_username = '';
+            $this->api_password = '';
             ai4seo_debug_message(802042473, 'Could not save free account credentials.', true);
             return $response;
         }
@@ -1064,14 +1154,14 @@ class Ai4Seo_RobHubApiCommunicator {
      */
     function build_client_context_parameters(): array {
         return array(
-            "product_activation_time" => $this->product_activation_time,
-            "users_current_time" => time(),
-            "website_url" => sanitize_text_field(get_site_url()),
-            "website_name" => sanitize_text_field(get_bloginfo("name")),
-            "admin_email_address" => sanitize_email(ai4seo_get_option("admin_email")),
-            "client_ip_address" => ai4seo_get_client_ip(),
-            "server_ip_address" => ai4seo_get_server_ip(),
-            "user_agent" => ai4seo_get_client_user_agent(),
+            'product_activation_time' => $this->product_activation_time,
+            'users_current_time' => time(),
+            'website_url' => sanitize_text_field(get_site_url()),
+            'website_name' => sanitize_text_field(get_bloginfo('name')),
+            'admin_email_address' => sanitize_email(ai4seo_get_option('admin_email')),
+            'client_ip_address' => ai4seo_get_client_ip(),
+            'server_ip_address' => ai4seo_get_server_ip(),
+            'user_agent' => ai4seo_get_client_user_agent(),
         );
     }
 
@@ -1093,10 +1183,10 @@ class Ai4Seo_RobHubApiCommunicator {
         $enabled_bulk_generation_post_types = array_values(array_unique(array_map('sanitize_key', $enabled_bulk_generation_post_types)));
 
         return array(
-            "generation_status_summary" => $generation_status_summary,
-            "costs_per_post" => ai4seo_calculate_metadata_credits_cost_per_post(),
-            "costs_per_attachment" => ai4seo_calculate_attachment_attributes_credits_cost_per_attachment_post(),
-            "enabled_bulk_generation_post_types" => $enabled_bulk_generation_post_types,
+            'generation_status_summary' => $generation_status_summary,
+            'costs_per_post' => ai4seo_calculate_metadata_credits_cost_per_post(),
+            'costs_per_attachment' => ai4seo_calculate_attachment_attributes_credits_cost_per_attachment_post(),
+            'enabled_bulk_generation_post_types' => $enabled_bulk_generation_post_types,
         );
     }
 
@@ -1177,30 +1267,30 @@ class Ai4Seo_RobHubApiCommunicator {
      * @param $base_username string The base username to use (optional).
      * @return string The potential new api username
      */
-    function build_api_username(string $base_username = ""): string {
+    function build_api_username(string $base_username = ''): string {
         if (!$base_username) {
             $base_username = $this->get_server_identity();
         }
 
         // remove schema
-        $base_username = str_replace("http://", "", $base_username);
-        $base_username = str_replace("https://", "", $base_username);
+        $base_username = str_replace('http://', '', $base_username);
+        $base_username = str_replace('https://', '', $base_username);
         // remove port
-        $base_username = explode(":", $base_username)[0];
+        $base_username = explode(':', $base_username)[0];
         // remove www.
-        $base_username = str_replace("www.", "", $base_username);
+        $base_username = str_replace('www.', '', $base_username);
 
         // replace dots with dashes
-        $base_username = str_replace(".", "-", $base_username);
+        $base_username = str_replace('.', '-', $base_username);
 
         // replace duplicate dashes with a single dash
-        $base_username = preg_replace("/-+/", "-", $base_username);
+        $base_username = preg_replace('/-+/', '-', $base_username);
 
         // remove leading and trailing dashes
-        $base_username = trim($base_username, "-");
+        $base_username = trim($base_username, '-');
 
         // remove all non-alphanumeric characters
-        $base_username = preg_replace("/[^a-zA-Z0-9\-]/", "", $base_username);
+        $base_username = preg_replace("/[^a-zA-Z0-9\-]/", '', $base_username);
 
         // fallback: use random if still empty or shorter than 3 -> generate a random pseudo api username
         if (!$base_username || strlen($base_username) <= 3) {
@@ -1215,7 +1305,7 @@ class Ai4Seo_RobHubApiCommunicator {
         $md5_hash = md5($base_username . $this->product);
 
         // use the first 6 chars of the md5 hash
-        $base_username .= "-" . substr($md5_hash, 0, 6);
+        $base_username .= '-' . substr($md5_hash, 0, 6);
 
         // generate md5 hash
         return $base_username;
@@ -1229,14 +1319,25 @@ class Ai4Seo_RobHubApiCommunicator {
      */
     function get_server_identity(): string {
         $identifier = '';
+        // Normalize server-provided identity candidates once before applying the fallback order.
+        $server_name = '';
+        $server_addr = '';
+
+        if (isset($_SERVER['SERVER_NAME']) && is_string($_SERVER['SERVER_NAME'])) {
+            $server_name = sanitize_text_field(wp_unslash($_SERVER['SERVER_NAME']));
+        }
+
+        if (isset($_SERVER['SERVER_ADDR']) && is_string($_SERVER['SERVER_ADDR'])) {
+            $server_addr = sanitize_text_field(wp_unslash($_SERVER['SERVER_ADDR']));
+        }
 
         // Check SERVER_NAME
-        if (!empty($_SERVER['SERVER_NAME']) && is_string($_SERVER['SERVER_NAME']) && strlen($_SERVER['SERVER_NAME']) >= 3) {
-            $identifier = $_SERVER['SERVER_NAME'];
+        if ($server_name !== '' && strlen($server_name) >= 3) {
+            $identifier = $server_name;
         }
         // Fallback: SERVER_ADDR
-        elseif (!empty($_SERVER['SERVER_ADDR']) && is_string($_SERVER['SERVER_ADDR']) && strlen($_SERVER['SERVER_ADDR']) >= 3) {
-            $identifier = $_SERVER['SERVER_ADDR'];
+        elseif ($server_addr !== '' && strlen($server_addr) >= 3) {
+            $identifier = $server_addr;
         }
         // Fallback: gethostname()
         elseif (function_exists('gethostname') && is_string(gethostname()) && strlen(gethostname()) >= 3) {
@@ -1266,50 +1367,50 @@ class Ai4Seo_RobHubApiCommunicator {
      * @param string $sync_reason The reason for the sync (optional).
      * @return array $api_response if the RobHub Account was synced, false on error
      */
-    function sync_account(string $sync_reason = "unknown"): array {
+    function sync_account(string $sync_reason = 'unknown'): array {
         $sync_reason = sanitize_key($sync_reason);
         $parameters = array_merge(
             array(
-                "reason" => $sync_reason,
+                'reason' => $sync_reason,
             ),
             $this->build_client_context_parameters(),
             $this->build_client_sync_report_parameters()
         );
-        $api_response = self::call("client/sync", $parameters);
+        $api_response = self::call('client/sync', $parameters);
 
         // Interpret response & check data payload
-        if (!self::was_call_successful($api_response) || !isset($api_response["data"]) || !is_array($api_response["data"]) || !$api_response["data"]) {
+        if (!self::was_call_successful($api_response) || !isset($api_response['data']) || !is_array($api_response['data']) || !$api_response['data']) {
             self::update_environmental_variable(self::ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED, false);
             return is_array($api_response) ? $api_response : array(
-                "success" => false,
-                "message" => "Failed to sync account: " . (is_string($api_response) ? $api_response : "Unknown error"),
-                "code" => 461220825
+                'success' => false,
+                'message' => 'Failed to sync account: ' . (is_string($api_response) ? $api_response : 'Unknown error'),
+                'code' => 461220825
             );
         }
 
-        $synced_account_data = $api_response["data"];
+        $synced_account_data = $api_response['data'];
 
         // next free credits
-        $next_free_credits_countdown = (int) ($synced_account_data["next_free_credits_countdown"] ?? 0);
+        $next_free_credits_countdown = (int) ($synced_account_data['next_free_credits_countdown'] ?? 0);
         self::update_environmental_variable(self::ENVIRONMENTAL_VARIABLE_NEXT_FREE_CREDITS_TIMESTAMP, time() + $next_free_credits_countdown);
 
         // group
-        if (isset($synced_account_data["group"]) && in_array($synced_account_data["group"], array('a', 'b', 'c', 'd', 'e', 'f'))) {
-            $group = $synced_account_data["group"];
+        if (isset($synced_account_data['group']) && in_array($synced_account_data['group'], array('a', 'b', 'c', 'd', 'e', 'f'))) {
+            $group = $synced_account_data['group'];
         }
 
         self::update_environmental_variable(self::ENVIRONMENTAL_VARIABLE_GROUP, $group ?? 'x');
 
         // subscription
-        if (isset($synced_account_data["plan"]) && $synced_account_data["plan"] != "free") {
+        if (isset($synced_account_data['plan']) && $synced_account_data['plan'] != 'free') {
             // build subscription array, base on
             $subscription = array(
-                "plan" => $synced_account_data["plan"],
-                "subscription_start" => $synced_account_data["subscription_start"] ?? "",
-                "subscription_end" => $synced_account_data["subscription_end"] ?? "",
-                "next_credits_refresh" => $synced_account_data["next_credits_refresh"] ?? "",
-                "do_renew" => (bool) ($synced_account_data["do_renew"] ?? false),
-                "renew_frequency" => $synced_account_data["renew_frequency"] ?? "monthly",
+                'plan' => $synced_account_data['plan'],
+                'subscription_start' => $synced_account_data['subscription_start'] ?? '',
+                'subscription_end' => $synced_account_data['subscription_end'] ?? '',
+                'next_credits_refresh' => $synced_account_data['next_credits_refresh'] ?? '',
+                'do_renew' => (bool) ($synced_account_data['do_renew'] ?? false),
+                'renew_frequency' => $synced_account_data['renew_frequency'] ?? 'monthly',
             );
 
             self::update_environmental_variable(self::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION, $subscription);
@@ -1370,13 +1471,13 @@ class Ai4Seo_RobHubApiCommunicator {
      */
     function respond_error(string $message, $code): array {
         if (strlen($message) > 256) {
-            $message = substr($message, 0, 256) . "..."; # remove this to see full error message in the response
+            $message = substr($message, 0, 256) . '...'; # remove this to see full error message in the response
         }
 
         return array(
-            "success" => false,
-            "message" => wp_kses_post($message),
-            "code" => $code
+            'success' => false,
+            'message' => wp_kses_post($message),
+            'code' => $code
         );
     }
 
@@ -1395,11 +1496,11 @@ class Ai4Seo_RobHubApiCommunicator {
      */
     function respond_success($data) {
         if (is_array($data)) {
-            $data["success"] = true;
+            $data['success'] = true;
         } else {
             $data = array(
-                "success" => true,
-                "data" => wp_kses_post($data)
+                'success' => true,
+                'data' => wp_kses_post($data)
             );
         }
 
@@ -1685,7 +1786,7 @@ class Ai4Seo_RobHubApiCommunicator {
     function get_api_username(bool $check_credentials = true): string {
         // Make sure that credentials are initialized
         if ($check_credentials && !$this->check_credentials()) {
-            return "";
+            return '';
         }
 
         return $this->api_username;
@@ -1702,7 +1803,7 @@ class Ai4Seo_RobHubApiCommunicator {
     function get_api_password(bool $check_credentials = true): string {
         // Make sure that credentials are initialized
         if ($check_credentials && !$this->check_credentials()) {
-            return "";
+            return '';
         }
 
         return $this->api_password;
@@ -1743,28 +1844,28 @@ class Ai4Seo_RobHubApiCommunicator {
      */
     function perform_reject_terms_call(int $tos_version) {
         $reject_terms_parameter = array(
-            "timestamp" => time(),
-            "tos_version" => AI4SEO_TOS_VERSION_TIMESTAMP
+            'timestamp' => time(),
+            'tos_version' => AI4SEO_TOS_VERSION_TIMESTAMP
         );
 
-        $this->call("client/reject-terms", $reject_terms_parameter, 'POST', true);
+        $this->call('client/reject-terms', $reject_terms_parameter, 'POST', true);
     }
 
     // =========================================================================================== \\
 
     function perform_lost_licence_call($stripe_email) {
         $endpoint_parameter = array();
-        $endpoint_parameter["stripe_email"] = $stripe_email;
+        $endpoint_parameter['stripe_email'] = $stripe_email;
 
         // call robhub api endpoint "client/send-licence-data"
-        return $this->call("client/send-licence-data", $endpoint_parameter, 'POST', true);
+        return $this->call('client/send-licence-data', $endpoint_parameter, 'POST', true);
     }
 
     // =========================================================================================== \\
 
     function perform_product_deactivated_call() {
         // call robhub api endpoint "client/product-deactivated"
-        $this->call("client/product-deactivated", array(), 'POST', true);
+        $this->call('client/product-deactivated', array(), 'POST', true);
     }
 
     // =========================================================================================== \\
@@ -1786,7 +1887,7 @@ class Ai4Seo_RobHubApiCommunicator {
      * @return string The generated api username
      */
     function generate_random_pseudo_api_username(): string {
-        return $this->product . "-" . wp_rand(1000000, 9999999);
+        return $this->product . '-' . wp_rand(1000000, 9999999);
     }
 
 
@@ -1851,7 +1952,7 @@ class Ai4Seo_RobHubApiCommunicator {
     function read_environmental_variable(string $environmental_variable_name) {
         // Make sure that $environmental_variable_name-parameter has content
         if (!$environmental_variable_name) {
-            ai4seo_debug_message(3515181024, "Environmental variable name is empty.", true);
+            ai4seo_debug_message(3515181024, 'Environmental variable name is empty.', true);
             return null;
         }
 
@@ -1954,14 +2055,14 @@ class Ai4Seo_RobHubApiCommunicator {
             // Name must exist in defaults.
             if ( ! isset( self::DEFAULT_ENVIRONMENTAL_VARIABLES[ $this_name ] ) ) {
                 $result['invalid_names'][] = $this_name;
-                ai4seo_debug_message(1397825, 'Environmental variable \'' . $this_name . '\' does not exist.', true);
+                ai4seo_debug_message(1397825, "Environmental variable '" . $this_name . "' does not exist.", true);
                 continue;
             }
 
             // Validate value.
             if ( ! $this->validate_environmental_variable_value( $this_name, $this_value ) ) {
                 $result['invalid_values'][] = $this_name;
-                ai4seo_debug_message(3715181024, 'Invalid value for environmental variable \'' . $this_name . '\'', true);
+                ai4seo_debug_message(3715181024, "Invalid value for environmental variable '" . $this_name . "'", true);
                 continue;
             }
 
@@ -2167,7 +2268,7 @@ class Ai4Seo_RobHubApiCommunicator {
     function tidy_up_api_locks(): void {
         foreach ($this->endpoint_lock_durations as $endpoint => $duration) {
             $endpoint_checksum = $this->get_api_call_endpoint_checksum($endpoint);
-            $transient_name = "robhub_api_lock_" . $endpoint_checksum;
+            $transient_name = 'robhub_api_lock_' . $endpoint_checksum;
             delete_transient($transient_name);
         }
     }
@@ -2180,8 +2281,8 @@ class Ai4Seo_RobHubApiCommunicator {
         }
 
         $old_auth_data = self::read_environmental_variable(self::ENVIRONMENTAL_VARIABLE_DEPRECATED_API_AUTH_DATA);
-        $old_api_username = sanitize_text_field($old_auth_data[0] ?? "");
-        $old_api_password = sanitize_text_field($old_auth_data[1] ?? "");
+        $old_api_username = sanitize_text_field($old_auth_data[0] ?? '');
+        $old_api_password = sanitize_text_field($old_auth_data[1] ?? '');
 
         if ($old_api_username) {
             self::update_environmental_variable(self::ENVIRONMENTAL_VARIABLE_API_USERNAME, $old_api_username);
@@ -2217,6 +2318,13 @@ class Ai4Seo_RobHubApiCommunicator {
     // =========================================================================================== \\
 
     function are_we_on_a_localhost_system(): bool {
-        return (sanitize_text_field($_SERVER["SERVER_NAME"]) === "127.0.0.1" || sanitize_text_field($_SERVER["SERVER_NAME"]) === "localhost" || sanitize_text_field($_SERVER["SERVER_NAME"]) === str_replace("http://", "", $this->local_api_url));
+        // Reuse one sanitized server name for all localhost comparisons in this request.
+        $server_name = '';
+
+        if (isset($_SERVER['SERVER_NAME']) && is_string($_SERVER['SERVER_NAME'])) {
+            $server_name = sanitize_text_field(wp_unslash($_SERVER['SERVER_NAME']));
+        }
+
+        return ($server_name === '127.0.0.1' || $server_name === 'localhost' || $server_name === str_replace('http://', '', $this->local_api_url));
     }
 }
