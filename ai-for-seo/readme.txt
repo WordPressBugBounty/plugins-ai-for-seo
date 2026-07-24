@@ -4,7 +4,7 @@ Contributors: spacecodes
 Donate link: https://spa.ce.codes
 Requires at least: 6.6
 Tested up to: 7.0
-Stable tag: 2.4.0
+Stable tag: 2.4.1
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -150,10 +150,17 @@ Add placeholders directly to the prefix or suffix fields under Settings > Metada
 - `{FILE_SIZE}` - File size: Inserts the attachment file size in kilobytes.
 - `{IMAGE_DIMENSIONS}` - Image dimensions: Inserts the image width and height in pixels, formatted like 1200x800.
 
-The plugin replaces placeholders automatically when meta tags are injected or when attachment attributes are saved.
+The plugin replaces placeholders automatically when meta tags are injected or when media attributes are saved.
 
 = How do I include WooCommerce product prices in SEO titles and descriptions? =
 Go to Settings > Metadata > Include product price in metadata (available when WooCommerce is active) and choose between 'Never', 'Fixed', or 'Dynamic'. 'Never' omits pricing, 'Fixed' stores the current product price directly in generated SEO titles and descriptions, and 'Dynamic' inserts a placeholder that is replaced with the live price during frontend rendering.
+
+= Where should I add Custom Instructions: global, metadata, media, post type, or entry? =
+Use broad instructions only for rules that should apply everywhere, and use specific instructions for exceptions.
+
+Global Custom Instructions affect future generations in general. Metadata Custom Instructions affect metadata only. Media Attribute Custom Instructions affect image attributes only. Post-type or entry-specific custom instructions are best for rules that apply only to selected posts, pages, products, or media files.
+
+Custom instructions can guide wording, tone, terminology, emphasis, calls to action, and additional owner-supplied details. They cannot change generated fields, JSON or technical formats, a fixed generation language, configured prefix/suffix behavior, official character, word, sentence, or item limits, storage caps, or safety rules. Requests for extra, repeated, padded, or unlimited output are ignored while compatible parts still apply. Instruction text is limited to 200 characters on Free or 1,000 characters with an active subscription.
 
 = Can I choose which image attributes *SOOZ - AI for SEO* generates, such as alt text, title, caption, or description? =
 Yes. *SOOZ - AI for SEO* lets you decide which media attributes, such as alt text, image title, caption, and description, should be generated. Configure them in the Active Media Attributes section of the settings to match your image SEO and accessibility needs.
@@ -187,8 +194,9 @@ Yes. *SOOZ - AI for SEO* supports WordPress Multisite installations. Purchase a 
 = Can I use *SOOZ - AI for SEO* on a staging, local, or development site? =
 Yes. You can use *SOOZ - AI for SEO* on staging, local, and development websites.
 
-= Which WordPress editors and page builders are supported? =
-*SOOZ - AI for SEO* supports the standard WordPress editor, Elementor, and BeTheme (Muffin-Builder / BeBuilder).
+= Where are "Generate with SOOZ" buttons integrated? =
+"Generate with SOOZ" buttons are available in the Block Editor (Gutenberg), Media Library, Elementor, BeTheme's BeBuilder, and supported SEO plugin panels such as Yoast SEO and Rank Math. Enable the relevant external editor buttons in the plugin settings first.
+On singular frontend pages, posts, products, and other supported content, you can also open the Metadata Editor from the "Metadata Editor" item in the WordPress admin bar.
 
 = Can I use my subscription, Credits Packs, or license key on another website? =
 Yes. Enter the same license owner and license key under *SOOZ - AI for SEO* > Account on each website. Linked websites share the same Credits pool, and you can export/import settings between them. This works for Multisite, staging, and client websites.
@@ -209,12 +217,20 @@ Yes. In Settings, you can restrict plugin access by WordPress user role. Agencie
 Currently, Google's stance on the use of AI or automation in content creation is generally permissive, as indicated in a Google Developers blog post from February 2023. Google states that appropriate use of AI or automation is not against their guidelines. More information can be found at [https://developers.google.com/search/blog/2023/02/google-search-and-ai-content](https://developers.google.com/search/blog/2023/02/google-search-and-ai-content).
 
 = Will generated metadata or image attributes disappear if I uninstall *SOOZ - AI for SEO*? =
-It depends on how the generated data is stored and used. If *SOOZ - AI for SEO* synchronized generated metadata with a third-party SEO plugin such as Yoast SEO, Rank Math, or SEOPress, then that metadata remains after uninstalling *SOOZ - AI for SEO*. Saved image attributes, such as alt text, image titles, captions, and descriptions, are WordPress media fields and may also remain in the Media Library. If synchronization was not enabled and *SOOZ - AI for SEO* was solely responsible for frontend meta tag output, those tags will no longer be generated after the plugin is deactivated or uninstalled.
+It depends on how the generated data is stored and used. If *SOOZ - AI for SEO* synchronized generated metadata with a third-party SEO plugin such as Yoast SEO, Rank Math, or SEOPress, then that metadata remains after uninstalling *SOOZ - AI for SEO*. Saved image attributes, such as alt text, image titles, captions, and descriptions, are WordPress media fields and may also remain in the Media Library. If synchronization was not enabled and *SOOZ - AI for SEO* was solely responsible for frontend meta tag output, those tags will no longer be integrated after the plugin is deactivated or uninstalled.
 
 = Can you add support for another editor, page builder, or SEO feature? =
 We welcome feature requests, editor integration ideas, page builder compatibility requests, and SEO workflow feedback. Please email [support@sooz.ai](mailto:support@sooz.ai) with your suggestions.
 
 == Changelog ==
+
+= 2.4.1 =
+* Added experimental generation-length sliders for meta titles and descriptions, social metadata, and image alt text, available under Advanced Settings.
+* Added bundled translations for Arabic, Brazilian Portuguese, Dutch, French, Italian, Japanese, Polish, Russian, Spanish, and Swedish.
+* Improved the quality and reliability of generated metadata and media attributes with field-by-field validation and targeted retries for incomplete or unsuitable results.
+* Improved Custom Instructions so compatible preferences are applied without overriding configured languages, field formats, prefixes, suffixes, quality limits, factual accuracy, or safety requirements.
+* Improved usability and accessibility across dashboards, editors, settings, tooltips, notifications, and account controls.
+* Bug Fixes & Maintenance: Improved settings saving and error feedback, dashboard refreshes, frontend alt-text handling, selection controls, notifications, security checks, and automatic cache refreshes after plugin updates.
 
 = 2.4.0 =
 * Improved media context detection for better image attributes by finding featured images, uploaded child media, WooCommerce variation images, galleries, local image URLs, and media stored by page builders or custom fields.
@@ -355,6 +371,9 @@ We welcome feature requests, editor integration ideas, page builder compatibilit
 
 
 == Upgrade Notice ==
+
+= 2.4.1 =
+* Bug Fixes & Maintenance: Fixed various minor bugs and implemented performance and security improvements.
 
 = 2.4.0 =
 * Added custom instruction fields, "Auto Queue Entries" setting, a "Related Media" workflow, bulk SEO Autopilot queue controls

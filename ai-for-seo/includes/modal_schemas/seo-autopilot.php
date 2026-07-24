@@ -5,12 +5,12 @@
  * @since 2.0
  */
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
-if (!ai4seo_can_manage_this_plugin()) {
-    return;
+if ( ! ai4seo_can_manage_this_plugin() ) {
+	return;
 }
 
 
@@ -18,27 +18,27 @@ if (!ai4seo_can_manage_this_plugin()) {
 // === PREPARE =============================================================================== \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
-$ai4seo_active_bulk_generation_post_types = ai4seo_get_setting(AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES);
-$ai4seo_is_any_bulk_generation_enabled = !empty($ai4seo_active_bulk_generation_post_types);
+$ai4seo_active_bulk_generation_post_types             = ai4seo_get_setting( AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES );
+$ai4seo_is_any_bulk_generation_enabled                = ! empty( $ai4seo_active_bulk_generation_post_types );
 $ai4seo_is_bulk_generation_auto_queue_entries_enabled = ai4seo_should_auto_queue_bulk_generation_entries();
-$ai4seo_bulk_generation_queue_count = ai4seo_get_bulk_generation_queue_count();
+$ai4seo_bulk_generation_queue_count                   = ai4seo_get_bulk_generation_queue_count();
 
 $ai4seo_supported_post_types = ai4seo_get_supported_post_types();
 
-$ai4seo_num_missing_posts_by_post_type = ai4seo_get_num_missing_posts_by_post_type();
+$ai4seo_num_missing_posts_by_post_type   = ai4seo_get_num_missing_posts_by_post_type();
 $ai4seo_num_generated_posts_by_post_type = ai4seo_get_generated_data_reset_post_type_counts();
-$ai4seo_total_num_generated_posts = 0;
+$ai4seo_total_num_generated_posts        = 0;
 
-if ($ai4seo_num_generated_posts_by_post_type) {
-    $ai4seo_total_num_generated_posts = array_sum($ai4seo_num_generated_posts_by_post_type);
+if ( $ai4seo_num_generated_posts_by_post_type ) {
+	$ai4seo_total_num_generated_posts = array_sum( $ai4seo_num_generated_posts_by_post_type );
 }
 
 $ai4seo_active_attachment_attributes = ai4seo_get_active_attachment_attributes();
 
-if ($ai4seo_active_attachment_attributes) {
-    $ai4seo_all_supported_post_types = array_merge($ai4seo_supported_post_types, array('attachment'));
+if ( $ai4seo_active_attachment_attributes ) {
+	$ai4seo_all_supported_post_types = array_merge( $ai4seo_supported_post_types, array( 'attachment' ) );
 } else {
-    $ai4seo_all_supported_post_types = $ai4seo_supported_post_types;
+	$ai4seo_all_supported_post_types = $ai4seo_supported_post_types;
 }
 
 
@@ -47,7 +47,7 @@ if ($ai4seo_active_attachment_attributes) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 echo "<div class='ai4seo-modal-schema-headline'>";
-echo esc_html__('Set up SEO Autopilot', 'ai-for-seo');
+echo esc_html__( 'Set up SEO Autopilot', 'ai-for-seo' );
 echo '</div>';
 
 
@@ -56,268 +56,269 @@ echo '</div>';
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 
-if (!$ai4seo_all_supported_post_types) {
-    echo "<div class='ai4seo-modal-schema-content'>";
-        echo esc_html__('No supported entry types found for SEO Autopilot.', 'ai-for-seo');
-    echo '</div>';
+if ( ! $ai4seo_all_supported_post_types ) {
+	echo "<div class='ai4seo-modal-schema-content'>";
+		echo esc_html__( 'No supported entry types found for SEO Autopilot.', 'ai-for-seo' );
+	echo '</div>';
 
-    return; // nothing to do here
+	return; // nothing to do here.
 }
 
 echo "<div class='ai4seo-modal-schema-content'>";
-    if ($ai4seo_total_num_generated_posts > 0) {
-        $ai4seo_total_num_generated_posts_formatted = ai4seo_format_number_i18n($ai4seo_total_num_generated_posts);
-        $ai4seo_generated_entries_message = sprintf(
-            /* translators: 1: plugin name, 2: number of generated entries */
-            _n(
-                '%1$s has already generated SEO-relevant data for %2$s entry.',
-                '%1$s has already generated SEO-relevant data for %2$s entries.',
-                $ai4seo_total_num_generated_posts,
-                'ai-for-seo'
-            ),
-            esc_html(AI4SEO_PLUGIN_NAME),
-            $ai4seo_total_num_generated_posts_formatted
-        );
+if ( $ai4seo_total_num_generated_posts > 0 ) {
+	$ai4seo_total_num_generated_posts_formatted = ai4seo_format_number_i18n( $ai4seo_total_num_generated_posts );
+	$ai4seo_generated_entries_message           = sprintf(
+		/* translators: 1: plugin name, 2: number of generated entries */
+		_n(
+			'%1$s has already generated SEO-relevant data for %2$s entry.',
+			'%1$s has already generated SEO-relevant data for %2$s entries.',
+			$ai4seo_total_num_generated_posts,
+			'ai-for-seo'
+		),
+		esc_html( AI4SEO_PLUGIN_NAME ),
+		$ai4seo_total_num_generated_posts_formatted
+	);
 
-        $ai4seo_remove_generated_data_toggle_button = "<a href='#' onclick='ai4seo_toggle_autopilot_remove_generated_data_section(this);' aria-expanded='false' aria-controls='ai4seo-remove-generated-data-action-container'>" . esc_html__('click here', 'ai-for-seo') . '</a>';
+	$ai4seo_remove_generated_data_toggle_button = "<a href='#' onclick='ai4seo_toggle_autopilot_remove_generated_data_section(this);' aria-expanded='false' aria-controls='ai4seo-remove-generated-data-action-container'>" . esc_html__( 'click here', 'ai-for-seo' ) . '</a>';
 
-        $ai4seo_remove_generated_data_sentence = sprintf(
-            /* translators: %s: toggle button */
-            __('Need to remove previously generated AI data for specific entry types? %s.', 'ai-for-seo'),
-            $ai4seo_remove_generated_data_toggle_button
-        );
+	$ai4seo_remove_generated_data_sentence = sprintf(
+		/* translators: %s: toggle button */
+		__( 'Need to remove previously generated AI data for specific entry types? %s.', 'ai-for-seo' ),
+		$ai4seo_remove_generated_data_toggle_button
+	);
 
-        $ai4seo_reset_generated_data_tooltip = sprintf(
-            /* translators: %1$s plugin name, %2$s plugin name */
-            __('This will delete AI-generated data for the selected entry types.<br>Use this option to allow *%1$s* to regenerate data for those entry types.<br><br>- Note: This does not remove or undo data that has been synced to third-party SEO plugins or written into the media library. However, this data will be considered "old" and can be overwritten if the "Include Complete Entries When Overwriting" setting is enabled.<br>- No Credits will be refunded.<br>- Caution: This action is irreversible and may cause metadata generated by *%2$s* to no longer appear on your website.', 'ai-for-seo'),
-            esc_html(AI4SEO_PLUGIN_NAME),
-            esc_html(AI4SEO_PLUGIN_NAME),
-        );
+	$ai4seo_reset_generated_data_tooltip = sprintf(
+		/* translators: %1$s plugin name, %2$s plugin name */
+		__( 'This will delete AI-generated data for the selected entry types.<br>Use this option to allow *%1$s* to regenerate data for those entry types.<br><br>- Note: This does not remove or undo data that has been synced to third-party SEO plugins or written into the media library. However, this data will be considered "old" and can be overwritten if the "Include Complete Entries When Overwriting" setting is enabled.<br>- No Credits will be refunded.<br>- Caution: This action is irreversible and may cause metadata generated by *%2$s* to no longer appear on your website.', 'ai-for-seo' ),
+		esc_html( AI4SEO_PLUGIN_NAME ),
+		esc_html( AI4SEO_PLUGIN_NAME ),
+	);
 
-        echo "<div class='ai4seo-generated-data-reminder-container'>";
-            echo '<strong>';
-                ai4seo_echo_wp_kses(ai4seo_get_svg_tag('circle-check', '', 'ai4seo-dark-green-icon'));
-                echo ' ';
-                echo esc_html($ai4seo_generated_entries_message);
-            echo '</strong>';
-            ai4seo_echo_wp_kses($ai4seo_remove_generated_data_sentence);
-            ai4seo_echo_wp_kses(ai4seo_get_icon_with_tooltip_tag($ai4seo_reset_generated_data_tooltip));
+	echo "<div class='ai4seo-generated-data-reminder-container'>";
+		echo '<strong>';
+			ai4seo_echo_wp_kses( ai4seo_get_svg_tag( 'circle-check', '', 'ai4seo-dark-green-icon' ) );
+			echo ' ';
+			echo esc_html( $ai4seo_generated_entries_message );
+		echo '</strong>';
+		ai4seo_echo_wp_kses( $ai4seo_remove_generated_data_sentence );
+		ai4seo_echo_wp_kses( ai4seo_get_icon_with_tooltip_tag( $ai4seo_reset_generated_data_tooltip ) );
 
-            echo "<div id='ai4seo-remove-generated-data-action-container' class='ai4seo-remove-generated-data-action-container ai4seo-display-none'>";
-                ai4seo_echo_wp_kses(ai4seo_get_icon_button_tag('triangle-exclamation', esc_html__('Remove AI-generated data', 'ai-for-seo'), 'ai4seo-lockable ai4seo-danger-button ai4seo-remove-generated-data-button', 'ai4seo_confirm_autopilot_remove_generated_data();'));
-            echo '</div>';
+		echo "<div id='ai4seo-remove-generated-data-action-container' class='ai4seo-remove-generated-data-action-container ai4seo-display-none'>";
+			ai4seo_echo_wp_kses( ai4seo_get_icon_button_tag( 'triangle-exclamation', esc_html__( 'Remove AI-generated data', 'ai-for-seo' ), 'ai4seo-lockable ai4seo-danger-button ai4seo-remove-generated-data-button', 'ai4seo_confirm_autopilot_remove_generated_data();' ) );
+		echo '</div>';
 
-            // invisible tooltip info that is used inside the confirmation modal
-            echo "<div id='ai4seo-autopilot-reset-generated-data-info' class='ai4seo-display-none'>";
-                ai4seo_echo_wp_kses($ai4seo_reset_generated_data_tooltip);
-            echo '</div>';
+		// invisible tooltip info that is used inside the confirmation modal.
+		echo "<div id='ai4seo-autopilot-reset-generated-data-info' class='ai4seo-display-none'>";
+			ai4seo_echo_wp_kses( $ai4seo_reset_generated_data_tooltip );
+		echo '</div>';
 
-            // Invisible post type options used inside the confirmation modal.
-            echo "<div id='ai4seo-autopilot-reset-generated-data-post-type-options' class='ai4seo-display-none'>";
-                ai4seo_echo_wp_kses(ai4seo_get_generated_data_reset_post_type_options_html($ai4seo_num_generated_posts_by_post_type));
-            echo '</div>';
-        echo '</div>';
-    } else {
-        # hint to check settings first
-        ai4seo_echo_wp_kses(ai4seo_get_svg_tag('triangle-exclamation', '', 'ai4seo-red-icon'));
-        echo ' ';
-        ai4seo_echo_wp_kses(sprintf(
-            /* translators: %s: settings page URL */
-            __("Before starting the SEO Autopilot for the first time, ensure that the <a href='%s'>plugin settings</a> are configured correctly.", 'ai-for-seo'),
-            esc_url(ai4seo_get_subpage_url('settings'))
-        ));
-        echo '<br><br>';
-    }
+		// Invisible post type options used inside the confirmation modal.
+		echo "<div id='ai4seo-autopilot-reset-generated-data-post-type-options' class='ai4seo-display-none'>";
+			ai4seo_echo_wp_kses( ai4seo_get_generated_data_reset_post_type_options_html( $ai4seo_num_generated_posts_by_post_type ) );
+		echo '</div>';
+	echo '</div>';
+} else {
+	// hint to check settings first.
+	ai4seo_echo_wp_kses( ai4seo_get_svg_tag( 'triangle-exclamation', '', 'ai4seo-red-icon' ) );
+	echo ' ';
+	ai4seo_echo_wp_kses(
+		sprintf(
+		/* translators: %s: settings page URL */
+			__( "Before starting the SEO Autopilot for the first time, ensure that the <a href='%s'>plugin settings</a> are configured correctly.", 'ai-for-seo' ),
+			esc_url( ai4seo_get_subpage_url( 'settings' ) )
+		)
+	);
+	echo '<br><br>';
+}
 
-    echo esc_html__('Select the entry types for which you want to generate SEO-relevant data.', 'ai-for-seo');
-    echo '<br><br>';
+	echo esc_html__( 'Select the entry types for which you want to generate SEO-relevant data.', 'ai-for-seo' );
+	echo '<br><br>';
 
-    echo "<div class='ai4seo-bulk-generation-modal-checkboxes-container'>";
-        // checkbox for each post type
-        $ai4seo_found_any_all_done_post_types = false;
-        $ai4seo_this_bulk_generation_setting_name = ai4seo_get_prefixed_input_name(AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES);
+	echo "<div class='ai4seo-bulk-generation-modal-checkboxes-container'>";
+		// checkbox for each post type.
+		$ai4seo_found_any_all_done_post_types     = false;
+		$ai4seo_this_bulk_generation_setting_name = ai4seo_get_prefixed_input_name( AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES );
 
-        foreach ($ai4seo_all_supported_post_types AS $ai4seo_this_supported_post_type) {
-            // attachment -> media workaround
-            if ($ai4seo_this_supported_post_type == 'attachment') {
-                $ai4seo_this_supported_post_type_label = 'media files';
-            } else {
-                $ai4seo_this_supported_post_type_label = $ai4seo_this_supported_post_type;
-            }
+foreach ( $ai4seo_all_supported_post_types as $ai4seo_this_supported_post_type ) {
+	// attachment -> media workaround.
+	if ( 'attachment' === $ai4seo_this_supported_post_type ) {
+		$ai4seo_this_supported_post_type_label = 'media files';
+	} else {
+		$ai4seo_this_supported_post_type_label = $ai4seo_this_supported_post_type;
+	}
 
-            $ai4seo_this_supported_post_type_label = ai4seo_get_post_type_translation($ai4seo_this_supported_post_type_label, true);
-            $ai4seo_this_supported_post_type_label = ucfirst($ai4seo_this_supported_post_type_label);
-            $ai4seo_this_num_missing_posts = $ai4seo_num_missing_posts_by_post_type[$ai4seo_this_supported_post_type] ?? 0;
-            $ai4seo_this_post_type_icon = ai4seo_get_dashicon_tag_for_navigation($ai4seo_this_supported_post_type);
-            $ai4seo_this_post_type_is_checked = !$ai4seo_is_any_bulk_generation_enabled || in_array($ai4seo_this_supported_post_type, $ai4seo_active_bulk_generation_post_types);
+	$ai4seo_this_supported_post_type_label = ai4seo_get_post_type_translation( $ai4seo_this_supported_post_type_label, true );
+	$ai4seo_this_supported_post_type_label = ucfirst( $ai4seo_this_supported_post_type_label );
+	$ai4seo_this_num_missing_posts         = $ai4seo_num_missing_posts_by_post_type[ $ai4seo_this_supported_post_type ] ?? 0;
+	$ai4seo_this_post_type_icon            = ai4seo_get_dashicon_tag_for_navigation( $ai4seo_this_supported_post_type );
+	$ai4seo_this_post_type_is_checked      = ! $ai4seo_is_any_bulk_generation_enabled || in_array( $ai4seo_this_supported_post_type, $ai4seo_active_bulk_generation_post_types );
 
-            echo "<div class='ai4seo-bulk-generation-modal-checkbox-container'>";
-                ai4seo_echo_wp_kses($ai4seo_this_post_type_icon);
-                echo "<input type='checkbox' id='ai4seo-bulk-generation-checkbox-" . esc_attr($ai4seo_this_supported_post_type) . "' name='" . esc_attr($ai4seo_this_bulk_generation_setting_name) . "[]' value='" . esc_attr($ai4seo_this_supported_post_type) . "'" . ($ai4seo_this_post_type_is_checked ? ' checked' : '') . '>';
-                echo "<label for='ai4seo-bulk-generation-checkbox-" . esc_attr($ai4seo_this_supported_post_type) . "'>";
-                    echo esc_html($ai4seo_this_supported_post_type_label) . ' (';
-                        if ($ai4seo_this_num_missing_posts) {
-                            printf(
-                                /* translators: %s: number of entries left */
-                                esc_html(_n('%s entry left', '%s entries left', $ai4seo_this_num_missing_posts, 'ai-for-seo')),
-                                esc_html(ai4seo_format_number_i18n($ai4seo_this_num_missing_posts))
-                            );
-                        } else {
-                            echo esc_html__('All done', 'ai-for-seo') . '*';
-                            $ai4seo_found_any_all_done_post_types = true;
-                        }
-                    echo ')';
-                echo '</label>';
-            echo '</div>';
-        }
-    echo '</div>';
+	echo "<div class='ai4seo-bulk-generation-modal-checkbox-container'>";
+		ai4seo_echo_wp_kses( $ai4seo_this_post_type_icon );
+		echo "<input type='checkbox' id='ai4seo-bulk-generation-checkbox-" . esc_attr( $ai4seo_this_supported_post_type ) . "' name='" . esc_attr( $ai4seo_this_bulk_generation_setting_name ) . "[]' value='" . esc_attr( $ai4seo_this_supported_post_type ) . "'" . ( $ai4seo_this_post_type_is_checked ? ' checked' : '' ) . '>';
+		echo "<label for='ai4seo-bulk-generation-checkbox-" . esc_attr( $ai4seo_this_supported_post_type ) . "'>";
+			echo esc_html( $ai4seo_this_supported_post_type_label ) . ' (';
+	if ( $ai4seo_this_num_missing_posts ) {
+		printf(
+		/* translators: %s: number of entries left */
+			esc_html( _n( '%s entry left', '%s entries left', $ai4seo_this_num_missing_posts, 'ai-for-seo' ) ),
+			esc_html( ai4seo_format_number_i18n( $ai4seo_this_num_missing_posts ) )
+		);
+	} else {
+			echo esc_html__( 'All done', 'ai-for-seo' ) . '*';
+			$ai4seo_found_any_all_done_post_types = true;
+	}
+					echo ')';
+					echo '</label>';
+					echo '</div>';
+}
+	echo '</div>';
 
-    if ($ai4seo_found_any_all_done_post_types) {
-        echo "<div style='font-size: smaller; margin-top: .5rem;'>* " . esc_html__('SEO Autopilot will automatically activate when new entries are created.', 'ai-for-seo') . '</div>';
-    }
-
-
-    // === SEO Autopilot SETTINGS ================================================================================= \\
-
-    echo "<div class='ai4seo-form ai4seo-small-form ai4seo-no-borders' style='margin-top: 2rem;'>";
-
-        echo "<div class='ai4seo-form-section'>";
-
-            // === AI4SEO_SETTING_BULK_GENERATION_AUTO_QUEUE_ENTRIES ================================================================================= \\
-
-            $ai4seo_this_bulk_generation_setting_name = ai4seo_get_prefixed_input_name(AI4SEO_SETTING_BULK_GENERATION_AUTO_QUEUE_ENTRIES);
-
-            echo "<div class='ai4seo-form-item'>";
-                echo "<label for='" . esc_attr($ai4seo_this_bulk_generation_setting_name) . "'>";
-                    // Keep the NEW badge inline because this modal renders its setting label manually.
-                    echo "<span class='ai4seo-green-bubble'>" . esc_html__('NEW', 'ai-for-seo') . '</span> ';
-                    echo '<span>' . esc_html__('Auto Queue Entries', 'ai-for-seo') . '</span> ';
-                echo '</label>';
-
-                echo "<div class='ai4seo-form-item-input-wrapper'>";
-                    echo "<select id='" . esc_attr($ai4seo_this_bulk_generation_setting_name) . "' name='" . esc_attr($ai4seo_this_bulk_generation_setting_name) . "'>";
-                        echo "<option value='true'" . ($ai4seo_is_bulk_generation_auto_queue_entries_enabled ? ' selected' : '') . '>' . esc_html__('Automatically add applicable entries to the queue', 'ai-for-seo') . '</option>';
-                        echo "<option value='false'" . (!$ai4seo_is_bulk_generation_auto_queue_entries_enabled ? ' selected' : '') . '>' . esc_html__('Only process manually queued entries', 'ai-for-seo') . '</option>';
-                    echo '</select>';
-
-                    echo "<div class='ai4seo-bulk-generation-queue-status' style='display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin-top: .5rem;'>";
-                        echo "<span class='ai4seo-bulk-generation-queue-count-container'>";
-                            echo esc_html__('Queue:', 'ai-for-seo') . ' ';
-                            echo "<span class='ai4seo-bulk-generation-queue-count'>" . esc_html(ai4seo_format_number_i18n($ai4seo_bulk_generation_queue_count)) . '</span> ';
-                            echo "<span class='ai4seo-bulk-generation-queue-count-label'>" . esc_html(_n('entry', 'entries', $ai4seo_bulk_generation_queue_count, 'ai-for-seo')) . '</span>';
-                        echo '</span>';
-
-                        echo "<span class='ai4seo-clear-bulk-generation-queue-button-container'" . ($ai4seo_bulk_generation_queue_count > 0 ? '' : " style='display: none;'") . '>';
-                            ai4seo_echo_wp_kses(ai4seo_get_small_icon_button_tag('trash', esc_html__('Clear Queue', 'ai-for-seo'), 'ai4seo-clear-bulk-generation-queue-button', 'ai4seo_clear_bulk_generation_queue(this);'));
-                        echo '</span>';
-                    echo '</div>';
-                echo '</div>';
-            echo '</div>';
-
-            echo "<hr class='ai4seo-form-item-divider'>";
-
-            // === AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER ================================================================================= \\
-
-            $ai4seo_current_automated_generation_order = ai4seo_get_setting(AI4SEO_SETTING_BULK_GENERATION_ORDER);
-            $ai4seo_current_automated_generation_new_or_existing_filter = ai4seo_get_setting(AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER);
-            $ai4seo_automated_generation_new_or_existing_filter_reference_timestamp = ai4seo_read_environmental_variable(AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME);
-
-            $ai4seo_this_bulk_generation_setting_name = ai4seo_get_prefixed_input_name(AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER);
-
-            echo "<div class='ai4seo-bulk-generation-auto-queue-dependent-settings'" . ($ai4seo_is_bulk_generation_auto_queue_entries_enabled ? '' : " style='display: none;'") . '>';
-
-                echo "<div class='ai4seo-form-item'>";
-
-                    // output selection for automated generation new or existing filter
-                    echo "<label for='" . esc_attr($ai4seo_this_bulk_generation_setting_name) . "'>";
-                        echo '<span>';
-                            echo esc_html__('Generate metadata and media attributes for:', 'ai-for-seo');
-                            echo ' ';
-                            ai4seo_echo_wp_kses(ai4seo_get_icon_with_tooltip_tag(esc_html__("Choose whether to generate metadata or media attributes for existing entries, newly created entries, or both. Changing this setting marks all current entries as 'existing', while any entries created afterward are considered 'new'. This distinction is refreshed each time the setting is changed, except for direct swaps between 'New entries only' and 'Existing entries only'.", 'ai-for-seo')));
-                        echo '</span> ';
-                    echo '</label>';
-
-                    echo "<div class='ai4seo-form-item-input-wrapper'>";
-                        echo "<select id='" . esc_attr($ai4seo_this_bulk_generation_setting_name) . "' name='" . esc_attr($ai4seo_this_bulk_generation_setting_name) . "'>";
-                        foreach (AI4SEO_BULK_GENERATION_NEW_OR_EXISTING_FILTER_TRANSLATED_OPTIONS as $ai4seo_this_new_or_existing_filter_option => $ai4seo_this_new_or_existing_filter_option_label) {
-                            echo "<option value='" . esc_attr($ai4seo_this_new_or_existing_filter_option) . "' " . ($ai4seo_this_new_or_existing_filter_option == $ai4seo_current_automated_generation_new_or_existing_filter ? 'selected' : '') . '>' . esc_html($ai4seo_this_new_or_existing_filter_option_label) . '</option>';
-                        }
-                        echo '</select>';
-
-                        // Add datetime picker for reference time
-                        $ai4seo_this_datetime_input_name = ai4seo_get_prefixed_input_name(AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME);
-                        $ai4seo_datetime_value = '';
-
-                        // Use current timestamp if no stored timestamp exists
-                        $ai4seo_reference_timestamp = $ai4seo_automated_generation_new_or_existing_filter_reference_timestamp;
-
-                        if (!$ai4seo_reference_timestamp) {
-                            $ai4seo_reference_timestamp = time();
-                        }
-
-                        $ai4seo_datetime_value = ai4seo_format_unix_timestamp($ai4seo_reference_timestamp, 'Y-m-d', 'H:i', '\T');
-
-                        $ai4seo_is_datetime_visible = ($ai4seo_current_automated_generation_new_or_existing_filter == 'new' || $ai4seo_current_automated_generation_new_or_existing_filter == 'existing');
-
-                        echo "<div class='ai4seo-datetime-picker-container' style='margin-top: 1rem;" . (!$ai4seo_is_datetime_visible ? ' display: none;' : '') . "'>";
-                            echo "<label for='" . esc_attr($ai4seo_this_datetime_input_name) . "' class='ai4seo-datetime-picker-label'>";
-                                if ($ai4seo_current_automated_generation_new_or_existing_filter == 'new') {
-                                    echo esc_html__('New entries since:', 'ai-for-seo');
-                                } else if ($ai4seo_current_automated_generation_new_or_existing_filter == 'existing') {
-                                    echo esc_html__('Old entries before:', 'ai-for-seo');
-                                } else {
-                                    echo esc_html__('Reference time:', 'ai-for-seo'); // fallback
-                                }
-                            echo '</label>';
-                            echo "<input type='datetime-local' id='" . esc_attr($ai4seo_this_datetime_input_name) . "' name='" . esc_attr($ai4seo_this_datetime_input_name) . "' value='" . esc_attr($ai4seo_datetime_value) . "' class='ai4seo-datetime-picker-input' data-stored-timestamp='" . esc_attr($ai4seo_reference_timestamp) . "'>";
-                        echo '</div>';
-
-                    echo '</div>';
-
-                echo '</div>';
-
-                echo "<hr class='ai4seo-form-item-divider'>";
-            echo '</div>';
-
-            $ai4seo_manual_queue_note_tooltip = esc_html__('You can queue entries manually by using bulk actions in native WordPress lists such as Posts, Pages, Products and similar pages, by using bulk actions in the SOOZ - AI for SEO post and media pages, or by using the designated queue buttons next to edit buttons.', 'ai-for-seo');
-
-            echo "<div class='ai4seo-bulk-generation-manual-queue-note'" . ($ai4seo_is_bulk_generation_auto_queue_entries_enabled ? " style='display: none;'" : '') . '>';
-                echo "<div class='ai4seo-form-item'>";
-                    echo "<div class='ai4seo-form-item-input-wrapper'>";
-                        echo esc_html__('Note: Auto Queue Entries is disabled. You will need to queue potential entries manually from the Posts or Media lists.', 'ai-for-seo');
-                        echo ' ';
-                        ai4seo_echo_wp_kses(ai4seo_get_icon_with_tooltip_tag($ai4seo_manual_queue_note_tooltip));
-                    echo '</div>';
-                echo '</div>';
-
-                echo "<hr class='ai4seo-form-item-divider'>";
-            echo '</div>';
-
-            // === AI4SEO_SETTING_BULK_GENERATION_ORDER ================================================================================= \\
-
-            $ai4seo_this_bulk_generation_setting_name = ai4seo_get_prefixed_input_name(AI4SEO_SETTING_BULK_GENERATION_ORDER);
-
-            echo "<div class='ai4seo-form-item'>";
-
-                echo "<label for='" . esc_attr($ai4seo_this_bulk_generation_setting_name) . "'>";
-                    echo '<span>' . esc_html__('Order of bulk generation:', 'ai-for-seo') . '</span> ';
-                echo '</label>';
-
-                echo "<div class='ai4seo-form-item-input-wrapper'>";
-                echo "<select id='" . esc_attr($ai4seo_this_bulk_generation_setting_name) . "' name='" . esc_attr($ai4seo_this_bulk_generation_setting_name) . "'>";
-                        foreach (AI4SEO_BULK_GENERATION_ORDER_TRANSLATED_OPTIONS as $ai4seo_this_order_option => $ai4seo_this_order_option_label) {
-                            echo "<option value='" . esc_attr($ai4seo_this_order_option) . "' " . ($ai4seo_this_order_option == $ai4seo_current_automated_generation_order ? 'selected' : '') . '>' . esc_html($ai4seo_this_order_option_label) . '</option>';
-                        }
-                    echo '</select>';
-                echo '</div>';
-            echo '</div>';
-        echo '</div>';
-    echo '</div>';
+if ( $ai4seo_found_any_all_done_post_types ) {
+	echo "<div class='ai4seo-autopilot-footnote'>* " . esc_html__( 'SEO Autopilot will automatically activate when new entries are created.', 'ai-for-seo' ) . '</div>';
+}
 
 
-    // === COST BREAKDOWN ================================================================================= \\
+	// === SEO Autopilot SETTINGS ================================================================================= \\
 
-    ai4seo_echo_cost_breakdown_section(100);
+	echo "<div class='ai4seo-form ai4seo-small-form ai4seo-no-borders ai4seo-autopilot-settings-form'>";
+
+		echo "<div class='ai4seo-form-section'>";
+
+			// === AI4SEO_SETTING_BULK_GENERATION_AUTO_QUEUE_ENTRIES ================================================================================= \\
+
+			$ai4seo_this_bulk_generation_setting_name = ai4seo_get_prefixed_input_name( AI4SEO_SETTING_BULK_GENERATION_AUTO_QUEUE_ENTRIES );
+
+			echo "<div class='ai4seo-form-item'>";
+				echo "<label for='" . esc_attr( $ai4seo_this_bulk_generation_setting_name ) . "'>";
+					// Keep the NEW badge inline because this modal renders its setting label manually.
+					echo "<span class='ai4seo-green-bubble'>" . esc_html__( 'NEW', 'ai-for-seo' ) . '</span> ';
+					echo '<span>' . esc_html__( 'Auto Queue Entries', 'ai-for-seo' ) . '</span> ';
+				echo '</label>';
+
+				echo "<div class='ai4seo-form-item-input-wrapper'>";
+					echo "<select id='" . esc_attr( $ai4seo_this_bulk_generation_setting_name ) . "' name='" . esc_attr( $ai4seo_this_bulk_generation_setting_name ) . "'>";
+						echo "<option value='true'" . ( $ai4seo_is_bulk_generation_auto_queue_entries_enabled ? ' selected' : '' ) . '>' . esc_html__( 'Automatically add applicable entries to the queue', 'ai-for-seo' ) . '</option>';
+						echo "<option value='false'" . ( ! $ai4seo_is_bulk_generation_auto_queue_entries_enabled ? ' selected' : '' ) . '>' . esc_html__( 'Only process manually queued entries', 'ai-for-seo' ) . '</option>';
+					echo '</select>';
+
+					echo "<div class='ai4seo-bulk-generation-queue-status'>";
+						echo "<span class='ai4seo-bulk-generation-queue-count-container'>";
+							echo esc_html__( 'Queue:', 'ai-for-seo' ) . ' ';
+							echo "<span class='ai4seo-bulk-generation-queue-count'>" . esc_html( ai4seo_format_number_i18n( $ai4seo_bulk_generation_queue_count ) ) . '</span> ';
+							echo "<span class='ai4seo-bulk-generation-queue-count-label'>" . esc_html( _n( 'entry', 'entries', $ai4seo_bulk_generation_queue_count, 'ai-for-seo' ) ) . '</span>';
+						echo '</span>';
+
+						echo "<span class='ai4seo-clear-bulk-generation-queue-button-container" . ( $ai4seo_bulk_generation_queue_count > 0 ? '' : ' ai4seo-display-none' ) . "'>";
+							ai4seo_echo_wp_kses( ai4seo_get_small_icon_button_tag( 'trash', esc_html__( 'Clear Queue', 'ai-for-seo' ), 'ai4seo-clear-bulk-generation-queue-button', 'ai4seo_clear_bulk_generation_queue(this);' ) );
+						echo '</span>';
+					echo '</div>';
+				echo '</div>';
+			echo '</div>';
+
+			echo "<hr class='ai4seo-form-item-divider'>";
+
+			// === AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER ================================================================================= \\
+
+			$ai4seo_current_automated_generation_order                              = ai4seo_get_setting( AI4SEO_SETTING_BULK_GENERATION_ORDER );
+			$ai4seo_current_automated_generation_new_or_existing_filter             = ai4seo_get_setting( AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER );
+			$ai4seo_automated_generation_new_or_existing_filter_reference_timestamp = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME );
+
+			$ai4seo_this_bulk_generation_setting_name = ai4seo_get_prefixed_input_name( AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER );
+
+			echo "<div class='ai4seo-bulk-generation-auto-queue-dependent-settings" . ( $ai4seo_is_bulk_generation_auto_queue_entries_enabled ? '' : ' ai4seo-display-none' ) . "'>";
+
+				echo "<div class='ai4seo-form-item'>";
+
+					// Keep the tooltip trigger beside, rather than inside, the select label.
+					echo "<span class='ai4seo-form-item-label ai4seo-label-with-tooltip'>";
+						echo "<label for='" . esc_attr( $ai4seo_this_bulk_generation_setting_name ) . "'>";
+							echo esc_html__( 'Generate metadata and media attributes for:', 'ai-for-seo' );
+						echo '</label>';
+						ai4seo_echo_wp_kses( ai4seo_get_icon_with_tooltip_tag( esc_html__( "Choose whether to generate metadata or media attributes for existing entries, newly created entries, or both. Changing this setting marks all current entries as 'existing', while any entries created afterward are considered 'new'. This distinction is refreshed each time the setting is changed, except for direct swaps between 'New entries only' and 'Existing entries only'.", 'ai-for-seo' ) ) );
+					echo '</span>';
+
+					echo "<div class='ai4seo-form-item-input-wrapper'>";
+						echo "<select id='" . esc_attr( $ai4seo_this_bulk_generation_setting_name ) . "' name='" . esc_attr( $ai4seo_this_bulk_generation_setting_name ) . "'>";
+foreach ( AI4SEO_BULK_GENERATION_NEW_OR_EXISTING_FILTER_TRANSLATED_OPTIONS as $ai4seo_this_new_or_existing_filter_option => $ai4seo_this_new_or_existing_filter_option_label ) {
+	echo "<option value='" . esc_attr( $ai4seo_this_new_or_existing_filter_option ) . "' " . ( $ai4seo_this_new_or_existing_filter_option == $ai4seo_current_automated_generation_new_or_existing_filter ? 'selected' : '' ) . '>' . esc_html( $ai4seo_this_new_or_existing_filter_option_label ) . '</option>';
+}
+						echo '</select>';
+
+						// Add datetime picker for reference time.
+						$ai4seo_this_datetime_input_name = ai4seo_get_prefixed_input_name( AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME );
+						$ai4seo_datetime_value           = '';
+
+						// Use current timestamp if no stored timestamp exists.
+						$ai4seo_reference_timestamp = $ai4seo_automated_generation_new_or_existing_filter_reference_timestamp;
+
+if ( ! $ai4seo_reference_timestamp ) {
+	$ai4seo_reference_timestamp = time();
+}
+
+						$ai4seo_datetime_value = ai4seo_format_unix_timestamp( $ai4seo_reference_timestamp, 'Y-m-d', 'H:i', '\T' );
+
+						$ai4seo_is_datetime_visible = ( 'new' === $ai4seo_current_automated_generation_new_or_existing_filter || 'existing' === $ai4seo_current_automated_generation_new_or_existing_filter );
+
+						echo "<div class='ai4seo-datetime-picker-container" . ( ! $ai4seo_is_datetime_visible ? ' ai4seo-display-none' : '' ) . "'>";
+							echo "<label for='" . esc_attr( $ai4seo_this_datetime_input_name ) . "' class='ai4seo-datetime-picker-label'>";
+if ( 'new' === $ai4seo_current_automated_generation_new_or_existing_filter ) {
+	echo esc_html__( 'New entries since:', 'ai-for-seo' );
+} elseif ( 'existing' === $ai4seo_current_automated_generation_new_or_existing_filter ) {
+	echo esc_html__( 'Old entries before:', 'ai-for-seo' );
+} else {
+	echo esc_html__( 'Reference time:', 'ai-for-seo' ); // fallback.
+}
+							echo '</label>';
+							echo "<input type='datetime-local' id='" . esc_attr( $ai4seo_this_datetime_input_name ) . "' name='" . esc_attr( $ai4seo_this_datetime_input_name ) . "' value='" . esc_attr( $ai4seo_datetime_value ) . "' class='ai4seo-datetime-picker-input' data-stored-timestamp='" . esc_attr( $ai4seo_reference_timestamp ) . "'>";
+						echo '</div>';
+
+					echo '</div>';
+
+				echo '</div>';
+
+				echo "<hr class='ai4seo-form-item-divider'>";
+			echo '</div>';
+
+			$ai4seo_manual_queue_note_tooltip = esc_html__( 'You can queue entries manually by using bulk actions in native WordPress lists such as Posts, Pages, Products and similar pages, by using bulk actions in the SOOZ - AI for SEO post and media pages, or by using the designated queue buttons next to edit buttons.', 'ai-for-seo' );
+
+			echo "<div class='ai4seo-bulk-generation-manual-queue-note" . ( $ai4seo_is_bulk_generation_auto_queue_entries_enabled ? ' ai4seo-display-none' : '' ) . "'>";
+				echo "<div class='ai4seo-form-item'>";
+					echo "<div class='ai4seo-form-item-input-wrapper'>";
+						echo esc_html__( 'Note: Auto Queue Entries is disabled. You will need to queue potential entries manually from the Posts or Media lists.', 'ai-for-seo' );
+						echo ' ';
+						ai4seo_echo_wp_kses( ai4seo_get_icon_with_tooltip_tag( $ai4seo_manual_queue_note_tooltip ) );
+					echo '</div>';
+				echo '</div>';
+
+				echo "<hr class='ai4seo-form-item-divider'>";
+			echo '</div>';
+
+			// === AI4SEO_SETTING_BULK_GENERATION_ORDER ================================================================================= \\
+
+			$ai4seo_this_bulk_generation_setting_name = ai4seo_get_prefixed_input_name( AI4SEO_SETTING_BULK_GENERATION_ORDER );
+
+			echo "<div class='ai4seo-form-item'>";
+
+				echo "<label for='" . esc_attr( $ai4seo_this_bulk_generation_setting_name ) . "'>";
+					echo '<span>' . esc_html__( 'Order of bulk generation:', 'ai-for-seo' ) . '</span> ';
+				echo '</label>';
+
+				echo "<div class='ai4seo-form-item-input-wrapper'>";
+				echo "<select id='" . esc_attr( $ai4seo_this_bulk_generation_setting_name ) . "' name='" . esc_attr( $ai4seo_this_bulk_generation_setting_name ) . "'>";
+foreach ( AI4SEO_BULK_GENERATION_ORDER_TRANSLATED_OPTIONS as $ai4seo_this_order_option => $ai4seo_this_order_option_label ) {
+	echo "<option value='" . esc_attr( $ai4seo_this_order_option ) . "' " . ( $ai4seo_this_order_option == $ai4seo_current_automated_generation_order ? 'selected' : '' ) . '>' . esc_html( $ai4seo_this_order_option_label ) . '</option>';
+}
+					echo '</select>';
+				echo '</div>';
+			echo '</div>';
+		echo '</div>';
+	echo '</div>';
+
+
+	// === COST BREAKDOWN ================================================================================= \\
+
+	ai4seo_echo_cost_breakdown_section( 100 );
 echo '</div>';
 
 
@@ -326,11 +327,11 @@ echo '</div>';
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 echo "<div class='ai4seo-modal-schema-footer'>";
-    ai4seo_echo_wp_kses(ai4seo_get_modal_close_button_tag());
+	ai4seo_echo_wp_kses( ai4seo_get_modal_close_button_tag() );
 
-    if ($ai4seo_is_any_bulk_generation_enabled) {
-        ai4seo_echo_wp_kses(ai4seo_get_submit_button_tag(esc_html__('Update SEO Autopilot', 'ai-for-seo'), '', 'ai4seo_start_bulk_generation(this);'));
-    } else {
-        ai4seo_echo_wp_kses(ai4seo_get_submit_button_tag(esc_html__('Start SEO Autopilot', 'ai-for-seo'), '', 'ai4seo_start_bulk_generation(this);'));
-    }
+if ( $ai4seo_is_any_bulk_generation_enabled ) {
+	ai4seo_echo_wp_kses( ai4seo_get_submit_button_tag( esc_html__( 'Update SEO Autopilot', 'ai-for-seo' ), '', 'ai4seo_start_bulk_generation(this);' ) );
+} else {
+	ai4seo_echo_wp_kses( ai4seo_get_submit_button_tag( esc_html__( 'Start SEO Autopilot', 'ai-for-seo' ), '', 'ai4seo_start_bulk_generation(this);' ) );
+}
 echo '</div>';

@@ -1,4 +1,12 @@
 == Changelog ==
+= 2.4.1 =
+* Added experimental generation-length sliders for meta titles and descriptions, social metadata, and image alt text, available under Advanced Settings.
+* Added bundled translations for Arabic, Brazilian Portuguese, Dutch, French, Italian, Japanese, Polish, Russian, Spanish, and Swedish.
+* Improved the quality and reliability of generated metadata and media attributes with field-by-field validation and targeted retries for incomplete or unsuitable results.
+* Improved Custom Instructions so compatible preferences are applied without overriding configured languages, field formats, prefixes, suffixes, quality limits, factual accuracy, or safety requirements.
+* Improved usability and accessibility across dashboards, editors, settings, tooltips, notifications, and account controls.
+* Bug Fixes & Maintenance: Improved settings saving and error feedback, dashboard refreshes, frontend alt-text handling, selection controls, notifications, security checks, and automatic cache refreshes after plugin updates.
+
 = 2.4.0 =
 * Improved media context detection for better image attributes by finding featured images, uploaded child media, WooCommerce variation images, galleries, local image URLs, and media stored by page builders or custom fields.
 * Added Metadata prompt sliders so users can tune tone, keyword intensity, focus keyphrase influence, CTA style, social variation, brand context, and existing-value reference strength.
