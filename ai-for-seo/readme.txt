@@ -4,7 +4,7 @@ Contributors: spacecodes
 Donate link: https://spa.ce.codes
 Requires at least: 6.6
 Tested up to: 7.0
-Stable tag: 2.4.1
+Stable tag: 2.4.2
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -224,6 +224,12 @@ We welcome feature requests, editor integration ideas, page builder compatibilit
 
 == Changelog ==
 
+= 2.4.2 =
+* Improved media attribute generation reliability by automatically recovering with direct image data when a remote image URL cannot be accessed.
+* Improved dashboard and SEO Autopilot status accuracy and performance with incremental background updates and clearer, accessible progress details.
+* Added sticky section navigation to Settings so longer configuration pages are easier to move through.
+* Bug Fixes & Maintenance: Fixed 8 minor bugs, implemented 2 performance improvements, and addressed 1 security issue.
+
 = 2.4.1 =
 * Added experimental generation-length sliders for meta titles and descriptions, social metadata, and image alt text, available under Advanced Settings.
 * Added bundled translations for Arabic, Brazilian Portuguese, Dutch, French, Italian, Japanese, Polish, Russian, Spanish, and Swedish.
@@ -371,6 +377,9 @@ We welcome feature requests, editor integration ideas, page builder compatibilit
 
 
 == Upgrade Notice ==
+
+= 2.4.2 =
+* Improved remote-image recovery, dashboard and SEO Autopilot status tracking, Settings navigation, performance, and security.
 
 = 2.4.1 =
 * Bug Fixes & Maintenance: Fixed various minor bugs and implemented performance and security improvements.

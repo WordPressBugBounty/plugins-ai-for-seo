@@ -69,7 +69,6 @@ function ai4seo_send_ajax_error( string $error_message = 'Unknown Error', int $e
 
 	// Clean output buffer if active.
 	if ( $clear_buffer && ob_get_level() ) {
-		// error_log(ob_get_contents()); # for debugging.
 		ob_end_clean();
 	}
 

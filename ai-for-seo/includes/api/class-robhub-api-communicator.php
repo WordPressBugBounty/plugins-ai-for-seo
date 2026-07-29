@@ -32,7 +32,9 @@ class Ai4Seo_RobHubApiCommunicator {
 	/**
 	 * Endpoints whose complete model-attempt budget is coordinated by RobHub.
 	 *
-	 * The plugin sends one HTTP request so transport retries cannot multiply server-side model attempts.
+	 * The plugin sends one initial HTTP request so transport retries cannot multiply server-side
+	 * model attempts. Attachment source recovery is separately allowed only when RobHub returns a
+	 * one-time continuation proving that the URL failed before model work began.
 	 *
 	 * @var string[]
 	 */
@@ -977,7 +979,30 @@ class Ai4Seo_RobHubApiCommunicator {
 			$raw_response['message'] = isset( $raw_response['message'] ) ? sanitize_text_field( $raw_response['message'] ) : 'API call returned an error without a message.';
 			$raw_response['message'] = "API-Error #{$raw_response['code']}: " . $raw_response['message'];
 
-			return $this->respond_error( $raw_response['message'], $raw_response['code'] );
+			// Build the established error shape first; recovery remains opt-in metadata rather than
+			// changing the behavior of every existing API error consumer.
+			$normalized_error = $this->respond_error( $raw_response['message'], $raw_response['code'] );
+
+			// Keep only the narrowly-defined server-guided source-recovery contract. This is
+			// intentionally not a generic error passthrough: the attachment wrapper alone
+			// decides whether it can make one local base64 continuation.
+			if ( isset( $raw_response['recovery'] ) && is_array( $raw_response['recovery'] ) ) {
+				$recovery_token = $raw_response['recovery']['continuation_token'] ?? '';
+				$expires_at     = $raw_response['recovery']['expires_at'] ?? 0;
+
+				if ( 'base64' === ( $raw_response['recovery']['method'] ?? '' )
+					&& is_string( $recovery_token )
+					&& preg_match( '/^[A-Za-z0-9_-]{32,128}$/', $recovery_token )
+					&& is_numeric( $expires_at ) ) {
+					$normalized_error['recovery'] = array(
+						'method'             => 'base64',
+						'continuation_token' => $recovery_token,
+						'expires_at'         => (int) $expires_at,
+					);
+				}
+			}
+
+			return $normalized_error;
 		}
 
 		// === CHECK PAYLOAD COMPLETENESS ======================================================================== \\
@@ -1058,7 +1083,8 @@ class Ai4Seo_RobHubApiCommunicator {
 	/**
 	 * Decide whether legacy callers may switch an image request to base64 after a failed URL request.
 	 *
-	 * Coordinated generation no longer invokes this fallback, but the public helper remains for compatibility.
+	 * Coordinated generation no longer invokes this unrestricted fallback. The public helper remains
+	 * for compatibility; the shared attachment wrapper instead requires a server-issued recovery token.
 	 *
 	 * @param mixed $response Normalized API response.
 	 * @return bool

@@ -417,6 +417,21 @@ function ai4seo_is_related_attachment_remove_bulk_generation_queue_action( strin
 // =========================================================================================== \\
 
 /**
+ * Returns the queue contexts supported by all bulk-generation routing helpers.
+ *
+ * @return array
+ */
+function ai4seo_get_bulk_generation_queue_contexts(): array {
+	// Keep the shared registry ordered consistently for validation, aggregation, and future context-wide operations.
+	return array(
+		AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA,
+		AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES,
+	);
+}
+
+// =========================================================================================== \\
+
+/**
  * Checks whether a bulk generation queue context exists.
  *
  * @param string $context Queue context.
@@ -425,14 +440,8 @@ function ai4seo_is_related_attachment_remove_bulk_generation_queue_action( strin
 function ai4seo_is_bulk_generation_queue_context( string $context ): bool {
 	$context = sanitize_key( $context );
 
-	return in_array(
-		$context,
-		array(
-			AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA,
-			AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES,
-		),
-		true
-	);
+	// Reuse the routing registry so validation cannot drift from context-wide operations.
+	return in_array( $context, ai4seo_get_bulk_generation_queue_contexts(), true );
 }
 
 // =========================================================================================== \\
@@ -1129,15 +1138,54 @@ function ai4seo_get_applicable_bulk_generation_queue_post_ids( array $post_ids, 
 // =========================================================================================== \\
 
 /**
+ * Counts bulk generation entries for one queue status across metadata and attachment contexts.
+ *
+ * @param string $status Queue status key from ai4seo_get_bulk_generation_queue_options_by_context().
+ * @return int
+ */
+function ai4seo_get_bulk_generation_entry_count_by_status( string $status ): int {
+	// Reuse the context-to-option map so queue counters stay aligned with bulk action routing.
+	$entry_count = 0;
+
+	foreach ( ai4seo_get_bulk_generation_queue_contexts() as $context ) {
+		$queue_options = ai4seo_get_bulk_generation_queue_options_by_context( $context );
+
+		// Unknown status keys do not map to a persisted queue option and therefore contribute no entries.
+		if ( ! isset( $queue_options[ $status ] ) ) {
+			continue;
+		}
+
+		$entry_count += count( ai4seo_get_post_ids_from_option( $queue_options[ $status ] ) );
+	}
+
+	return $entry_count;
+}
+
+// =========================================================================================== \\
+
+/**
  * Count all entries currently queued for SEO Autopilot.
  *
  * @return int
  */
 function ai4seo_get_bulk_generation_queue_count(): int {
-	$pending_metadata_post_ids             = ai4seo_get_post_ids_from_option( AI4SEO_PENDING_METADATA_POST_IDS_OPTION_NAME );
-	$pending_attachment_attribute_post_ids = ai4seo_get_post_ids_from_option( AI4SEO_PENDING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME );
+	// The pending status is the persisted source of all work currently waiting in either queue context.
+	return ai4seo_get_bulk_generation_entry_count_by_status( 'pending' );
+}
 
-	return count( $pending_metadata_post_ids ) + count( $pending_attachment_attribute_post_ids );
+// =========================================================================================== \\
+
+/**
+ * Count all SEO Autopilot entries currently being processed.
+ *
+ * Processing entries are no longer in the pending queue, but they still represent active
+ * Autopilot work and must be considered before the dashboard reports an empty queue.
+ *
+ * @return int
+ */
+function ai4seo_get_bulk_generation_processing_count(): int {
+	// Use the shared status counter so active work follows the same context mapping as pending work.
+	return ai4seo_get_bulk_generation_entry_count_by_status( 'processing' );
 }
 
 // =========================================================================================== \\

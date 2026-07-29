@@ -1019,6 +1019,60 @@ function ai4seo_get_disabled_author_ids_by_setting_name( string $setting_name ):
 // =========================================================================================== \\
 
 /**
+ * Returns public post types that WordPress can expose through normal front-end requests.
+ *
+ * @return array Post type labels keyed by post type name.
+ */
+function ai4seo_get_publicly_accessible_post_types(): array {
+	// Exclude WordPress internals and plugin-managed pseudo-types that should never enter SEO analysis.
+	$excluded_post_types = array(
+		'attachment',
+		'ai4seo_ngg', // NextGEN Gallery.
+		'revision',
+		'nav_menu_item',
+		'custom_css',
+		'customize_changeset',
+		'oembed_cache',
+		'user_request',
+		'template',
+		'wp_block',
+	);
+
+	// Start with WordPress's public registry so custom post type visibility remains owned by core.
+	$args = array(
+		'public' => true,
+	);
+
+	$post_types                     = get_post_types( $args, 'objects' );
+	$publicly_accessible_post_types = array();
+
+	foreach ( $post_types as $post_type ) {
+		// Custom post types also need both a public query route and rewrite configuration.
+		if ( ! $post_type->_builtin && ! $post_type->publicly_queryable ) {
+			continue;
+		}
+
+		if ( ! $post_type->_builtin && ! $post_type->rewrite ) {
+			continue;
+		}
+
+		// Keep the explicit exclusions separate from registry flags because several are public in some setups.
+		if ( in_array( $post_type->name, $excluded_post_types ) ) {
+			continue;
+		}
+
+		// Retain types that WordPress can surface through archives, normal posts, or search.
+		if ( $post_type->has_archive || 'post' === $post_type->capability_type || ! $post_type->exclude_from_search ) {
+			$publicly_accessible_post_types[ $post_type->name ] = $post_type->label;
+		}
+	}
+
+	return $publicly_accessible_post_types;
+}
+
+// =========================================================================================== \\
+
+/**
  * Returns all supported post types for this WordPress setup
  *
  * @param bool $apply_user_setting Whether to filter out user-disabled post types.

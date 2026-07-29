@@ -926,7 +926,10 @@ function ai4seo_read_generation_status_summary( bool $totals_only = true, bool $
 		$generation_status_summary = maybe_unserialize( $generation_status_summary );
 	}
 
-	if ( ! is_array( $generation_status_summary ) && ai4seo_is_json( $generation_status_summary ) ) {
+	if ( ! is_array( $generation_status_summary )
+		&& is_string( $generation_status_summary )
+		&& '' !== $generation_status_summary
+		&& ai4seo_is_json( $generation_status_summary ) ) {
 		$generation_status_summary = json_decode( $generation_status_summary, true );
 	}
 
@@ -1063,6 +1066,294 @@ function ai4seo_add_post_ids_to_generation_status_summary( array &$generation_st
 	$generation_status_summary[ $option_name ][ $post_type ]['total']    = count(
 		$generation_status_summary[ $option_name ][ $post_type ]['post_ids']
 	);
+}
+
+// =========================================================================================== \\
+
+/**
+ * Reads and validates full summary storage before an incremental reconciliation.
+ *
+ * @return array|null Normalized summary, or null when a full analysis must rebuild storage.
+ */
+function ai4seo_read_generation_status_summary_for_incremental_sync(): ?array {
+	// A distinct null default separates a missing option from a valid summary with no entries.
+	$generation_status_summary = ai4seo_get_option( AI4SEO_GENERATION_STATUS_SUMMARY_OPTION_NAME, null, true );
+
+	if ( null === $generation_status_summary ) {
+		return null;
+	}
+
+	// Retain compatibility with serialized and JSON storage while rejecting undecodable data.
+	$generation_status_summary = maybe_unserialize( $generation_status_summary );
+
+	if ( ! is_array( $generation_status_summary )
+		&& is_string( $generation_status_summary )
+		&& '' !== $generation_status_summary
+		&& ai4seo_is_json( $generation_status_summary ) ) {
+		$generation_status_summary = json_decode( $generation_status_summary, true );
+	}
+
+	if ( ! is_array( $generation_status_summary ) ) {
+		return null;
+	}
+
+	// Incremental updates require recognized buckets with complete post-ID memberships.
+	foreach ( $generation_status_summary as $option_name => $post_type_entries ) {
+		if ( ! in_array( $option_name, AI4SEO_ALL_POST_ID_OPTIONS, true ) || ! is_array( $post_type_entries ) ) {
+			return null;
+		}
+
+		foreach ( $post_type_entries as $summary_entry ) {
+			if ( ! is_array( $summary_entry )
+				|| ! array_key_exists( 'total', $summary_entry )
+				|| ! isset( $summary_entry['post_ids'] )
+				|| ! is_array( $summary_entry['post_ids'] ) ) {
+				return null;
+			}
+
+			// Reject partial, duplicate, or non-numeric memberships rather than coercing corrupt data into valid IDs.
+			$normalized_post_ids = array();
+
+			foreach ( $summary_entry['post_ids'] as $post_id ) {
+				if ( ! is_scalar( $post_id ) || ! is_numeric( $post_id ) ) {
+					return null;
+				}
+
+				$normalized_post_id = (int) $post_id;
+
+				if ( $normalized_post_id < 1 || (float) $post_id !== (float) $normalized_post_id ) {
+					return null;
+				}
+
+				$normalized_post_ids[] = $normalized_post_id;
+			}
+
+			// Stored totals must describe the same unique membership set before it can be updated incrementally.
+			if ( ! is_scalar( $summary_entry['total'] )
+				|| ! is_numeric( $summary_entry['total'] ) ) {
+				return null;
+			}
+
+			$normalized_total = (int) $summary_entry['total'];
+
+			if ( $normalized_total < 0
+				|| (float) $summary_entry['total'] !== (float) $normalized_total
+				|| count( $normalized_post_ids ) !== count( array_unique( $normalized_post_ids ) )
+				|| $normalized_total !== count( $normalized_post_ids ) ) {
+				return null;
+			}
+		}
+	}
+
+	// Normalize only after validating so malformed storage cannot silently become an authoritative empty summary.
+	return ai4seo_normalize_generation_status_summary_storage(
+		ai4seo_deep_sanitize( $generation_status_summary, 'absint' )
+	);
+}
+
+// =========================================================================================== \\
+
+/**
+ * Returns a stable semantic representation for summary equality checks.
+ *
+ * @param array $generation_status_summary Full generation status summary.
+ * @return array
+ */
+function ai4seo_get_comparable_generation_status_summary( array $generation_status_summary ): array {
+	// Empty option buckets carry no counter meaning, so omit them before sorting the remaining semantic keys.
+	$comparable_summary = array();
+
+	foreach ( ai4seo_normalize_generation_status_summary_storage( $generation_status_summary ) as $option_name => $post_type_entries ) {
+		if ( ! $post_type_entries ) {
+			continue;
+		}
+
+		foreach ( $post_type_entries as $post_type => $summary_entry ) {
+			$post_ids = $summary_entry['post_ids'];
+			sort( $post_ids, SORT_NUMERIC );
+
+			$comparable_summary[ $option_name ][ $post_type ] = array(
+				'total'    => count( $post_ids ),
+				'post_ids' => $post_ids,
+			);
+		}
+
+		ksort( $comparable_summary[ $option_name ], SORT_STRING );
+	}
+
+	ksort( $comparable_summary, SORT_STRING );
+
+	return $comparable_summary;
+}
+
+// =========================================================================================== \\
+
+/**
+ * Schedules a one-off full analysis when incremental summary storage is unusable.
+ *
+ * @return void
+ */
+function ai4seo_schedule_generation_status_summary_rebuild(): void {
+	// Reuse the cron injector so concurrent failures converge on one near-term rebuild task.
+	ai4seo_inject_additional_cronjob_call( AI4SEO_GENERATION_STATUS_SUMMARY_REBUILD_CRON_JOB_NAME );
+}
+
+// =========================================================================================== \\
+
+/**
+ * Rebuilds invalid generation status summary storage through the existing full analysis mechanism.
+ *
+ * @return void
+ */
+function ai4seo_rebuild_generation_status_summary(): void {
+	// A dedicated cron callback can force a clean reset without granting admin-mutation privileges.
+	ai4seo_force_posts_table_analysis_refresh( false, true );
+}
+
+// =========================================================================================== \\
+
+/**
+ * Synchronizes summary buckets for source-option memberships changed during one request.
+ *
+ * @param array $changed_post_ids_by_option Changed post IDs keyed by their source option name.
+ * @return bool Whether the stored summary changed.
+ */
+function ai4seo_sync_generation_status_summary_for_option_changes( array $changed_post_ids_by_option ): bool {
+	static $is_syncing = false;
+
+	// Summary writes can trigger related option hooks, so nested reconciliation must stop at this boundary.
+	if ( $is_syncing ) {
+		return false;
+	}
+
+	$source_option_names        = ai4seo_get_generation_status_summary_source_option_names();
+	$normalized_option_changes  = array();
+	$all_changed_post_id_lookup = array();
+
+	// Normalize the tracker lookup shape and discard options that are not represented in the summary.
+	foreach ( $changed_post_ids_by_option as $option_name => $changed_post_ids ) {
+		$option_name = sanitize_key( $option_name );
+
+		if ( ! in_array( $option_name, $source_option_names, true ) || ! is_array( $changed_post_ids ) ) {
+			continue;
+		}
+
+		$post_ids = array();
+
+		foreach ( $changed_post_ids as $post_id_key => $post_id_value ) {
+			$post_ids[] = ( true === $post_id_value && is_numeric( $post_id_key ) )
+				? $post_id_key
+				: $post_id_value;
+		}
+
+		// Reuse source-option normalization so direct callers cannot inject malformed changed-ID shapes.
+		$post_ids = ai4seo_normalize_post_ids_from_option_value( $post_ids );
+
+		if ( ! $post_ids ) {
+			continue;
+		}
+
+		$normalized_option_changes[ $option_name ] = $post_ids;
+
+		foreach ( $post_ids as $post_id ) {
+			$all_changed_post_id_lookup[ $post_id ] = true;
+		}
+	}
+
+	if ( ! $normalized_option_changes ) {
+		return false;
+	}
+
+	// Hold the recursion guard across validation, source reads, and companion-option writes.
+	$is_syncing = true;
+
+	try {
+		// Reject missing, malformed, or totals-only storage instead of persisting a partial reconstruction.
+		ai4seo_reset_generation_status_summary_request_cache();
+		$generation_status_summary = ai4seo_read_generation_status_summary_for_incremental_sync();
+
+		if ( null === $generation_status_summary ) {
+			ai4seo_schedule_generation_status_summary_rebuild();
+			return false;
+		}
+
+		$original_generation_status_summary = $generation_status_summary;
+		$post_types_by_post_id               = array();
+
+		// Resolve every changed post type once for all touched source options.
+		foreach ( array_keys( $all_changed_post_id_lookup ) as $post_id ) {
+			$post_type = get_post_type( $post_id );
+
+			if ( $post_type ) {
+				$post_types_by_post_id[ $post_id ] = sanitize_key( $post_type );
+			}
+		}
+
+		foreach ( $normalized_option_changes as $option_name => $post_ids ) {
+			$post_id_lookup = array_flip( $post_ids );
+
+			// Remove this option's changed IDs before rebuilding only its final live memberships.
+			foreach ( $generation_status_summary[ $option_name ] ?? array() as $post_type => $summary_entry ) {
+				$summary_post_ids = array_values(
+					array_filter(
+						$summary_entry['post_ids'],
+						function ( $post_id ) use ( $post_id_lookup ) {
+							return ! isset( $post_id_lookup[ $post_id ] );
+						}
+					)
+				);
+
+				if ( ! $summary_post_ids ) {
+					unset( $generation_status_summary[ $option_name ][ $post_type ] );
+					continue;
+				}
+
+				$generation_status_summary[ $option_name ][ $post_type ] = array(
+					'total'    => count( $summary_post_ids ),
+					'post_ids' => $summary_post_ids,
+				);
+			}
+
+			// Read each touched source option once after all request-level transitions have completed.
+			$live_post_id_lookup = array_flip( ai4seo_get_post_ids_from_option( $option_name ) );
+			$post_ids_by_type    = array();
+
+			foreach ( $post_ids as $post_id ) {
+				if ( ! isset( $live_post_id_lookup[ $post_id ], $post_types_by_post_id[ $post_id ] ) ) {
+					continue;
+				}
+
+				$post_ids_by_type[ $post_types_by_post_id[ $post_id ] ][] = $post_id;
+			}
+
+			foreach ( $post_ids_by_type as $post_type => $post_ids_for_type ) {
+				ai4seo_add_post_ids_to_generation_status_summary(
+					$generation_status_summary,
+					$option_name,
+					$post_type,
+					$post_ids_for_type
+				);
+			}
+		}
+
+		// Compare canonical memberships so harmless key or ID ordering never causes companion rewrites.
+		if ( ai4seo_get_comparable_generation_status_summary( $generation_status_summary )
+			=== ai4seo_get_comparable_generation_status_summary( $original_generation_status_summary ) ) {
+			return false;
+		}
+
+		// Persist the full summary and its compact totals companion once for the complete request-level batch.
+		ai4seo_update_option( AI4SEO_GENERATION_STATUS_SUMMARY_OPTION_NAME, $generation_status_summary );
+		ai4seo_update_option(
+			AI4SEO_GENERATION_STATUS_SUMMARY_TOTALS_OPTION_NAME,
+			ai4seo_get_generation_status_summary_totals( $generation_status_summary )
+		);
+
+		return true;
+	} finally {
+		// Release the recursion guard even when a storage or WordPress callback throws.
+		$is_syncing = false;
+	}
 }
 
 // =========================================================================================== \\

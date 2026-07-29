@@ -8,6 +8,86 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 /**
+ * Function to check whether the current user is allowed to use this plugin
+ *
+ * @return bool
+ */
+function ai4seo_can_manage_this_plugin(): bool {
+	global $ai4seo_can_manage_this_plugin;
+
+	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
+		ai4seo_debug_message( 472226712, 'Prevented loop', true );
+		return false;
+	}
+
+	// use cache if available.
+	if ( null !== $ai4seo_can_manage_this_plugin ) {
+		return $ai4seo_can_manage_this_plugin;
+	}
+
+	// check if is_user_logged_in() is defined.
+	if ( ! function_exists( 'is_user_logged_in' ) ) {
+		return false;
+	}
+
+	if ( ! function_exists( 'get_current_user_id' ) ) {
+		return false;
+	}
+
+	if ( ! function_exists( 'wp_get_current_user' ) ) {
+		return false;
+	}
+
+	// Check if the current user is logged in.
+	if ( ! is_user_logged_in() ) {
+		return false;
+	}
+
+	// Define variables for the incognito-setting.
+	$ai4seo_setting_enable_incognito_mode  = ai4seo_is_incognito_mode_enabled();
+	$ai4seo_setting_incognito_mode_user_id = ai4seo_get_setting( AI4SEO_SETTING_INCOGNITO_MODE_USER_ID );
+	$current_user_id                       = get_current_user_id();
+
+	// Check incognito-setting and incognito user-id.
+	if ( $ai4seo_setting_enable_incognito_mode && AI4SEO_DEFAULT_SETTINGS[ AI4SEO_SETTING_INCOGNITO_MODE_USER_ID ] != $ai4seo_setting_incognito_mode_user_id
+		&& $ai4seo_setting_incognito_mode_user_id != $current_user_id ) {
+		return false;
+	}
+
+	// if we are here, we can assume the outcome of this function can be cached
+	// (before this point, WordPress might not be fully loaded).
+	$ai4seo_can_manage_this_plugin = false;
+
+	// Define variable for the allowed user-roles based on plugin-settings.
+	$allowed_user_roles = ai4seo_get_setting( AI4SEO_SETTING_ALLOWED_USER_ROLES );
+
+	if ( ! $allowed_user_roles || ! is_array( $allowed_user_roles ) ) {
+		return false;
+	}
+
+	// Get the details of the current user.
+	$user = wp_get_current_user();
+
+	// Stop script if the current user or the roles of the current user could not be read.
+	if ( ! $user || ! isset( $user->roles ) || ! is_array( $user->roles ) ) {
+		return false;
+	}
+
+	// Loop through allowed roles and check if roles apply to current user.
+	foreach ( $allowed_user_roles as $allowed_user_role ) {
+		// Check if the user has this allowed role.
+		if ( in_array( $allowed_user_role, (array) $user->roles ) ) {
+			$ai4seo_can_manage_this_plugin = true;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// =========================================================================================== \\
+
+/**
  * Retrieve an array of all user-roles that are currently available
  *
  * @return array An array of all user-roles

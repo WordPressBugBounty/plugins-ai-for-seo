@@ -44,8 +44,10 @@ function ai4seo_un_schedule_cron_jobs() {
 		return;
 	}
 
+	// Remove recurring work and any on-demand recovery task so deactivation leaves no plugin callbacks behind.
 	wp_clear_scheduled_hook( AI4SEO_BULK_GENERATION_CRON_JOB_NAME );
 	wp_clear_scheduled_hook( AI4SEO_ANALYSE_PLUGIN_PERFORMANCE_CRON_JOB_NAME );
+	wp_clear_scheduled_hook( AI4SEO_GENERATION_STATUS_SUMMARY_REBUILD_CRON_JOB_NAME );
 	ai4seo_unschedule_active_metadata_migration_v235_cron_job();
 }
 

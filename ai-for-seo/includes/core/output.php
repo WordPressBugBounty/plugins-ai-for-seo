@@ -8,6 +8,146 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 /**
+ * Returns the SVG tag for the given (fontawesome) icon name
+ *
+ * @param string $icon_name The name of the icon. Check function for allowed icon names.
+ * @param string $alt_text (optional)
+ * @param string $icon_css_class (optional)
+ * @return string The icon SVG tag
+ */
+function ai4seo_get_svg_tag( string $icon_name, string $alt_text = '', string $icon_css_class = '' ): string {
+	// Use the shared icon registry so output helpers cannot render arbitrary SVG markup.
+	$svg_tags = ai4seo_get_svg_tags();
+
+	// Return no markup when a caller requests an icon outside the registry.
+	if ( ! isset( $svg_tags[ $icon_name ] ) ) {
+		return '';
+	}
+
+	$svg_tag = $svg_tags[ $icon_name ];
+
+	// Keep the base icon class on every registry entry while allowing one caller-specific modifier.
+	if ( $icon_css_class ) {
+		$icon_css_class = 'ai4seo-icon ' . $icon_css_class;
+	} else {
+		$icon_css_class = 'ai4seo-icon';
+	}
+
+	$svg_tag = str_replace( '<svg', "<svg class='" . esc_attr( $icon_css_class ) . "'", $svg_tag );
+
+	// Add both the accessible name and an SVG title only when visible context does not provide one.
+	if ( $alt_text ) {
+		$svg_tag = str_replace( '<svg', "<svg aria-label='" . esc_attr( $alt_text ) . "'", $svg_tag );
+		$svg_tag = str_replace( '</svg>', '<title>' . esc_html( $alt_text ) . '</title></svg>', $svg_tag );
+	}
+
+	// Strip CDATA wrappers because registry SVGs are embedded directly in HTML rather than parsed as XML.
+	$svg_tag = str_replace( array( '<![CDATA[', ']]>' ), '', $svg_tag );
+
+	return $svg_tag;
+}
+
+// =========================================================================================== \\
+
+/**
+ * Returns canonical tooltip markup with a native button trigger.
+ *
+ * JavaScript assigns the tooltip ID and connects the trigger's ARIA references during initialization.
+ *
+ * @param string $trigger_html HTML displayed inside the tooltip trigger.
+ * @param string $tooltip_html HTML displayed inside the tooltip.
+ * @param array  $args {
+ *     Optional tooltip markup arguments.
+ *
+ *     @type string $holder_tag          Wrapper tag. Accepts span or div. Default span.
+ *     @type string $holder_css_class    Additional wrapper CSS class.
+ *     @type string $trigger_css_class   Additional trigger CSS class.
+ *     @type string $trigger_aria_label  Accessible trigger label. Visible trigger text is used when omitted.
+ *     @type string $tooltip_tag         Tooltip tag. Accepts span or div. Default span.
+ *     @type string $tooltip_css_class   Additional tooltip CSS class.
+ * }
+ * @return string Tooltip HTML.
+ */
+function ai4seo_get_tooltip_tag( string $trigger_html, string $tooltip_html, array $args = array() ): string {
+	// Centralize optional markup defaults so every tooltip renderer emits the same accessible structure.
+	$args = wp_parse_args(
+		$args,
+		array(
+			'holder_tag'         => 'span',
+			'holder_css_class'   => '',
+			'trigger_css_class'  => '',
+			'trigger_aria_label' => '',
+			'tooltip_tag'        => 'span',
+			'tooltip_css_class'  => '',
+		)
+	);
+
+	// Limit dynamic wrapper tags to the two non-interactive containers supported by existing tooltip layouts.
+	$allowed_wrapper_tags = array( 'div', 'span' );
+	$holder_tag           = in_array( $args['holder_tag'], $allowed_wrapper_tags, true ) ? $args['holder_tag'] : 'span';
+	$tooltip_tag          = in_array( $args['tooltip_tag'], $allowed_wrapper_tags, true ) ? $args['tooltip_tag'] : 'span';
+
+	// Preserve canonical classes while sanitizing the one optional modifier accepted for each element.
+	$holder_css_class     = trim( 'ai4seo-tooltip-holder ' . sanitize_html_class( $args['holder_css_class'] ) );
+	$trigger_css_class    = trim( 'ai4seo-tooltip-trigger ' . sanitize_html_class( $args['trigger_css_class'] ) );
+	$tooltip_css_class    = trim( 'ai4seo-tooltip ai4seo-ignore-during-dashboard-refresh ' . sanitize_html_class( $args['tooltip_css_class'] ) );
+	$aria_label_attribute = $args['trigger_aria_label'] ? " aria-label='" . esc_attr( $args['trigger_aria_label'] ) . "'" : '';
+
+	// Keep ARIA state in the server-rendered markup so the trigger remains meaningful before JavaScript initialization.
+	$output  = '<' . $holder_tag . " class='" . esc_attr( $holder_css_class ) . "'>";
+	$output .= "<button type='button' class='" . esc_attr( $trigger_css_class ) . "' aria-expanded='false'" . $aria_label_attribute . '>';
+	$output .= $trigger_html;
+	$output .= '</button>';
+	$output .= '<' . $tooltip_tag . " class='" . esc_attr( $tooltip_css_class ) . "' role='tooltip' aria-hidden='true'>";
+	$output .= $tooltip_html;
+	$output .= '</' . $tooltip_tag . '>';
+	$output .= '</' . $holder_tag . '>';
+
+	return $output;
+}
+
+// =========================================================================================== \\
+
+/**
+ * Returns an icon with a tooltip.
+ *
+ * @param string $tooltip_text      The tooltip text to be displayed.
+ * @param string $icon_css_class    Optional CSS class for the icon.
+ * @param string $icon_name         Optional icon name. Check function for allowed icon names.
+ * @param string $trigger_aria_label Optional accessible label for the icon trigger.
+ * @return string Tooltip HTML.
+ */
+function ai4seo_get_icon_with_tooltip_tag( string $tooltip_text, string $icon_css_class = '', string $icon_name = 'circle-question', string $trigger_aria_label = '' ): string {
+	// Reuse the SVG registry renderer so tooltip icons receive the canonical icon class and sanitization.
+	$icon = ai4seo_get_svg_tag( $icon_name, '', $icon_css_class );
+
+	// Icon-only buttons need a translated fallback because their SVG is intentionally decorative.
+	if ( ! $trigger_aria_label ) {
+		$trigger_aria_label = __( 'Help', 'ai-for-seo' );
+	}
+
+	// Delegate markup and ARIA defaults to the canonical tooltip renderer used by text triggers.
+	return ai4seo_get_tooltip_tag(
+		$icon,
+		$tooltip_text,
+		array(
+			'holder_css_class'   => 'ai4seo-icon-with-tooltip',
+			'trigger_css_class'  => 'ai4seo-icon-tooltip-trigger',
+			'trigger_aria_label' => $trigger_aria_label,
+			'tooltip_tag'        => 'div',
+		)
+	);
+}
+
+// =========================================================================================== \\
+
+function ai4seo_get_sooz_logo_image_tag( string $variant = 'sooz' ): string {
+	return "<img src='" . esc_url( ai4seo_get_sooz_logo_url( $variant ) ) . "' alt='" . esc_attr( AI4SEO_PLUGIN_NAME ) . "' title='" . esc_attr( AI4SEO_PLUGIN_NAME ) . "' class='ai4seo-sooz-logo'>";
+}
+
+// =========================================================================================== \\
+
+/**
  * Returns the next post ID from an ordered list of post IDs.
  *
  * @param int   $current_post_id The current post ID.
@@ -194,6 +334,77 @@ function ai4seo_get_editor_inactive_fields_notice_tag(
 // =========================================================================================== \\
 
 /**
+ * Returns the source message markup for an editor field label.
+ *
+ * @param array $source_details The source details.
+ * @return string
+ */
+function ai4seo_get_editor_field_source_message_tag( array $source_details ): string {
+	// The renderer receives pre-resolved source details so templates stay free of source priority rules.
+	$source_type         = sanitize_key( $source_details['source_type'] ?? '' );
+	$was_changed_by_user = ! empty( $source_details['was_changed_by_user'] );
+	$message             = '';
+	$css_class           = '';
+
+	// SOOZ messages use the generated-data timestamp only when the flat snapshot contains one.
+	if ( 'sooz' === $source_type ) {
+		// Generated values use their timestamp when available so the editor distinguishes a snapshot from an undated source.
+		$generated_at = absint( $source_details['generated_at'] ?? 0 );
+		$css_class    = 'ai4seo-gray-message';
+
+		if ( $generated_at > 0 ) {
+			$message = sprintf(
+				/* translators: 1: Plugin name. 2: Generated-at date and time. */
+				__( 'This field value was generated by %1$s on %2$s.', 'ai-for-seo' ),
+				AI4SEO_PLUGIN_NAME,
+				ai4seo_format_unix_timestamp( $generated_at )
+			);
+		} else {
+			$message = sprintf(
+				/* translators: %s: Plugin name. */
+				__( 'This field value was generated by %s.', 'ai-for-seo' ),
+				AI4SEO_PLUGIN_NAME
+			);
+		}
+
+		if ( $was_changed_by_user ) {
+			// Preserve the generated source while disclosing that the current value no longer exactly matches that snapshot.
+			$message .= ' ' . __( 'This value appears to have been changed by a user after it was generated.', 'ai-for-seo' );
+		}
+	} elseif ( 'third_party_seo_plugin' === $source_type ) {
+		// Third-party messages name the plugin that supplied the value before it entered the SOOZ editor.
+		$plugin_name = sanitize_text_field( $source_details['plugin_name'] ?? '' );
+
+		if ( ! $plugin_name ) {
+			// Omit ambiguous third-party notices because a source name is required to explain the field provenance.
+			return '';
+		}
+
+		$css_class = 'ai4seo-red-message';
+		$message   = sprintf(
+			/* translators: %s: Third-party SEO plugin name. */
+			__( 'This field value comes from the %s plugin and was imported.', 'ai-for-seo' ),
+			$plugin_name
+		);
+
+		if ( $was_changed_by_user ) {
+			// Preserve the imported source while disclosing that the current value no longer exactly matches that import.
+			$message .= ' ' . __( 'This value appears to have been changed by a user after it was imported.', 'ai-for-seo' );
+		}
+	}
+
+	if ( ! $message || ! $css_class ) {
+		// Unsupported or incomplete details must not add an empty label subline to editors.
+		return '';
+	}
+
+	// Return a single label subline that can be replaced live after successful generation.
+	return "<span class='ai4seo-editor-field-source-message ai4seo-sub-info " . esc_attr( $css_class ) . "'>" . esc_html( $message ) . '</span>';
+}
+
+// =========================================================================================== \\
+
+/**
  * Returns the HTML for the edit metadata button
  *
  * @param int   $post_id The post id to get the button for.
@@ -298,16 +509,95 @@ function ai4seo_get_accordion_element( string $headline, string $content ): stri
 
 // =========================================================================================== \\
 
-function ai4seo_echo_half_donut_chart_with_headline_and_percentage( $headline, $chart_values, $num_done, $num_total, $posts_table_analysis_state, $post_type ) {
-	$ai4seo_percentage_done = round( $num_done / $num_total * 100 );
+/**
+ * Returns the accessible SEO coverage progress bar shared by post and attachment lists.
+ *
+ * @param int       $post_id WordPress post ID represented by the row.
+ * @param int|float $coverage_percentage Current SEO coverage percentage.
+ * @param string    $animation_class Optional animation class, including its leading space.
+ * @param bool      $is_generation_incomplete Whether generation is still pending or processing.
+ * @return string Progress element HTML.
+ */
+function ai4seo_get_seo_coverage_progress_bar_tag( int $post_id, $coverage_percentage, string $animation_class, bool $is_generation_incomplete ): string {
+	// Give assistive technology both the row relationship and a localized completion value.
+	/* translators: %d: WordPress post ID. */
+	$aria_label = sprintf( __( 'SEO coverage for post ID %d', 'ai-for-seo' ), $post_id );
+	/* translators: %s: SEO coverage percentage. */
+	$aria_value_text = sprintf( __( '%s%% complete', 'ai-for-seo' ), ai4seo_stringify( $coverage_percentage ) );
+
+	// Keep the state class coupled to the same completion flag used by both list implementations.
+	$completion_class = $is_generation_incomplete ? ' ai4seo-progress-bar-not-finished' : ' ai4seo-progress-bar-finished';
+
+	// Assemble attributes by concern so the two list callers cannot drift in IDs, state classes, or accessibility text.
+	$progress_bar_tag  = "<progress id='ai4seo-seo-coverage-progress-bar-" . esc_attr( $post_id ) . "'";
+	$progress_bar_tag .= " class='ai4seo-seo-coverage-progress-bar" . esc_attr( $animation_class ) . esc_attr( $completion_class ) . "'";
+	$progress_bar_tag .= " value='" . esc_attr( $coverage_percentage ) . "' max='100'";
+	$progress_bar_tag .= " aria-label='" . esc_attr( $aria_label ) . "' aria-valuetext='" . esc_attr( $aria_value_text ) . "'></progress>";
+
+	return $progress_bar_tag;
+}
+
+// =========================================================================================== \\
+
+/**
+ * Returns dashboard chart values in the shared visual and legend order.
+ *
+ * @param int|float $num_complete                 Number of complete entries.
+ * @param int|float $num_queued                   Number of queued entries.
+ * @param int|float $num_eligible_for_auto_queue Number of entries eligible for automatic queuing.
+ * @param int|float $num_missing                  Number of missing entries.
+ * @param int|float $num_failed                   Number of failed entries.
+ * @return array<string, array<string, int|float>>
+ */
+function ai4seo_get_seo_coverage_chart_values(
+	$num_complete = 0,
+	$num_queued = 0,
+	$num_eligible_for_auto_queue = 0,
+	$num_missing = 0,
+	$num_failed = 0
+): array {
+	// Keep segment order centralized because the chart renderer and legend assign meaning by array position.
+	return array(
+		'complete'                => array( 'value' => $num_complete ),
+		'queued'                  => array( 'value' => $num_queued ),
+		'eligible_for_auto_queue' => array( 'value' => $num_eligible_for_auto_queue ),
+		'missing'                 => array( 'value' => $num_missing ),
+		'failed'                  => array( 'value' => $num_failed ),
+	);
+}
+
+// =========================================================================================== \\
+
+/**
+ * Outputs one dashboard half-donut chart with its heading and completion summary.
+ *
+ * @param string $headline Chart heading HTML.
+ * @param array  $chart_values Status values rendered as chart segments.
+ * @param int    $num_complete Number of complete entries.
+ * @param int    $num_total Total entries represented by the chart.
+ * @param string $posts_table_analysis_state Current posts-table analysis state.
+ * @param string $post_type Post type represented by the chart.
+ * @return void
+ */
+function ai4seo_echo_half_donut_chart_with_headline_and_percentage(
+	$headline,
+	$chart_values,
+	$num_complete,
+	$num_total,
+	$posts_table_analysis_state,
+	$post_type
+) {
+	// Derive the displayed percentage from the same totals used to render the chart segments.
+	$ai4seo_percentage_complete = round( $num_complete / $num_total * 100 );
 
 	// Use a status class so the percentage color stays centralized in the stylesheet.
-	if ( $ai4seo_percentage_done < 99 ) {
+	if ( $ai4seo_percentage_complete < 99 ) {
 		$ai4seo_percentage_color_class = 'ai4seo-half-donut-chart-incomplete';
 	} else {
 		$ai4seo_percentage_color_class = 'ai4seo-half-donut-chart-complete';
 	}
 
+	// Keep the chart, completion text, and optional multilingual context inside one per-post-type container.
 	echo "<div class='ai4seo-chart-container'>";
 		echo '<h4>';
 			ai4seo_echo_wp_kses( $headline );
@@ -317,15 +607,15 @@ function ai4seo_echo_half_donut_chart_with_headline_and_percentage( $headline, $
 			ai4seo_echo_half_donut_chart( $chart_values );
 
 			echo "<div class='ai4seo-half-donut-chart-percentage " . esc_attr( $ai4seo_percentage_color_class ) . "'>";
-				echo esc_html( ai4seo_format_number_i18n( $ai4seo_percentage_done ) ) . '%';
+				echo esc_html( ai4seo_format_number_i18n( $ai4seo_percentage_complete ) ) . '%';
 			echo '</div>';
 
-			echo "<div class='ai4seo-half-donut-chart-done " . esc_attr( $ai4seo_percentage_color_class ) . "'>";
+			echo "<div class='ai4seo-half-donut-chart-complete-count " . esc_attr( $ai4seo_percentage_color_class ) . "'>";
 				ai4seo_echo_wp_kses(
 					sprintf(
-					/* translators: 1: Number of completed items. 2: Total number of items. */
-						esc_html__( '%1$s/%2$s done', 'ai-for-seo' ),
-						esc_html( ai4seo_format_number_i18n( $num_done ) ),
+						/* translators: 1: Number of complete items. 2: Total number of items. */
+						esc_html__( '%1$s/%2$s complete', 'ai-for-seo' ),
+						esc_html( ai4seo_format_number_i18n( $num_complete ) ),
 						'completed' !== $posts_table_analysis_state ? ai4seo_get_svg_tag( 'gear', '', 'ai4seo-spinning-icon ai4seo-gray-icon' ) : esc_html( ai4seo_format_number_i18n( $num_total ) )
 					)
 				);
@@ -360,7 +650,7 @@ function ai4seo_echo_half_donut_chart_with_headline_and_percentage( $headline, $
 /**
  * Function to output a half donut chart
  *
- * @param array $values Example: [ "done" => ["value" => 10], "missing" => ["value" => 20] ].
+ * @param array $values Example: [ "complete" => ["value" => 10], "missing" => ["value" => 20] ].
  * @return void
  */
 function ai4seo_echo_half_donut_chart( array $values ) {
@@ -368,6 +658,8 @@ function ai4seo_echo_half_donut_chart( array $values ) {
 
 	echo '<svg width="250" height="120" xmlns="http://www.w3.org/2000/svg">';
 	$startOffset = -235; // Adjust start position so that it begins to the left.
+
+	// Preserve semantic key order because each segment starts where the preceding status ends.
 	foreach ( $values as $type => $info ) {
 		$percentage = ( $info['value'] / $total ) * 235;
 		$chart_segment_class = 'ai4seo-chart-segment-' . sanitize_html_class( (string) $type );
@@ -385,19 +677,64 @@ function ai4seo_echo_half_donut_chart( array $values ) {
 /**
  * Function to output the legend for the half donut chart
  *
- * @param array $values Example: [ "done" => ["value" => 10], "missing" => ["value" => 20] ].
+ * @param array $values Example: [ "complete" => ["value" => 10], "missing" => ["value" => 20] ].
+ * @param bool  $is_seo_autopilot_enabled Whether SEO Autopilot is enabled.
  * @return void
  */
-function ai4seo_echo_chart_legend( array $values ) {
+function ai4seo_echo_chart_legend( array $values, bool $is_seo_autopilot_enabled = true ) {
+	// The legend is rendered once beside all charts and receives their aggregated status values.
 	echo '<div class="ai4seo-chart-legend">';
+		echo '<h4>' . esc_html__( 'Legend', 'ai-for-seo' ) . '</h4>';
 
-	foreach ( array_keys( $values ) as $type ) {
+	// Render only represented statuses while preserving the insertion order shared with the charts.
+	foreach ( $values as $type => $info ) {
+		$chart_legend_value = (int) ( $info['value'] ?? 0 );
+
+		if ( $chart_legend_value <= 0 ) {
+			continue;
+		}
+
 		$chart_segment_class = 'ai4seo-chart-segment-' . sanitize_html_class( (string) $type );
+		$chart_legend_text   = sprintf(
+			/* translators: 1: Chart status label. 2: Number of entries with this status. */
+			__( '%1$s (%2$s)', 'ai-for-seo' ),
+			ai4seo_get_chart_legend_translation( $type ),
+			ai4seo_format_number_i18n( $chart_legend_value )
+		);
 
 		// Legend swatches reuse the same semantic segment class as the SVG chart segments.
 		echo '<div class="ai4seo-chart-legend-item">';
 			echo '<div class="ai4seo-chart-legend-color ai4seo-chart-segment ' . esc_attr( $chart_segment_class ) . '"></div>';
-			echo '<div class="ai4seo-chart-legend-text">' . esc_html( ai4seo_get_chart_legend_translation( $type ) ) . '</div>';
+			echo '<div class="ai4seo-chart-legend-text">';
+				echo esc_html( $chart_legend_text );
+
+				// Contextual actions connect actionable statuses to their existing setup and activity mechanisms.
+				if ( 'queued' === $type && ! $is_seo_autopilot_enabled ) {
+					echo ' ';
+					ai4seo_echo_wp_kses(
+						ai4seo_get_small_icon_button_tag(
+							'paper-plane',
+							esc_html__( 'Set up SEO Autopilot', 'ai-for-seo' ),
+							'',
+							'ai4seo_open_modal_from_schema("seo-autopilot", {modal_size: "small", unsaved_changes_warnings: true});'
+						)
+					);
+				}
+
+				if ( 'failed' === $type ) {
+					echo ' ';
+					ai4seo_echo_wp_kses(
+						ai4seo_get_small_a_tag_icon_button_tag(
+							'#ai4seo-recent-activity',
+							'',
+							'_self',
+							'magnifying-glass',
+							esc_html__( 'Check details', 'ai-for-seo' )
+						)
+					);
+				}
+
+			echo '</div>';
 		echo '</div>';
 	}
 
@@ -1083,15 +1420,18 @@ function ai4seo_get_chart_legend_translation( string $legend_identifier ): strin
 	$legend_identifier_original = $legend_identifier;
 	$legend_identifier          = strtolower( $legend_identifier );
 
+	// Keep chart data keys independent from localized labels used in the shared legend.
 	switch ( $legend_identifier ) {
-		case 'done':
-			return esc_html__( 'Done', 'ai-for-seo' );
-		case 'processing':
-			return esc_html__( 'Processing', 'ai-for-seo' );
+		case 'complete':
+			return __( 'Complete', 'ai-for-seo' );
+		case 'queued':
+			return __( 'Queued', 'ai-for-seo' );
+		case 'eligible_for_auto_queue':
+			return __( 'Eligible for Auto Queue', 'ai-for-seo' );
 		case 'missing':
-			return esc_html__( 'Missing SEO / Pending', 'ai-for-seo' );
+			return __( 'Missing SEO', 'ai-for-seo' );
 		case 'failed':
-			return esc_html__( 'Failed (please check details)', 'ai-for-seo' );
+			return __( 'Failed', 'ai-for-seo' );
 		default:
 			return $legend_identifier_original;
 	}

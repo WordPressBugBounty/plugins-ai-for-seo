@@ -544,6 +544,10 @@ function ai4seo_get_attachment_generation_image_source(
 /**
  * Calls the attachment-attribute generation endpoint with one preselected image source.
  *
+ * RobHub owns model repair attempts. A second request is permitted only when RobHub explicitly
+ * confirms that its URL-source acquisition failed before model work and provides a one-time token
+ * for client-assisted base64 recovery.
+ *
  * @param array $attachment_image_source Attachment image source descriptor.
  * @param array $robhub_api_call_parameters RobHub API parameters.
  * @return array RobHub API response.
@@ -577,7 +581,63 @@ function ai4seo_call_attachment_attributes_generation_api(
 	$robhub_api_call_parameters['attachment_url']           = $delivery_url;
 	$robhub_api_call_parameters['reference_attachment_url'] = $original_url;
 
-	return ai4seo_robhub_api()->call( 'ai4seo/generate-all-attachment-attributes', $robhub_api_call_parameters );
+	// Keep the existing URL-first request as the normal path; only RobHub can authorize a distinct
+	// local-source continuation after it proves no model attempt began.
+	$url_response       = ai4seo_robhub_api()->call( 'ai4seo/generate-all-attachment-attributes', $robhub_api_call_parameters );
+	$continuation_token = ai4seo_get_attachment_base64_recovery_token( $url_response );
+
+	// Return every ordinary failure unchanged, including direct-base64, auth, credit, and model errors.
+	if ( ! $continuation_token ) {
+		return $url_response;
+	}
+
+	// This is the sole client-side continuation. Never feed attachment_url back into the
+	// continuation, and never recurse after a base64 request fails.
+	unset( $robhub_api_call_parameters['attachment_url'] );
+	$robhub_api_call_parameters['attachment_recovery_token'] = $continuation_token;
+
+	return ai4seo_generate_attachment_attributes_using_base64(
+		$attachment_image_source,
+		$robhub_api_call_parameters
+	);
+}
+
+// =========================================================================================== \\
+
+/**
+ * Read the narrowly-scoped base64 continuation contract from a failed API response.
+ *
+ * @param mixed $response Normalized RobHub API response.
+ * @return string Opaque continuation token, or an empty string when no continuation is allowed.
+ */
+function ai4seo_get_attachment_base64_recovery_token( $response ): string {
+	// Recovery metadata is meaningful only on a failed URL-mode request; a successful response
+	// must never prompt another generation request.
+	if ( ! is_array( $response ) || ( $response['success'] ?? false ) ) {
+		return '';
+	}
+
+	// Require the API's deliberately narrow contract rather than treating arbitrary error metadata
+	// as permission to retry, which preserves RobHub's coordinated model-attempt budget.
+	$recovery = $response['recovery'] ?? null;
+
+	if ( ! is_array( $recovery ) || 'base64' !== ( $recovery['method'] ?? '' ) ) {
+		return '';
+	}
+
+	// Validate the opaque token locally so an expired or malformed response fails without a second
+	// HTTP request; server-side binding remains the authoritative security check.
+	$token      = $recovery['continuation_token'] ?? '';
+	$expires_at = $recovery['expires_at'] ?? 0;
+
+	if ( ! is_string( $token )
+		|| ! preg_match( '/^[A-Za-z0-9_-]{32,128}$/', $token )
+		|| ! is_numeric( $expires_at )
+		|| (int) $expires_at <= time() ) {
+		return '';
+	}
+
+	return $token;
 }
 
 // =========================================================================================== \\
@@ -640,6 +700,9 @@ function ai4seo_generate_attachment_attributes_using_base64(
 		$base64_from_image_file_response['mime_type'] ?? ''
 	) ?: $mime_type;
 
+	// A base64 request is final. In particular, a server-guided continuation must not retain the
+	// failed delivery URL, which also makes a token replay incapable of triggering URL retrieval.
+	unset( $robhub_api_call_parameters['attachment_url'] );
 	$robhub_api_call_parameters['reference_attachment_url'] = $original_url;
 	$robhub_api_call_parameters['content']                  = "data:{$encoded_mime_type};base64,{$attachment_base64}";
 

@@ -16,6 +16,9 @@ add_action( 'init', 'ai4seo_init_settings', 8 );
 // Invalidate content type list caches when the posts table changes.
 ai4seo_add_content_type_list_cache_invalidation_hooks();
 
+// Keep local summary recovery available even when account-dependent cron initialization is unavailable.
+add_action( AI4SEO_GENERATION_STATUS_SUMMARY_REBUILD_CRON_JOB_NAME, AI4SEO_GENERATION_STATUS_SUMMARY_REBUILD_CRON_JOB_NAME );
+
 // CRON CALL ONLY.
 if ( wp_doing_cron() ) {
 	// init cron jobs.

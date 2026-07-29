@@ -166,86 +166,6 @@ function ai4seo_deep_sanitize( $data, string $sanitize_value_function_name = 'sa
 // =========================================================================================== \\
 
 /**
- * Function to check whether the current user is allowed to use this plugin
- *
- * @return bool
- */
-function ai4seo_can_manage_this_plugin(): bool {
-	global $ai4seo_can_manage_this_plugin;
-
-	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
-		ai4seo_debug_message( 472226712, 'Prevented loop', true );
-		return false;
-	}
-
-	// use cache if available.
-	if ( null !== $ai4seo_can_manage_this_plugin ) {
-		return $ai4seo_can_manage_this_plugin;
-	}
-
-	// check if is_user_logged_in() is defined.
-	if ( ! function_exists( 'is_user_logged_in' ) ) {
-		return false;
-	}
-
-	if ( ! function_exists( 'get_current_user_id' ) ) {
-		return false;
-	}
-
-	if ( ! function_exists( 'wp_get_current_user' ) ) {
-		return false;
-	}
-
-	// Check if the current user is logged in.
-	if ( ! is_user_logged_in() ) {
-		return false;
-	}
-
-	// Define variables for the incognito-setting.
-	$ai4seo_setting_enable_incognito_mode  = ai4seo_is_incognito_mode_enabled();
-	$ai4seo_setting_incognito_mode_user_id = ai4seo_get_setting( AI4SEO_SETTING_INCOGNITO_MODE_USER_ID );
-	$current_user_id                       = get_current_user_id();
-
-	// Check incognito-setting and incognito user-id.
-	if ( $ai4seo_setting_enable_incognito_mode && AI4SEO_DEFAULT_SETTINGS[ AI4SEO_SETTING_INCOGNITO_MODE_USER_ID ] != $ai4seo_setting_incognito_mode_user_id
-		&& $ai4seo_setting_incognito_mode_user_id != $current_user_id ) {
-		return false;
-	}
-
-	// if we are here, we can assume the outcome of this function can be cached
-	// (before this point, WordPress might not be fully loaded).
-	$ai4seo_can_manage_this_plugin = false;
-
-	// Define variable for the allowed user-roles based on plugin-settings.
-	$allowed_user_roles = ai4seo_get_setting( AI4SEO_SETTING_ALLOWED_USER_ROLES );
-
-	if ( ! $allowed_user_roles || ! is_array( $allowed_user_roles ) ) {
-		return false;
-	}
-
-	// Get the details of the current user.
-	$user = wp_get_current_user();
-
-	// Stop script if the current user or the roles of the current user could not be read.
-	if ( ! $user || ! isset( $user->roles ) || ! is_array( $user->roles ) ) {
-		return false;
-	}
-
-	// Loop through allowed roles and check if roles apply to current user.
-	foreach ( $allowed_user_roles as $allowed_user_role ) {
-		// Check if the user has this allowed role.
-		if ( in_array( $allowed_user_role, (array) $user->roles ) ) {
-			$ai4seo_can_manage_this_plugin = true;
-			return true;
-		}
-	}
-
-	return false;
-}
-
-// =========================================================================================== \\
-
-/**
  * Runs a callback while ignore_user_abort() is forced to true (unless WP-Cron already handles it).
  *
  * @param callable $callback             Callback to execute.
@@ -406,138 +326,6 @@ function ai4seo_is_json( $string ): bool {
 	json_decode( $string );
 
 	return ( json_last_error() === JSON_ERROR_NONE );
-}
-
-// =========================================================================================== \\
-
-/**
- * Returns the SVG tag for the given (fontawesome) icon name
- *
- * @param string $icon_name The name of the icon. Check function for allowed icon names.
- * @param string $alt_text (optional)
- * @param string $icon_css_class (optional)
- * @return string The icon SVG tag
- */
-function ai4seo_get_svg_tag( string $icon_name, string $alt_text = '', string $icon_css_class = '' ): string {
-	$svg_tags = ai4seo_get_svg_tags();
-
-	// Make sure that the icon-name is allowed.
-	if ( ! isset( $svg_tags[ $icon_name ] ) ) {
-		return '';
-	}
-
-	$svg_tag = $svg_tags[ $icon_name ];
-
-	// add css class to svg tag.
-	if ( $icon_css_class ) {
-		$icon_css_class = 'ai4seo-icon ' . $icon_css_class;
-	} else {
-		$icon_css_class = 'ai4seo-icon';
-	}
-
-	$svg_tag = str_replace( '<svg', "<svg class='" . esc_attr( $icon_css_class ) . "'", $svg_tag );
-
-	// add alt text to svg tag.
-	if ( $alt_text ) {
-		$svg_tag = str_replace( '<svg', "<svg aria-label='" . esc_attr( $alt_text ) . "'", $svg_tag );
-		$svg_tag = str_replace( '</svg>', '<title>' . esc_html( $alt_text ) . '</title></svg>', $svg_tag );
-	}
-
-	// Remove "<![CDATA[" and "]]>" anywhere (commonly used inside <style>).
-	$svg_tag = str_replace( array( '<![CDATA[', ']]>' ), '', $svg_tag );
-
-	return $svg_tag;
-}
-
-// =========================================================================================== \\
-
-/**
- * Returns canonical tooltip markup with a native button trigger.
- *
- * JavaScript assigns the tooltip ID and connects the trigger's ARIA references during initialization.
- *
- * @param string $trigger_html HTML displayed inside the tooltip trigger.
- * @param string $tooltip_html HTML displayed inside the tooltip.
- * @param array  $args {
- *     Optional tooltip markup arguments.
- *
- *     @type string $holder_tag          Wrapper tag. Accepts span or div. Default span.
- *     @type string $holder_css_class    Additional wrapper CSS class.
- *     @type string $trigger_css_class   Additional trigger CSS class.
- *     @type string $trigger_aria_label  Accessible trigger label. Visible trigger text is used when omitted.
- *     @type string $tooltip_tag         Tooltip tag. Accepts span or div. Default span.
- *     @type string $tooltip_css_class   Additional tooltip CSS class.
- * }
- * @return string Tooltip HTML.
- */
-function ai4seo_get_tooltip_tag( string $trigger_html, string $tooltip_html, array $args = array() ): string {
-	// Centralize optional markup defaults so every tooltip renderer emits the same accessible structure.
-	$args = wp_parse_args(
-		$args,
-		array(
-			'holder_tag'         => 'span',
-			'holder_css_class'   => '',
-			'trigger_css_class'  => '',
-			'trigger_aria_label' => '',
-			'tooltip_tag'        => 'span',
-			'tooltip_css_class'  => '',
-		)
-	);
-
-	// Limit dynamic wrapper tags to the two non-interactive containers supported by existing tooltip layouts.
-	$allowed_wrapper_tags = array( 'div', 'span' );
-	$holder_tag           = in_array( $args['holder_tag'], $allowed_wrapper_tags, true ) ? $args['holder_tag'] : 'span';
-	$tooltip_tag          = in_array( $args['tooltip_tag'], $allowed_wrapper_tags, true ) ? $args['tooltip_tag'] : 'span';
-
-	// Preserve canonical classes while sanitizing the one optional modifier accepted for each element.
-	$holder_css_class     = trim( 'ai4seo-tooltip-holder ' . sanitize_html_class( $args['holder_css_class'] ) );
-	$trigger_css_class    = trim( 'ai4seo-tooltip-trigger ' . sanitize_html_class( $args['trigger_css_class'] ) );
-	$tooltip_css_class    = trim( 'ai4seo-tooltip ai4seo-ignore-during-dashboard-refresh ' . sanitize_html_class( $args['tooltip_css_class'] ) );
-	$aria_label_attribute = $args['trigger_aria_label'] ? " aria-label='" . esc_attr( $args['trigger_aria_label'] ) . "'" : '';
-
-	// Keep ARIA state in the server-rendered markup so the trigger remains meaningful before JavaScript initialization.
-	$output  = '<' . $holder_tag . " class='" . esc_attr( $holder_css_class ) . "'>";
-	$output .= "<button type='button' class='" . esc_attr( $trigger_css_class ) . "' aria-expanded='false'" . $aria_label_attribute . '>';
-	$output .= $trigger_html;
-	$output .= '</button>';
-	$output .= '<' . $tooltip_tag . " class='" . esc_attr( $tooltip_css_class ) . "' role='tooltip' aria-hidden='true'>";
-	$output .= $tooltip_html;
-	$output .= '</' . $tooltip_tag . '>';
-	$output .= '</' . $holder_tag . '>';
-
-	return $output;
-}
-
-// =========================================================================================== \\
-
-/**
- * Returns an icon with a tooltip.
- *
- * @param string $tooltip_text      The tooltip text to be displayed.
- * @param string $icon_css_class    Optional CSS class for the icon.
- * @param string $icon_name         Optional icon name. Check function for allowed icon names.
- * @param string $trigger_aria_label Optional accessible label for the icon trigger.
- * @return string Tooltip HTML.
- */
-function ai4seo_get_icon_with_tooltip_tag( string $tooltip_text, string $icon_css_class = '', string $icon_name = 'circle-question', string $trigger_aria_label = '' ): string {
-	$icon = ai4seo_get_svg_tag( $icon_name, '', $icon_css_class );
-
-	// Icon-only buttons need a translated fallback because their SVG is intentionally decorative.
-	if ( ! $trigger_aria_label ) {
-		$trigger_aria_label = __( 'Help', 'ai-for-seo' );
-	}
-
-	// Delegate markup and ARIA defaults to the canonical tooltip renderer used by text triggers.
-	return ai4seo_get_tooltip_tag(
-		$icon,
-		$tooltip_text,
-		array(
-			'holder_css_class'   => 'ai4seo-icon-with-tooltip',
-			'trigger_css_class'  => 'ai4seo-icon-tooltip-trigger',
-			'trigger_aria_label' => $trigger_aria_label,
-			'tooltip_tag'        => 'div',
-		)
-	);
 }
 
 // =========================================================================================== \\
@@ -1190,12 +978,6 @@ function ai4seo_get_sooz_logo_url( string $variant = '32x32' ): string {
 
 // =========================================================================================== \\
 
-function ai4seo_get_sooz_logo_image_tag( string $variant = 'sooz' ): string {
-	return "<img src='" . esc_url( ai4seo_get_sooz_logo_url( $variant ) ) . "' alt='" . esc_attr( AI4SEO_PLUGIN_NAME ) . "' title='" . esc_attr( AI4SEO_PLUGIN_NAME ) . "' class='ai4seo-sooz-logo'>";
-}
-
-// =========================================================================================== \\
-
 /**
  * Returns the purchase plan url
  *
@@ -1240,50 +1022,6 @@ function ai4seo_echo_wp_kses( string $content ): void {
 	$allowed_html_tags_and_attributes = ai4seo_get_allowed_html_tags_and_attributes();
 
 	echo wp_kses( $content, $allowed_html_tags_and_attributes );
-}
-
-// =========================================================================================== \\
-
-function ai4seo_get_publicly_accessible_post_types(): array {
-	$excluded_post_types = array(
-		'attachment',
-		'ai4seo_ngg', // nextgen gallery.
-		'revision',
-		'nav_menu_item',
-		'custom_css',
-		'customize_changeset',
-		'oembed_cache',
-		'user_request',
-		'template',
-		'wp_block',
-	);
-
-	$args = array(
-		'public' => true,
-	);
-
-	$post_types                     = get_post_types( $args, 'objects' );
-	$publicly_accessible_post_types = array();
-
-	foreach ( $post_types as $post_type ) {
-		if ( ! $post_type->_builtin && ! $post_type->publicly_queryable ) {
-			continue;
-		}
-
-		if ( ! $post_type->_builtin && ! $post_type->rewrite ) {
-			continue;
-		}
-
-		if ( in_array( $post_type->name, $excluded_post_types ) ) {
-			continue;
-		}
-
-		if ( $post_type->has_archive || 'post' === $post_type->capability_type || ! $post_type->exclude_from_search ) {
-			$publicly_accessible_post_types[ $post_type->name ] = $post_type->label;
-		}
-	}
-
-	return $publicly_accessible_post_types;
 }
 
 // =========================================================================================== \\
@@ -1526,6 +1264,83 @@ function ai4seo_format_unix_timestamp( int $unix_timestamp, string $date_format 
 
 	// Format and return the time in the desired format.
 	return $datetime_object->format( $final_format );
+}
+
+// =========================================================================================== \\
+
+/**
+ * Formats a recent execution as elapsed time and older executions as an absolute timestamp.
+ *
+ * @param int $execution_timestamp Unix timestamp of the execution.
+ * @return string Localized execution-time text.
+ */
+function ai4seo_get_last_execution_time_text( int $execution_timestamp ): string {
+	// Missing timestamps do not provide enough information for a useful status message.
+	if ( $execution_timestamp <= 0 ) {
+		return '';
+	}
+
+	// Recent executions are easier to scan as elapsed time than as an absolute timestamp.
+	$execution_age = time() - $execution_timestamp;
+
+	// Keep sub-minute execution messages precise because these typically follow a manual action.
+	if ( $execution_age >= 0 && $execution_age < MINUTE_IN_SECONDS ) {
+		return sprintf(
+			esc_html(
+				/* translators: %s: Number of seconds since the last execution. */
+				_n(
+					'Last execution was %s second ago.',
+					'Last execution was %s seconds ago.',
+					$execution_age,
+					'ai-for-seo'
+				)
+			),
+			ai4seo_format_number_i18n( $execution_age )
+		);
+	}
+
+	// Collapse recent minute-level durations to whole units to keep the dashboard message compact.
+	if ( $execution_age >= MINUTE_IN_SECONDS && $execution_age < HOUR_IN_SECONDS ) {
+		$elapsed_minutes = (int) floor( $execution_age / MINUTE_IN_SECONDS );
+
+		return sprintf(
+			esc_html(
+				/* translators: %s: Number of minutes since the last execution. */
+				_n(
+					'Last execution was %s minute ago.',
+					'Last execution was %s minutes ago.',
+					$elapsed_minutes,
+					'ai-for-seo'
+				)
+			),
+			ai4seo_format_number_i18n( $elapsed_minutes )
+		);
+	}
+
+	// Collapse same-day hour-level durations to whole units for consistency with minute-level output.
+	if ( $execution_age >= HOUR_IN_SECONDS && $execution_age < DAY_IN_SECONDS ) {
+		$elapsed_hours = (int) floor( $execution_age / HOUR_IN_SECONDS );
+
+		return sprintf(
+			esc_html(
+				/* translators: %s: Number of hours since the last execution. */
+				_n(
+					'Last execution was %s hour ago.',
+					'Last execution was %s hours ago.',
+					$elapsed_hours,
+					'ai-for-seo'
+				)
+			),
+			ai4seo_format_number_i18n( $elapsed_hours )
+		);
+	}
+
+	// Older or future-dated executions use the established WordPress-aware timestamp formatter.
+	return sprintf(
+		/* translators: %s: Last execution time. */
+		esc_html__( 'Last execution was on %s.', 'ai-for-seo' ),
+		esc_html( ai4seo_format_unix_timestamp( $execution_timestamp, 'auto-miss' ) )
+	);
 }
 
 // =========================================================================================== \\
@@ -3587,10 +3402,17 @@ function ai4seo_update_option( string $option_name, $option_value, $autoload = f
 
 	// If the caller explicitly wants to use update_option() instead of direct DB access, delegate to it.
 	if ( ! $use_direct_database_call ) {
+		// Capture the previous membership before WordPress mutates status options so reconciliation can use a delta.
+		$old_value = get_option( $option_name, null );
 		$result = update_option( $option_name, $option_value, $autoload );
 
 		if ( $result ) {
 			ai4seo_maybe_bump_content_type_list_cache_version( $option_name );
+
+			// The tracker loads after this helper but is available whenever runtime option mutations occur.
+			if ( function_exists( 'ai4seo_track_generation_status_summary_option_change' ) ) {
+				ai4seo_track_generation_status_summary_option_change( $option_name, $old_value, $option_value );
+			}
 		}
 
 		return $result;
@@ -3739,6 +3561,11 @@ function ai4seo_update_option( string $option_name, $option_value, $autoload = f
 		ai4seo_refresh_option_cache( $option_name, $option_value, true, $autoload );
 		ai4seo_maybe_reset_generation_status_summary_request_cache( $option_name );
 		ai4seo_maybe_bump_content_type_list_cache_version( $option_name );
+
+		// Record only successful source-option mutations; no-op cache repairs returned before this point.
+		if ( function_exists( 'ai4seo_track_generation_status_summary_option_change' ) ) {
+			ai4seo_track_generation_status_summary_option_change( $option_name, $old_value, $option_value );
+		}
 	} catch ( Throwable $e ) {
 		return false;
 	}
@@ -3773,10 +3600,17 @@ function ai4seo_delete_option( string $option_name, bool $use_direct_database_ca
 	}
 
 	if ( ! $use_direct_database_call ) {
+		// Capture source-option membership before deletion so the shared tracker can reconcile removed IDs.
+		$old_value = get_option( $option_name, null );
 		$result = delete_option( $option_name );
 
 		if ( $result ) {
 			ai4seo_maybe_bump_content_type_list_cache_version( $option_name );
+
+			// Deletions use the same request-level reconciliation path as ordinary option updates.
+			if ( function_exists( 'ai4seo_track_generation_status_summary_option_change' ) ) {
+				ai4seo_track_generation_status_summary_option_change( $option_name, $old_value, array() );
+			}
 		}
 
 		return $result;
@@ -3791,6 +3625,9 @@ function ai4seo_delete_option( string $option_name, bool $use_direct_database_ca
 	if ( '' === $option_name ) {
 		return false;
 	}
+
+	// Read before direct SQL deletion because this writer intentionally bypasses WordPress option hooks.
+	$old_value = ai4seo_get_option( $option_name, null, true );
 
 	try {
 		// Delete the option row directly from the options table.
@@ -3814,6 +3651,11 @@ function ai4seo_delete_option( string $option_name, bool $use_direct_database_ca
 	ai4seo_refresh_option_cache( $option_name, null, false, false );
 	ai4seo_maybe_reset_generation_status_summary_request_cache( $option_name );
 	ai4seo_maybe_bump_content_type_list_cache_version( $option_name );
+
+	// Track only an actual row removal; cache-only cleanup does not change authoritative membership.
+	if ( 0 < (int) $result && function_exists( 'ai4seo_track_generation_status_summary_option_change' ) ) {
+		ai4seo_track_generation_status_summary_option_change( $option_name, $old_value, array() );
+	}
 
 	// If query failed or no rows were affected, return true.
 	if ( false === $result || 0 === (int) $result ) {

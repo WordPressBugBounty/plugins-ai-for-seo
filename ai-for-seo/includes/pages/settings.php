@@ -75,13 +75,61 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 		echo '</div>';
 	echo '</div>';
 
+	// Keep native hash targets, translated labels, and existing advanced-setting visibility on one shared navigation map.
+	$ai4seo_settings_section_navigation_items = array(
+		'ai4seo-settings-section-general'          => array(
+			'label'       => __( 'General', 'ai-for-seo' ),
+			'is_advanced' => false,
+		),
+		'ai4seo-settings-section-metadata'         => array(
+			'label'       => __( 'Metadata', 'ai-for-seo' ),
+			'is_advanced' => false,
+		),
+		'ai4seo-settings-section-media-attributes' => array(
+			'label'       => __( 'Media attributes', 'ai-for-seo' ),
+			'is_advanced' => false,
+		),
+		'ai4seo-settings-section-user-management'  => array(
+			'label'       => __( 'User Management', 'ai-for-seo' ),
+			'is_advanced' => true,
+		),
+		'ai4seo-settings-section-troubleshooting'  => array(
+			'label'       => __( 'Troubleshooting', 'ai-for-seo' ),
+			'is_advanced' => true,
+		),
+	);
+
+	// Render native links so browser hash/history behavior remains available when JavaScript is unavailable.
+	echo "<nav class='ai4seo-settings-section-navigation'";
+	echo " aria-label='" . esc_attr__( 'Settings sections', 'ai-for-seo' ) . "'>";
+		echo "<div class='ai4seo-settings-section-navigation-links'>";
+			foreach ( $ai4seo_settings_section_navigation_items as $ai4seo_this_settings_section_id => $ai4seo_this_settings_section_navigation_item ) {
+				// Reuse the established Advanced Settings class so navigator links hide and show with their sections.
+				$ai4seo_this_settings_section_navigation_link_classes = 'ai4seo-settings-section-navigation-link' . ( $ai4seo_this_settings_section_navigation_item['is_advanced'] ? ' ai4seo-is-advanced-setting' : '' );
+
+				echo "<a class='" . esc_attr( $ai4seo_this_settings_section_navigation_link_classes ) . "'";
+				echo " href='#" . esc_attr( $ai4seo_this_settings_section_id ) . "'>";
+					echo esc_html( $ai4seo_this_settings_section_navigation_item['label'] );
+				echo '</a>';
+			}
+		echo '</div>';
+
+		// Keep a hidden recovery path available when a shared hash names an Advanced Settings section that is currently hidden.
+		echo "<div class='ai4seo-settings-section-navigation-hidden-target-notice ai4seo-display-none' id='ai4seo-settings-section-navigation-hidden-target-notice' role='status'>";
+			echo "<span class='ai4seo-settings-section-navigation-hidden-target-message'>" . esc_html__( 'This Settings section is hidden.', 'ai-for-seo' ) . '</span>';
+			echo "<button class='ai4seo-button ai4seo-small-button' id='ai4seo-settings-section-navigation-show-advanced-settings' type='button'>";
+				echo esc_html__( 'Show Advanced Settings', 'ai-for-seo' );
+			echo '</button>';
+		echo '</div>';
+	echo '</nav>';
+
 
 	// ___________________________________________________________________________________________ \\
 	// === GENERAL =============================================================================== \\
 	// ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 	echo "<div class='card ai4seo-form-section'>";
-		echo '<h2>';
+		echo "<h2 id='ai4seo-settings-section-general' class='ai4seo-settings-section-heading' tabindex='-1'>";
 			echo '<i class="dashicons dashicons-admin-generic ai4seo-menu-item-icon"></i>';
 			echo esc_html__( 'General', 'ai-for-seo' );
 		echo '</h2>';
@@ -159,7 +207,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
 		echo "<div class='card ai4seo-form-section'>";
 		// Headline.
-		echo '<h2>';
+		echo "<h2 id='ai4seo-settings-section-metadata' class='ai4seo-settings-section-heading' tabindex='-1'>";
 			echo '<i class="dashicons dashicons-admin-site ai4seo-menu-item-icon"></i>';
 			echo esc_html__( 'Metadata', 'ai-for-seo' ) . " <span class='ai4seo-settings-section-subtitle'>(" . esc_html__( 'for pages/posts/products etc.', 'ai-for-seo' ) . ')</span>';
 		echo '</h2>';
@@ -1211,7 +1259,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
 		echo "<div class='card ai4seo-form-section'>";
 		// Headline.
-		echo '<h2>';
+		echo "<h2 id='ai4seo-settings-section-media-attributes' class='ai4seo-settings-section-heading' tabindex='-1'>";
 		echo '<i class="dashicons dashicons-admin-media ai4seo-menu-item-icon"></i>';
 		echo esc_html__( 'Media attributes', 'ai-for-seo' ) . " <span class='ai4seo-settings-section-subtitle'>(" . esc_html__( 'for images', 'ai-for-seo' ) . ')</span>';
 		echo '</h2>';
@@ -1712,7 +1760,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
 		echo "<div class='card ai4seo-form-section ai4seo-is-advanced-setting'>";
 		// Headline.
-		echo '<h2>';
+		echo "<h2 id='ai4seo-settings-section-user-management' class='ai4seo-settings-section-heading' tabindex='-1'>";
 		echo '<i class="dashicons dashicons-admin-users ai4seo-menu-item-icon"></i>';
 		echo esc_html__( 'User Management', 'ai-for-seo' );
 		echo '</h2>';
@@ -1773,7 +1821,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
 		echo "<div class='card ai4seo-form-section ai4seo-is-advanced-setting'>";
 		// Headline.
-		echo '<h2>';
+		echo "<h2 id='ai4seo-settings-section-troubleshooting' class='ai4seo-settings-section-heading' tabindex='-1'>";
 			echo '<i class="dashicons dashicons-sos ai4seo-menu-item-icon"></i>';
 			echo esc_html__( 'Troubleshooting & Experimental', 'ai-for-seo' );
 		echo '</h2>';

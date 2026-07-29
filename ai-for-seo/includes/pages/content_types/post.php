@@ -676,8 +676,13 @@ foreach ( $ai4seo_all_posts as $ai4seo_this_post ) {
 			$ai4seo_progress_bar_animation_class = ' ai4seo-green-animated-progress-bar';
 		}
 
-		// output progress bar.
-		echo "<progress id='ai4seo-seo-coverage-progress-bar-" . esc_attr( $ai4seo_this_post_id ) . "' class='ai4seo-seo-coverage-progress-bar" . esc_attr( $ai4seo_progress_bar_animation_class ) . ( $ai4seo_this_metadata_generation_is_not_finished ? ' ai4seo-progress-bar-not-finished' : ' ai4seo-progress-bar-finished' ) . "' value='" . esc_attr( $ai4seo_this_active_metadata_coverage_percentage ) . "' max='100'></progress>";
+		// Reuse the list-wide progress helper so post and attachment rows expose identical accessibility metadata.
+		echo ai4seo_get_seo_coverage_progress_bar_tag(
+			$ai4seo_this_post_id,
+			$ai4seo_this_active_metadata_coverage_percentage,
+			$ai4seo_progress_bar_animation_class,
+			$ai4seo_this_metadata_generation_is_not_finished
+		);
 
 		if ( $ai4seo_is_post_waiting_to_get_queued ) {
 			echo "<div class='ai4seo-sub-info'>";

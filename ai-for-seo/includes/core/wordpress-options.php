@@ -60,6 +60,179 @@ function ai4seo_get_post_ids_from_option( string $option ): array {
 // =========================================================================================== \\
 
 /**
+ * Returns the post-ID option names represented by the generation status summary.
+ *
+ * @return array
+ */
+function ai4seo_get_generation_status_summary_source_option_names(): array {
+	// Cache the merged registry because every option write uses the same coverage and queue source set.
+	static $source_option_names = null;
+
+	if ( null === $source_option_names ) {
+		$source_option_names = array_values(
+			array_unique(
+				array_merge(
+					AI4SEO_SEO_COVERAGE_POST_ID_OPTIONS,
+					AI4SEO_GENERATION_STATUS_POST_ID_OPTIONS
+				)
+			)
+		);
+	}
+
+	return $source_option_names;
+}
+
+// =========================================================================================== \\
+
+/**
+ * Normalizes a stored post-ID option value without reading the option again.
+ *
+ * @param mixed $option_value Raw option value before or after a write.
+ * @return array
+ */
+function ai4seo_normalize_post_ids_from_option_value( $option_value ): array {
+	// Support the serialized and JSON shapes retained for compatibility with older option storage.
+	$option_value = maybe_unserialize( $option_value );
+
+	if ( is_string( $option_value ) && '' !== $option_value && ai4seo_is_json( $option_value ) ) {
+		$option_value = json_decode( $option_value, true );
+	}
+
+	if ( ! is_array( $option_value ) ) {
+		return array();
+	}
+
+	// Ignore malformed nested or non-numeric values so they cannot become synthetic post IDs during coercion.
+	$post_ids = array();
+
+	foreach ( $option_value as $post_id ) {
+		if ( ! is_scalar( $post_id ) || ! is_numeric( $post_id ) ) {
+			continue;
+		}
+
+		$normalized_post_id = (int) $post_id;
+
+		if ( $normalized_post_id > 0 && (float) $post_id === (float) $normalized_post_id ) {
+			$post_ids[] = $normalized_post_id;
+		}
+	}
+
+	// Stable numeric ordering lets the tracker compare membership instead of storage representation.
+	$post_ids = array_values( array_unique( $post_ids ) );
+	sort( $post_ids, SORT_NUMERIC );
+
+	return $post_ids;
+}
+
+// =========================================================================================== \\
+
+/**
+ * Records actual status-option membership changes for one batched request-level reconciliation.
+ *
+ * @param string $option_name Option that was successfully mutated.
+ * @param mixed  $old_value Option value before the mutation.
+ * @param mixed  $new_value Option value after the mutation.
+ * @return void
+ */
+function ai4seo_track_generation_status_summary_option_change( string $option_name, $old_value, $new_value ): void {
+	// Ignore settings and internal options that never contribute buckets to the dashboard summary.
+	if ( ! in_array( $option_name, ai4seo_get_generation_status_summary_source_option_names(), true ) ) {
+		return;
+	}
+
+	// Symmetric difference identifies only IDs whose membership in this specific source option changed.
+	$old_post_ids       = ai4seo_normalize_post_ids_from_option_value( $old_value );
+	$new_post_ids       = ai4seo_normalize_post_ids_from_option_value( $new_value );
+	$old_post_id_lookup = array_flip( $old_post_ids );
+	$new_post_id_lookup = array_flip( $new_post_ids );
+	$changed_post_ids   = array_keys(
+		array_diff_key( $old_post_id_lookup, $new_post_id_lookup )
+		+ array_diff_key( $new_post_id_lookup, $old_post_id_lookup )
+	);
+
+	if ( ! $changed_post_ids ) {
+		return;
+	}
+
+	// Accumulate by source option so the final reconciliation reads only options touched by this request.
+	global $ai4seo_generation_status_summary_pending_option_changes;
+	global $ai4seo_is_generation_status_summary_flush_registered;
+
+	if ( ! is_array( $ai4seo_generation_status_summary_pending_option_changes ?? null ) ) {
+		$ai4seo_generation_status_summary_pending_option_changes = array();
+	}
+
+	foreach ( $changed_post_ids as $post_id ) {
+		// Preserve the first observed membership and update only the request's latest state for this ID.
+		if ( ! isset( $ai4seo_generation_status_summary_pending_option_changes[ $option_name ][ $post_id ] ) ) {
+			$ai4seo_generation_status_summary_pending_option_changes[ $option_name ][ $post_id ] = array(
+				'initial' => isset( $old_post_id_lookup[ $post_id ] ),
+				'current' => isset( $new_post_id_lookup[ $post_id ] ),
+			);
+		} else {
+			$ai4seo_generation_status_summary_pending_option_changes[ $option_name ][ $post_id ]['current'] = isset( $new_post_id_lookup[ $post_id ] );
+		}
+
+		// A transition that returns to its initial membership requires no final summary reconciliation.
+		if ( $ai4seo_generation_status_summary_pending_option_changes[ $option_name ][ $post_id ]['initial']
+			=== $ai4seo_generation_status_summary_pending_option_changes[ $option_name ][ $post_id ]['current'] ) {
+			unset( $ai4seo_generation_status_summary_pending_option_changes[ $option_name ][ $post_id ] );
+		}
+	}
+
+	// Drop empty option buckets so the shutdown flush receives only effective final transitions.
+	if ( empty( $ai4seo_generation_status_summary_pending_option_changes[ $option_name ] ) ) {
+		unset( $ai4seo_generation_status_summary_pending_option_changes[ $option_name ] );
+	}
+
+	// One late shutdown callback batches cron loops, AJAX bulk actions, and direct queue clears alike.
+	if ( empty( $ai4seo_is_generation_status_summary_flush_registered ) ) {
+		add_action( 'shutdown', 'ai4seo_flush_generation_status_summary_option_changes', PHP_INT_MAX );
+		$ai4seo_is_generation_status_summary_flush_registered = true;
+	}
+}
+
+// =========================================================================================== \\
+
+/**
+ * Reconciles all status-option changes collected during the current request.
+ *
+ * @return void
+ */
+function ai4seo_flush_generation_status_summary_option_changes(): void {
+	global $ai4seo_generation_status_summary_pending_option_changes;
+
+	// Requests without effective membership changes have no summary work to perform.
+	if ( ! is_array( $ai4seo_generation_status_summary_pending_option_changes ?? null )
+		|| ! $ai4seo_generation_status_summary_pending_option_changes ) {
+		return;
+	}
+
+	// Reduce tracked initial/current states to the final changed-ID lookup accepted by the summary subsystem.
+	$pending_option_changes = array();
+
+	foreach ( $ai4seo_generation_status_summary_pending_option_changes as $option_name => $post_id_states ) {
+		foreach ( array_keys( $post_id_states ) as $post_id ) {
+			$pending_option_changes[ $option_name ][ $post_id ] = true;
+		}
+	}
+
+	// Detach the current batch before reconciliation so nested source writes cannot replay it.
+	$ai4seo_generation_status_summary_pending_option_changes = array();
+
+	// A concurrently running full analysis owns the summary and will read the final live option memberships itself.
+	if ( 'processing' === ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_STATE, false )
+		|| ! function_exists( 'ai4seo_sync_generation_status_summary_for_option_changes' ) ) {
+		return;
+	}
+
+	// Reconcile the request's final state once, rather than once for every intermediate transition.
+	ai4seo_sync_generation_status_summary_for_option_changes( $pending_option_changes );
+}
+
+// =========================================================================================== \\
+
+/**
  * Function to add post ids to an option that is saved as json
  *
  * @param mixed $option The option value.
@@ -101,6 +274,7 @@ function ai4seo_add_post_ids_to_option( $option, $post_ids ): bool {
 		}
 	);
 
+	// The shared option writer records real membership deltas for one request-level summary flush.
 	return ai4seo_update_option( $option, $new_post_ids );
 }
 

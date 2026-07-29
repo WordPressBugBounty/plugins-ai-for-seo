@@ -197,12 +197,21 @@ echo "<div class='ai4seo-metadata-editor-entry-context'>";
 				);
 			}
 
-				// Heads up for the focus-keyphrase: If meta-title or meta-description already got a value,
-				// guide the user to make sure to overwrite the meta-title and meta-description as well.
-			if ( 'focus-keyphrase' === $ai4seo_this_metadata_identifier && ! $ai4seo_this_metadata_input_value
+			// Keep the focus-keyphrase warning in the DOM so the editor can refresh it after AI generation and manual edits.
+			if ( 'focus-keyphrase' === $ai4seo_this_metadata_identifier ) {
+				// Match the initial state to the same condition used by the client-side refresh handler.
+				$ai4seo_should_show_focus_keyphrase_warning = ! $ai4seo_this_metadata_input_value
 					&& ( ( isset( $ai4seo_this_metadata_values['meta-title'] ) && $ai4seo_this_metadata_values['meta-title'] )
-					|| ( isset( $ai4seo_this_metadata_values['meta-description'] ) && $ai4seo_this_metadata_values['meta-description'] ) ) ) {
-				echo "<span class='ai4seo-editor-field-warning-message ai4seo-sub-info ai4seo-red-message'>";
+					|| ( isset( $ai4seo_this_metadata_values['meta-description'] ) && $ai4seo_this_metadata_values['meta-description'] ) );
+				$ai4seo_focus_keyphrase_warning_classes = 'ai4seo-editor-field-warning-message ai4seo-sub-info ai4seo-red-message';
+
+				// Preserve the warning element for later updates while hiding it when no action is currently needed.
+				if ( ! $ai4seo_should_show_focus_keyphrase_warning ) {
+					$ai4seo_focus_keyphrase_warning_classes .= ' ai4seo-display-none';
+				}
+
+				// Escape the assembled state classes while retaining the existing translated warning markup.
+				echo "<span class='" . esc_attr( $ai4seo_focus_keyphrase_warning_classes ) . "'>";
 					ai4seo_echo_wp_kses( __( '<strong>Heads up:</strong> This entry currently has no focus keyphrase. We recommend using the <strong>Generate & Overwrite</strong> button to ensure the keyphrase is applied and reflected across all related metadata fields.', 'ai-for-seo' ) );
 				echo '</span>';
 			}

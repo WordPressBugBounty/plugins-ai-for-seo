@@ -7,11 +7,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 // region CONSTANTS AND VARIABLES ============================================================ \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
-const AI4SEO_PLUGIN_VERSION_NUMBER              = '2.4.1';
+const AI4SEO_PLUGIN_VERSION_NUMBER              = '2.4.2';
 const AI4SEO_PLUGIN_NAME                        = 'SOOZ - AI for SEO';
 const AI4SEO_SHORT_PLUGIN_NAME                  = 'SOOZ';
 const AI4SEO_PLUGIN_DESCRIPTION                 = 'One-Click SEO solution. *SOOZ - AI for SEO* helps your website to rank higher in Web Search results.';
 const AI4SEO_PLUGIN_IDENTIFIER                  = 'ai-for-seo';
+// This request-only key lets an updated internal page bypass stale optimized asset bundles once.
+const AI4SEO_ASSET_REFRESH_QUERY_PARAMETER      = 'ai4seo_asset_refresh';
 const AI4SEO_PLUGIN_AUTHOR_COMPANY_NAME         = 'Andre Erbis, Space Codes';
 const AI4SEO_PLUGIN_AUTHOR_COMPANY_ABBREVIATION = 'AESC';
 const AI4SEO_DEFAULT_FALLBACK_LANGUAGE          = 'english';
@@ -54,6 +56,9 @@ const AI4SEO_POST_META_ATTACHMENT_ATTRIBUTES_CUSTOM_INSTRUCTIONS_META_KEY = 'ai4
 const AI4SEO_STYLES_HANDLE                                 = 'ai-for-seo-styles';
 const AI4SEO_SCRIPTS_HANDLE                                = 'ai-for-seo-scripts';
 const AI4SEO_INJECTION_SCRIPTS_HANDLE                      = 'ai-for-seo-injection-scripts';
+const AI4SEO_STYLES_FILE_NAME                              = 'ai-for-seo-styles-' . AI4SEO_PLUGIN_VERSION_NUMBER . '.css';
+const AI4SEO_SCRIPTS_FILE_NAME                             = 'ai-for-seo-scripts-' . AI4SEO_PLUGIN_VERSION_NUMBER . '.js';
+const AI4SEO_INJECTION_SCRIPTS_FILE_NAME                   = 'ai-for-seo-alt-text-injection-' . AI4SEO_PLUGIN_VERSION_NUMBER . '.js';
 const AI4SEO_VERY_LOW_CREDITS_THRESHOLD                    = 10;
 const AI4SEO_LOW_CREDITS_THRESHOLD                         = 40;
 const AI4SEO_CUSTOM_PLAN_DISCOUNT                          = 30; // in percent.
@@ -176,7 +181,18 @@ const AI4SEO_GENERATED_OUTPUT_QUALITY_WINDOWS = array(
 function ai4seo_get_change_log(): array {
 	return array(
 		array(
-			'date'      => 'July 12th, 2026',
+			'date'      => 'July 29th, 2026',
+			'version'   => '2.4.2',
+			'important' => false,
+			'updates'   => array(
+				'Improved media attribute generation reliability by automatically recovering with direct image data when a remote image URL cannot be accessed.',
+				'Improved dashboard and SEO Autopilot status accuracy and performance with incremental background updates and clearer, accessible progress details.',
+				'Added sticky section navigation to Settings so longer configuration pages are easier to move through.',
+				'Bug Fixes & Maintenance: Fixed 8 minor bugs, implemented 2 performance improvements, and addressed 1 security issue.',
+			),
+		),
+		array(
+			'date'      => 'July 24th, 2026',
 			'version'   => '2.4.1',
 			'important' => false,
 			'updates'   => array(
@@ -222,27 +238,6 @@ function ai4seo_get_change_log(): array {
 			),
 		),
 		array(
-			'date'      => 'May 27th, 2026',
-			'version'   => '2.3.5',
-			'important' => false,
-			'updates'   => array(
-				'WordPress 7.0 compatibility',
-				'Improved Automatic language detection for media attributes by using image usage context first, with WPML and system language fallbacks.',
-				'Added a usage context status to the media attributes editor, showing when image context is available for generation and how to improve detection when it is not.',
-				'Added separate entry type choices when removing AI-generated data, including media files, so users can reset only selected generated data.',
-				'Added settings to control where additional "Generate with SOOZ" buttons appear in third-party SEO plugins, page builders, and WordPress media screens.',
-				'Bug Fixes & Maintenance: Implemented 1 security fix, 2 minor bug fixes, and 2 performance improvements.',
-			),
-		),
-		array(
-			'date'      => 'March 19th, 2026',
-			'version'   => '2.3.1',
-			'important' => false,
-			'updates'   => array(
-				'Bug Fixes & Maintenance: Fixed 6 minor bugs and resolved 3 security issues.',
-			),
-		),
-		array(
 			'date'      => 'March 9th, 2026',
 			'version'   => '2.3.0',
 			'important' => true,
@@ -257,47 +252,6 @@ function ai4seo_get_change_log(): array {
 				'Added a new "Remove License" button on the account page.',
 				'Added a new setting "Query IDs Chunk Size": Advanced troubleshooting option to adjust chunk size when processing large amounts of entries. Lower values may reduce database load and fix MySQL-related issues. Higher values can improve performance if your database allows it.',
 				'Bug Fixes & Maintenance: Fixed 21 minor bugs, implemented 9 usability improvements, implemented 14 performance optimizations, and resolved 13 security issues.',
-			),
-		),
-		array(
-			'date'      => 'December 26th, 2025',
-			'version'   => '2.2.5',
-			'important' => false,
-			'updates'   => array(
-				'Added an advanced setting to adjust the Focus Keyphrase behavior during SEO Autopilot when existing metadata is present.',
-				'Bug Fixes & Maintenance: Fixed 4 minor bugs and implemented 2 usability improvements, and resolved 2 security issues.',
-			),
-		),
-		array(
-			'date'      => 'December 10th, 2025',
-			'version'   => '2.2.4',
-			'important' => false,
-			'updates'   => array(
-				'Bug Fixes & Maintenance: Fixed 5 minor bugs and implemented 3 usability improvements.',
-			),
-		),
-		array(
-			'date'      => 'December 3rd, 2025',
-			'version'   => '2.2.3',
-			'important' => false,
-			'updates'   => array(
-				'Bug Fixes & Maintenance: Fixed 7 minor bugs and implemented 2 usability improvements.',
-			),
-		),
-		array(
-			'date'      => 'November 20th, 2025',
-			'version'   => '2.2.2',
-			'important' => false,
-			'updates'   => array(
-				'Bug Fixes & Maintenance: Fixed 9 minor bugs, implemented 3 usability improvements, and resolved 2 security issues.',
-			),
-		),
-		array(
-			'date'      => 'November 15th, 2025',
-			'version'   => '2.2.1',
-			'important' => false,
-			'updates'   => array(
-				'Bug Fixes & Maintenance: Fixed 5 minor bugs',
 			),
 		),
 		array(
@@ -332,15 +286,6 @@ function ai4seo_get_change_log(): array {
 			),
 		),
 		array(
-			'date'      => 'September 23th, 2025',
-			'version'   => '2.1.5',
-			'important' => false,
-			'updates'   => array(
-				'Added a new feature to easily retrieve lost license data. Go to your Account page, click "Lost your license data?", and follow the instructions.',
-				'Bug Fixes & Maintenance: Fixed 2 minor bugs and implemented 4 usability improvements.',
-			),
-		),
-		array(
 			'date'      => 'August 3rd, 2025',
 			'version'   => '2.1.0',
 			'important' => true,
@@ -369,52 +314,6 @@ function ai4seo_get_change_log(): array {
                     <li>And others.</li>
                 </ul>',
 				'Bug Fixes & Maintenance: Fixed 17 minor bugs, added 6 quality-of-life improvements, implemented 3 performance optimizations, and 2 security updates.',
-			),
-		),
-		array(
-			'date'      => 'July 1st, 2025',
-			'version'   => '2.0.7',
-			'important' => false,
-			'updates'   => array(
-				'Bug Fixes & Maintenance: Fixed 7 minor bugs, added 3 quality of life improvements, and implemented security updates.',
-			),
-		),
-		array(
-			'date'      => 'June 23nd, 2025',
-			'version'   => '2.0.6',
-			'important' => false,
-			'updates'   => array(
-				'Bug Fixes & Maintenance: Fixed 3 minor bug',
-			),
-		),
-		array(
-			'date'      => 'May 9th, 2025',
-			'version'   => '2.0.4',
-			'important' => false,
-			'updates'   => array(
-				'Added support for NextGen Gallery: The plugin now recognizes and processes media attributes for images created with the NextGen Gallery plugin. Use the new "Import" button in the media page to import all images from the NextGen Gallery into the *SOOZ - AI for SEO* plugin.',
-				'Bug Fixes & Maintenance: Fixed 2 minor bugs',
-			),
-		),
-		array(
-			'date'      => 'May 4th, 2025',
-			'version'   => '2.0.3',
-			'important' => false,
-			'updates'   => array(
-				'SEO Autopilot now more accurately reflects its current status and includes an option to immediately schedule the next run.',
-				'Bug Fixes & Maintenance: Fixed 15 minor bugs, corrected typos, and implemented security updates.',
-			),
-		),
-		array(
-			'date'      => 'April 08th, 2025',
-			'version'   => '2.0.2',
-			'important' => false,
-			'updates'   => array(
-				'Improved Prefix & Suffix Support: Prefixes and suffixes are now correctly applied when using the "Generate with SOOZ" button in both the Metadata Editor and the Attachment Attributes Editor.',
-				'Enhanced Mobile UX: Better responsiveness and usability on the Pages / Posts and Media Files views for mobile devices.',
-				'Account Page Improvements: Added direct buttons for managing your active subscription and customizing Pay-As-You-Go settings.',
-				'Updated Help Section: Improved help content and clearer "First Steps" guidance for new users.',
-				'Bug Fixes & Maintenance: Fixed 11 minor bugs, corrected typos, and implemented security updates.',
 			),
 		),
 		array(
@@ -692,10 +591,11 @@ const AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES = 'attachment_a
 
 // region CRON JOBS ==========================================================================================.
 
-const AI4SEO_BULK_GENERATION_CRON_JOB_NAME                = 'ai4seo_automated_generation_cron_job';
-const AI4SEO_ANALYSE_PLUGIN_PERFORMANCE_CRON_JOB_NAME     = 'ai4seo_analyze_plugin_performance';
-const AI4SEO_ACTIVE_METADATA_MIGRATION_V235_CRON_JOB_NAME = 'ai4seo_active_metadata_migration_v235_cron_job';
-const AI4SEO_ACTIVE_METADATA_MIGRATION_V235_BATCH_SIZE    = 500;
+const AI4SEO_BULK_GENERATION_CRON_JOB_NAME                   = 'ai4seo_automated_generation_cron_job';
+const AI4SEO_ANALYSE_PLUGIN_PERFORMANCE_CRON_JOB_NAME        = 'ai4seo_analyze_plugin_performance';
+const AI4SEO_GENERATION_STATUS_SUMMARY_REBUILD_CRON_JOB_NAME = 'ai4seo_rebuild_generation_status_summary';
+const AI4SEO_ACTIVE_METADATA_MIGRATION_V235_CRON_JOB_NAME    = 'ai4seo_active_metadata_migration_v235_cron_job';
+const AI4SEO_ACTIVE_METADATA_MIGRATION_V235_BATCH_SIZE       = 500;
 
 
 // endregion
@@ -1798,8 +1698,10 @@ $ai4seo_environmental_variables            = AI4SEO_DEFAULT_ENVIRONMENTAL_VARIAB
 $ai4seo_environmental_variables_are_loaded = false; // cache variable.
 
 $ai4seo_persistent_does_user_need_to_accept_tos_toc_and_pp = null; // cache variable
-// Debug cache-busting is request-only so normal asset versioning stays tied to the plugin version.
-$ai4seo_scripts_version_number                         = isset( $_GET['ai4seo_debug_uncached_assets'] ) && sanitize_text_field( wp_unslash( $_GET['ai4seo_debug_uncached_assets'] ) ) ? time() : AI4SEO_PLUGIN_VERSION_NUMBER;
+// Debug cache-busting remains request-wide; update refreshes are scoped later to authorized plugin admin pages.
+$ai4seo_scripts_version_number = isset( $_GET['ai4seo_debug_uncached_assets'] ) && sanitize_text_field( wp_unslash( $_GET['ai4seo_debug_uncached_assets'] ) )
+	? time()
+	: AI4SEO_PLUGIN_VERSION_NUMBER;
 $ai4seo_user_has_at_least_plan                         = array(); // cache variable to store if user has at least a specific plan.
 $ai4seo_user_has_active_generation_length_subscription = array(); // Request cache for expiry-aware length-stage entitlement.
 
