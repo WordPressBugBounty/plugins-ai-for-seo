@@ -51,11 +51,6 @@ if ( $ai4seo_current_page < 1 ) {
 	$ai4seo_current_page = 1;
 }
 
-// check if the cron job should be executed sooner.
-if ( isset( $_GET['ai4seo-execute-cron-job-sooner'] ) && sanitize_text_field( wp_unslash( $_GET['ai4seo-execute-cron-job-sooner'] ) ) ) {
-	ai4seo_inject_additional_cronjob_call( AI4SEO_BULK_GENERATION_CRON_JOB_NAME );
-}
-
 // Start with empty row state so optimized media lists do not parse global status options before page IDs are known.
 $ai4seo_pending_attributes_attachment_post_ids               = array();
 $ai4seo_processing_attributes_attachment_post_ids            = array();
@@ -195,6 +190,7 @@ $ai4seo_posts_query_arguments = array(
 	'posts_per_page'   => 20,
 	'orderby'          => 'ID',
 	'order'            => 'DESC',
+	'perm'             => 'editable',
 	'suppress_filters' => true,
 	'lang'             => 'all',
 );
@@ -263,7 +259,8 @@ $ai4seo_filter_query_args = ai4seo_get_content_type_filter_query_args( $ai4seo_f
 // Try the bounded resolver for the full media page; related-media scopes stay exact and self-contained.
 $ai4seo_content_type_list_result = array( 'is_optimized' => false );
 
-if ( ! $ai4seo_attachment_post_ids_filter_is_active ) {
+if ( ! $ai4seo_attachment_post_ids_filter_is_active
+	&& ai4seo_can_edit_others_posts_for_post_types( (array) $ai4seo_post_types ) ) {
 	$ai4seo_content_type_list_result = ai4seo_resolve_optimized_content_type_list(
 		array(
 			'content_context'                            => AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES,
@@ -292,7 +289,7 @@ if ( ! $ai4seo_attachment_post_ids_filter_is_active ) {
 if ( ! empty( $ai4seo_content_type_list_result['is_optimized'] ) ) {
 	// The optimized media path returns only current-page row state plus cheap counts for the initial render.
 	$ai4seo_current_page                                     = (int) ( $ai4seo_content_type_list_result['current_page'] ?? $ai4seo_current_page );
-	$ai4seo_current_page_attachment_post_ids                 = array_values( array_map( 'intval', (array) ( $ai4seo_content_type_list_result['post_ids'] ?? array() ) ) );
+	$ai4seo_current_page_attachment_post_ids                 = ai4seo_filter_editable_post_ids( (array) ( $ai4seo_content_type_list_result['post_ids'] ?? array() ) );
 	$ai4seo_total_items                                      = (int) ( $ai4seo_content_type_list_result['total_items'] ?? 0 );
 	$ai4seo_total_pages                                      = (int) ( $ai4seo_content_type_list_result['total_pages'] ?? 1 );
 	$ai4seo_status_filter_counts                             = (array) ( $ai4seo_content_type_list_result['status_counts'] ?? array() );
@@ -346,7 +343,7 @@ if ( ! empty( $ai4seo_content_type_list_result['is_optimized'] ) ) {
 		);
 	}
 
-	$ai4seo_candidate_attachment_post_ids = array_values( array_unique( array_map( 'intval', (array) $ai4seo_candidate_attachment_post_ids ) ) );
+	$ai4seo_candidate_attachment_post_ids = ai4seo_filter_editable_post_ids( (array) $ai4seo_candidate_attachment_post_ids );
 
 	// Intersect again after WP_Query/search handling so all candidate paths honor the modal's related-ID scope.
 	if ( $ai4seo_attachment_post_ids_filter_is_active ) {
@@ -621,7 +618,10 @@ echo "<table class='widefat striped table-view-list attachments ai4seo-posts-tab
 		echo "<th class='manage-column sortable ai4seo-content-list-sortable-column'" . ( $ai4seo_id_column_aria_sort ? " aria-sort='" . esc_attr( $ai4seo_id_column_aria_sort ) . "'" : '' ) . '>';
 			ai4seo_echo_wp_kses( ai4seo_get_content_type_sortable_column_label_html( __( 'ID', 'ai-for-seo' ), 'id', $ai4seo_filter_context ) );
 		echo '</th>';
-		echo '<th></th>';
+		// Label the otherwise visual-only preview column for assistive technology.
+		echo '<th>';
+			echo "<span class='screen-reader-text'>" . esc_html__( 'Preview', 'ai-for-seo' ) . '</span>';
+		echo '</th>';
 		echo "<th class='manage-column sortable ai4seo-hidden-on-mobile ai4seo-content-list-sortable-column'" . ( $ai4seo_title_column_aria_sort ? " aria-sort='" . esc_attr( $ai4seo_title_column_aria_sort ) . "'" : '' ) . '>';
 			ai4seo_echo_wp_kses( ai4seo_get_content_type_sortable_column_label_html( __( 'Title', 'ai-for-seo' ), 'title', $ai4seo_filter_context ) );
 		echo '</th>';
@@ -648,7 +648,10 @@ if ( ! $ai4seo_is_related_attachments_modal && ( $ai4seo_should_show_retry_all_f
 	echo '</div>';
 }
 		echo '</th>';
-		echo '<th></th>';
+		// Label the otherwise visual-only per-row action column for assistive technology.
+		echo '<th>';
+			echo "<span class='screen-reader-text'>" . esc_html__( 'Actions', 'ai-for-seo' ) . '</span>';
+		echo '</th>';
 	echo '</tr>';
 
 	// Loop through entries and display table-row for each entry.

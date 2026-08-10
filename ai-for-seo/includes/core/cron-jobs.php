@@ -8,6 +8,18 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 /**
+ * Determine whether WordPress's built-in cron runner is explicitly disabled.
+ *
+ * @return bool Whether DISABLE_WP_CRON is enabled.
+ */
+function ai4seo_is_wordpress_cron_disabled(): bool {
+	// An undefined constant keeps the default WordPress cron behavior enabled.
+	return defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON;
+}
+
+// =========================================================================================== \\
+
+/**
  * Function to schedule cron jobs
  *
  * @return void
@@ -805,14 +817,11 @@ function ai4seo_automated_metadata_generation( $debug = false, $only_this_post_i
 	// mark post as being processed.
 	ai4seo_add_post_ids_to_option( AI4SEO_PROCESSING_METADATA_POST_IDS_OPTION_NAME, $post_id );
 
-	// first, let's get a summary of the content.
-	$post_content = ai4seo_get_condensed_post_content_from_database( $post_id );
-	$post_context = $post_content;
-	ai4seo_add_post_context( $post_id, $post_context, false, false );
-
-	if ( ! $post_content && $post_context ) {
-		$post_content = $post_context;
-	}
+	// First, get the shared transport content, post context, and structured language evidence.
+	$prepared_content = ai4seo_prepare_metadata_generation_content_data( $post_id );
+	$post_content     = $prepared_content['content'];
+	$post_context     = $prepared_content['post_context'];
+	$content_analysis = $prepared_content['content_analysis'];
 
 	$post_content = sanitize_text_field( $post_content );
 	$post_context = sanitize_text_field( $post_context );
@@ -846,13 +855,14 @@ function ai4seo_automated_metadata_generation( $debug = false, $only_this_post_i
 	// check for a key phrase.
 	$third_party_keyphrase = sanitize_text_field( ai4seo_get_any_third_party_seo_plugin_keyphrase( $post_id ) );
 
-	if ( $third_party_keyphrase ) {
+	if ( '' !== $third_party_keyphrase ) {
 		$robhub_api_call_parameters['keyphrase'] = $third_party_keyphrase;
 	}
 
-	$robhub_api_call_parameters['trigger']         = 'automated';
-	$robhub_api_call_parameters['website_context'] = ai4seo_get_website_context();
-	$robhub_api_call_parameters['post_context']    = $post_context;
+	$robhub_api_call_parameters['trigger']          = 'automated';
+	$robhub_api_call_parameters['website_context']  = ai4seo_get_website_context();
+	$robhub_api_call_parameters['post_context']     = $post_context;
+	$robhub_api_call_parameters['content_analysis'] = $content_analysis;
 
 	// url.
 	$post_permalink = get_permalink( $post_id );
@@ -975,12 +985,37 @@ function ai4seo_automated_metadata_generation( $debug = false, $only_this_post_i
 	}
 
 	// Update only prepared fields so omitted fields retain their existing stored values.
-	$this_success = ai4seo_update_active_metadata( $post_id, $new_generated_metadata, true );
+	$metadata_update_details                   = array();
+	$third_party_sync_failure_activity_details = '';
+	$metadata_update_succeeded                 = ai4seo_update_active_metadata( $post_id, $new_generated_metadata, true, $metadata_update_details );
 
-	if ( ! $this_success ) {
-		ai4seo_handle_failed_metadata_generation( $post_id, __FUNCTION__, 'Could not save generated metadata for post ID: ' . $post_id, $debug );
-		ai4seo_add_latest_activity_entry( $post_id, 'error', 'metadata-bulk-generated', 0, 'Could not save generated metadata' );
-		return false;
+	// Only a genuine SOOZ failure enters the generation-failure queue and risks a later API retry.
+	if ( ! $metadata_update_succeeded ) {
+		$active_metadata_succeeded  = ! empty( $metadata_update_details['active_metadata_succeeded'] );
+		$third_party_sync_succeeded = ! empty( $metadata_update_details['third_party_sync_succeeded'] );
+
+		// Partial synchronization retains generated data and records failed integrations for support.
+		if ( $active_metadata_succeeded && ! $third_party_sync_succeeded ) {
+			$failed_plugin_names = ai4seo_get_third_party_seo_plugin_names(
+				array_keys( $metadata_update_details['failed_third_party_syncs'] ?? array() )
+			);
+			$failed_plugin_list  = $failed_plugin_names ? implode( ', ', $failed_plugin_names ) : 'selected third-party SEO integrations';
+
+			$third_party_sync_failure_activity_details = 'Generated metadata was saved in SOOZ, but synchronization failed for: ' . $failed_plugin_list;
+
+			ai4seo_debug_message(
+				693318905,
+				esc_html( __FUNCTION__ ) . ' > ' . esc_html( $third_party_sync_failure_activity_details ),
+				true
+			);
+
+			// Continue into provenance, content-summary, coverage, and successful activity persistence below.
+		} else {
+			// A failed SOOZ write retains the existing failure-queue and activity behavior.
+			ai4seo_handle_failed_metadata_generation( $post_id, __FUNCTION__, 'Could not save generated metadata for post ID: ' . $post_id, $debug );
+			ai4seo_add_latest_activity_entry( $post_id, 'error', 'metadata-bulk-generated', 0, 'Could not save generated metadata' );
+			return false;
+		}
 	}
 
 	// Persist returned provenance before coverage changes so a failed snapshot cannot be reported as successful.
@@ -1030,7 +1065,8 @@ function ai4seo_automated_metadata_generation( $debug = false, $only_this_post_i
 		$post_id,
 		'success',
 		'metadata-bulk-generated',
-		(int) ( $results['credits-consumed'] ?? 0 )
+		(int) ( $results['credits-consumed'] ?? 0 ),
+		$third_party_sync_failure_activity_details
 	);
 
 	if ( $debug ) {

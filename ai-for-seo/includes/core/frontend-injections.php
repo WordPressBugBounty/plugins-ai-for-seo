@@ -71,6 +71,117 @@ function ai4seo_init_frontend_injections() {
 // =========================================================================================== \\
 
 /**
+ * Extracts supported metadata tags from buffered head HTML.
+ *
+ * @param string $head_html The HTML content of the document head.
+ * @return array The supported metadata tags grouped by metadata identifier.
+ */
+function ai4seo_get_meta_tags_from_html( string $head_html ): array {
+	// Prevent nested output-buffer parsing from recursively analyzing the same document head.
+	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
+		ai4seo_debug_message( 764731280, 'Prevented loop', true );
+		return array();
+	}
+
+	// The metadata registry supplies the tag-specific regular expressions used below.
+	if ( ! defined( 'AI4SEO_METADATA_DETAILS' ) ) {
+		return array();
+	}
+
+	// Remove executable and style resources so tag-like content inside them cannot produce false matches.
+	$head_html = preg_replace( '/<script\b[^>]*>(.*?)<\/script>/is', '', $head_html );
+	$head_html = preg_replace( '/<style\b[^>]*>(.*?)<\/style>/is', '', $head_html );
+	$head_html = preg_replace( '/<link\b[^>]*>/i', '', $head_html );
+
+	// Remove non-rendered wrappers before splitting the remaining head into individual tag candidates.
+	$head_html = preg_replace( '/<!\[CDATA\[.*?\]\]>/s', '', $head_html );
+	$head_html = preg_replace( '/<!--.*?-->/s', '', $head_html );
+	$head_html = trim( $head_html );
+
+	// Preserve line breaks inside tag values while structural line breaks are inserted between tags.
+	$head_html = preg_replace( '/\r\n/', '#AI4SEO#LBRN#', $head_html );
+	$head_html = preg_replace( '/\n/', '#AI4SEO#LBN#', $head_html );
+
+	// Separate paired, self-closing, and adjacent tags into consistently parseable lines.
+	$head_html = preg_replace( '/<\/[^>]+>/', "$0\n", $head_html );
+	$head_html = preg_replace( '/<[^>]+\/>/', "$0\n", $head_html );
+	$head_html = preg_replace( '/>\s*</', ">\n<", $head_html );
+	$head_html = preg_replace( '/>(#AI4SEO#LBRN#|#AI4SEO#LBN#|\s)+</', ">\n<", $head_html );
+
+	// Analyze each normalized line independently to avoid one tag consuming a neighboring match.
+	$head_tags = explode( "\n", $head_html );
+	$found_meta_tags = array();
+
+	foreach ( $head_tags as $head_tag ) {
+		if ( ! $head_tag ) {
+			continue;
+		}
+
+		// Ignore formatting whitespace left around the normalized tag candidate.
+		$head_tag = trim( $head_tag );
+
+		// Retain structural charset and viewport tags because insertion position depends on them.
+		if ( preg_match( '/<meta\s+[^>]*charset\s*=\s*["\'][^"\']+["\'][^>]*>/i', $head_tag ) ) {
+			$found_meta_tags['charset'] = array(
+				'raw-html' => trim( ai4seo_remove_header_line_break_placeholders( $head_tag ) ),
+				'content'  => 'charset',
+			);
+		}
+
+		if ( preg_match( '/<meta\s+[^>]*name\s*=\s*["\']viewport["\'][^>]*>/i', $head_tag ) ) {
+			$found_meta_tags['viewport'] = array(
+				'raw-html' => trim( ai4seo_remove_header_line_break_placeholders( $head_tag ) ),
+				'content'  => 'viewport',
+			);
+		}
+
+		// Match content fields through the shared registry so parsing follows the configured output tag shapes.
+		foreach ( AI4SEO_METADATA_DETAILS as $this_metadata_identifier => $this_metadata_field_details ) {
+			$this_meta_tag_regex             = $this_metadata_field_details['meta-tag-regex'] ?? '';
+			$this_meta_tag_regex_match_index = $this_metadata_field_details['meta-tag-regex-match-index'] ?? 0;
+
+			if ( ! $this_meta_tag_regex || ! $this_meta_tag_regex_match_index ) {
+				continue;
+			}
+
+			if ( ! preg_match( $this_meta_tag_regex, $head_tag, $this_meta_tag_regex_matches ) ) {
+				continue;
+			}
+
+			if ( ! isset( $this_meta_tag_regex_matches[ $this_meta_tag_regex_match_index ] ) ) {
+				continue;
+			}
+
+			// Restore original line breaks only after regex matching has isolated the complete tag and value.
+			$this_meta_tag_regex_matches[0]                                  = trim( ai4seo_remove_header_line_break_placeholders( $this_meta_tag_regex_matches[0] ) );
+			$this_meta_tag_regex_matches[ $this_meta_tag_regex_match_index ] = trim( ai4seo_remove_header_line_break_placeholders( $this_meta_tag_regex_matches[ $this_meta_tag_regex_match_index ] ) );
+
+			$found_meta_tags[ $this_metadata_identifier ][] = array(
+				'raw-html' => $this_meta_tag_regex_matches[0],
+				'content'  => $this_meta_tag_regex_matches[ $this_meta_tag_regex_match_index ],
+			);
+		}
+	}
+
+	return $found_meta_tags;
+}
+
+// =========================================================================================== \\
+
+/**
+ * Restores line breaks protected while buffered head HTML is split into tags.
+ *
+ * @param string $string The string containing protected line-break markers.
+ * @return string The string with its original line breaks restored.
+ */
+function ai4seo_remove_header_line_break_placeholders( string $string ): string {
+	// Restore Windows and Unix markers separately so the original newline form is preserved.
+	return str_replace( array( '#AI4SEO#LBRN#', '#AI4SEO#LBN#' ), array( "\r\n", "\n" ), $string );
+}
+
+// =========================================================================================== \\
+
+/**
  * Modify and add plugin metadata tags to the HTML head.
  *
  * @param string $full_html_buffer Full HTML response buffer.
@@ -204,10 +315,22 @@ function ai4seo_inject_our_meta_tags_into_the_html_head( string $full_html_buffe
 			$our_metadata[ $this_metadata_identifier ] = '';
 		}
 
+		// Resolve supported third-party templates before deciding whether existing frontend tags should be replaced.
+		if ( $this_our_metadata ) {
+			$this_our_metadata                         = ai4seo_resolve_third_party_seo_metadata_variables( $this_our_metadata, $post_id, $this_metadata_identifier );
+			$our_metadata[ $this_metadata_identifier ] = $this_our_metadata;
+		}
+
 		// find a fallback if neither we nor a third party have a value for this meta tag.
 		if ( empty( $this_our_metadata ) && empty( $this_found_third_party_meta_tags ) ) {
 			ai4seo_apply_possible_fallbacks( $post_id, $this_metadata_identifier, $our_metadata );
 			$this_our_metadata = $our_metadata[ $this_metadata_identifier ] ?? '';
+
+			// Apply the same resolution rules to fallback values before they enter output-mode decisions.
+			if ( $this_our_metadata ) {
+				$this_our_metadata                         = ai4seo_resolve_third_party_seo_metadata_variables( $this_our_metadata, $post_id, $this_metadata_identifier );
+				$our_metadata[ $this_metadata_identifier ] = $this_our_metadata;
+			}
 		}
 
 		// leave this meta tag alone if we do not have a value for it or we exclude this meta tag.
@@ -276,8 +399,9 @@ function ai4seo_inject_our_meta_tags_into_the_html_head( string $full_html_buffe
 		$ai4seo_metadata_prefixes = ai4seo_get_setting( AI4SEO_SETTING_METADATA_PREFIXES );
 		$ai4seo_metadata_suffixes = ai4seo_get_setting( AI4SEO_SETTING_METADATA_SUFFIXES );
 
-		// prepare our meta tags.
+		// Build metadata tags from the selected values while preserving the registry's output shapes.
 		foreach ( $add_this_metadata as $this_metadata_identifier => $this_metadata_content ) {
+			// Read field details and affixes after output-mode selection has accepted the resolved metadata value.
 			$this_metadata_field_details = AI4SEO_METADATA_DETAILS[ $this_metadata_identifier ] ?? array();
 			$this_metadata_prefix_raw    = $ai4seo_metadata_prefixes[ $this_metadata_identifier ] ?? '';
 			$this_metadata_suffix_raw    = $ai4seo_metadata_suffixes[ $this_metadata_identifier ] ?? '';

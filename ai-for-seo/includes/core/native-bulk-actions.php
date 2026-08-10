@@ -152,10 +152,17 @@ function ai4seo_handle_native_attachment_attributes_bulk_generation_queue_action
  * @return string Redirect URL.
  */
 function ai4seo_handle_native_bulk_generation_queue_action( $redirect_to, $doaction, $post_ids, string $context ): string {
+	// Normalize native table inputs before authorization and shared queue processing use them.
 	$redirect_to                  = ai4seo_remove_bulk_generation_queue_bulk_action_query_args( (string) $redirect_to );
 	$bulk_generation_queue_action = sanitize_key( $doaction );
+	$post_ids                     = array_values( array_unique( array_filter( array_map( 'absint', (array) $post_ids ) ) ) );
 
 	if ( ! ai4seo_can_manage_this_plugin() ) {
+		return $redirect_to;
+	}
+
+	// Never let a forged native bulk request mutate entries the current user cannot edit individually.
+	if ( ! $post_ids || ! ai4seo_can_edit_post_ids( $post_ids ) ) {
 		return $redirect_to;
 	}
 
@@ -182,7 +189,7 @@ function ai4seo_handle_native_bulk_generation_queue_action( $redirect_to, $doact
 
 	$result = ai4seo_process_bulk_generation_queue_action(
 		$bulk_generation_queue_action,
-		(array) $post_ids,
+		$post_ids,
 		$context
 	);
 

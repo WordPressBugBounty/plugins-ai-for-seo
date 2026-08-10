@@ -31,6 +31,11 @@ if ( $ai4seo_post_id <= 0 ) {
 	ai4seo_send_ajax_error( esc_html__( 'Post id is invalid.', 'ai-for-seo' ), 11032601 );
 }
 
+// Related-media discovery can expose post context, so require object-level access to its source post.
+if ( ! ai4seo_can_edit_post( $ai4seo_post_id ) ) {
+	ai4seo_send_ajax_error( esc_html__( 'You are not allowed to edit this entry.', 'ai-for-seo' ), 11032604 );
+}
+
 $ai4seo_post = get_post( $ai4seo_post_id );
 
 if ( ! $ai4seo_post || is_wp_error( $ai4seo_post ) || ! isset( $ai4seo_post->post_type ) ) {
@@ -54,6 +59,10 @@ $ai4seo_attachment_post_ids_filter          = (array) ( $ai4seo_related_attachme
 $ai4seo_related_attachments_scan_is_partial = ! empty( $ai4seo_related_attachments_scan_result['is_partial'] );
 $ai4seo_is_related_attachments_modal        = true;
 $ai4seo_related_attachments_modal_post_id   = $ai4seo_post_id;
+
+// Exclude malformed and unauthorized media IDs before the shared table renderer receives its filter.
+$ai4seo_attachment_post_ids_filter = array_values( array_unique( array_map( 'absint', $ai4seo_attachment_post_ids_filter ) ) );
+$ai4seo_attachment_post_ids_filter = array_values( array_filter( $ai4seo_attachment_post_ids_filter, 'ai4seo_can_edit_post' ) );
 
 // Persist the full scanner result before table filtering so generation can use it as a context fallback later.
 if ( ! ai4seo_update_attachment_related_post_id_for_attachment_post_ids(

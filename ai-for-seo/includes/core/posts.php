@@ -1207,11 +1207,18 @@ function ai4seo_get_supported_post_types( bool $apply_user_setting = true ): arr
 // =========================================================================================== \\
 
 /**
- * @param int  $post_id The ID of the post to get the pure text content for.
- * @param bool $debug Whether to enable debug mode (default: false).
+ * @param int         $post_id The ID of the post to get the pure text content for.
+ * @param bool        $debug Whether to enable debug mode (default: false).
+ * @param string|null $strict_visible_text Optional structure-free visible text output.
+ * @param string|null $first_h1 Optional first locally available H1 output.
  * @return string The pure text content of the post.
  */
-function ai4seo_get_condensed_post_content_from_database( int $post_id, bool $debug = false ): string {
+function ai4seo_get_condensed_post_content_from_database(
+	int $post_id,
+	bool $debug = false,
+	?string &$strict_visible_text = null,
+	?string &$first_h1 = null
+): string {
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 561711889, 'Prevented loop', true );
 		return '';
@@ -1224,11 +1231,16 @@ function ai4seo_get_condensed_post_content_from_database( int $post_id, bool $de
 		return ''; // Return empty if post is not found.
 	}
 
-	// Get the post content.
-	$post_content = ai4seo_get_combined_post_content( $post_id, '', false, $debug );
+	// Keep local editor and builder content available for structured analysis even when the legacy
+	// transport path replaces a short body with the fully rendered permalink response.
+	$local_combined_content = '';
+	$post_content           = ai4seo_get_combined_post_content( $post_id, '', false, $debug, $local_combined_content );
+	$analysis_content       = '' !== trim( $local_combined_content ) ? $local_combined_content : $post_content;
+	$first_h1              = ai4seo_extract_first_local_h1( $analysis_content );
 
-	// condense the post content.
+	// Preserve the existing transport condenser while deriving language evidence from the local source.
 	ai4seo_condense_raw_post_content( $post_content );
+	ai4seo_condense_raw_post_content( $analysis_content, 2000, 2250, $strict_visible_text );
 
 	if ( $debug ) {
 		ai4seo_debug_message( 614595339, 'FINAL POST CONTENT (condensed) >' . ai4seo_stringify( htmlspecialchars( $post_content ) ) );
@@ -1243,13 +1255,20 @@ function ai4seo_get_condensed_post_content_from_database( int $post_id, bool $de
  * Returns the post content to a given post_id by also reading the content of the most common page builders and
  * combining them into one content
  *
- * @param int    $post_id The post or page id to read the content from.
- * @param string $editor_identifier The identifier of the editor to read the content from.
- * @param bool   $output_raw The output raw value.
- * @param bool   $debug Whether to enable debug mode (default: false).
+ * @param int         $post_id The post or page id to read the content from.
+ * @param string      $editor_identifier The identifier of the editor to read the content from.
+ * @param bool        $output_raw The output raw value.
+ * @param bool        $debug Whether to enable debug mode (default: false).
+ * @param string|null $local_combined_content Optional pre-remote-fallback editor and builder content output.
  * @return false|string The post or page content or false if the post_id is empty
  */
-function ai4seo_get_combined_post_content( int $post_id = 0, string $editor_identifier = '', bool $output_raw = false, bool $debug = false ) {
+function ai4seo_get_combined_post_content(
+	int $post_id = 0,
+	string $editor_identifier = '',
+	bool $output_raw = false,
+	bool $debug = false,
+	?string &$local_combined_content = null
+) {
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 482499702, 'Prevented loop', true );
 		return false;
@@ -1384,6 +1403,9 @@ function ai4seo_get_combined_post_content( int $post_id = 0, string $editor_iden
 		}
 	}
 
+	// Expose the locally available source before the legacy remote fallback can replace short content.
+	$local_combined_content = implode( ' ', $combined_content );
+
 	// Fallback -> wp_remote_get the post content.
 	if ( empty( $combined_content ) || strlen( implode( '', $combined_content ) ) < AI4SEO_TOO_SHORT_CONTENT_LENGTH ) {
 		// Get the post content from the remote URL.
@@ -1411,7 +1433,7 @@ function ai4seo_get_combined_post_content( int $post_id = 0, string $editor_iden
 	if ( ! $output_raw ) {
 		$filtered_combined_content = apply_filters( 'the_content', $combined_content );
 
-		if ( $filtered_combined_content && strlen( $filtered_combined_content ) > $combined_content ) {
+		if ( $filtered_combined_content && strlen( $filtered_combined_content ) > strlen( $combined_content ) ) {
 			if ( $debug ) {
 				ai4seo_debug_message( 859196742, 'FILTERED COMBINED CONTENT>' . ai4seo_stringify( htmlspecialchars( $filtered_combined_content ) ) );
 			}
@@ -1428,11 +1450,17 @@ function ai4seo_get_combined_post_content( int $post_id = 0, string $editor_iden
 /**
  * Condenses the raw content to a more readable and useful format for the api
  *
- * @param string $content The raw content to condense.
- * @param int    $soft_cap Consider at least this many characters before truncating.
- * @param int    $hard_cap Truncate the content to this length if no sentence end is found.
+ * @param string      $content The raw content to condense.
+ * @param int         $soft_cap Consider at least this many characters before truncating.
+ * @param int         $hard_cap Truncate the content to this length if no sentence end is found.
+ * @param string|null $strict_visible_text Optional structure-free visible text output.
  */
-function ai4seo_condense_raw_post_content( string &$content, int $soft_cap = 2000, int $hard_cap = 2250 ) {
+function ai4seo_condense_raw_post_content(
+	string &$content,
+	int $soft_cap = 2000,
+	int $hard_cap = 2250,
+	?string &$strict_visible_text = null
+) {
 	global $shortcode_tags;
 
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
@@ -1445,9 +1473,9 @@ function ai4seo_condense_raw_post_content( string &$content, int $soft_cap = 200
 		$content .= ai4seo_extract_acf_content( $content );
 	}
 
-	// Remove <style> and <script> tags and their content.
-	$content = preg_replace( '/<style\b[^>]*>(.*?)<\/style>/is', '', $content );
-	$content = preg_replace( '/<script\b[^>]*>(.*?)<\/script>/is', '', $content );
+	// Remove complete and malformed style/script blocks so an absent closing tag cannot expose code as page text.
+	$content = preg_replace( '/<style\b[^>]*>.*?(?:<\/style>|$)/is', '', $content );
+	$content = preg_replace( '/<script\b[^>]*>.*?(?:<\/script>|$)/is', '', $content );
 
 	// Remove HTML comments.
 	$content = preg_replace( '/<!--(.*?)-->/', '', $content );
@@ -1510,6 +1538,14 @@ function ai4seo_condense_raw_post_content( string &$content, int $soft_cap = 200
 	// but only apply the changes if we have at least AI4SEO_TOO_SHORT_CONTENT_LENGTH chars left.
 	$temp_content = preg_replace( '/\[.*?\]/', '', $content );
 
+	// Bound only the new analysis pass; transport processing above remains unchanged for legacy callers.
+	$strict_analysis_source = ai4seo_get_bounded_metadata_analysis_source(
+		is_string( $temp_content ) ? $temp_content : ''
+	);
+	$strict_visible_text = ai4seo_clean_metadata_visible_text( $strict_analysis_source );
+	$strict_visible_text = ai4seo_remove_double_sentences( $strict_visible_text );
+	$strict_visible_text = ai4seo_truncate_sentence( $strict_visible_text, $soft_cap, $hard_cap );
+
 	if ( $content !== $temp_content && ai4seo_mb_strlen( $temp_content ) >= AI4SEO_TOO_SHORT_CONTENT_LENGTH ) {
 		$content = $temp_content;
 
@@ -1527,13 +1563,251 @@ function ai4seo_condense_raw_post_content( string &$content, int $soft_cap = 200
 
 // =========================================================================================== \\
 
-function ai4seo_add_post_context( $post_id, &$content, bool $include_website_context = true, bool $include_first_section = true ) {
+/**
+ * Bound the strict-analysis source while retaining a small token-boundary overlap.
+ *
+ * The extra overlap lets tags or shortcode tokens that start near the 256 KiB boundary reach
+ * their closing delimiter without allowing the cleanup pass to copy an arbitrarily large page.
+ *
+ * @param string $content Source already prepared by the legacy condenser.
+ * @return string Bounded strict-analysis source.
+ */
+function ai4seo_get_bounded_metadata_analysis_source( string $content ): string {
+	$max_source_bytes = 262144;
+	$overlap_bytes    = 4096;
+
+	// Normal pages avoid an unnecessary substring allocation.
+	if ( strlen( $content ) <= $max_source_bytes ) {
+		return $content;
+	}
+
+	// Include one bounded overlap so cleanup can consume structural tokens crossing the main boundary.
+	return substr( $content, 0, $max_source_bytes + $overlap_bytes );
+}
+
+// =========================================================================================== \\
+
+/**
+ * Remove non-visible structure from bounded metadata language evidence.
+ *
+ * @param string $content Locally available page, heading, or excerpt content.
+ * @return string Visible text only.
+ */
+function ai4seo_clean_metadata_visible_text( string $content ): string {
+	// Empty sources need no normalization and should remain empty evidence.
+	if ( '' === $content ) {
+		return '';
+	}
+
+	// Remove malformed byte sequences before Unicode regexes so one bad remote byte cannot erase all evidence.
+	$content = wp_check_invalid_utf8( $content, true );
+
+	if ( '' === $content ) {
+		return '';
+	}
+
+	// Decode before stripping so encoded tags, scripts, and shortcode brackets cannot become evidence later.
+	for ( $decode_pass = 0; $decode_pass < 2; $decode_pass++ ) {
+		$decoded_content = html_entity_decode( $content, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+
+		// Stop once another pass cannot expose additional encoded structure.
+		if ( $decoded_content === $content ) {
+			break;
+		}
+
+		$content = $decoded_content;
+	}
+
+	// Remove non-visible structural content before reducing the remaining source to plain text.
+	$content = preg_replace( '/<(style|script)\b[^>]*>.*?(?:<\/\1>|$)/is', '', $content );
+	$content = preg_replace( '/<!--.*?-->/s', '', $content );
+	$content = preg_replace( '/\/\*.*?\*\//s', '', $content );
+	$content = preg_replace( '/\[.*?\]/s', '', $content );
+	$content = is_string( $content ) ? wp_strip_all_tags( $content ) : '';
+	$content = ai4seo_remove_urls_from_string( $content );
+
+	// Remove still-encoded or unknown entities rather than counting their names as visible words.
+	$content = preg_replace( '/&(?:#[0-9]+|#x[0-9a-f]+|[a-z][a-z0-9]+);/i', ' ', $content );
+	$content = preg_replace( '/\s+/u', ' ', is_string( $content ) ? $content : '' );
+
+	return is_string( $content ) ? trim( $content ) : '';
+}
+
+// =========================================================================================== \\
+
+/**
+ * Extract the first H1 already present in local/in-memory content.
+ *
+ * This helper never performs a remote request. The scan is byte-bounded to keep analysis cheap
+ * even when an existing content source contains a very large rendered document.
+ */
+function ai4seo_extract_first_local_h1( $content ): string {
+	// Ignore unavailable local sources without triggering any fallback retrieval.
+	if ( ! is_string( $content ) || '' === trim( $content ) ) {
+		return '';
+	}
+
+	// Limit parsing to locally available content so metadata preparation never adds network or unbounded parsing work.
+	$h1_scan_content = substr( $content, 0, 65536 );
+	$h1_matches      = array();
+
+	// Collect local candidates once so structurally empty headings can be skipped without rescanning.
+	if ( ! preg_match_all( '/<h1\b[^>]*>(.*?)<\/h1>/is', $h1_scan_content, $h1_matches ) ) {
+		return '';
+	}
+
+	// Return the first heading that still contains language evidence after structural cleanup.
+	foreach ( $h1_matches[1] ?? array() as $h1_content ) {
+		$clean_h1 = ai4seo_clean_metadata_visible_text( (string) $h1_content );
+
+		if ( '' !== $clean_h1 ) {
+			return ai4seo_mb_substr( $clean_h1, 0, 512 );
+		}
+	}
+
+	return '';
+}
+
+// =========================================================================================== \\
+
+/**
+ * Return deterministic Unicode metrics and the metadata content-quality classification.
+ *
+ * @param string $visible_text Structure-free page text.
+ * @return array{quality:string,quality_reason:string,visible_word_count:int,visible_letter_count:int}
+ */
+function ai4seo_classify_metadata_visible_content( string $visible_text ): array {
+	// Keep the token definition in sync with RobHub's bounded server-side contract verification.
+	$word_result = preg_match_all( "/\p{L}[\p{L}\p{M}\p{N}'’\-]*/u", $visible_text );
+	$word_count  = false === $word_result ? 0 : (int) $word_result;
+
+	// Count letters independently because substantive evidence must meet both public thresholds.
+	$letter_result = preg_match_all( '/\p{L}/u', $visible_text );
+	$letter_count  = false === $letter_result ? 0 : (int) $letter_result;
+
+	// Require both thresholds because either too few words or too few letters is weak language evidence.
+	if ( 0 === $word_count ) {
+		$quality        = 'markup_only';
+		$quality_reason = 'no_letter_words';
+	} elseif ( $word_count < 12 || $letter_count < 80 ) {
+		$quality        = 'sparse';
+		$quality_reason = 'below_substantive_threshold';
+	} else {
+		$quality        = 'substantive';
+		$quality_reason = 'substantive_text';
+	}
+
+	return array(
+		'quality'              => $quality,
+		'quality_reason'       => $quality_reason,
+		'visible_word_count'   => $word_count,
+		'visible_letter_count' => $letter_count,
+	);
+}
+
+// =========================================================================================== \\
+
+/**
+ * Prepare the shared content and structured analysis used by manual and automated metadata generation.
+ *
+ * @param int    $post_id WordPress post ID.
+ * @param string $submitted_content Content already supplied by manual generation, when available.
+ * @return array{content:string,post_context:string,content_analysis:array}
+ */
+function ai4seo_prepare_metadata_generation_content_data(
+	int $post_id,
+	string $submitted_content = ''
+): array {
+	$post_content         = $submitted_content;
+	$has_submitted_source = '' !== trim( $submitted_content );
+	$body_text            = '';
+	$first_h1             = ai4seo_extract_first_local_h1( $submitted_content );
+	$database_first_h1    = '';
+	$structured_context   = array();
+
+	// Reuse submitted content for manual generation before falling back to the existing database preparation path.
+	if ( $has_submitted_source ) {
+		ai4seo_condense_raw_post_content( $post_content, 2000, 2250, $body_text );
+	}
+
+	// Preserve the database fallback only when no editor source was submitted. Structurally empty editor
+	// content must remain empty analysis evidence instead of being replaced by unrelated rendered chrome.
+	if ( ! $has_submitted_source ) {
+		$post_content = ai4seo_get_condensed_post_content_from_database( $post_id, false, $body_text, $database_first_h1 );
+
+		if ( ! $first_h1 ) {
+			$first_h1 = $database_first_h1;
+		}
+	}
+
+	// Build the legacy post-context string and structured title/excerpt evidence in the same data-access pass.
+	$post_context = $post_content;
+	ai4seo_add_post_context( $post_id, $post_context, false, false, $structured_context );
+
+	// Keep the transport-content fallback separate from body analysis so interface labels never become body evidence.
+	if ( ! $post_content && $post_context ) {
+		$post_content = $post_context;
+	}
+
+	// Classify the exact bounded value sent on the wire so RobHub's verification cannot disagree after sanitization.
+	$body_text              = ai4seo_mb_substr( sanitize_text_field( $body_text ), 0, 2350 );
+	$content_classification = ai4seo_classify_metadata_visible_content( $body_text );
+	$site_language          = ai4seo_get_language_long_version( ai4seo_get_wordpress_language_code(), '' );
+
+	// Assemble the versioned wire contract explicitly so its complete field set remains easy to audit.
+	$content_analysis = array(
+		'schema_version'       => '1',
+		'quality'              => $content_classification['quality'],
+		'quality_reason'       => $content_classification['quality_reason'],
+		'visible_word_count'   => $content_classification['visible_word_count'],
+		'visible_letter_count' => $content_classification['visible_letter_count'],
+		'body_text'            => $body_text,
+		'excerpt_text'         => ai4seo_mb_substr( sanitize_text_field( $structured_context['excerpt_text'] ?? '' ), 0, 512 ),
+		'h1'                   => ai4seo_mb_substr( sanitize_text_field( $first_h1 ), 0, 512 ),
+		'post_title'           => ai4seo_mb_substr( sanitize_text_field( $structured_context['post_title'] ?? '' ), 0, 512 ),
+		'site_language'        => ai4seo_mb_substr( sanitize_text_field( $site_language ), 0, 64 ),
+	);
+
+	return array(
+		'content'          => $post_content,
+		'post_context'     => $post_context,
+		'content_analysis' => $content_analysis,
+	);
+}
+
+// =========================================================================================== \\
+
+/**
+ * Replace content with the existing post-context string and optionally expose clean language evidence.
+ *
+ * The optional structured output lets metadata generation reuse the title and excerpt lookups that
+ * this function already performs, avoiding a second database/context pass.
+ *
+ * @param int        $post_id Post ID used for local context lookups.
+ * @param mixed      $content Content replaced by the generated context string.
+ * @param bool       $include_website_context Whether to prepend website context.
+ * @param bool       $include_first_section Whether to include the supplied content as the first section.
+ * @param array|null $structured_context Optional title and cleaned excerpt output.
+ */
+function ai4seo_add_post_context(
+	$post_id,
+	&$content,
+	bool $include_website_context = true,
+	bool $include_first_section = true,
+	?array &$structured_context = null
+) {
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 275721265, 'Prevented loop', true );
 		return;
 	}
 
-	$context = '';
+	// Treat an explicitly supplied output argument as structured negotiation even when its variable starts as null.
+	$use_structured_context = func_num_args() >= 5;
+	$context                = '';
+	$structured_context     = array(
+		'post_title'   => '',
+		'excerpt_text' => '',
+	);
 
 	// ADD WEBSITE CONTEXT.
 	if ( $include_website_context ) {
@@ -1657,6 +1931,7 @@ function ai4seo_add_post_context( $post_id, &$content, bool $include_website_con
 	$post_title = get_the_title( $post_id );
 
 	if ( $post_title ) {
+		$structured_context['post_title'] = $post_title;
 		$context .= "Sub Page Title: '" . $post_title . "'. ";
 	}
 
@@ -1664,8 +1939,15 @@ function ai4seo_add_post_context( $post_id, &$content, bool $include_website_con
 	$post_excerpt = get_the_excerpt( $post_id );
 
 	if ( $post_excerpt ) {
-		ai4seo_condense_raw_post_content( $post_excerpt, 150, 250 ); // Condense the excerpt.
-		$context .= "Excerpt: '" . $post_excerpt . "'. ";
+		$strict_post_excerpt = '';
+		ai4seo_condense_raw_post_content( $post_excerpt, 150, 250, $strict_post_excerpt ); // Condense the excerpt.
+		$structured_context['excerpt_text'] = $strict_post_excerpt;
+
+		// Structured requests must not reintroduce builder markup through their legacy post-context field.
+		if ( ! $use_structured_context || $strict_post_excerpt ) {
+			$context_excerpt = $use_structured_context ? $strict_post_excerpt : $post_excerpt;
+			$context        .= "Excerpt: '" . $context_excerpt . "'. ";
+		}
 	}
 
 	// first section.
@@ -1916,100 +2198,36 @@ function ai4seo_analyze_post( int $post_id ) {
 
 // =========================================================================================== \\
 
-/**
- * Best-effort purge for a single post/page URL across common caching layers.
- *
- * @param int $post_id Post ID.
- * @return void
- */
-function ai4seo_purge_frontend_cache_for_post( int $post_id ): void {
-	$is_frontend_cache_purge_enabled = ai4seo_get_setting( AI4SEO_SETTING_ENABLE_FRONTEND_CACHE_PURGE );
-
-	if ( ! $is_frontend_cache_purge_enabled ) {
+function ai4seo_handle_posts_to_be_analyzed() {
+	// Make sure that the user is allowed to use this plugin.
+	if ( ! ai4seo_can_manage_this_plugin() ) {
 		return;
 	}
 
-	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
-		ai4seo_debug_message( 371792553, 'Prevented loop', true );
+	if ( ! ai4seo_singleton( __FUNCTION__ ) ) {
 		return;
 	}
 
-	$post_id = absint( $post_id );
+	// get all posts that need to be analyzed.
+	$posts_to_be_analyzed = ai4seo_get_post_ids_from_option( AI4SEO_POSTS_TO_BE_ANALYZED_OPTION_NAME );
 
-	if ( $post_id <= 0 ) {
+	// if there are no posts to be analyzed, return.
+	if ( ! $posts_to_be_analyzed ) {
 		return;
 	}
 
-	clean_post_cache( $post_id );
+	// get the first post to be analyzed.
+	$post_id = array_shift( $posts_to_be_analyzed );
 
-	$permalink = get_permalink( $post_id );
-
-	if ( empty( $permalink ) ) {
-		return;
+	// check if the post id is numeric.
+	if ( is_numeric( $post_id ) ) {
+		// analyze the post.
+		ai4seo_analyze_post( $post_id );
 	}
 
-	ai4seo_purge_frontend_cache_for_url( $permalink );
+	// update the option.
+	ai4seo_remove_post_ids_from_option( AI4SEO_POSTS_TO_BE_ANALYZED_OPTION_NAME, $post_id );
 }
-
-// =========================================================================================== \\
-
-/**
- * Best-effort purge for a single URL across common caching plugins.
- *
- * Note: This cannot purge CDN/browser caches unless your setup integrates them.
- *
- * @param string $url Absolute URL.
- * @return void
- */
-function ai4seo_purge_frontend_cache_for_url( string $url ): void {
-	$url = esc_url_raw( $url );
-
-	if ( empty( $url ) ) {
-		return;
-	}
-
-	// LiteSpeed Cache.
-	if ( function_exists( 'do_action' ) ) {
-		do_action( 'litespeed_purge_url', $url );
-	}
-
-	// WP Rocket.
-	if ( function_exists( 'rocket_clean_files' ) ) {
-		rocket_clean_files( array( $url ) );
-	}
-
-	// W3 Total Cache.
-	if ( function_exists( 'w3tc_flush_url' ) ) {
-		w3tc_flush_url( $url );
-	}
-
-	// WP Super Cache.
-	if ( function_exists( 'wp_cache_clear_cache' ) ) {
-		// Clears whole cache; Super Cache has limited per-URL purge in many setups.
-		wp_cache_clear_cache();
-	}
-
-	// SiteGround Optimizer.
-	if ( function_exists( 'sg_cachepress_purge_cache' ) ) {
-		sg_cachepress_purge_cache();
-	}
-
-	// Cache Enabler.
-	if ( function_exists( 'cache_enabler_clear_page_cache_by_url' ) ) {
-		cache_enabler_clear_page_cache_by_url( $url );
-	}
-
-	// WP-Optimize.
-	if ( function_exists( 'wp_optimize_cache_purge_url' ) ) {
-		wp_optimize_cache_purge_url( $url );
-	}
-
-	// WP fastest cache.
-	if ( function_exists( 'wpfc_clear_url_cache' ) ) {
-		wpfc_clear_url_cache( $url );
-	}
-}
-
 
 // endregion
 // ___________________________________________________________________________________________.

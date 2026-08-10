@@ -7,7 +7,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // region CONSTANTS AND VARIABLES ============================================================ \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
-const AI4SEO_PLUGIN_VERSION_NUMBER              = '2.4.2';
+const AI4SEO_PLUGIN_VERSION_NUMBER              = '2.4.3';
 const AI4SEO_PLUGIN_NAME                        = 'SOOZ - AI for SEO';
 const AI4SEO_SHORT_PLUGIN_NAME                  = 'SOOZ';
 const AI4SEO_PLUGIN_DESCRIPTION                 = 'One-Click SEO solution. *SOOZ - AI for SEO* helps your website to rank higher in Web Search results.';
@@ -180,6 +180,19 @@ const AI4SEO_GENERATED_OUTPUT_QUALITY_WINDOWS = array(
  */
 function ai4seo_get_change_log(): array {
 	return array(
+		array(
+			'date'      => 'August 10th, 2026',
+			'version'   => '2.4.3',
+			'important' => false,
+			'updates'   => array(
+				'Improved third-party SEO workflows with embedded generation controls, two-way metadata synchronization where supported, template-aware values, and live editor refreshes across Yoast SEO, Rank Math, All in One SEO, SEOPress, Slim SEO, SEO Simple Pack, Squirrly SEO, The SEO Framework, and SEOKEY.',
+				'Improved metadata generation accuracy for Gutenberg and builder-driven pages by analyzing visible local content and avoiding unrelated fallback text on sparse or structural pages.',
+				'Strengthened role-based access so permitted editors can generate and manage metadata or media attributes only for content they are allowed to edit.',
+				'Improved metadata editor usability with live length guidance, missing-keyphrase warnings, clearer accessible actions and navigation, and more reliable saved-state feedback.',
+				'Removed the legacy Blog2Social integration from the supported compatibility list.',
+				'Bug Fixes & Maintenance: Fixed 6 minor bugs and addressed 2 security issues.',
+			),
+		),
 		array(
 			'date'      => 'July 29th, 2026',
 			'version'   => '2.4.2',
@@ -622,9 +635,6 @@ const AI4SEO_THIRD_PARTY_PLUGIN_SEO_KEY           = 'seo-key';
 // editors + seo plugins.
 const AI4SEO_THIRD_PARTY_PLUGIN_BETHEME = 'betheme';
 
-// social media plugins.
-const AI4SEO_THIRD_PARTY_PLUGIN_BLOG2SOCIAL = 'blog2social';
-
 // multi-language plugins.
 const AI4SEO_THIRD_PARTY_PLUGIN_WPML = 'wpml';
 
@@ -638,6 +648,8 @@ function ai4seo_get_third_party_seo_plugin_details(): array {
 			'name'                           => 'Yoast SEO',
 			'icon'                           => 'yoast',
 			'icon-css-class'                 => 'ai4seo-purple-icon',
+			// Direct Yoast postmeta writes can be mirrored without integration-specific storage handling.
+			'inbound-postmeta-sync'          => true,
 			'generation-field-postmeta-keys' => array(
 				'focus-keyphrase'      => '_yoast_wpseo_focuskw',
 				'meta-title'           => '_yoast_wpseo_title',
@@ -660,7 +672,9 @@ function ai4seo_get_third_party_seo_plugin_details(): array {
 		AI4SEO_THIRD_PARTY_PLUGIN_ALL_IN_ONE_SEO    => array(
 			'name'                           => 'All in One SEO',
 			'icon'                           => 'all-in-one-seo',
-			'generation-field-postmeta-keys' => array( // workaround: in addition, this plugin saves its data into wp_ai4seo_posts.
+			// AIOSEO updates these postmeta mirrors before it saves its canonical aioseo_posts row.
+			'inbound-postmeta-sync'          => true,
+			'generation-field-postmeta-keys' => array(
 				'meta-title'           => '_aioseo_title',
 				'meta-description'     => '_aioseo_description',
 				'facebook-title'       => '_aioseo_og_title',
@@ -674,6 +688,8 @@ function ai4seo_get_third_party_seo_plugin_details(): array {
 			'icon'                           => 'rank-math',
 			'icon-css-class'                 => 'ai4seo-purple-icon',
 			'seo-score-postmeta-key'         => 'rank_math_seo_score', // todo: make this dynamic.
+			// Direct Rank Math postmeta writes can be mirrored without integration-specific storage handling.
+			'inbound-postmeta-sync'          => true,
 			'generation-field-postmeta-keys' => array(
 				'focus-keyphrase'      => 'rank_math_focus_keyword',
 				'meta-title'           => 'rank_math_title',
@@ -686,18 +702,19 @@ function ai4seo_get_third_party_seo_plugin_details(): array {
 		),
 		AI4SEO_THIRD_PARTY_PLUGIN_SEO_SIMPLE_PACK   => array(
 			'name'                           => 'SEO Simple Pack',
+			// SEO SIMPLE PACK persists these independent editor fields as direct postmeta values.
+			'inbound-postmeta-sync'          => true,
 			'generation-field-postmeta-keys' => array(
-				'meta-title'           => 'ssp_meta_title',
-				'meta-description'     => 'ssp_meta_description',
-				'facebook-title'       => 'ssp_meta_title',
-				'facebook-description' => 'ssp_meta_description',
-				'twitter-title'        => 'ssp_meta_title',
-				'twitter-description'  => 'ssp_meta_description',
+				'meta-title'       => 'ssp_meta_title',
+				'meta-description' => 'ssp_meta_description',
+				'keywords'         => 'ssp_meta_keyword',
 			),
 		),
 		AI4SEO_THIRD_PARTY_PLUGIN_SEOPRESS          => array(
 			'name'                           => 'SEOPress',
 			'icon'                           => 'seopress',
+			// SEOPress persists every supported editor field as direct postmeta.
+			'inbound-postmeta-sync'          => true,
 			'generation-field-postmeta-keys' => array(
 				'meta-title'           => '_seopress_titles_title',
 				'meta-description'     => '_seopress_titles_desc',
@@ -709,6 +726,14 @@ function ai4seo_get_third_party_seo_plugin_details(): array {
 		),
 		AI4SEO_THIRD_PARTY_PLUGIN_SLIM_SEO          => array(
 			'name'                           => 'Slim SEO',
+			// Slim SEO persists both fields inside one shared postmeta array.
+			'inbound-postmeta-sync'          => array(
+				'postmeta-key'                => 'slim_seo',
+				'generation-field-array-keys' => array(
+					'meta-title'       => 'title',
+					'meta-description' => 'description',
+				),
+			),
 			'generation-field-postmeta-keys' => array(
 				'meta-title'       => '_ai4seo_workaround',
 				'meta-description' => '_ai4seo_workaround',
@@ -716,9 +741,12 @@ function ai4seo_get_third_party_seo_plugin_details(): array {
 		),
 		AI4SEO_THIRD_PARTY_PLUGIN_SQUIRRLY_SEO      => array(
 			'name'                           => 'Squirrly SEO',
+			// Squirrly persists its editor fields in the custom qss table instead of WordPress postmeta.
+			'inbound-custom-sync'            => true,
 			'generation-field-postmeta-keys' => array(
 				'meta-title'           => '_ai4seo_workaround',
 				'meta-description'     => '_ai4seo_workaround',
+				'keywords'             => '_ai4seo_workaround',
 				'facebook-title'       => '_ai4seo_workaround',
 				'facebook-description' => '_ai4seo_workaround',
 				'twitter-title'        => '_ai4seo_workaround',
@@ -727,6 +755,8 @@ function ai4seo_get_third_party_seo_plugin_details(): array {
 		),
 		AI4SEO_THIRD_PARTY_PLUGIN_THE_SEO_FRAMEWORK => array(
 			'name'                           => 'The SEO Framework',
+			// The SEO Framework persists all six supported fields as direct postmeta values.
+			'inbound-postmeta-sync'          => true,
 			'generation-field-postmeta-keys' => array(
 				'meta-title'           => '_genesis_title',
 				'meta-description'     => '_genesis_description',
@@ -734,15 +764,6 @@ function ai4seo_get_third_party_seo_plugin_details(): array {
 				'facebook-description' => '_open_graph_description',
 				'twitter-title'        => '_twitter_title',
 				'twitter-description'  => '_twitter_description',
-			),
-		),
-		AI4SEO_THIRD_PARTY_PLUGIN_BLOG2SOCIAL       => array(
-			'name'                           => 'Blog2Social',
-			'generation-field-postmeta-keys' => array(
-				'facebook-title'       => '_ai4seo_workaround',
-				'facebook-description' => '_ai4seo_workaround',
-				'twitter-title'        => '_ai4seo_workaround',
-				'twitter-description'  => '_ai4seo_workaround',
 			),
 		),
 		AI4SEO_THIRD_PARTY_PLUGIN_SEO_KEY           => array(
@@ -1435,7 +1456,7 @@ const AI4SEO_DEFAULT_SETTINGS = array(
 	AI4SEO_SETTING_META_TAG_OUTPUT_MODE                   => 'replace',
 	AI4SEO_SETTING_APPLY_CHANGES_TO_THIRD_PARTY_SEO_PLUGINS => array( AI4SEO_THIRD_PARTY_PLUGIN_YOAST_SEO, AI4SEO_THIRD_PARTY_PLUGIN_RANK_MATH, AI4SEO_THIRD_PARTY_PLUGIN_SEOPRESS, AI4SEO_THIRD_PARTY_PLUGIN_THE_SEO_FRAMEWORK, AI4SEO_THIRD_PARTY_PLUGIN_SEO_SIMPLE_PACK, AI4SEO_THIRD_PARTY_PLUGIN_SEO_KEY ),
 	AI4SEO_SETTING_ENABLE_EXTERNAL_METADATA_GENERATE_BUTTONS => false,
-	AI4SEO_SETTING_SYNC_ONLY_THESE_METADATA               => array( 'focus-keyphrase', 'meta-title', 'meta-description', 'facebook-title', 'facebook-description', 'twitter-title', 'twitter-description' ),
+	AI4SEO_SETTING_SYNC_ONLY_THESE_METADATA               => array( 'focus-keyphrase', 'meta-title', 'meta-description', 'keywords', 'facebook-title', 'facebook-description', 'twitter-title', 'twitter-description' ),
 	AI4SEO_SETTING_ALLOWED_USER_ROLES                     => array( 'administrator' ),
 	AI4SEO_SETTING_DISABLED_POST_TYPES                    => array(),
 	AI4SEO_SETTING_DISABLED_POST_AUTHORS                  => array(),
@@ -2110,10 +2131,11 @@ function ai4seo_get_allowed_html_tags_and_attributes(): array {
 			'aria-label'     => array(),
 		),
 		'i'        => array(
-			'onclick' => array(),
-			'class'   => array(),
-			'id'      => array(),
-			'style'   => array(),
+			'onclick'    => array(),
+			'class'      => array(),
+			'id'         => array(),
+			'style'      => array(),
+			'aria-hidden' => array(),
 		),
 		'select'   => array(
 			'id'       => array(),

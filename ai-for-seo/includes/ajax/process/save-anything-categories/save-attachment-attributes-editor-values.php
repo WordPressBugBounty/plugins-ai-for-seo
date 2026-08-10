@@ -32,6 +32,14 @@ function ai4seo_process_save_anything_attachment_attributes_editor_values( array
 	// Preserve the editor's existing integer coercion before validating the attachment target.
 	$ai4seo_this_attachment_post_id = intval( $upcoming_save_anything_updates['attachment_attributes_editor_post_id'] );
 
+	// The shared save dispatcher authorizes the plugin, while this handler authorizes its concrete media target.
+	if ( ! ai4seo_can_edit_post( $ai4seo_this_attachment_post_id ) ) {
+		return new WP_Error(
+			6911221025,
+			esc_html__( 'You are not allowed to edit this media entry.', 'ai-for-seo' )
+		);
+	}
+
 	// Track field presence separately because an empty instruction value intentionally clears its postmeta.
 	$ai4seo_custom_instructions_were_submitted = array_key_exists( 'attachment_attributes_editor_custom_instructions', $upcoming_save_anything_updates );
 

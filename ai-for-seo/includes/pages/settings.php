@@ -130,7 +130,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
 	echo "<div class='card ai4seo-form-section'>";
 		echo "<h2 id='ai4seo-settings-section-general' class='ai4seo-settings-section-heading' tabindex='-1'>";
-			echo '<i class="dashicons dashicons-admin-generic ai4seo-menu-item-icon"></i>';
+			ai4seo_echo_wp_kses( ai4seo_get_dashicon_tag( 'admin-generic', 'ai4seo-menu-item-icon', true ) );
 			echo esc_html__( 'General', 'ai-for-seo' );
 		echo '</h2>';
 
@@ -208,7 +208,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 		echo "<div class='card ai4seo-form-section'>";
 		// Headline.
 		echo "<h2 id='ai4seo-settings-section-metadata' class='ai4seo-settings-section-heading' tabindex='-1'>";
-			echo '<i class="dashicons dashicons-admin-site ai4seo-menu-item-icon"></i>';
+			ai4seo_echo_wp_kses( ai4seo_get_dashicon_tag( 'admin-site', 'ai4seo-menu-item-icon', true ) );
 			echo esc_html__( 'Metadata', 'ai-for-seo' ) . " <span class='ai4seo-settings-section-subtitle'>(" . esc_html__( 'for pages/posts/products etc.', 'ai-for-seo' ) . ')</span>';
 		echo '</h2>';
 
@@ -407,7 +407,8 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 				ai4seo_get_prompt_slider_setting_form_item_tag(
 					$ai4seo_this_prompt_slider_setting['setting_name'],
 					$ai4seo_this_prompt_slider_setting['label'],
-					! empty( $ai4seo_this_prompt_slider_setting['is_advanced_setting'] )
+					! empty( $ai4seo_this_prompt_slider_setting['is_advanced_setting'] ),
+					esc_html__( 'Metadata', 'ai-for-seo' )
 				)
 			);
 		}
@@ -428,7 +429,8 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 				ai4seo_get_prompt_slider_setting_form_item_tag(
 					$ai4seo_this_setting_name,
 					$ai4seo_this_setting_label,
-					true
+					true,
+					esc_html__( 'Metadata', 'ai-for-seo' )
 				)
 			);
 		}
@@ -879,7 +881,14 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 		echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
 			echo "<span class='ai4seo-form-item-label'>";
 				echo esc_html__( 'Prefix / Suffix:', 'ai-for-seo' );
-				ai4seo_echo_wp_kses( ai4seo_get_icon_with_tooltip_tag( $ai4seo_metadata_placeholders_tooltip ) );
+				ai4seo_echo_wp_kses(
+					ai4seo_get_icon_with_tooltip_tag(
+						$ai4seo_metadata_placeholders_tooltip,
+						'',
+						'circle-question',
+						__( 'Placeholder help for Metadata Prefix / Suffix', 'ai-for-seo' )
+					)
+				);
 			echo '</span>';
 
 			echo "<div class='ai4seo-form-item-input-wrapper'>";
@@ -921,22 +930,55 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
 		// === AI4SEO_SETTING_APPLY_CHANGES_TO_THIRD_PARTY_SEO_PLUGIN ============================================= \\
 
-		$ai4seo_this_setting_name                            = AI4SEO_SETTING_APPLY_CHANGES_TO_THIRD_PARTY_SEO_PLUGINS;
-		$ai4seo_sync_activated_third_party_seo_plugins       = array();
-		$ai4seo_uses_workarounds_for_third_party_seo_plugins = false;
+		$ai4seo_this_setting_name                               = AI4SEO_SETTING_APPLY_CHANGES_TO_THIRD_PARTY_SEO_PLUGINS;
+		$ai4seo_sync_activated_third_party_seo_plugins          = array();
+		$ai4seo_uses_workarounds_for_third_party_seo_plugins    = false;
+		$ai4seo_inbound_sync_third_party_seo_plugin_identifiers = array();
+		$ai4seo_sync_workaround_plugin_identifiers              = array(
+			AI4SEO_THIRD_PARTY_PLUGIN_SLIM_SEO,
+			AI4SEO_THIRD_PARTY_PLUGIN_ALL_IN_ONE_SEO,
+			AI4SEO_THIRD_PARTY_PLUGIN_SQUIRRLY_SEO,
+		);
 
+		// Derive warning and reverse-sync presentation state from the active integration registry in one pass.
 		foreach ( $ai4seo_active_third_party_seo_plugin_details as $ai4seo_active_third_party_seo_plugin_identifier => $ai4seo_active_third_party_seo_plugin_detail ) {
-			if ( in_array( $ai4seo_active_third_party_seo_plugin_identifier, array( AI4SEO_THIRD_PARTY_PLUGIN_SLIM_SEO, AI4SEO_THIRD_PARTY_PLUGIN_ALL_IN_ONE_SEO, AI4SEO_THIRD_PARTY_PLUGIN_SQUIRRLY_SEO, AI4SEO_THIRD_PARTY_PLUGIN_BLOG2SOCIAL ) ) ) {
+			if ( in_array( $ai4seo_active_third_party_seo_plugin_identifier, $ai4seo_sync_workaround_plugin_identifiers ) ) {
 				$ai4seo_uses_workarounds_for_third_party_seo_plugins = true;
-				break;
+			}
+
+			$ai4seo_supports_inbound_sync = ai4seo_does_third_party_seo_plugin_support_inbound_sync(
+				$ai4seo_active_third_party_seo_plugin_detail
+			);
+
+			if ( $ai4seo_supports_inbound_sync ) {
+				$ai4seo_inbound_sync_third_party_seo_plugin_identifiers[] = $ai4seo_active_third_party_seo_plugin_identifier;
 			}
 		}
 
 		$ai4seo_this_setting_input_name  = ai4seo_get_prefixed_input_name( $ai4seo_this_setting_name );
 		$ai4seo_this_setting_input_value = ai4seo_get_setting( $ai4seo_this_setting_name );
 
-		/* translators: %s: plugin name */
-		$ai4seo_this_setting_description = sprintf( esc_html__( 'Sync %s changes to selected third-party SEO plugins for further analysis.', 'ai-for-seo' ), esc_html( AI4SEO_PLUGIN_NAME ) );
+		// Resolve reverse-sync names through the shared registry naming helper used by operation reporting.
+		$ai4seo_inbound_sync_third_party_seo_plugin_names = ai4seo_get_third_party_seo_plugin_names(
+			$ai4seo_inbound_sync_third_party_seo_plugin_identifiers
+		);
+
+		// Mention active reverse-capable integrations only when the registry supplies at least one display name.
+		if ( $ai4seo_inbound_sync_third_party_seo_plugin_names ) {
+			/* translators: %1$s: AI for SEO plugin name, %2$s: comma-separated third-party SEO plugin names. */
+			$ai4seo_this_setting_description = sprintf(
+				esc_html__( 'Sync %1$s changes to selected third-party SEO plugins. Saved changes in supported integrations (%2$s) also sync back to %1$s for the metadata selected below.', 'ai-for-seo' ),
+				esc_html( AI4SEO_PLUGIN_NAME ),
+				esc_html( implode( ', ', $ai4seo_inbound_sync_third_party_seo_plugin_names ) )
+			);
+		} else {
+			// Keep the description accurate when no active integration currently supports reverse synchronization.
+			/* translators: %s: AI for SEO plugin name. */
+			$ai4seo_this_setting_description = sprintf(
+				esc_html__( 'Sync %s changes to selected third-party SEO plugins for the metadata selected below.', 'ai-for-seo' ),
+				esc_html( AI4SEO_PLUGIN_NAME )
+			);
+		}
 
 		if ( $ai4seo_uses_workarounds_for_third_party_seo_plugins ) {
 			$ai4seo_this_setting_description .= '<br><br>';
@@ -949,8 +991,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 		// Form element.
 		echo "<div class='ai4seo-form-item'>";
 			echo "<span class='ai4seo-form-item-label'>";
-				/* translators: %s: plugin name */
-				printf( esc_html__( "Sync '%s' Changes:", 'ai-for-seo' ), esc_html( AI4SEO_PLUGIN_NAME ) );
+				echo esc_html__( 'Synchronize Metadata:', 'ai-for-seo' );
 			echo '</span>';
 
 			echo "<div class='ai4seo-form-item-input-wrapper'>";
@@ -1031,11 +1072,6 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
 					// Loop through all available user-roles and display checkboxes for each of them.
 		foreach ( AI4SEO_METADATA_DETAILS as $ai4seo_this_metadata_identifier => $ai4seo_this_metadata_details ) {
-			// skip "keywords".
-			if ( in_array( $ai4seo_this_metadata_identifier, array( 'keywords' ) ) ) {
-				continue;
-			}
-
 			$ai4seo_this_translated_checkbox_label = $ai4seo_this_metadata_details['name'] ?? $ai4seo_this_metadata_identifier;
 			$ai4seo_this_checkbox_id               = "{$ai4seo_this_setting_input_name}-{$ai4seo_this_metadata_identifier}";
 
@@ -1260,7 +1296,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 		echo "<div class='card ai4seo-form-section'>";
 		// Headline.
 		echo "<h2 id='ai4seo-settings-section-media-attributes' class='ai4seo-settings-section-heading' tabindex='-1'>";
-		echo '<i class="dashicons dashicons-admin-media ai4seo-menu-item-icon"></i>';
+		ai4seo_echo_wp_kses( ai4seo_get_dashicon_tag( 'admin-media', 'ai4seo-menu-item-icon', true ) );
 		echo esc_html__( 'Media attributes', 'ai-for-seo' ) . " <span class='ai4seo-settings-section-subtitle'>(" . esc_html__( 'for images', 'ai-for-seo' ) . ')</span>';
 		echo '</h2>';
 
@@ -1409,7 +1445,8 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 				ai4seo_get_prompt_slider_setting_form_item_tag(
 					$ai4seo_this_prompt_slider_setting['setting_name'],
 					$ai4seo_this_prompt_slider_setting['label'],
-					! empty( $ai4seo_this_prompt_slider_setting['is_advanced_setting'] )
+					! empty( $ai4seo_this_prompt_slider_setting['is_advanced_setting'] ),
+					esc_html__( 'Media Attributes', 'ai-for-seo' )
 				)
 			);
 		}
@@ -1420,7 +1457,8 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 			ai4seo_get_prompt_slider_setting_form_item_tag(
 				AI4SEO_SETTING_ATTACHMENT_ATTRIBUTES_ALT_TEXT_GENERATION_LENGTH,
 				esc_html__( 'Alt Text Generation Length:', 'ai-for-seo' ),
-				true
+				true,
+				esc_html__( 'Media Attributes', 'ai-for-seo' )
 			)
 		);
 
@@ -1585,7 +1623,14 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 		echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
 			echo "<span class='ai4seo-form-item-label'>";
 				echo esc_html__( 'Prefix / Suffix:', 'ai-for-seo' );
-				ai4seo_echo_wp_kses( ai4seo_get_icon_with_tooltip_tag( $ai4seo_attachment_placeholders_tooltip ) );
+				ai4seo_echo_wp_kses(
+					ai4seo_get_icon_with_tooltip_tag(
+						$ai4seo_attachment_placeholders_tooltip,
+						'',
+						'circle-question',
+						__( 'Placeholder help for Media Attributes Prefix / Suffix', 'ai-for-seo' )
+					)
+				);
 			echo '</span>';
 
 			echo "<div class='ai4seo-form-item-input-wrapper'>";
@@ -1761,7 +1806,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 		echo "<div class='card ai4seo-form-section ai4seo-is-advanced-setting'>";
 		// Headline.
 		echo "<h2 id='ai4seo-settings-section-user-management' class='ai4seo-settings-section-heading' tabindex='-1'>";
-		echo '<i class="dashicons dashicons-admin-users ai4seo-menu-item-icon"></i>';
+		ai4seo_echo_wp_kses( ai4seo_get_dashicon_tag( 'admin-users', 'ai4seo-menu-item-icon', true ) );
 		echo esc_html__( 'User Management', 'ai-for-seo' );
 		echo '</h2>';
 
@@ -1822,7 +1867,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 		echo "<div class='card ai4seo-form-section ai4seo-is-advanced-setting'>";
 		// Headline.
 		echo "<h2 id='ai4seo-settings-section-troubleshooting' class='ai4seo-settings-section-heading' tabindex='-1'>";
-			echo '<i class="dashicons dashicons-sos ai4seo-menu-item-icon"></i>';
+			ai4seo_echo_wp_kses( ai4seo_get_dashicon_tag( 'sos', 'ai4seo-menu-item-icon', true ) );
 			echo esc_html__( 'Troubleshooting & Experimental', 'ai-for-seo' );
 		echo '</h2>';
 

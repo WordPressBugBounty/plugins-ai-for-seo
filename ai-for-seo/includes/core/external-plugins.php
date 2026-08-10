@@ -103,11 +103,6 @@ function ai4seo_is_plugin_or_theme_active( $identifier ): bool {
 			// do not check for class, as it is not unique, as the plugin uses a load system.
 			break;
 
-		case AI4SEO_THIRD_PARTY_PLUGIN_BLOG2SOCIAL:
-			$check_this_file_path  = 'blog2social/blog2social.php';
-			$check_this_class_name = 'B2S_System';
-			break;
-
 		case AI4SEO_THIRD_PARTY_PLUGIN_NEXTGEN_GALLERY:
 			$check_this_file_path  = 'nextgen-gallery/nggallery.php';
 			$check_this_class_name = 'C_NextGEN_Bootstrap';
@@ -166,6 +161,106 @@ function ai4seo_is_plugin_or_theme_active( $identifier ): bool {
 	return $is_active;
 }
 
+// region FRONTEND CACHE INTEGRATIONS =========================================================== \\
+// ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
+
+/**
+ * Best-effort purge for a single post/page URL across common caching layers.
+ *
+ * @param int $post_id Post ID.
+ * @return void
+ */
+function ai4seo_purge_frontend_cache_for_post( int $post_id ): void {
+	$is_frontend_cache_purge_enabled = ai4seo_get_setting( AI4SEO_SETTING_ENABLE_FRONTEND_CACHE_PURGE );
+
+	if ( ! $is_frontend_cache_purge_enabled ) {
+		return;
+	}
+
+	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
+		ai4seo_debug_message( 371792553, 'Prevented loop', true );
+		return;
+	}
+
+	$post_id = absint( $post_id );
+
+	if ( $post_id <= 0 ) {
+		return;
+	}
+
+	clean_post_cache( $post_id );
+
+	$permalink = get_permalink( $post_id );
+
+	if ( empty( $permalink ) ) {
+		return;
+	}
+
+	ai4seo_purge_frontend_cache_for_url( $permalink );
+}
+
+// =========================================================================================== \\
+
+/**
+ * Best-effort purge for a single URL across common caching plugins.
+ *
+ * Note: This cannot purge CDN/browser caches unless your setup integrates them.
+ *
+ * @param string $url Absolute URL.
+ * @return void
+ */
+function ai4seo_purge_frontend_cache_for_url( string $url ): void {
+	$url = esc_url_raw( $url );
+
+	if ( empty( $url ) ) {
+		return;
+	}
+
+	// LiteSpeed Cache.
+	if ( function_exists( 'do_action' ) ) {
+		do_action( 'litespeed_purge_url', $url );
+	}
+
+	// WP Rocket.
+	if ( function_exists( 'rocket_clean_files' ) ) {
+		rocket_clean_files( array( $url ) );
+	}
+
+	// W3 Total Cache.
+	if ( function_exists( 'w3tc_flush_url' ) ) {
+		w3tc_flush_url( $url );
+	}
+
+	// WP Super Cache.
+	if ( function_exists( 'wp_cache_clear_cache' ) ) {
+		// Clears whole cache; Super Cache has limited per-URL purge in many setups.
+		wp_cache_clear_cache();
+	}
+
+	// SiteGround Optimizer.
+	if ( function_exists( 'sg_cachepress_purge_cache' ) ) {
+		sg_cachepress_purge_cache();
+	}
+
+	// Cache Enabler.
+	if ( function_exists( 'cache_enabler_clear_page_cache_by_url' ) ) {
+		cache_enabler_clear_page_cache_by_url( $url );
+	}
+
+	// WP-Optimize.
+	if ( function_exists( 'wp_optimize_cache_purge_url' ) ) {
+		wp_optimize_cache_purge_url( $url );
+	}
+
+	// WP fastest cache.
+	if ( function_exists( 'wpfc_clear_url_cache' ) ) {
+		wpfc_clear_url_cache( $url );
+	}
+}
+
+
+// endregion
+// ___________________________________________________________________________________________.
 
 // endregion
 // ___________________________________________________________________________________________.

@@ -1,4 +1,12 @@
 == Changelog ==
+= 2.4.3 =
+* Improved third-party SEO workflows with embedded generation controls, two-way metadata synchronization where supported, template-aware values, and live editor refreshes across Yoast SEO, Rank Math, All in One SEO, SEOPress, Slim SEO, SEO Simple Pack, Squirrly SEO, The SEO Framework, and SEOKEY.
+* Improved metadata generation accuracy for Gutenberg and builder-driven pages by analyzing visible local content and avoiding unrelated fallback text on sparse or structural pages.
+* Strengthened role-based access so permitted editors can generate and manage metadata or media attributes only for content they are allowed to edit.
+* Improved metadata editor usability with live length guidance, missing-keyphrase warnings, clearer accessible actions and navigation, and more reliable saved-state feedback.
+* Removed the legacy Blog2Social integration from the supported compatibility list.
+* Bug Fixes & Maintenance: Fixed 6 minor bugs and addressed 2 security issues.
+
 = 2.4.2 =
 * Improved media attribute generation reliability by automatically recovering with direct image data when a remote image URL cannot be accessed.
 * Improved dashboard and SEO Autopilot status accuracy and performance with incremental background updates and clearer, accessible progress details.
@@ -271,7 +279,7 @@
 
 = 1.2.5 =
 * Added a new setting with four meta tag output modes: "Disable 'SOOZ - AI for SEO' Meta Tags," "Force 'SOOZ - AI for SEO' Meta Tags," "Replace Existing Meta Tags," and "Complement Existing Meta Tags." The default mode, "Replace Existing Meta Tags," helps resolve compatibility issues with other plugins and may improve SEO performance by eliminating duplicate meta tags.
-* Added support for additional SEO plugins, including Blog2Social.
+* Added support for additional SEO plugins, including Blog2Social. (removed with 2.4.3)
 * Added a "Help" button in the plugin library, providing users with quick access to the FAQ and support resources.
 * Fixed 11 minor bugs, and improved performance and security.
 

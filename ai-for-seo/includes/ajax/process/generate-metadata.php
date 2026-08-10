@@ -52,6 +52,11 @@ if ( $ai4seo_post_id <= 0 ) {
 	ai4seo_send_ajax_error( esc_html__( 'Post id is invalid.', 'ai-for-seo' ), 34127323 );
 }
 
+// Generation can later persist metadata, so enforce WordPress's permission for this post object.
+if ( ! ai4seo_can_edit_post( $ai4seo_post_id ) ) {
+	ai4seo_send_ajax_error( esc_html__( 'You are not allowed to edit this entry.', 'ai-for-seo' ), 34127324 );
+}
+
 
 // === CHECK PARAMETER: CONTENT ========================================================== \\
 
@@ -102,21 +107,14 @@ if ( ! $ai4seo_active_meta_tags ) {
 // === PREPARE POST CONTENT ================================================================== \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
-if ( $ai4seo_post_content ) {
-	ai4seo_condense_raw_post_content( $ai4seo_post_content );
-}
-
-// we do not have post content yet, so we try to get it from the database.
-if ( ! $ai4seo_post_content ) {
-	$ai4seo_post_content = ai4seo_get_condensed_post_content_from_database( $ai4seo_post_id );
-}
-
-$ai4seo_post_context = $ai4seo_post_content;
-ai4seo_add_post_context( $ai4seo_post_id, $ai4seo_post_context, false, false );
-
-if ( ! $ai4seo_post_content && $ai4seo_post_context ) {
-	$ai4seo_post_content = $ai4seo_post_context;
-}
+// Reuse the same preparation contract as cron so manual and automated requests classify identical content equally.
+$ai4seo_prepared_content = ai4seo_prepare_metadata_generation_content_data(
+	$ai4seo_post_id,
+	$ai4seo_post_content
+);
+$ai4seo_post_content     = $ai4seo_prepared_content['content'];
+$ai4seo_post_context     = $ai4seo_prepared_content['post_context'];
+$ai4seo_content_analysis = $ai4seo_prepared_content['content_analysis'];
 
 // check if content is too large (should never happen as we already condensed the content).
 if ( ai4seo_mb_strlen( $ai4seo_post_content ) > AI4SEO_MAX_TOTAL_CONTENT_SIZE ) {
@@ -141,13 +139,14 @@ $ai4seo_robhub_api_call_parameters = array(
 	'language' => $ai4seo_metadata_generation_language,
 );
 
-if ( $ai4seo_keyphrase ) {
+if ( '' !== $ai4seo_keyphrase ) {
 	$ai4seo_robhub_api_call_parameters['keyphrase'] = $ai4seo_keyphrase;
 }
 
-$ai4seo_robhub_api_call_parameters['trigger']         = 'manual';
-$ai4seo_robhub_api_call_parameters['website_context'] = ai4seo_get_website_context();
-$ai4seo_robhub_api_call_parameters['post_context']    = $ai4seo_post_context;
+$ai4seo_robhub_api_call_parameters['trigger']          = 'manual';
+$ai4seo_robhub_api_call_parameters['website_context']  = ai4seo_get_website_context();
+$ai4seo_robhub_api_call_parameters['post_context']     = $ai4seo_post_context;
+$ai4seo_robhub_api_call_parameters['content_analysis'] = $ai4seo_content_analysis;
 
 // url.
 $ai4seo_post_permalink = get_permalink( $ai4seo_post_id );
@@ -169,6 +168,14 @@ $ai4seo_post_title_for_placeholders = sanitize_text_field( get_the_title( $ai4se
 foreach ( $ai4seo_active_meta_tags as $ai4seo_this_active_meta_tag ) {
 	$ai4seo_this_to_generate = in_array( $ai4seo_this_active_meta_tag, $ai4seo_generation_fields );
 	$ai4seo_this_old_value   = $ai4seo_old_input_values[ $ai4seo_this_active_meta_tag ] ?? '';
+
+	// Normalize client context and reject unresolved third-party templates before building RobHub instructions.
+	$ai4seo_this_old_value   = is_scalar( $ai4seo_this_old_value ) ? (string) $ai4seo_this_old_value : '';
+	$ai4seo_this_old_value   = ai4seo_prepare_third_party_seo_metadata_value_for_generation_context(
+		$ai4seo_this_old_value,
+		$ai4seo_post_id,
+		$ai4seo_this_active_meta_tag
+	);
 	$ai4seo_this_prefix      = $ai4seo_metadata_prefixes[ $ai4seo_this_active_meta_tag ] ?? '';
 	$ai4seo_this_suffix      = $ai4seo_metadata_suffixes[ $ai4seo_this_active_meta_tag ] ?? '';
 

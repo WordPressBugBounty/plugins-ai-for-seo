@@ -352,11 +352,6 @@ function ai4seo_is_incognito_mode_enabled(): bool {
 		return false;
 	}
 
-	if ( isset( $_REQUEST['ai4seo_debug_bypass_incognito_mode'] ) && sanitize_text_field( wp_unslash( $_REQUEST['ai4seo_debug_bypass_incognito_mode'] ) ) ) {
-		// If the debug bypass parameter is set, we can bypass the incognito mode.
-		return false;
-	}
-
 	// Check if the incognito mode is enabled.
 	$ai4seo_setting_enable_incognito_mode = ai4seo_get_setting( AI4SEO_SETTING_ENABLE_INCOGNITO_MODE );
 
@@ -1155,88 +1150,6 @@ function ai4seo_add_menu_entries() {
 // =========================================================================================== \\
 
 /**
- * Register early notice suppression for a plugin admin page hook.
- *
- * @param string $hook_suffix The WordPress admin page hook suffix.
- * @return void
- */
-function ai4seo_register_plugin_admin_notice_suppression( string $hook_suffix ): void {
-	// Remember suffixes within this request so duplicate menu hooks do not add duplicate callbacks.
-	static $registered_hook_suffixes = array();
-
-	// Normalize WordPress' returned hook suffix before building page-specific action names.
-	$hook_suffix = trim( $hook_suffix );
-
-	// Ignore failed or duplicate registrations because top-level and submenu pages may overlap.
-	if ( '' === $hook_suffix || isset( $registered_hook_suffixes[ $hook_suffix ] ) ) {
-		return;
-	}
-
-	// Use page-specific hooks so notice suppression runs only on SOOZ admin screens.
-	add_action( 'load-' . $hook_suffix, 'ai4seo_suppress_external_admin_notices_on_plugin_page', 0 );
-	add_action( 'admin_print_styles-' . $hook_suffix, 'ai4seo_output_admin_notice_suppression_styles', 0 );
-
-	// Track registered suffixes locally to avoid duplicate hook callbacks on the dashboard page.
-	$registered_hook_suffixes[ $hook_suffix ] = true;
-}
-
-// =========================================================================================== \\
-
-/**
- * Suppress external WordPress admin notices on AI4SEO plugin pages.
- *
- * @return void
- */
-function ai4seo_suppress_external_admin_notices_on_plugin_page(): void {
-	// Keep the callback harmless if WordPress or another plugin reuses a registered hook suffix unexpectedly.
-	if ( ! ai4seo_is_user_inside_our_plugin_admin_pages() ) {
-		return;
-	}
-
-	// Remove each WordPress admin notice channel before it can output third-party notices on SOOZ pages.
-	$notice_hook_names = array(
-		'admin_notices',
-		'all_admin_notices',
-		'network_admin_notices',
-		'user_admin_notices',
-	);
-
-	// Apply the same suppression to all notice channels while keeping the hook list easy to audit.
-	foreach ( $notice_hook_names as $this_notice_hook_name ) {
-		remove_all_actions( $this_notice_hook_name );
-	}
-}
-
-// =========================================================================================== \\
-
-/**
- * Hide direct WordPress notice output before first paint on AI4SEO plugin pages.
- *
- * @return void
- */
-function ai4seo_output_admin_notice_suppression_styles(): void {
-	// Keep this fallback scoped to SOOZ pages in case WordPress calls the style hook unexpectedly.
-	if ( ! ai4seo_is_user_inside_our_plugin_admin_pages() ) {
-		return;
-	}
-
-	// Preserve SOOZ notices while hiding direct WordPress notice children early enough to prevent a first-paint flash.
-	$preserved_notice_selector_suffix = ':not(.ai4seo-notice):not(.ai4seo-debug-notice)';
-	$notice_suppression_selectors     = array(
-		'#wpbody-content > .notice' . $preserved_notice_selector_suffix,
-		'#wpbody-content > .updated' . $preserved_notice_selector_suffix,
-		'#wpbody-content > .error' . $preserved_notice_selector_suffix,
-	);
-
-	// Inline output is intentional here because the normal plugin stylesheet is too late for notice flash prevention.
-	echo '<style id="ai4seo-admin-notice-suppression">';
-		echo wp_kses( implode( ',', $notice_suppression_selectors ), array() ) . '{display:none!important;}';
-	echo '</style>';
-}
-
-// =========================================================================================== \\
-
-/**
  * Mark our top-level menu as current when any AI for SEO page is open.
  *
  * @param string|null $parent_file
@@ -1494,12 +1407,19 @@ function ai4seo_set_localization_parameters() {
 	$active_attachment_attributes              = ai4seo_get_active_attachment_attributes();
 	$enable_external_metadata_generate_buttons = (bool) ai4seo_get_setting( AI4SEO_SETTING_ENABLE_EXTERNAL_METADATA_GENERATE_BUTTONS );
 	$enable_external_media_generate_buttons    = (bool) ai4seo_get_setting( AI4SEO_SETTING_ENABLE_EXTERNAL_MEDIA_GENERATE_BUTTONS );
-	// Localized editor data mirrors the PHP incognito bypass so UI-only checks stay consistent with server checks.
-	$bypass_incognito_mode             = ( isset( $_REQUEST['ai4seo_debug_bypass_incognito_mode'] ) && sanitize_text_field( wp_unslash( $_REQUEST['ai4seo_debug_bypass_incognito_mode'] ) ) );
 	$metadata_price_table              = ai4seo_get_metadata_price_table();
 	$attachment_attributes_price_table = ai4seo_get_attachment_attributes_price_table();
 	// Provide the server-selected instruction cap to dynamically rendered settings and editor forms.
 	$custom_instructions_length_limit = ai4seo_get_custom_instructions_length_limit();
+	$seopress_generation_metadata     = array();
+
+	// Seed fields only when the active SEOPress editor can render SOOZ generation controls.
+	if ( $current_post_id
+		&& $enable_external_metadata_generate_buttons
+		&& ai4seo_is_plugin_or_theme_active( AI4SEO_THIRD_PARTY_PLUGIN_SEOPRESS ) ) {
+		$seopress_generation_metadata = ai4seo_get_seopress_generation_metadata_for_editor( $current_post_id );
+	}
+
 	// Share WordPress number separators with JavaScript summaries that update after the PHP render pass.
 	ai4seo_ensure_wp_locale_number_format();
 	$number_format = array();
@@ -1537,7 +1457,6 @@ function ai4seo_set_localization_parameters() {
 		'ai4seo_asset_refresh_query_parameter'              => AI4SEO_ASSET_REFRESH_QUERY_PARAMETER,
 		'ai4seo_current_post_id'                           => $current_post_id,
 		AI4SEO_GLOBAL_NONCE_IDENTIFIER                     => $ajax_nonce,
-		'ai4seo_bypass_incognito_mode'                     => $bypass_incognito_mode,
 		'ai4seo_active_subpage'                            => $active_subpage,
 		'ai4seo_active_post_type_subpage'                  => $active_post_type_subpage,
 		'ai4seo_active_meta_tags'                          => $active_meta_tags,
@@ -1548,6 +1467,7 @@ function ai4seo_set_localization_parameters() {
 		'ai4seo_custom_instructions_length_limit'          => $custom_instructions_length_limit,
 		'ai4seo_metadata_price_table'                      => $metadata_price_table,
 		'ai4seo_attachment_attributes_price_table'         => $attachment_attributes_price_table,
+		'ai4seo_seopress_generation_metadata'              => $seopress_generation_metadata,
 		'ai4seo_number_format_decimal_point'               => $number_format_decimal_point,
 		'ai4seo_number_format_thousands_sep'               => $number_format_thousands_sep,
 	);
@@ -2003,43 +1923,6 @@ function ai4seo_text_contains_product_placeholder( string $text ): bool {
 // =========================================================================================== \\
 
 /**
- * Remove TranslatePress tags and wrappers from a string.
- *
- * Example input:
- * "#!trpst#trp-gettext#Metadata Editor#!trpen#Manage metadata for Stuffed peppers (#35432)#!trpst#"
- * Output:
- * "Metadata Editor Manage metadata for Stuffed peppers (#35432)"
- *
- * @param string $input
- * @return string
- */
-function ai4seo_remove_translatepress_tags( string $input ): string {
-	// Replace TranslatePress wrapped text with its inner content.
-	$clean = preg_replace_callback(
-		'/#!trpst#trp-gettext#(.*?)#!trpen#/us',
-		function ( $m ) {
-			return ' ' . $m[1] . ' ';
-		},
-		$input
-	);
-
-	// Handle inline variant like #trp-gettext data-trpgettextoriginal=157#!trpen#.
-	$clean = preg_replace( '/#trp-gettext[^#]*#!trpen#/us', ' ', $clean );
-
-	// Remove any remaining TranslatePress markers.
-	$clean = preg_replace( '/#!?trp[a-zA-Z0-9_\-\s="]+#?/', ' ', $clean );
-
-	// Normalize spaces and decode entities
-	// $clean = html_entity_decode( $clean, ENT_QUOTES | ENT_HTML5, 'UTF-8' );.
-	$clean = trim( preg_replace( '/\s+/', ' ', $clean ) );
-
-	return $clean;
-}
-
-
-// =========================================================================================== \\
-
-/**
  * Function to modify plugin-details for white-label-settings
  *
  * @param array $all_plugins array with all plugins
@@ -2140,273 +2023,6 @@ function ai4seo_add_incognito_note_to_plugin_meta( array $plugin_meta, string $p
 	}
 
 	return $plugin_meta;
-}
-
-// =========================================================================================== \\
-
-/**
- * Function to retrieve specific meta tags from html
- *
- * @param string $head_html the html content of the head
- * @return array $found_meta_tags - an array with the found meta tags
- */
-function ai4seo_get_meta_tags_from_html( string $head_html ): array {
-	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
-		ai4seo_debug_message( 764731280, 'Prevented loop', true );
-		return array();
-	}
-
-	if ( ! defined( 'AI4SEO_METADATA_DETAILS' ) ) {
-		return array();
-	}
-
-	// Remove <script>, <style>, and <link> tags and their content.
-	$head_html = preg_replace( '/<script\b[^>]*>(.*?)<\/script>/is', '', $head_html );
-	$head_html = preg_replace( '/<style\b[^>]*>(.*?)<\/style>/is', '', $head_html );
-	$head_html = preg_replace( '/<link\b[^>]*>/i', '', $head_html );
-
-	// Remove <![CDATA[ sections.
-	$head_html = preg_replace( '/<!\[CDATA\[.*?\]\]>/s', '', $head_html );
-
-	// Remove HTML comments.
-	$head_html = preg_replace( '/<!--.*?-->/s', '', $head_html );
-
-	// Trim.
-	$head_html = trim( $head_html );
-
-	// Workaround: Replace line breaks with placeholders.
-	$head_html = preg_replace( '/\r\n/', '#AI4SEO#LBRN#', $head_html );
-	$head_html = preg_replace( '/\n/', '#AI4SEO#LBN#', $head_html );
-
-	// add line breaks after each closing tag like </title>.
-	$head_html = preg_replace( '/<\/[^>]+>/', "$0\n", $head_html );
-
-	// add line breaks after each cosing single tag like <meta ... />.
-	$head_html = preg_replace( '/<[^>]+\/>/', "$0\n", $head_html );
-
-	// add line breaks between two tags.
-	$head_html = preg_replace( '/>\s*</', ">\n<", $head_html );
-	$head_html = preg_replace( '/>(#AI4SEO#LBRN#|#AI4SEO#LBN#|\s)+</', ">\n<", $head_html );
-
-	// generate array splitting by line breaks.
-	$head_tags = explode( "\n", $head_html );
-
-	// go through each and analyze it's content.
-	$found_meta_tags = array();
-
-	foreach ( $head_tags as $head_tag ) {
-		if ( ! $head_tag ) {
-			continue;
-		}
-
-		// trim.
-		$head_tag = trim( $head_tag );
-
-		// check for charset meta tag.
-		if ( preg_match( '/<meta\s+[^>]*charset\s*=\s*["\'][^"\']+["\'][^>]*>/i', $head_tag ) ) {
-			$found_meta_tags['charset'] = array(
-				'raw-html' => trim( ai4seo_remove_header_line_break_placeholders( $head_tag ) ),
-				'content'  => 'charset',
-			);
-		}
-
-		// check for viewport meta tag.
-		if ( preg_match( '/<meta\s+[^>]*name\s*=\s*["\']viewport["\'][^>]*>/i', $head_tag ) ) {
-			$found_meta_tags['viewport'] = array(
-				'raw-html' => trim( ai4seo_remove_header_line_break_placeholders( $head_tag ) ),
-				'content'  => 'viewport',
-			);
-		}
-
-		// go through each metadata field and check if the meta-tag-regex matches.
-		foreach ( AI4SEO_METADATA_DETAILS as $this_metadata_identifier => $this_metadata_field_details ) {
-			$this_meta_tag_regex             = $this_metadata_field_details['meta-tag-regex'] ?? '';
-			$this_meta_tag_regex_match_index = $this_metadata_field_details['meta-tag-regex-match-index'] ?? 0;
-
-			if ( ! $this_meta_tag_regex || ! $this_meta_tag_regex_match_index ) {
-				continue;
-			}
-
-			if ( ! preg_match( $this_meta_tag_regex, $head_tag, $this_meta_tag_regex_matches ) ) {
-				continue;
-			}
-
-			if ( ! isset( $this_meta_tag_regex_matches[ $this_meta_tag_regex_match_index ] ) ) {
-				continue;
-			}
-
-			// Workaround: replace line break placeholders back.
-			$this_meta_tag_regex_matches[0]                                  = trim( ai4seo_remove_header_line_break_placeholders( $this_meta_tag_regex_matches[0] ) );
-			$this_meta_tag_regex_matches[ $this_meta_tag_regex_match_index ] = trim( ai4seo_remove_header_line_break_placeholders( $this_meta_tag_regex_matches[ $this_meta_tag_regex_match_index ] ) );
-
-			$found_meta_tags[ $this_metadata_identifier ][] = array(
-				'raw-html' => $this_meta_tag_regex_matches[0],
-				'content'  => $this_meta_tag_regex_matches[ $this_meta_tag_regex_match_index ],
-			);
-		}
-	}
-
-	return $found_meta_tags;
-}
-
-// =========================================================================================== \\
-
-/**
- * Removes line break placeholders from the given string
- *
- * @param - $string the string to remove the line break placeholders from.
- * @return string - the string without line break placeholders
- */
-function ai4seo_remove_header_line_break_placeholders( string $string ): string {
-	return str_replace( array( '#AI4SEO#LBRN#', '#AI4SEO#LBN#' ), array( "\r\n", "\n" ), $string );
-}
-
-// =========================================================================================== \\
-
-function ai4seo_handle_posts_to_be_analyzed() {
-	// Make sure that the user is allowed to use this plugin.
-	if ( ! ai4seo_can_manage_this_plugin() ) {
-		return;
-	}
-
-	if ( ! ai4seo_singleton( __FUNCTION__ ) ) {
-		return;
-	}
-
-	// get all posts that need to be analyzed.
-	$posts_to_be_analyzed = ai4seo_get_post_ids_from_option( AI4SEO_POSTS_TO_BE_ANALYZED_OPTION_NAME );
-
-	// if there are no posts to be analyzed, return.
-	if ( ! $posts_to_be_analyzed ) {
-		return;
-	}
-
-	// get the first post to be analyzed.
-	$post_id = array_shift( $posts_to_be_analyzed );
-
-	// check if the post id is numeric.
-	if ( is_numeric( $post_id ) ) {
-		// analyze the post.
-		ai4seo_analyze_post( $post_id );
-	}
-
-	// update the option.
-	ai4seo_remove_post_ids_from_option( AI4SEO_POSTS_TO_BE_ANALYZED_OPTION_NAME, $post_id );
-}
-
-// =========================================================================================== \\
-
-/**
- * Gatekeeper for AI4SEO AJAX requests.
- *
- * @return void
- */
-function ai4seo_on_ajax_action() {
-	if ( wp_doing_ajax() === false ) {
-		return;
-	}
-
-	$action = isset( $_REQUEST['action'] ) ? sanitize_key( wp_unslash( $_REQUEST['action'] ) ) : '';
-
-	if ( '' === $action ) {
-		if ( ai4seo_request_contains_prefixed_parameters() ) {
-			ai4seo_debug_message( 2512181226, 'AJAX request is missing the action parameter. The POST body may have been truncated by PHP max_input_vars.', true );
-			ai4seo_send_ajax_error(
-				esc_html__( 'The AJAX request was incomplete before WordPress could route it. Please increase the PHP max_input_vars limit and try again.', 'ai-for-seo' ),
-				2512181226
-			);
-		}
-
-		return;
-	}
-
-	if ( strpos( $action, 'ai4seo_' ) !== 0 ) {
-		return;
-	}
-
-	// we have an AJAX request for our plugin, let's run the security gate.
-	ai4seo_ajax_security_gate();
-
-	if ( ! in_array( $action, AI4SEO_ALLOWED_AJAX_FUNCTIONS, true ) ) {
-		ai4seo_debug_message( 2312181226, 'Blocked unknown AJAX action: ' . $action, true );
-		ai4seo_send_ajax_error(
-			esc_html__( 'AJAX action is not allowed. Please refresh the page and try again.', 'ai-for-seo' ),
-			2312181226
-		);
-	}
-
-	$ajax_hook_name = "wp_ajax_{$action}";
-
-	if ( has_action( $ajax_hook_name ) === false ) {
-		ai4seo_debug_message( 2412181226, 'AJAX action has no registered handler: ' . $action, true );
-		ai4seo_send_ajax_error(
-			esc_html__( 'AJAX action is not available. Please refresh the page and try again.', 'ai-for-seo' ),
-			2412181226
-		);
-	}
-}
-
-// =========================================================================================== \\
-
-/**
- * Checks whether the current request contains plugin-prefixed parameters.
- *
- * @return bool
- */
-function ai4seo_request_contains_prefixed_parameters(): bool {
-	foreach ( $_REQUEST as $parameter_name => $parameter_value ) {
-		if ( ! is_string( $parameter_name ) ) {
-			continue;
-		}
-
-		if ( strpos( $parameter_name, AI4SEO_POST_PARAMETER_PREFIX ) === 0 ) {
-			return true;
-		}
-	}
-
-	return false;
-}
-
-// =========================================================================================== \\
-
-/**
- * Validates nonce and permissions for AI4SEO AJAX requests.
- *
- * Sends an AJAX error and exits on failure.
- *
- * @return void
- */
-function ai4seo_ajax_security_gate() {
-	$ajax_nonce = '';
-
-	if ( isset( $_REQUEST[ AI4SEO_GLOBAL_NONCE_IDENTIFIER ] ) ) {
-		$ajax_nonce = sanitize_text_field( wp_unslash( $_REQUEST[ AI4SEO_GLOBAL_NONCE_IDENTIFIER ] ) );
-	} elseif ( isset( $_REQUEST['security'] ) ) {
-		$ajax_nonce = sanitize_text_field( wp_unslash( $_REQUEST['security'] ) );
-	}
-
-	if ( '' === $ajax_nonce ) {
-		ai4seo_send_ajax_error(
-			esc_html__( 'Action blocked due to security reasons. Please refresh this page and try again.', 'ai-for-seo' ),
-			401271224
-		);
-	}
-
-	if ( wp_verify_nonce( $ajax_nonce, AI4SEO_GLOBAL_NONCE_IDENTIFIER ) === false ) {
-		ai4seo_send_ajax_error(
-			esc_html__( 'Action blocked due to security reasons. Please refresh this page and try again.', 'ai-for-seo' ),
-			411271224
-		);
-	}
-
-	if ( ai4seo_can_manage_this_plugin() === false ) {
-		ai4seo_send_ajax_error(
-			esc_html__( 'Action blocked due to security reasons. Please refresh this page and try again.', 'ai-for-seo' ),
-			11420725
-		);
-	}
-
-	$GLOBALS['ai4seo_ajax_nonce'] = $ajax_nonce;
 }
 
 // =========================================================================================== \\
@@ -2660,230 +2276,6 @@ function ai4seo_check_for_performance_analysis() {
 }
 
 // =========================================================================================== \\
-
-/**
- * Function to init the RobHub Account by syncing it eventually
- */
-function ai4seo_check_for_robhub_account_sync(): void {
-	if ( ! ai4seo_singleton( __FUNCTION__ ) ) {
-		return;
-	}
-
-	// check ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED.
-	$is_account_synced = ai4seo_robhub_api()->read_environmental_variable( ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED );
-
-	if ( ! $is_account_synced ) {
-		ai4seo_sync_robhub_account( 'not_yet_synced' );
-		return;
-	}
-
-	// check last sync timestamp.
-	$last_account_sync = ai4seo_robhub_api()->read_environmental_variable( ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC );
-
-	if ( $last_account_sync < time() - ai4seo_robhub_api()::ACCOUNT_SYNC_INTERVAL ) {
-		ai4seo_sync_robhub_account( 'regular_interval' );
-		return;
-	}
-
-	// if next free credits timestamp is set and in the past, we need to sync the account again.
-	$next_free_credits_timestamp = ai4seo_robhub_api()->read_environmental_variable( ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_NEXT_FREE_CREDITS_TIMESTAMP );
-
-	if ( $next_free_credits_timestamp && $next_free_credits_timestamp < time() ) {
-		ai4seo_sync_robhub_account( 'next_free_credits_passed' );
-		return;
-	}
-
-	// if the credits balance is below 100 AND AI4SEO_SETTING_PAYG_ENABLED is true, we need to check for client's payment
-	// dashboard only.
-	$is_payg_enabled = (bool) ai4seo_get_setting( AI4SEO_SETTING_PAYG_ENABLED );
-	$credits_balance = ai4seo_robhub_api()->get_credits_balance();
-
-	if ( $is_payg_enabled && $credits_balance < 100 ) {
-		$now                                       = time();
-		$did_trigger_payg_waiting_for_payment_sync = false;
-
-		// Track the first timestamp when this low-credits + PAYG state started.
-		$payg_low_credits_first_occurrence_time = (int) ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_LOW_CREDITS_FIRST_OCCURRENCE_TIME );
-
-		if ( ! $payg_low_credits_first_occurrence_time ) {
-			$payg_low_credits_first_occurrence_time = $now;
-			ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_LOW_CREDITS_FIRST_OCCURRENCE_TIME, $payg_low_credits_first_occurrence_time );
-		}
-
-		// Hard-stop this sync reason after 60 minutes from first occurrence.
-		if ( $now - $payg_low_credits_first_occurrence_time <= HOUR_IN_SECONDS ) {
-			$payg_low_credits_last_sync_time = (int) ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_LOW_CREDITS_LAST_SYNC_TIME );
-
-			// Rate-limit to at most once every 5 minutes while inside the 60-minute window.
-			if ( ! $payg_low_credits_last_sync_time || $payg_low_credits_last_sync_time <= $now - ( 5 * MINUTE_IN_SECONDS ) ) {
-				ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_LOW_CREDITS_LAST_SYNC_TIME, $now );
-				ai4seo_sync_robhub_account( 'payg_waiting_for_payment' );
-				$did_trigger_payg_waiting_for_payment_sync = true;
-			}
-		}
-
-		// Return only when this branch actually triggered the PAYG waiting-for-payment sync.
-		if ( $did_trigger_payg_waiting_for_payment_sync ) {
-			return;
-		}
-	} else {
-		// Reset tracking once the low-credits + PAYG condition is no longer active.
-		ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_LOW_CREDITS_FIRST_OCCURRENCE_TIME, 0 );
-		ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_LOW_CREDITS_LAST_SYNC_TIME, 0 );
-	}
-
-	// if the environmental variable AI4SEO_ENVIRONMENTAL_VARIABLE_JUST_PURCHASED_SOMETHING_TIME is set and in the last 120 minutes, we need to sync the account again.
-	$just_purchased_something_time = (int) ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_JUST_PURCHASED_SOMETHING_TIME );
-
-	if ( $just_purchased_something_time && $just_purchased_something_time > time() - 7200 && $credits_balance < 100 ) {
-		ai4seo_sync_robhub_account( 'waiting_for_payment' );
-		return;
-	}
-}
-
-// =========================================================================================== \\
-/**
- * Function to sync with client's RobHub Account.
- *
- * @param string $sync_reason              Reason for the sync (for logging purposes).
- * @param bool   $allow_notification_force Whether to force a notification to be sent in case of an error.
- * @return array API response.
- */
-function ai4seo_sync_robhub_account( string $sync_reason = 'unknown', bool $allow_notification_force = false ): array {
-	if ( ai4seo_prevent_loops( __FUNCTION__, 1, 10 ) ) {
-		ai4seo_debug_message( 461426226, 'Prevented loop', true );
-		return array();
-	}
-
-	$api_response = ai4seo_robhub_api()->sync_account( $sync_reason );
-
-	// in case we have an error, we try to push a notification.
-	ai4seo_check_for_robhub_account_error_notification( $api_response, true );
-
-	// Interpret response.
-	if ( ! ai4seo_robhub_api()->was_call_successful( $api_response ) || ! isset( $api_response['data'] ) || ! is_array( $api_response['data'] ) || ! $api_response['data'] ) {
-		ai4seo_debug_message( 451426226, 'Account sync failed or returned invalid data', true );
-		return $api_response;
-	}
-
-	$synced_account_data = $api_response['data'];
-
-	$last_website_toc_and_pp_update_time = (int) ( $synced_account_data['last_terms_update_time'] ?? false );
-
-	// update the last website's ToC and PP update time if it is not set.
-	if ( $last_website_toc_and_pp_update_time && ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_WEBSITE_TOC_AND_PP_UPDATE_TIME ) != $last_website_toc_and_pp_update_time ) {
-		ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_WEBSITE_TOC_AND_PP_UPDATE_TIME, $last_website_toc_and_pp_update_time );
-	}
-
-	// compare settings and environmental variables.
-	ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_HAS_PURCHASED_SOMETHING, (bool) ( $synced_account_data['has_purchased_something'] ?? false ) );
-
-	// Sync Pay-As-You-Go settings.
-	if ( isset( $synced_account_data['is_payg_enabled'] ) ) {
-		ai4seo_update_setting( AI4SEO_SETTING_PAYG_ENABLED, (bool) $synced_account_data['is_payg_enabled'] );
-	}
-
-	if ( isset( $synced_account_data['stripe_price_id'] ) && $synced_account_data['stripe_price_id'] ) {
-		ai4seo_update_setting( AI4SEO_SETTING_PAYG_STRIPE_PRICE_ID, sanitize_text_field( $synced_account_data['stripe_price_id'] ) );
-	}
-
-	if ( isset( $synced_account_data['payg_daily_budget'] ) && is_numeric( $synced_account_data['payg_daily_budget'] ) ) {
-		ai4seo_update_setting( AI4SEO_SETTING_PAYG_DAILY_BUDGET, (int) $synced_account_data['payg_daily_budget'] );
-	}
-
-	if ( isset( $synced_account_data['payg_monthly_budget'] ) && is_numeric( $synced_account_data['payg_monthly_budget'] ) ) {
-		ai4seo_update_setting( AI4SEO_SETTING_PAYG_MONTHLY_BUDGET, (int) $synced_account_data['payg_monthly_budget'] );
-	}
-
-	if ( isset( $synced_account_data['payg_status'] ) && in_array( $synced_account_data['payg_status'], AI4SEO_ALLOWED_PAYG_STATUS ) ) {
-		if ( isset( $synced_account_data['payg_failure_reason'] ) && is_string( $synced_account_data['payg_failure_reason'] ) ) {
-			ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_FAILURE_REASON, sanitize_key( $synced_account_data['payg_failure_reason'] ) );
-		} else {
-			ai4seo_delete_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_FAILURE_REASON );
-		}
-
-		ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_STATUS, sanitize_key( $synced_account_data['payg_status'] ) );
-
-		ai4seo_check_for_payg_status_errors( $synced_account_data['payg_status'] );
-	} else {
-		ai4seo_delete_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_STATUS );
-		ai4seo_delete_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_FAILURE_REASON );
-	}
-
-	// claimed_feedback_offer.
-	if ( isset( $synced_account_data['claimed_feedback_offer'] ) && $synced_account_data['claimed_feedback_offer'] ) {
-		ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_CLAIMED_FEEDBACK_OFFER, true );
-	} else {
-		ai4seo_delete_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_CLAIMED_FEEDBACK_OFFER );
-	}
-
-	// preferred_currency.
-	if ( isset( $synced_account_data['preferred_currency'] ) && $synced_account_data['preferred_currency'] ) {
-		ai4seo_update_setting( AI4SEO_SETTING_PREFERRED_CURRENCY, $synced_account_data['preferred_currency'] );
-	}
-
-	// in case there is a new plugin version available, we need to check for it.
-	ai4seo_check_for_plugin_update_available( $synced_account_data['latest_product_version'] ?? '', true );
-
-	// discount.
-	if ( isset( $synced_account_data['discount'] ) && is_array( $synced_account_data['discount'] ) ) {
-		$discount = $synced_account_data['discount'];
-
-		if ( isset( $discount['name'] ) && $discount['name'] && isset( $discount['percentage'] ) && is_numeric( $discount['percentage'] ) ) {
-			// sanitize integers.
-			$discount['percentage'] = (int) $discount['percentage'];
-
-			if ( isset( $discount['expire_in'] ) ) {
-				$discount['expire_in'] = (int) $discount['expire_in'];
-			}
-
-			ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_CURRENT_DISCOUNT, $discount );
-			ai4seo_check_discount_notification( $discount, $allow_notification_force );
-		}
-	} else {
-		ai4seo_delete_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_CURRENT_DISCOUNT );
-		ai4seo_remove_notification( 'discount' );
-	}
-
-	// notifications.
-	if ( isset( $synced_account_data['notifications'] ) && is_array( $synced_account_data['notifications'] ) ) {
-		$notifications = $synced_account_data['notifications'];
-
-		foreach ( $notifications as $notification_index => $notification ) {
-			if ( ! isset( $notification['message'] ) || ! $notification['message'] ) {
-				continue;
-			}
-
-			// set $message and unset it from the notification array.
-			$message = $notification['message'];
-			unset( $notification['message'] );
-
-			// set $force and unset it from the notification array.
-			if ( $allow_notification_force ) {
-				$force = isset( $notification['force'] ) && (bool) $notification['force'];
-			} else {
-				$force = false;
-			}
-
-			unset( $notification['force'] );
-
-			ai4seo_push_notification( $notification_index, $message, $force, $notification );
-		}
-	}
-
-	// auto_retry_failed.
-	if ( isset( $synced_account_data['auto_retry_failed'] ) && $synced_account_data['auto_retry_failed'] ) {
-		// reset AI4SEO_FAILED_METADATA_POST_IDS_OPTION_NAME and AI4SEO_FAILED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME.
-		ai4seo_delete_option( AI4SEO_FAILED_METADATA_POST_IDS_OPTION_NAME );
-		ai4seo_delete_option( AI4SEO_FAILED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME );
-
-		// Refresh the generation status summary after the already-authorized account sync mutation.
-		ai4seo_force_posts_table_analysis_refresh_after_admin_mutation();
-	}
-
-	return $api_response;
-}
-
 
 // endregion
 // ___________________________________________________________________________________________.

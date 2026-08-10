@@ -140,7 +140,14 @@ if ( $ai4seo_has_active_billing_feature ) {
 			echo "<div class='ai4seo-medium-gap'></div>";
 
 			echo "<div class='ai4seo-plugin-deactivation-feedback-conditional ai4seo-display-none'>";
-			echo "<textarea class='ai4seo-textarea ai4seo-plugin-deactivation-feedback-message ai4seo-auto-resize-textarea' id='ai4seo-plugin-deactivation-feedback-message' name='ai4seo_plugin_deactivation_feedback_message' maxlength='2000' placeholder='" . esc_attr__( 'What price would feel reasonable for your usage?', 'ai-for-seo' ) . "'></textarea>";
+			echo "<textarea class='ai4seo-textarea ai4seo-plugin-deactivation-feedback-message ai4seo-auto-resize-textarea'"
+				. " id='ai4seo-plugin-deactivation-feedback-message'"
+				. " name='ai4seo_plugin_deactivation_feedback_message'"
+				. " maxlength='2000'"
+				. " placeholder='" . esc_attr__(
+					'What price would feel reasonable for your usage? We’re happy to discuss it, and if you found a cheaper option elsewhere, we’re happy to match it.',
+					'ai-for-seo'
+				) . "'></textarea>";
 			echo '</div>';
 			echo '</div>';
 

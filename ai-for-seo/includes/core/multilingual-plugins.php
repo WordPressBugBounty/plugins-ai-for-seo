@@ -7,6 +7,45 @@ if ( ! defined( 'ABSPATH' ) ) {
 // region MULTI-LANGUAGE THIRD-PARTY PLUGINS ==================================================== \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
+// region TRANSLATEPRESS ======================================================================== \\
+
+/**
+ * Remove TranslatePress tags and wrappers from a string.
+ *
+ * Example input:
+ * "#!trpst#trp-gettext#Metadata Editor#!trpen#Manage metadata for Stuffed peppers (#35432)#!trpst#"
+ * Output:
+ * "Metadata Editor Manage metadata for Stuffed peppers (#35432)"
+ *
+ * @param string $input
+ * @return string
+ */
+function ai4seo_remove_translatepress_tags( string $input ): string {
+	// Replace TranslatePress wrapped text with its inner content.
+	$cleaned_text = preg_replace_callback(
+		'/#!trpst#trp-gettext#(.*?)#!trpen#/us',
+		function ( $matches ) {
+			return ' ' . $matches[1] . ' ';
+		},
+		$input
+	);
+
+	// Handle inline variant like #trp-gettext data-trpgettextoriginal=157#!trpen#.
+	$cleaned_text = preg_replace( '/#trp-gettext[^#]*#!trpen#/us', ' ', $cleaned_text );
+
+	// Remove any remaining TranslatePress markers.
+	$cleaned_text = preg_replace( '/#!?trp[a-zA-Z0-9_\-\s="]+#?/', ' ', $cleaned_text );
+
+	// Collapse whitespace left by removed wrappers so AJAX text remains readable.
+	$cleaned_text = trim( preg_replace( '/\s+/', ' ', $cleaned_text ) );
+
+	return $cleaned_text;
+}
+
+
+// endregion
+// ___________________________________________________________________________________________.
+
 /**
  * Function that tries to determine the language of a post by checking various multi-language plugins
  *

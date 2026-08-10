@@ -42,11 +42,6 @@ if ( $ai4seo_current_page < 1 ) {
 
 $ai4seo_current_credits_balance = ai4seo_robhub_api()->get_credits_balance();
 
-// check if the cron job should be executed sooner.
-if ( isset( $_GET['ai4seo-execute-cron-job-sooner'] ) && sanitize_text_field( wp_unslash( $_GET['ai4seo-execute-cron-job-sooner'] ) ) ) {
-	ai4seo_inject_additional_cronjob_call( AI4SEO_BULK_GENERATION_CRON_JOB_NAME );
-}
-
 // Define variable for the label of the failed-metadata-generations-link.
 $ai4seo_retry_all_failed_metadata_generations_link_label = __( 'Retry all failed', 'ai-for-seo' );
 
@@ -81,6 +76,7 @@ $ai4seo_posts_query_arguments = array(
 	'posts_per_page'   => 20,
 	'orderby'          => 'ID',
 	'order'            => 'DESC',
+	'perm'             => 'editable',
 	'suppress_filters' => true,
 	'lang'             => 'all',
 );
@@ -143,34 +139,38 @@ $ai4seo_sort_value_map                                 = array();
 $ai4seo_should_derive_current_page_metadata_status_ids = false;
 $ai4seo_should_defer_status_filters                    = false;
 
-// Resolve common post-type lists without loading every post ID from the current post type.
-$ai4seo_content_type_list_result = ai4seo_resolve_optimized_post_content_type_list(
-	array(
-		'post_type'                                  => $ai4seo_post_type,
-		'post_status'                                => array( 'publish', 'future' ),
-		'author_not_in'                              => $ai4seo_disabled_post_author_ids,
-		'disabled_taxonomy_terms'                    => $ai4seo_disabled_taxonomy_terms,
-		'disabled_wpml_language_codes'               => $ai4seo_disabled_metadata_wpml_language_codes,
-		'filter_status'                              => $ai4seo_filter_status,
-		'filter_text'                                => (string) ( $ai4seo_filter_context['filter_text'] ?? '' ),
-		'filter_language'                            => $ai4seo_filter_language,
-		'orderby'                                    => $ai4seo_orderby,
-		'order'                                      => $ai4seo_order,
-		'current_page'                               => $ai4seo_current_page,
-		'per_page'                                   => $ai4seo_items_per_page,
-		'status_options'                             => $ai4seo_filter_context['status_options'],
-		'is_bulk_generation_activated'               => $ai4seo_is_bulk_generation_activated,
-		'should_auto_queue_bulk_generation_entries'  => $ai4seo_should_auto_queue_bulk_generation_entries,
-		'has_enough_credits'                         => ( $ai4seo_current_credits_balance >= $ai4seo_metadata_credits_costs_per_post ),
-		'new_or_existing_filter'                     => $ai4seo_bulk_generation_new_or_existing_filter,
-		'new_or_existing_filter_reference_timestamp' => $ai4seo_bulk_generation_new_or_existing_filter_reference_timestamp,
-	)
-);
+// Optimized SQL has no per-user capability clause, so ownership-restricted users keep the exact WP_Query path.
+$ai4seo_content_type_list_result = array( 'is_optimized' => false );
+
+if ( ai4seo_can_edit_others_posts_for_post_types( array( $ai4seo_post_type ) ) ) {
+	$ai4seo_content_type_list_result = ai4seo_resolve_optimized_post_content_type_list(
+		array(
+			'post_type'                                  => $ai4seo_post_type,
+			'post_status'                                => array( 'publish', 'future' ),
+			'author_not_in'                              => $ai4seo_disabled_post_author_ids,
+			'disabled_taxonomy_terms'                    => $ai4seo_disabled_taxonomy_terms,
+			'disabled_wpml_language_codes'               => $ai4seo_disabled_metadata_wpml_language_codes,
+			'filter_status'                              => $ai4seo_filter_status,
+			'filter_text'                                => (string) ( $ai4seo_filter_context['filter_text'] ?? '' ),
+			'filter_language'                            => $ai4seo_filter_language,
+			'orderby'                                    => $ai4seo_orderby,
+			'order'                                      => $ai4seo_order,
+			'current_page'                               => $ai4seo_current_page,
+			'per_page'                                   => $ai4seo_items_per_page,
+			'status_options'                             => $ai4seo_filter_context['status_options'],
+			'is_bulk_generation_activated'               => $ai4seo_is_bulk_generation_activated,
+			'should_auto_queue_bulk_generation_entries'  => $ai4seo_should_auto_queue_bulk_generation_entries,
+			'has_enough_credits'                         => ( $ai4seo_current_credits_balance >= $ai4seo_metadata_credits_costs_per_post ),
+			'new_or_existing_filter'                     => $ai4seo_bulk_generation_new_or_existing_filter,
+			'new_or_existing_filter_reference_timestamp' => $ai4seo_bulk_generation_new_or_existing_filter_reference_timestamp,
+		)
+	);
+}
 
 if ( ! empty( $ai4seo_content_type_list_result['is_optimized'] ) ) {
 	// The optimized resolver returns row IDs, counts, and current-page status membership as one coherent snapshot.
 	$ai4seo_current_page                                   = (int) ( $ai4seo_content_type_list_result['current_page'] ?? $ai4seo_current_page );
-	$ai4seo_current_page_post_ids                          = array_values( array_map( 'intval', (array) ( $ai4seo_content_type_list_result['post_ids'] ?? array() ) ) );
+	$ai4seo_current_page_post_ids                          = ai4seo_filter_editable_post_ids( (array) ( $ai4seo_content_type_list_result['post_ids'] ?? array() ) );
 	$ai4seo_total_items                                    = (int) ( $ai4seo_content_type_list_result['total_items'] ?? 0 );
 	$ai4seo_total_pages                                    = (int) ( $ai4seo_content_type_list_result['total_pages'] ?? 1 );
 	$ai4seo_status_filter_counts                           = (array) ( $ai4seo_content_type_list_result['status_counts'] ?? array() );
@@ -227,7 +227,7 @@ if ( ! empty( $ai4seo_content_type_list_result['is_optimized'] ) ) {
 		);
 	}
 
-	$ai4seo_candidate_post_ids = array_values( array_unique( array_map( 'intval', (array) $ai4seo_candidate_post_ids ) ) );
+	$ai4seo_candidate_post_ids = ai4seo_filter_editable_post_ids( (array) $ai4seo_candidate_post_ids );
 	rsort( $ai4seo_candidate_post_ids, SORT_NUMERIC );
 	$ai4seo_candidate_post_ids = ai4seo_filter_post_ids_by_disabled_taxonomy_terms( $ai4seo_candidate_post_ids, $ai4seo_disabled_taxonomy_terms );
 	$ai4seo_candidate_post_ids = ai4seo_filter_post_ids_by_language( $ai4seo_candidate_post_ids, $ai4seo_filter_language );
@@ -478,7 +478,10 @@ if ( $ai4seo_should_show_retry_all_failed_metadata_generations_link || $ai4seo_s
 	echo '</div>';
 }
 		echo '</th>';
-		echo '<th></th>';
+		// Label the otherwise visual-only per-row action column for assistive technology.
+		echo '<th>';
+			echo "<span class='screen-reader-text'>" . esc_html__( 'Actions', 'ai-for-seo' ) . '</span>';
+		echo '</th>';
 	echo '</tr>';
 
 	// Loop through all posts.

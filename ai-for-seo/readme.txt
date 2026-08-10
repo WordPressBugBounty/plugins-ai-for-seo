@@ -4,17 +4,17 @@ Contributors: spacecodes
 Donate link: https://spa.ce.codes
 Requires at least: 6.6
 Tested up to: 7.0
-Stable tag: 2.4.2
+Stable tag: 2.4.3
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Lightweight SEO Autopilot that works with Yoast SEO, Rank Math, SEOPress, WooCommerce etc. to bulk-generate keyphrases, meta tags, alt text and more.
+SEO Autopilot that works with Yoast SEO, Rank Math, All in One SEO, WooCommerce etc. to bulk-generate keyphrases, meta tags, alt text and more.
 
 == Description ==
 *SOOZ - AI for SEO* is an **alt text & metadata bulk generator** with **SEO Autopilot**, optimize pages, posts, products, and images automatically. Built for WooCommerce SEO and high-volume sites.
 
-Sync generated focus keyphrases, meta titles, meta descriptions and social-media tags to your existing stack (Yoast SEO, Rank Math, SEOPress, and others). Use ‘Generate with SOOZ’ buttons where you work: Block Editor (Gutenberg), Media Library, Elementor, BeTheme’s BeBuilder, or the top admin bar. Think of *SOOZ - AI for SEO* as your SEO Copilot wherever you edit.
+Sync generated focus keyphrases, meta titles, meta descriptions and social-media tags to your existing stack (Yoast SEO, Rank Math, All in One SEO, and others). Use ‘Generate with SOOZ’ buttons where you work: Block Editor (Gutenberg), Media Library, Elementor, BeTheme’s BeBuilder, or the top admin bar. Think of *SOOZ - AI for SEO* as your SEO Copilot wherever you edit.
 
 Achieve better metadata and alt text results than with ChatGPT. *SOOZ - AI for SEO* understands your entire website and uses expertly crafted SEO prompts designed to drive real search traffic.
 
@@ -26,7 +26,7 @@ Achieve better metadata and alt text results than with ChatGPT. *SOOZ - AI for S
 
 = 🚀 How to Get Started =
 1. **Open the Dashboard:** Go to **SOOZ - AI for SEO** to view statistics about your current SEO coverage.
-2. **Sync with your SEO plugin (optional):** Go to **Settings** -> **Sync "SOOZ - AI for SEO" Changes** and select Yoast SEO, Rank Math, SEOPress, or another supported SEO plugin to keep your metadata updated.
+2. **Sync with your SEO plugin (optional):** Go to **Settings** -> **Sync "SOOZ - AI for SEO" Changes** and select Yoast SEO, Rank Math, All in One SEO, or another supported SEO plugin to keep your metadata updated.
 3. **Review your content:** Open **Pages**, **Posts**, **Products**, or **Media** and check the SEO status of your content.
 4. **Get a first win (optional):** Click the edit button for a specific page, post, product, or media entry. Then click **Generate with SOOZ** to see how the AI generates metadata and media attributes based on your content.
 5. **Set up Autopilot:** On your **SOOZ - AI for SEO** dashboard, click **Set up SEO Autopilot**, choose your content types such as Pages, Posts, Products, or Media, and start bulk generation.
@@ -53,7 +53,7 @@ You can also click the *SOOZ - AI for SEO* button in the top admin bar to open t
 ✅ **SEO Autopilot (bulk):** Automatically generate and refresh metadata for new and existing content.
 ✅ **Alt text & image attributes:** Create alt text, titles, captions, and descriptions site-wide (jpg/png/gif/webp/avif).
 ✅ **WooCommerce SEO:** Optimize product metadata to attract higher-intent buyers from search.
-✅ **Sync with your SEO plugin:** Keep metadata updated in Yoast SEO, Rank Math, SEOPress, and others.
+✅ **Sync with your SEO plugin:** Keep metadata updated in Yoast SEO, Rank Math, All in One SEO, and others.
 ✅ **Edit where you work:** "Generate with SOOZ" in the Block Editor (Gutenberg), Media Library, Elementor, BeBuilder, and Yoast SEO. An SEO Copilot embedded in your workflow.
 ✅ **Accessibility-ready:** Helps meet European Accessibility Act (EAA) requirements by automatically generating missing alt text for a more inclusive experience.
 ✅ **Progress tracking:** Monitor coverage and recent activity from the Dashboard.
@@ -72,7 +72,6 @@ See the list below for confirmed compatibility.
 ✅ Slim SEO
 ✅ Squirrly SEO
 ✅ The SEO Framework
-✅ Blog2Social
 ✅ SEOKEY
 ✅ WPML
 ✅ BeTheme
@@ -85,8 +84,12 @@ See the list below for confirmed compatibility.
 If your favorite plugin or theme isn’t listed, please email us the name, URL, and the fields you’d like to sync, we prioritize new compatibility based on demand: [support@sooz.ai](mailto:support@sooz.ai)
 Focus keyphrases and meta tags are automatically imported from Yoast SEO, Rank Math, and other supported plugins. You can review, modify, and regenerate this data at any time, then sync it back to your preferred SEO plugin.
 
-== Installation ==
+== August Special ==
+🎉 Get 30% off SOOZ credit packages and plans until August 31, 2026.
 
+Coupon code: `AUGUST30`
+
+== Installation ==
 Install like any other WordPress plugin.
 
 **Dashboard (search)**
@@ -109,9 +112,7 @@ wp plugin install ai-for-seo --activate
 **After activation**
 Open "SOOZ - AI for SEO" in the admin menu to view your SEO coverage and click "Set up SEO Autopilot" to start bulk generation.
 
-
 == Screenshots ==
-
 1. Dashboard (screenshot-1.jpg)
 2. Media page (screenshot-2.jpg)
 3. Metadata Editor (screenshot-3.jpg)
@@ -119,14 +120,12 @@ Open "SOOZ - AI for SEO" in the admin menu to view your SEO coverage and click "
 5. SEO Autopilot Setup (screenshot-5.jpg)
 6. Settings for SEO and Web Agencies (screenshot-6.jpg)
 
-
 == Frequently Asked Questions ==
-
 = Why should I add SEO titles, meta descriptions, and metadata to my website? =
 SEO metadata, including SEO titles and meta descriptions, helps search engines understand your pages and shape search snippets. Better snippets can improve visibility, clicks, visitors, leads, and sales.
 
 = Can I use *SOOZ - AI for SEO* with Yoast SEO, Rank Math, or another SEO plugin? =
-Yes. *SOOZ - AI for SEO* is compatible with major SEO plugins. Metadata generated by *SOOZ - AI for SEO* can be synchronized with Yoast SEO, Rank Math, SEOPress, All in One SEO, Slim SEO, SEO Simple Pack, Squirrly SEO, The SEO Framework, and Blog2Social, so your SEO title, meta description, and other fields can stay aligned with your preferred SEO tool.
+Yes. *SOOZ - AI for SEO* is compatible with major SEO plugins. Metadata generated by *SOOZ - AI for SEO* can be synchronized with Yoast SEO, Rank Math, All in One SEO, SEOPress, Slim SEO, SEO Simple Pack, Squirrly SEO, and The SEO Framework, so your SEO title, meta description, and other fields can stay aligned with your preferred SEO tool.
 
 = How do I control which meta tags *SOOZ - AI for SEO* outputs on the frontend? =
 Open Settings > Metadata and use "Active Meta Tags" to choose which SEO fields *SOOZ - AI for SEO* may output in the frontend header. Then use "Meta Tag Output Mode" to decide how *SOOZ - AI for SEO* handles existing tags from themes or SEO plugins. This lets you control SEO title, meta description, Open Graph, Twitter Card, and other tags, and helps avoid duplicate frontend meta tags when another SEO plugin is active.
@@ -217,12 +216,20 @@ Yes. In Settings, you can restrict plugin access by WordPress user role. Agencie
 Currently, Google's stance on the use of AI or automation in content creation is generally permissive, as indicated in a Google Developers blog post from February 2023. Google states that appropriate use of AI or automation is not against their guidelines. More information can be found at [https://developers.google.com/search/blog/2023/02/google-search-and-ai-content](https://developers.google.com/search/blog/2023/02/google-search-and-ai-content).
 
 = Will generated metadata or image attributes disappear if I uninstall *SOOZ - AI for SEO*? =
-It depends on how the generated data is stored and used. If *SOOZ - AI for SEO* synchronized generated metadata with a third-party SEO plugin such as Yoast SEO, Rank Math, or SEOPress, then that metadata remains after uninstalling *SOOZ - AI for SEO*. Saved image attributes, such as alt text, image titles, captions, and descriptions, are WordPress media fields and may also remain in the Media Library. If synchronization was not enabled and *SOOZ - AI for SEO* was solely responsible for frontend meta tag output, those tags will no longer be integrated after the plugin is deactivated or uninstalled.
+It depends on how the generated data is stored and used. If *SOOZ - AI for SEO* synchronized generated metadata with a third-party SEO plugin such as Yoast SEO, Rank Math, or All in One SEO, then that metadata remains after uninstalling *SOOZ - AI for SEO*. Saved image attributes, such as alt text, image titles, captions, and descriptions, are WordPress media fields and may also remain in the Media Library. If synchronization was not enabled and *SOOZ - AI for SEO* was solely responsible for frontend meta tag output, those tags will no longer be integrated after the plugin is deactivated or uninstalled.
 
 = Can you add support for another editor, page builder, or SEO feature? =
 We welcome feature requests, editor integration ideas, page builder compatibility requests, and SEO workflow feedback. Please email [support@sooz.ai](mailto:support@sooz.ai) with your suggestions.
 
 == Changelog ==
+
+= 2.4.3 =
+* Improved third-party SEO workflows with embedded generation controls, two-way metadata synchronization where supported, template-aware values, and live editor refreshes across Yoast SEO, Rank Math, All in One SEO, SEOPress, Slim SEO, SEO Simple Pack, Squirrly SEO, The SEO Framework, and SEOKEY.
+* Improved metadata generation accuracy for Gutenberg and builder-driven pages by analyzing visible local content and avoiding unrelated fallback text on sparse or structural pages.
+* Strengthened role-based access so permitted editors can generate and manage metadata or media attributes only for content they are allowed to edit.
+* Improved metadata editor usability with live length guidance, missing-keyphrase warnings, clearer accessible actions and navigation, and more reliable saved-state feedback.
+* Removed the legacy Blog2Social integration from the supported compatibility list.
+* Bug Fixes & Maintenance: Fixed 6 minor bugs and addressed 2 security issues.
 
 = 2.4.2 =
 * Improved media attribute generation reliability by automatically recovering with direct image data when a remote image URL cannot be accessed.

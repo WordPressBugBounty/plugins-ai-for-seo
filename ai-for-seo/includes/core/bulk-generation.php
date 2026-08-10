@@ -691,11 +691,36 @@ function ai4seo_process_related_attachment_bulk_generation_queue_action( string 
 		}
 	}
 
-	$related_attachment_post_ids    = array_values( $related_attachment_post_id_lookup );
-	$result['related_images_found'] = count( $related_attachment_post_ids );
+	$discovered_related_attachment_post_ids = array_values( $related_attachment_post_id_lookup );
+	$result['related_images_found']          = count( $discovered_related_attachment_post_ids );
+
+	// Source-post access does not grant access to media owned by another user, so authorize every discovered target.
+	$related_attachment_post_ids = ai4seo_filter_editable_post_ids( $discovered_related_attachment_post_ids );
+	$editable_attachment_lookup  = array_fill_keys( $related_attachment_post_ids, true );
+
+	// Keep fallback ownership groups aligned with the authorized attachment set before any postmeta write occurs.
+	foreach ( $related_attachment_post_ids_by_source_post_id as $this_source_post_id => $this_related_attachment_post_ids ) {
+		$this_related_attachment_post_ids = array_values(
+			array_filter(
+				$this_related_attachment_post_ids,
+				function ( int $attachment_post_id ) use ( $editable_attachment_lookup ): bool {
+					return isset( $editable_attachment_lookup[ $attachment_post_id ] );
+				}
+			)
+		);
+
+		if ( $this_related_attachment_post_ids ) {
+			$related_attachment_post_ids_by_source_post_id[ $this_source_post_id ] = $this_related_attachment_post_ids;
+			continue;
+		}
+
+		unset( $related_attachment_post_ids_by_source_post_id[ $this_source_post_id ] );
+	}
 
 	if ( ! $related_attachment_post_ids ) {
-		$result['queue_count'] = ai4seo_get_bulk_generation_queue_count();
+		$result['related_images_skipped'] = $result['related_images_found'];
+		$result['skipped']                = $result['related_images_skipped'];
+		$result['queue_count']            = ai4seo_get_bulk_generation_queue_count();
 		return $result;
 	}
 

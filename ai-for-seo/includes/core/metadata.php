@@ -902,11 +902,6 @@ function ai4seo_read_third_party_seo_plugin_metadata_by_post_ids( $third_party_p
 		return ai4seo_read_slim_seo_metadata_by_post_ids( $post_ids );
 	}
 
-	// workaround for Blog2Social.
-	if ( AI4SEO_THIRD_PARTY_PLUGIN_BLOG2SOCIAL === $third_party_plugin_name ) {
-		return ai4seo_read_blog2social_metadata_by_post_ids( $post_ids );
-	}
-
 	// workaround for Squirrly SEO.
 	if ( AI4SEO_THIRD_PARTY_PLUGIN_SQUIRRLY_SEO === $third_party_plugin_name ) {
 		return ai4seo_read_squirrly_seo_metadata_by_post_ids( $post_ids );
@@ -1052,70 +1047,21 @@ function ai4seo_read_slim_seo_metadata_by_post_ids( array $post_ids ): array {
 // =========================================================================================== \\
 
 /**
- * Function to read the post's metadata for the Blog2Social plugin from specific posts by the given post ids
+ * Returns the shared mapping between SOOZ identifiers and Squirrly's serialized SEO keys.
  *
- * @param array $post_ids of post ids (all int).
- * @return array the metadata by post-ids, using metadata-identifier keys
+ * @return array<string, string> Squirrly keys indexed by SOOZ metadata identifier.
  */
-function ai4seo_read_blog2social_metadata_by_post_ids( array $post_ids ): array {
-	// check postmeta "_b2s_post_meta". It's serialized with keys "og_title", "og_desc", "card_title" and "card_desc".
-	$metadata_identifier_mapping = array(
+function ai4seo_get_squirrly_seo_metadata_identifier_mapping(): array {
+	// Keep custom-table reads and writes on the same serialized Squirrly keys.
+	return array(
+		'meta-title'           => 'title',
+		'meta-description'     => 'description',
+		'keywords'             => 'keywords',
 		'facebook-title'       => 'og_title',
-		'facebook-description' => 'og_desc',
-		'twitter-title'        => 'card_title',
-		'twitter-description'  => 'card_desc',
+		'facebook-description' => 'og_description',
+		'twitter-title'        => 'tw_title',
+		'twitter-description'  => 'tw_description',
 	);
-
-	// read postmeta entries.
-	global $wpdb;
-
-	// reorder results, to make post_id the 2d key, then the meta_keys the 1d key and meta_value the value
-	// also skip entries with empty meta_value.
-	$third_party_plugins_metadata = array();
-
-	$database_chunk_size = ai4seo_get_database_chunk_size();
-	$post_ids_chunks     = array_chunk( $post_ids, $database_chunk_size );
-
-	foreach ( $post_ids_chunks as $this_post_ids_chunk ) {
-		if ( empty( $this_post_ids_chunk ) ) {
-			continue;
-		}
-
-		$this_post_ids_placeholders = implode( ',', array_fill( 0, count( $this_post_ids_chunk ), '%d' ) );
-
-		$query_results = $wpdb->get_results(
-			$wpdb->prepare(
-				"SELECT * FROM {$wpdb->postmeta} WHERE meta_key = %s AND post_id IN ({$this_post_ids_placeholders})",
-				...array_merge( array( '_b2s_post_meta' ), $this_post_ids_chunk )
-			),
-			ARRAY_A
-		);
-
-		// on error.
-		if ( $wpdb->last_error ) {
-			ai4seo_debug_message( 984321659, 'Database error: ' . $wpdb->last_error, true );
-			return array();
-		}
-
-		if ( ! $query_results ) {
-			continue;
-		}
-
-		foreach ( $query_results as $query_result ) {
-			$this_post_id  = (int) $query_result['post_id'];
-			$this_metadata = maybe_unserialize( $query_result['meta_value'] );
-
-			if ( ! $this_metadata ) {
-				continue;
-			}
-
-			foreach ( $metadata_identifier_mapping as $this_metadata_identifier => $this_third_party_plugin_key ) {
-				$third_party_plugins_metadata[ $this_post_id ][ $this_metadata_identifier ] = $this_metadata[ $this_third_party_plugin_key ] ?? '';
-			}
-		}
-	}
-
-	return $third_party_plugins_metadata;
 }
 
 // =========================================================================================== \\
@@ -1127,15 +1073,8 @@ function ai4seo_read_blog2social_metadata_by_post_ids( array $post_ids ): array 
  * @return array the metadata by post-ids, using metadata-identifier keys
  */
 function ai4seo_read_squirrly_seo_metadata_by_post_ids( array $post_ids ): array {
-	// check table "wp_qss" -> column "seo". It's serialized with keys "title", "description", "og_title", "og_description", "tw_title", "tw_description".
-	$metadata_identifier_mapping = array(
-		'meta-title'           => 'title',
-		'meta-description'     => 'description',
-		'facebook-title'       => 'og_title',
-		'facebook-description' => 'og_description',
-		'twitter-title'        => 'tw_title',
-		'twitter-description'  => 'tw_description',
-	);
+	// Check the prefixed qss table's serialized seo column for search, keyword, Open Graph, and Twitter values.
+	$metadata_identifier_mapping = ai4seo_get_squirrly_seo_metadata_identifier_mapping();
 
 	// read column "seo" in table "wp_qss".
 	global $wpdb;
@@ -1190,10 +1129,13 @@ function ai4seo_read_squirrly_seo_metadata_by_post_ids( array $post_ids ): array
 			}
 
 			if ( $post_id ) {
-				// Deserialize the SEO value.
+				// Deserialize the SEO value without allowing malformed nested data to instantiate PHP objects.
 				$this_posts_current_squirrly_values = maybe_unserialize( $result->seo );
-				if ( is_string( $this_posts_current_squirrly_values ) ) {
-					$this_posts_current_squirrly_values = unserialize( $this_posts_current_squirrly_values );
+				if ( is_string( $this_posts_current_squirrly_values ) && is_serialized( $this_posts_current_squirrly_values ) ) {
+					$this_posts_current_squirrly_values = unserialize(
+						$this_posts_current_squirrly_values,
+						array( 'allowed_classes' => false )
+					);
 				}
 
 				// Store the result for the post ID.
@@ -1222,14 +1164,12 @@ function ai4seo_read_squirrly_seo_metadata_by_post_ids( array $post_ids ): array
 // =========================================================================================== \\
 
 /**
- * Function to read the post's metadata for the All in One SEO plugin from specific posts by the given post ids
+ * Returns the shared mapping between SOOZ identifiers and AIOSEO table columns.
  *
- * @param array $post_ids of post ids (all int).
- * @return array the metadata by post-ids, using metadata-identifier keys
+ * @return array<string, string> AIOSEO column names indexed by SOOZ metadata identifier.
  */
-function ai4seo_read_all_in_one_seo_metadata_by_post_ids( array $post_ids ): array {
-	// check table "wp_aioseo_posts" for the post id. Columns are "title", "description", "og_title", "og_description", "twitter_title", "twitter_description".
-	$metadata_identifier_mapping = array(
+function ai4seo_get_all_in_one_seo_metadata_identifier_mapping(): array {
+	return array(
 		'meta-title'           => 'title',
 		'meta-description'     => 'description',
 		'facebook-title'       => 'og_title',
@@ -1237,14 +1177,26 @@ function ai4seo_read_all_in_one_seo_metadata_by_post_ids( array $post_ids ): arr
 		'twitter-title'        => 'twitter_title',
 		'twitter-description'  => 'twitter_description',
 	);
+}
+
+// =========================================================================================== \\
+
+/**
+ * Reads AIOSEO metadata for the requested posts from its canonical table.
+ *
+ * @param array $post_ids Post IDs.
+ * @return array Metadata by post ID, using SOOZ metadata identifiers.
+ */
+function ai4seo_read_all_in_one_seo_metadata_by_post_ids( array $post_ids ): array {
+	// Reuse the write-path allowlist so table reads and writes cannot drift to different columns.
+	$metadata_identifier_mapping = ai4seo_get_all_in_one_seo_metadata_identifier_mapping();
 
 	$post_ids = ai4seo_deep_sanitize( $post_ids, 'absint' );
 
-	// read entries.
+	// Read mapped fields directly from AIOSEO's canonical table.
 	global $wpdb;
 
-	// reorder results, to make post_id the 2d key, then the meta_keys the 1d key and meta_value the value
-	// also skip entries with empty meta_value.
+	// Collect mapped metadata identifiers under their owning post IDs.
 	$third_party_seo_plugins_metadata = array();
 
 	$database_chunk_size = ai4seo_get_database_chunk_size();
@@ -1972,17 +1924,24 @@ function ai4seo_get_editor_field_sooz_source_details( int $generated_at = 0, boo
 // =========================================================================================== \\
 
 /**
- * Builds source details for an imported third-party SEO editor field value.
+ * Builds source details for a third-party SEO editor field value.
  *
  * @param string $plugin_name The third-party plugin name.
  * @param bool   $was_changed_by_user Whether the active value differs from the imported value.
+ * @param bool   $is_live_editor_value Whether the value came from the plugin's current unsaved editor state.
  * @return array
  */
-function ai4seo_get_editor_field_third_party_source_details( string $plugin_name, bool $was_changed_by_user = false ): array {
+function ai4seo_get_editor_field_third_party_source_details(
+	string $plugin_name,
+	bool $was_changed_by_user = false,
+	bool $is_live_editor_value = false
+): array {
+	// Keep persisted-import and live-editor provenance in one shape for the shared source-message renderer.
 	return array(
-		'source_type'         => 'third_party_seo_plugin',
-		'plugin_name'         => sanitize_text_field( $plugin_name ),
-		'was_changed_by_user' => $was_changed_by_user,
+		'source_type'          => 'third_party_seo_plugin',
+		'plugin_name'          => sanitize_text_field( $plugin_name ),
+		'was_changed_by_user'  => $was_changed_by_user,
+		'is_live_editor_value' => $is_live_editor_value,
 	);
 }
 
@@ -2109,15 +2068,136 @@ function ai4seo_read_attachment_attributes_editor_source_details( int $attachmen
 // =========================================================================================== \\
 
 /**
+ * Normalizes a postmeta value for comparisons against WordPress read-back values.
+ *
+ * @param mixed $meta_value Metadata value.
+ * @return string
+ */
+function ai4seo_normalize_post_meta_value_for_comparison( $meta_value ): string {
+	// WordPress returns scalar postmeta as strings and unserializes supported complex values.
+	if ( is_scalar( $meta_value ) || null === $meta_value ) {
+		return (string) $meta_value;
+	}
+
+	return maybe_serialize( $meta_value );
+}
+
+// =========================================================================================== \\
+
+/**
+ * Checks whether a postmeta update reached its requested effective state.
+ *
+ * @param int    $post_id              Post ID used by update_post_meta().
+ * @param string $meta_key             Metadata key.
+ * @param mixed  $meta_value           Requested metadata value before slashing.
+ * @param mixed  $prev_value           Optional previous value constraint.
+ * @param array  $previous_meta_values Values read before a constrained update.
+ * @return bool
+ */
+function ai4seo_did_post_meta_update_reach_requested_state(
+	int $post_id,
+	string $meta_key,
+	$meta_value,
+	$prev_value = '',
+	array $previous_meta_values = array()
+): bool {
+	// Match update_post_meta() by evaluating revision writes against their parent post.
+	$revision_parent_post_id = wp_is_post_revision( $post_id );
+
+	if ( $revision_parent_post_id ) {
+		$post_id = absint( $revision_parent_post_id );
+	}
+
+	// Bypass any value cached before the failed/short-circuited write when verifying effective storage.
+	wp_cache_delete( $post_id, 'post_meta' );
+
+	// Compare against the value after the same metadata sanitization WordPress applies during persistence.
+	$meta_key            = wp_unslash( $meta_key );
+	$meta_subtype        = get_object_subtype( 'post', $post_id );
+	$expected_meta_value = sanitize_meta( $meta_key, $meta_value, 'post', $meta_subtype );
+	$expected_comparison = ai4seo_normalize_post_meta_value_for_comparison( $expected_meta_value );
+	$latest_meta_values   = get_post_meta( $post_id, $meta_key, false );
+	$latest_meta_values   = is_array( $latest_meta_values ) ? $latest_meta_values : array();
+	$matching_value_count = 0;
+
+	// An unconstrained update must align every duplicate row, not merely find one matching row.
+	foreach ( $latest_meta_values as $latest_meta_value ) {
+		$latest_comparison = ai4seo_normalize_post_meta_value_for_comparison( $latest_meta_value );
+
+		if ( $expected_comparison === $latest_comparison ) {
+			$matching_value_count++;
+		}
+	}
+
+	// An absent key and an empty requested value have the same effective WordPress metadata value.
+	if ( ! $latest_meta_values ) {
+		return '' === $expected_comparison;
+	}
+
+	// Without a previous-value constraint, update_post_meta() targets every row for this key.
+	if ( '' === $prev_value ) {
+		return count( $latest_meta_values ) === $matching_value_count;
+	}
+
+	// A constrained update becomes an insert when no metadata row existed before the request.
+	if ( ! $previous_meta_values ) {
+		return $matching_value_count > 0;
+	}
+
+	// Constrained updates must account for every previously eligible duplicate row.
+	$expected_previous_meta_value  = sanitize_meta( $meta_key, $prev_value, 'post', $meta_subtype );
+	$previous_comparison           = ai4seo_normalize_post_meta_value_for_comparison( $expected_previous_meta_value );
+	$previous_target_value_count   = 0;
+	$previous_expected_value_count = 0;
+
+	foreach ( $previous_meta_values as $previous_meta_value ) {
+		$this_previous_comparison = ai4seo_normalize_post_meta_value_for_comparison( $previous_meta_value );
+
+		if ( $previous_comparison === $this_previous_comparison ) {
+			$previous_target_value_count++;
+		}
+
+		if ( $expected_comparison === $this_previous_comparison ) {
+			$previous_expected_value_count++;
+		}
+	}
+
+	// Existing rows with no matching previous value mean WordPress had nothing eligible to update.
+	if ( 0 === $previous_target_value_count ) {
+		return false;
+	}
+
+	// A same-value constrained update succeeds only while every previously matching row remains present.
+	if ( $expected_comparison === $previous_comparison ) {
+		return $matching_value_count >= $previous_expected_value_count;
+	}
+
+	$latest_previous_value_count = 0;
+
+	foreach ( $latest_meta_values as $latest_meta_value ) {
+		$latest_comparison = ai4seo_normalize_post_meta_value_for_comparison( $latest_meta_value );
+
+		if ( $previous_comparison === $latest_comparison ) {
+			$latest_previous_value_count++;
+		}
+	}
+
+	// Every targeted row must disappear and contribute a corresponding requested-value row.
+	return 0 === $latest_previous_value_count
+		&& $matching_value_count >= ( $previous_expected_value_count + $previous_target_value_count );
+}
+
+// =========================================================================================== \\
+
+/**
  * Safer wrapper for update_post_meta(). Same parameters and order.
- * Returns true on success, false on failure or when nothing changed and WP reports failure.
  *
  * @param int    $post_id     Post ID.
  * @param string $meta_key    Metadata key.
  * @param mixed  $meta_value  Metadata value. Can be any serializable type.
  * @param mixed  $prev_value  Optional. Previous value to check before updating.
  *
- * @return bool True if meta updated/inserted successfully and no DB error occurred. False otherwise.
+ * @return bool True when the requested state was persisted or was already effective. False otherwise.
  */
 function ai4seo_update_post_meta( int $post_id, string $meta_key, $meta_value, $prev_value = '' ): bool {
 	// Basic validation to avoid useless DB calls.
@@ -2132,30 +2212,63 @@ function ai4seo_update_post_meta( int $post_id, string $meta_key, $meta_value, $
 		return false;
 	}
 
-	global $wpdb;
+	// Resolve revisions before capturing previous values so read-back checks use WordPress's actual target.
+	$revision_parent_post_id = wp_is_post_revision( $post_id );
 
-	// Capture and suppress low-level DB errors for a clean boolean outcome.
-	$previous_suppress = $wpdb->suppress_errors( true );
-	$wpdb->last_error  = ''; // reset before operation.
-
-	// slash the value for update_post_meta.
-	$meta_value = wp_slash( $meta_value );
-
-	// Perform to write.
-	$result = update_post_meta( $post_id, $meta_key, $meta_value, $prev_value );
-
-	// Read-only or failed write surfaces here.
-	$had_error = ! empty( $wpdb->last_error );
-
-	// Restore previous error handling.
-	$wpdb->suppress_errors( $previous_suppress );
-
-	if ( $had_error ) {
-		ai4seo_debug_message( 984321662, 'Database error during update_post_meta: ' . $wpdb->last_error, true );
+	if ( $revision_parent_post_id ) {
+		$post_id = absint( $revision_parent_post_id );
 	}
 
-	// Return true only if no DB error occurred.
-	return ( ! $had_error );
+	global $wpdb;
+
+	// Preserve pre-write rows only when a previous-value constraint affects which duplicates are eligible.
+	$previous_meta_values = array();
+
+	if ( '' !== $prev_value ) {
+		$previous_meta_values = get_post_meta( $post_id, $meta_key, false );
+
+		if ( ! is_array( $previous_meta_values ) ) {
+			$previous_meta_values = array();
+		}
+	}
+
+	// Retain the unslashed request because the WordPress call receives a separately slashed value below.
+	$requested_meta_value = $meta_value;
+
+	// Capture and suppress low-level DB errors for a clean boolean outcome.
+	$previous_suppress_errors = $wpdb->suppress_errors( true );
+
+	// Ignore stale errors from earlier queries when classifying this specific metadata operation.
+	$wpdb->last_error = '';
+
+	// Slash the value for update_post_meta().
+	$meta_value = wp_slash( $meta_value );
+
+	// Delegate the write to WordPress so metadata filters and short-circuits remain authoritative.
+	$update_result = update_post_meta( $post_id, $meta_key, $meta_value, $prev_value );
+
+	// Capture the operation error before restoring the caller's database error-display preference.
+	$database_error_occurred = ! empty( $wpdb->last_error );
+
+	$wpdb->suppress_errors( $previous_suppress_errors );
+
+	if ( $database_error_occurred ) {
+		ai4seo_debug_message( 984321662, 'Database error during update_post_meta: ' . $wpdb->last_error, true );
+		return false;
+	}
+
+	if ( false !== $update_result ) {
+		return true;
+	}
+
+	// WordPress also returns false for unchanged values, so verify the effective state before reporting failure.
+	return ai4seo_did_post_meta_update_reach_requested_state(
+		$post_id,
+		$meta_key,
+		$requested_meta_value,
+		$prev_value,
+		$previous_meta_values
+	);
 }
 
 // =========================================================================================== \\
@@ -2617,14 +2730,28 @@ function ai4seo_prepare_generated_output_fields_for_save(
 // =========================================================================================== \\
 
 /**
- * Updates the currently active metadata for a post. Also applies the changes to the third party seo plugins postmeta (table) meta keys
+ * Updates active metadata and synchronizes configured third-party SEO integrations.
  *
- * @param int   $post_id the post id.
- * @param array $metadata_updates the updates.
- * @param bool  $overwrite_existing_data if true, existing data will be overwritten, if false, we check the settings to identify the metadata fields that should be overwritten.
- * @return boolean true on success, false on failure
+ * @param int        $post_id                 Post ID.
+ * @param array      $metadata_updates        Metadata updates.
+ * @param bool       $overwrite_existing_data Whether existing data should be overwritten.
+ * @param array|null $operation_details       Optional detailed persistence result populated by reference.
+ * @return bool True on complete success, false on SOOZ or third-party persistence failure.
  */
-function ai4seo_update_active_metadata( int $post_id, array $metadata_updates, bool $overwrite_existing_data = false ): bool {
+function ai4seo_update_active_metadata(
+	int $post_id,
+	array $metadata_updates,
+	bool $overwrite_existing_data = false,
+	?array &$operation_details = null
+): bool {
+	// Initialize details before guard clauses so callers always receive the complete result shape.
+	$operation_details = array(
+		'overall_succeeded'          => false,
+		'active_metadata_succeeded'  => false,
+		'third_party_sync_succeeded' => true,
+		'failed_third_party_syncs'   => array(),
+	);
+
 	if ( ! defined( 'AI4SEO_METADATA_DETAILS' ) ) {
 		return false;
 	}
@@ -2634,25 +2761,28 @@ function ai4seo_update_active_metadata( int $post_id, array $metadata_updates, b
 		return false;
 	}
 
-	// sanitize everything.
+	// Apply the same editor normalization contract to manual and generated metadata values.
 	$metadata_updates = ai4seo_deep_sanitize( $metadata_updates, 'ai4seo_sanitize_editor_field_value' );
 
-	// handle specific overwrite existing data instruction.
-	$overwrite_existing_data_metadata_names = array();
+	// Non-forced saves use the field allowlist to decide which existing values may be replaced.
+	$metadata_identifiers_to_overwrite = array();
 
 	if ( ! $overwrite_existing_data ) {
-		$overwrite_existing_data_metadata_names = ai4seo_get_setting( AI4SEO_SETTING_OVERWRITE_EXISTING_METADATA );
+		$metadata_identifiers_to_overwrite = ai4seo_get_setting( AI4SEO_SETTING_OVERWRITE_EXISTING_METADATA );
 
-		if ( ! is_array( $overwrite_existing_data_metadata_names ) ) {
-			$overwrite_existing_data_metadata_names = array();
+		if ( ! is_array( $metadata_identifiers_to_overwrite ) ) {
+			$metadata_identifiers_to_overwrite = array();
 		}
 	}
 
-	$overall_success                  = true;
-	$current_active_metadata          = ai4seo_read_active_metadata_from_post_meta( $post_id, false );
-	$did_merge_legacy_active_metadata = false;
-	$active_metadata_updates_to_save  = array();
+	// Track integration and SOOZ outcomes independently until both persistence paths have completed.
+	$third_party_sync_succeeded               = true;
+	$third_party_sync_reached_requested_state = false;
+	$current_active_metadata                  = ai4seo_read_active_metadata_from_post_meta( $post_id, false );
+	$did_merge_legacy_active_metadata         = false;
+	$active_metadata_updates_to_save          = array();
 
+	// Until migration finishes, merge missing legacy values into the same atomic SOOZ JSON write.
 	if ( ! ai4seo_is_active_metadata_migration_v235_completed() ) {
 		$legacy_active_metadata_by_post_ids = ai4seo_read_legacy_active_metadata_by_post_ids( array( $post_id ) );
 		$legacy_active_metadata             = $legacy_active_metadata_by_post_ids[ $post_id ] ?? array();
@@ -2670,427 +2800,682 @@ function ai4seo_update_active_metadata( int $post_id, array $metadata_updates, b
 
 	$should_save_own_metadata = $did_merge_legacy_active_metadata;
 
-	// go through $ai4seo_metadata_fields_details, find corresponding api-identifier and add the data to the post meta.
+	// Process only registered metadata so API aliases, field limits, and integration mappings remain centralized.
 	foreach ( AI4SEO_METADATA_DETAILS as $this_metadata_identifier => $this_metadata_details ) {
 		$this_api_identifier = $this_metadata_details['api-identifier'];
 
 		if ( isset( $metadata_updates[ $this_metadata_identifier ] ) ) {
-			$this_new_metadata_content = $metadata_updates[ $this_metadata_identifier ];
+			$this_new_metadata_value = $metadata_updates[ $this_metadata_identifier ];
 		} elseif ( isset( $metadata_updates[ $this_api_identifier ] ) ) {
-			// workaround: also check the api identifier for this metadata, as the api sends facebook-title as social-media-title etc.
-			// Should be fixed since 2.0.2, we keep this in case the user got old generated data prior to 2.0.2.
-			$this_new_metadata_content = $metadata_updates[ $this_api_identifier ];
+			// Preserve API-identifier compatibility for metadata generated by historical plugin versions.
+			$this_new_metadata_value = $metadata_updates[ $this_api_identifier ];
 		} else {
 			continue;
 		}
 
-		// make sure to respect max length.
-		$this_new_metadata_content = ai4seo_normalize_editor_input_value( $this_new_metadata_content );
-		$this_max_length           = ai4seo_get_max_editor_input_length( $this_metadata_identifier );
-		$this_new_metadata_content = ai4seo_trim_string_to_length( $this_new_metadata_content, $this_max_length );
+		// Normalize and cap values before either persistence path receives them.
+		$this_new_metadata_value = ai4seo_normalize_editor_input_value( $this_new_metadata_value );
+		$this_max_length         = ai4seo_get_max_editor_input_length( $this_metadata_identifier );
+		$this_new_metadata_value = ai4seo_trim_string_to_length( $this_new_metadata_value, $this_max_length );
 
-		// do we overwrite this particular metadata field?
+		// Resolve field-level overwrite intent once and share it with SOOZ and every integration.
 		if ( true === $overwrite_existing_data ) {
 			$overwrite_this_metadata_field = true;
 		} else {
-			$overwrite_this_metadata_field = in_array( $this_metadata_identifier, $overwrite_existing_data_metadata_names, true );
+			$overwrite_this_metadata_field = in_array( $this_metadata_identifier, $metadata_identifiers_to_overwrite, true );
 		}
 
-		// update third party seo plugins metadata and get a hint if we should skip to update our own metadata, when we
-		// do not overwrite third-party seo plugins data AND there is existing data already.
-		$we_should_not_save_our_own_metadata = ai4seo_update_third_party_seo_plugins_metadata( $post_id, $this_metadata_identifier, $this_new_metadata_content, $overwrite_this_metadata_field );
+		// Synchronize integrations first because an intentional non-overwrite skip controls SOOZ precedence.
+		$this_third_party_sync_result = ai4seo_update_third_party_seo_plugins_metadata(
+			$post_id,
+			$this_metadata_identifier,
+			$this_new_metadata_value,
+			$overwrite_this_metadata_field
+		);
 
-		if ( $we_should_not_save_our_own_metadata ) {
+		// Remember any successful integration write so the frontend cache is purged once after the loop.
+		if ( $this_third_party_sync_result['sync_reached_requested_state'] ) {
+			$third_party_sync_reached_requested_state = true;
+		}
+
+		// Aggregate plugin and field failures for retryable caller-facing diagnostics.
+		if ( ! $this_third_party_sync_result['sync_succeeded'] ) {
+			$third_party_sync_succeeded = false;
+
+			foreach ( $this_third_party_sync_result['failed_plugin_identifiers'] as $failed_plugin_identifier ) {
+				if ( ! isset( $operation_details['failed_third_party_syncs'][ $failed_plugin_identifier ] ) ) {
+					$operation_details['failed_third_party_syncs'][ $failed_plugin_identifier ] = array();
+				}
+
+				$operation_details['failed_third_party_syncs'][ $failed_plugin_identifier ][] = $this_metadata_identifier;
+			}
+		}
+
+		// Preserve existing third-party precedence when non-overwrite mode encountered populated data.
+		if ( $this_third_party_sync_result['skip_own_metadata'] ) {
 			continue;
 		}
 
+		// Queue the SOOZ value only when overwrite rules permit replacing its current value.
 		if ( $overwrite_this_metadata_field ) {
-			$current_active_metadata[ $this_metadata_identifier ]         = $this_new_metadata_content;
-			$active_metadata_updates_to_save[ $this_metadata_identifier ] = $this_new_metadata_content;
+			$current_active_metadata[ $this_metadata_identifier ]         = $this_new_metadata_value;
+			$active_metadata_updates_to_save[ $this_metadata_identifier ] = $this_new_metadata_value;
 			$should_save_own_metadata                                     = true;
 		} else {
-			$this_current_metadata_content = $current_active_metadata[ $this_metadata_identifier ] ?? '';
+			$this_current_metadata_value = $current_active_metadata[ $this_metadata_identifier ] ?? '';
 
-			if ( $this_current_metadata_content ) {
+			if ( $this_current_metadata_value ) {
 				continue;
 			}
 
-			$current_active_metadata[ $this_metadata_identifier ]         = $this_new_metadata_content;
-			$active_metadata_updates_to_save[ $this_metadata_identifier ] = $this_new_metadata_content;
+			$current_active_metadata[ $this_metadata_identifier ]         = $this_new_metadata_value;
+			$active_metadata_updates_to_save[ $this_metadata_identifier ] = $this_new_metadata_value;
 			$should_save_own_metadata                                     = true;
 		}
 	}
 
-	if ( $should_save_own_metadata ) {
-		$overall_success = ai4seo_save_active_metadata_to_postmeta( $post_id, $active_metadata_updates_to_save );
+	// A no-op is successful; actual writes replace these defaults with their observed outcomes.
+	$active_metadata_succeeded                 = true;
+	$legacy_active_metadata_cleanup_succeeded = true;
 
-		if ( $overall_success ) {
-			$overall_success = ai4seo_delete_legacy_active_metadata_for_post_ids( array( $post_id ) );
+	if ( $should_save_own_metadata ) {
+		$active_metadata_succeeded = ai4seo_save_active_metadata_to_postmeta( $post_id, $active_metadata_updates_to_save );
+
+		if ( $active_metadata_succeeded ) {
+			$legacy_active_metadata_cleanup_succeeded = ai4seo_delete_legacy_active_metadata_for_post_ids( array( $post_id ) );
 		}
 	}
 
-	// purge cache if we had success.
-	if ( $overall_success ) {
-		// try purge cache.
+	// Expose persistence separately from integration synchronization while retaining the legacy Boolean return.
+	$operation_details['active_metadata_succeeded']  = $active_metadata_succeeded;
+	$operation_details['third_party_sync_succeeded'] = $third_party_sync_succeeded;
+
+	foreach ( $operation_details['failed_third_party_syncs'] as $failed_plugin_identifier => $failed_metadata_identifiers ) {
+		$operation_details['failed_third_party_syncs'][ $failed_plugin_identifier ] = array_values( array_unique( $failed_metadata_identifiers ) );
+	}
+
+	$operation_details['overall_succeeded'] = $active_metadata_succeeded && $legacy_active_metadata_cleanup_succeeded && $third_party_sync_succeeded;
+
+	// Purge once when SOOZ persisted or any third-party target reached the requested state.
+	if ( ( $should_save_own_metadata && $active_metadata_succeeded ) || $third_party_sync_reached_requested_state ) {
+		// Cache integrations are optional, so their exceptions must not change persistence results.
 		try {
 			ai4seo_purge_frontend_cache_for_post( $post_id );
 		} catch ( Exception $e ) {
-			// do nothing.
+			// Continue with the already-determined persistence result.
 		}
 	}
 
-	return $overall_success;
+	return $operation_details['overall_succeeded'];
 }
 
 // =========================================================================================== \\
 
 /**
- * Updates the metadata for a post in the third party seo plugins postmeta (table) meta keys and if we do not overwrite
- * AND there is existing data already in one of the third party seo plugins.
- * We return true to indicate that we should not save our own metadata for this field.
+ * Builds the shared result contract used by every third-party metadata writer.
  *
- * @param int    $post_id                 The post id.
- * @param string $metadata_identifier     The metadata identifier.
- * @param string $metadata_value          The metadata value.
- * @param bool   $overwrite_existing_data Whether existing data should be overwritten.
- * @return bool If we do not overwrite and there is existing data already.
+ * @param bool $write_attempted                Whether a persistence operation was attempted.
+ * @param bool $write_succeeded                Whether every requested persistence state was reached.
+ * @param bool $skipped_existing               Whether an existing value intentionally prevented a write.
+ * @param bool $write_reached_requested_state  Whether at least one attempted persistence target reached its state.
+ * @return array{write_attempted: bool, write_succeeded: bool, skipped_existing: bool, write_reached_requested_state: bool}
  */
-function ai4seo_update_third_party_seo_plugins_metadata( int $post_id, string $metadata_identifier, string $metadata_value, bool $overwrite_existing_data ): bool {
+function ai4seo_build_third_party_seo_plugin_metadata_write_result(
+	bool $write_attempted = false,
+	bool $write_succeeded = false,
+	bool $skipped_existing = false,
+	bool $write_reached_requested_state = false
+): array {
+	// Keeping construction centralized prevents integration-specific result shapes from drifting apart.
+	return array(
+		'write_attempted'               => $write_attempted,
+		'write_succeeded'               => $write_succeeded,
+		'skipped_existing'              => $skipped_existing,
+		'write_reached_requested_state' => $write_reached_requested_state,
+	);
+}
+
+// =========================================================================================== \\
+
+/**
+ * Updates one selected third-party SEO plugin and reports the write outcome.
+ *
+ * @param int    $post_id                           Post ID.
+ * @param string $third_party_seo_plugin_identifier Plugin identifier.
+ * @param array  $third_party_seo_plugin_details    Plugin registry details.
+ * @param string $metadata_identifier               Metadata identifier.
+ * @param string $metadata_value                    Metadata value.
+ * @param bool   $overwrite_existing_data           Whether existing data should be overwritten.
+ * @return array{write_attempted: bool, write_succeeded: bool, skipped_existing: bool, write_reached_requested_state: bool}
+ */
+function ai4seo_update_one_third_party_seo_plugin_metadata(
+	int $post_id,
+	string $third_party_seo_plugin_identifier,
+	array $third_party_seo_plugin_details,
+	string $metadata_identifier,
+	string $metadata_value,
+	bool $overwrite_existing_data
+): array {
+	// Unsupported mappings start as non-attempted failures and are upgraded only by an explicit skip or write.
+	$write_result = ai4seo_build_third_party_seo_plugin_metadata_write_result();
+	$only_if_empty = ! $overwrite_existing_data;
+
+	// Route integrations with compound storage through their dedicated preservation logic.
+	if ( AI4SEO_THIRD_PARTY_PLUGIN_SLIM_SEO === $third_party_seo_plugin_identifier ) {
+		$supports_inbound_postmeta_sync = ai4seo_does_third_party_seo_plugin_support_inbound_postmeta_sync(
+			$third_party_seo_plugin_details
+		);
+
+		if ( $supports_inbound_postmeta_sync ) {
+			ai4seo_manage_third_party_seo_metadata_sync_request_state( 'begin-outbound', $post_id );
+		}
+
+		try {
+			return ai4seo_update_active_metadata_for_slim_seo( $post_id, $metadata_identifier, $metadata_value, $only_if_empty );
+		} finally {
+			if ( $supports_inbound_postmeta_sync ) {
+				ai4seo_manage_third_party_seo_metadata_sync_request_state( 'end-outbound', $post_id );
+			}
+		}
+	}
+
+	if ( AI4SEO_THIRD_PARTY_PLUGIN_SQUIRRLY_SEO === $third_party_seo_plugin_identifier ) {
+		return ai4seo_update_active_metadata_for_squirrly_seo( $post_id, $metadata_identifier, $metadata_value, $only_if_empty );
+	}
+
+	// AIOSEO owns its canonical row, so do not alter either of its storage locations before it exists.
+	if ( AI4SEO_THIRD_PARTY_PLUGIN_ALL_IN_ONE_SEO === $third_party_seo_plugin_identifier
+		&& ! ai4seo_does_all_in_one_seo_post_row_exist( $post_id ) ) {
+		return $write_result;
+	}
+
+	// Ordinary integrations store each field under the registry-provided postmeta key.
+	$third_party_postmeta_key = sanitize_text_field( $third_party_seo_plugin_details['generation-field-postmeta-keys'][ $metadata_identifier ] ?? '' );
+
+	if ( '' === $third_party_postmeta_key ) {
+		return $write_result;
+	}
+
+	// Existing non-empty integration data intentionally prevents both its overwrite and the corresponding SOOZ write.
+	if ( $only_if_empty && get_post_meta( $post_id, $third_party_postmeta_key, true ) ) {
+		$postmeta_write_result = ai4seo_build_third_party_seo_plugin_metadata_write_result(
+			false,
+			true,
+			true
+		);
+	} else {
+		// Capability-driven suppression keeps outbound writes from re-entering the generic inbound mirror.
+		$postmeta_write_result = ai4seo_build_third_party_seo_plugin_metadata_write_result( true );
+		$supports_inbound_postmeta_sync = ai4seo_does_third_party_seo_plugin_support_inbound_postmeta_sync(
+			$third_party_seo_plugin_details
+		);
+
+		// The inbound hook must not interpret a SOOZ-originated write as a separate editor change.
+		if ( $supports_inbound_postmeta_sync ) {
+			ai4seo_manage_third_party_seo_metadata_sync_request_state( 'begin-outbound', $post_id );
+		}
+
+		// The finally block guarantees request-local suppression cannot leak after any write outcome.
+		try {
+			$postmeta_write_result['write_succeeded'] = ai4seo_update_post_meta( $post_id, $third_party_postmeta_key, $metadata_value );
+			$postmeta_write_result['write_reached_requested_state'] = $postmeta_write_result['write_succeeded'];
+		} finally {
+			// Pair suppression with every attempted write, including writes that throw before returning a result.
+			if ( $supports_inbound_postmeta_sync ) {
+				ai4seo_manage_third_party_seo_metadata_sync_request_state( 'end-outbound', $post_id );
+			}
+		}
+	}
+
+	// All ordinary integrations are complete after their postmeta write.
+	if ( AI4SEO_THIRD_PARTY_PLUGIN_ALL_IN_ONE_SEO !== $third_party_seo_plugin_identifier ) {
+		return $postmeta_write_result;
+	}
+
+	// AIOSEO maintains both a postmeta mirror and its own table; both requested states must succeed.
+	$aioseo_table_write_result = ai4seo_update_active_metadata_for_all_in_one_seo(
+		$post_id,
+		$metadata_identifier,
+		$metadata_value,
+		$only_if_empty
+	);
+
+	// Preserve AIOSEO's dual-storage contract while retaining SOOZ precedence based on its postmeta mirror.
+	$aioseo_write_attempted = $postmeta_write_result['write_attempted'] || $aioseo_table_write_result['write_attempted'];
+	$aioseo_write_succeeded = $postmeta_write_result['write_succeeded'] && $aioseo_table_write_result['write_succeeded'];
+	$aioseo_write_reached_requested_state = $postmeta_write_result['write_reached_requested_state']
+		|| $aioseo_table_write_result['write_reached_requested_state'];
+
+	return ai4seo_build_third_party_seo_plugin_metadata_write_result(
+		$aioseo_write_attempted,
+		$aioseo_write_succeeded,
+		$postmeta_write_result['skipped_existing'],
+		$aioseo_write_reached_requested_state
+	);
+}
+
+// =========================================================================================== \\
+
+/**
+ * Updates configured third-party SEO plugins and reports synchronization details.
+ *
+ * @param int    $post_id                 Post ID.
+ * @param string $metadata_identifier     Metadata identifier.
+ * @param string $metadata_value          Metadata value.
+ * @param bool   $overwrite_existing_data Whether existing data should be overwritten.
+ * @return array{skip_own_metadata: bool, sync_attempted: bool, sync_succeeded: bool, sync_reached_requested_state: bool, failed_plugin_identifiers: array}
+ */
+function ai4seo_update_third_party_seo_plugins_metadata(
+	int $post_id,
+	string $metadata_identifier,
+	string $metadata_value,
+	bool $overwrite_existing_data
+): array {
+	// Default to a successful no-op so inactive, deselected, and unsupported integrations remain neutral.
+	$sync_result = array(
+		'skip_own_metadata'            => false,
+		'sync_attempted'               => false,
+		'sync_succeeded'               => true,
+		'sync_reached_requested_state' => false,
+		'failed_plugin_identifiers'    => array(),
+	);
+
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 378117210, 'Prevented loop', true );
-		return false;
+		$sync_result['sync_succeeded'] = false;
+		return $sync_result;
 	}
 
-	$we_should_not_save_our_own_metadata = false;
+	// The field allowlist is evaluated before plugin discovery to avoid unnecessary activation checks.
+	$metadata_identifiers_to_sync = ai4seo_get_setting( AI4SEO_SETTING_SYNC_ONLY_THESE_METADATA );
 
-	// check if we sync this metadata.
-	$apply_changes_only_to_this_metadata = ai4seo_get_setting( AI4SEO_SETTING_SYNC_ONLY_THESE_METADATA );
-
-	if ( ! $apply_changes_only_to_this_metadata || ! is_array( $apply_changes_only_to_this_metadata ) || ! in_array( $metadata_identifier, $apply_changes_only_to_this_metadata ) ) {
-		return false;
+	if ( ! $metadata_identifiers_to_sync
+		|| ! is_array( $metadata_identifiers_to_sync )
+		|| ! in_array( $metadata_identifier, $metadata_identifiers_to_sync, true ) ) {
+		return $sync_result;
 	}
 
-	// get the active third party seo plugins.
+	// Only active supported plugins can represent an outbound synchronization target.
 	$active_supported_third_party_seo_plugins = ai4seo_get_active_third_party_seo_plugin_details();
 
 	if ( ! $active_supported_third_party_seo_plugins ) {
-		return false;
+		return $sync_result;
 	}
 
-	$apply_changes_only_to_this_third_party_seo_plugin = ai4seo_get_setting( AI4SEO_SETTING_APPLY_CHANGES_TO_THIRD_PARTY_SEO_PLUGINS );
+	// Intersect active integrations with the user's plugin-level synchronization allowlist.
+	$plugin_identifiers_to_sync = ai4seo_get_setting( AI4SEO_SETTING_APPLY_CHANGES_TO_THIRD_PARTY_SEO_PLUGINS );
 
-	if ( ! $apply_changes_only_to_this_third_party_seo_plugin || ! is_array( $apply_changes_only_to_this_third_party_seo_plugin ) ) {
-		return false;
+	if ( ! $plugin_identifiers_to_sync || ! is_array( $plugin_identifiers_to_sync ) ) {
+		return $sync_result;
 	}
 
 	foreach ( $active_supported_third_party_seo_plugins as $this_third_party_seo_plugin_identifier => $this_third_party_seo_plugin_details ) {
-		// check if we should only apply changes to a specific third party seo plugin.
-		if ( ! in_array( $this_third_party_seo_plugin_identifier, $apply_changes_only_to_this_third_party_seo_plugin ) ) {
+		// Ignore active plugins that were not selected for outbound synchronization.
+		if ( ! in_array( $this_third_party_seo_plugin_identifier, $plugin_identifiers_to_sync, true ) ) {
 			continue;
 		}
 
-		// check if we got any meta keys for this third party seo plugin.
+		// A plugin without a mapping for this field is unsupported rather than failed.
 		if ( ! isset( $this_third_party_seo_plugin_details['generation-field-postmeta-keys'][ $metadata_identifier ] ) ) {
 			continue;
 		}
 
-		// workaround: handle SLIM SEO (stores everything in a single serialized postmeta).
-		if ( ai4seo_is_plugin_or_theme_active( AI4SEO_THIRD_PARTY_PLUGIN_SLIM_SEO ) && AI4SEO_THIRD_PARTY_PLUGIN_SLIM_SEO === $this_third_party_seo_plugin_identifier ) {
-			$this_was_updated = ai4seo_update_active_metadata_for_slim_seo( $post_id, $metadata_identifier, $metadata_value, ! $overwrite_existing_data );
+		// Isolate each plugin outcome so later configured integrations still run after an ordinary write failure.
+		$this_plugin_write_result = ai4seo_update_one_third_party_seo_plugin_metadata(
+			$post_id,
+			$this_third_party_seo_plugin_identifier,
+			$this_third_party_seo_plugin_details,
+			$metadata_identifier,
+			$metadata_value,
+			$overwrite_existing_data
+		);
 
-			if ( ! $this_was_updated && ! $overwrite_existing_data ) {
-				$we_should_not_save_our_own_metadata = true;
-			}
-
-			continue;
+		// Record actual persistence attempts independently from intentional existing-value skips.
+		if ( $this_plugin_write_result['write_attempted'] ) {
+			$sync_result['sync_attempted'] = true;
 		}
 
-		// workaround: handle Blog2Social (stores everything in a single serialized postmeta).
-		if ( ai4seo_is_plugin_or_theme_active( AI4SEO_THIRD_PARTY_PLUGIN_BLOG2SOCIAL ) && AI4SEO_THIRD_PARTY_PLUGIN_BLOG2SOCIAL === $this_third_party_seo_plugin_identifier ) {
-			$this_was_updated = ai4seo_update_active_metadata_for_blog2social( $post_id, $metadata_identifier, $metadata_value, ! $overwrite_existing_data );
-
-			if ( ! $this_was_updated && ! $overwrite_existing_data ) {
-				$we_should_not_save_our_own_metadata = true;
-			}
-
-			continue;
+		// Any populated integration retains the established non-overwrite precedence over SOOZ.
+		if ( $this_plugin_write_result['skipped_existing'] ) {
+			$sync_result['skip_own_metadata'] = true;
 		}
 
-		// workaround: handle Squirrly SEO (stores everything in a single serialized column in own table).
-		if ( ai4seo_is_plugin_or_theme_active( AI4SEO_THIRD_PARTY_PLUGIN_SQUIRRLY_SEO ) && AI4SEO_THIRD_PARTY_PLUGIN_SQUIRRLY_SEO === $this_third_party_seo_plugin_identifier ) {
-			$this_was_updated = ai4seo_update_active_metadata_for_squirrly_seo( $post_id, $metadata_identifier, $metadata_value, ! $overwrite_existing_data );
-
-			if ( ! $this_was_updated && ! $overwrite_existing_data ) {
-				$we_should_not_save_our_own_metadata = true;
-			}
-
-			continue;
+		// Any reached persistence target triggers one deferred frontend cache purge after all fields finish.
+		if ( $this_plugin_write_result['write_reached_requested_state'] ) {
+			$sync_result['sync_reached_requested_state'] = true;
 		}
 
-		// normal postmeta key update.
-		$this_third_party_seo_plugin_postmeta_key = sanitize_text_field( $this_third_party_seo_plugin_details['generation-field-postmeta-keys'][ $metadata_identifier ] );
-
-		if ( $overwrite_existing_data ) {
-			$this_was_updated = ai4seo_update_post_meta( $post_id, $this_third_party_seo_plugin_postmeta_key, $metadata_value );
-		} else {
-			$this_was_updated = ai4seo_update_postmeta_if_empty( $post_id, $this_third_party_seo_plugin_postmeta_key, $metadata_value );
-
-			if ( ! $this_was_updated ) {
-				$we_should_not_save_our_own_metadata = true;
-			}
-		}
-
-		// handle specific third party seo plugin 'ALL IN ONE SEO'.
-		if ( ai4seo_is_plugin_or_theme_active( AI4SEO_THIRD_PARTY_PLUGIN_ALL_IN_ONE_SEO ) && AI4SEO_THIRD_PARTY_PLUGIN_ALL_IN_ONE_SEO === $this_third_party_seo_plugin_identifier ) {
-			ai4seo_update_active_metadata_for_all_in_one_seo( $post_id, $metadata_identifier, $metadata_value, ! $overwrite_existing_data );
-			// we can ignore $this_was_updated as ALL in one SEO saves the values both in postmeta and in its own table.
+		// Aggregate failures without short-circuiting later configured integrations.
+		if ( ! $this_plugin_write_result['write_succeeded'] ) {
+			$sync_result['sync_succeeded']              = false;
+			$sync_result['failed_plugin_identifiers'][] = sanitize_key( $this_third_party_seo_plugin_identifier );
 		}
 	}
 
-	return $we_should_not_save_our_own_metadata;
+	$sync_result['failed_plugin_identifiers'] = array_values( array_unique( array_filter( $sync_result['failed_plugin_identifiers'] ) ) );
+
+	return $sync_result;
 }
 
 // =========================================================================================== \\
 
 /**
- * Updates the metadata for a post for the Squirrly SEO plugin.
+ * Updates one Squirrly SEO metadata field while preserving its serialized row structure.
  *
- * @param int    $post_id             The post id.
- * @param string $metadata_identifier The metadata identifier.
- * @param string $metadata_value      The metadata value.
- * @param bool   $only_if_empty       Whether the metadata should only be updated if it is empty.
- * @return bool True if we updated something, false if not.
+ * @param int    $post_id             Post ID.
+ * @param string $metadata_identifier Metadata identifier.
+ * @param string $metadata_value      Metadata value.
+ * @param bool   $only_if_empty       Whether existing non-empty metadata should be preserved.
+ * @return array{write_attempted: bool, write_succeeded: bool, skipped_existing: bool, write_reached_requested_state: bool}
  */
-function ai4seo_update_active_metadata_for_squirrly_seo( int $post_id, string $metadata_identifier, string $metadata_value, bool $only_if_empty = false ): bool {
-	// check table "wp_qss" -> column "seo". It's serialized with keys "title", "description", "og_title", "og_description", "tw_title", "tw_description".
-	$metadata_identifier_mapping = array(
-		'meta-title'           => 'title',
-		'meta-description'     => 'description',
-		'facebook-title'       => 'og_title',
-		'facebook-description' => 'og_description',
-		'twitter-title'        => 'tw_title',
-		'twitter-description'  => 'tw_description',
-	);
+function ai4seo_update_active_metadata_for_squirrly_seo(
+	int $post_id,
+	string $metadata_identifier,
+	string $metadata_value,
+	bool $only_if_empty = false
+): array {
+	// Missing mappings or storage rows must retain an explicit non-attempted failure result.
+	$write_result = ai4seo_build_third_party_seo_plugin_metadata_write_result();
 
-	$this_slim_seo_json_key = $metadata_identifier_mapping[ $metadata_identifier ] ?? '';
+	// Squirrly stores all supported fields together in the serialized qss.seo column.
+	$metadata_identifier_mapping = ai4seo_get_squirrly_seo_metadata_identifier_mapping();
 
-	if ( ! $this_slim_seo_json_key ) {
-		return false;
+	$this_squirrly_seo_key = $metadata_identifier_mapping[ $metadata_identifier ] ?? '';
+
+	if ( ! $this_squirrly_seo_key ) {
+		return $write_result;
 	}
 
-	// read entry.
+	// Load the complete serialized row so unrelated Squirrly fields survive the update.
 	global $wpdb;
 
-	// Serialized key pattern for "ID".
-	$pattern = '%s:2:"ID";i:' . esc_sql( $post_id ) . ';%';
+	// The post ID lives inside Squirrly's serialized post column rather than a dedicated SQL column.
+	$squirrly_post_pattern = '%s:2:"ID";i:' . esc_sql( $post_id ) . ';%';
 
-	// Updated SQL query using LIKE to find the serialized post ID.
-	$current_squirrly_values = $wpdb->get_var( $wpdb->prepare( "SELECT seo FROM {$wpdb->prefix}qss WHERE post LIKE %s", $pattern ) );
+	$current_squirrly_values = $wpdb->get_var(
+		$wpdb->prepare(
+			"SELECT seo FROM {$wpdb->prefix}qss WHERE post LIKE %s",
+			$squirrly_post_pattern
+		)
+	);
 
 	if ( $wpdb->last_error ) {
 		ai4seo_debug_message( 984321683, 'Database error: ' . $wpdb->last_error, true );
-		return false;
+		return $write_result;
 	}
 	$current_squirrly_values = maybe_unserialize( $current_squirrly_values );
 
+	// Squirrly data can contain a second serialization layer depending on the plugin version.
 	if ( $current_squirrly_values && is_string( $current_squirrly_values ) ) {
 		$current_squirrly_values = unserialize( $current_squirrly_values );
-	} elseif ( $current_squirrly_values && is_array( $current_squirrly_values ) ) {
-		// do nothing.
-	} else {
+	}
+
+	// Normalize every missing or malformed row to the same empty collection outcome.
+	if ( ! $current_squirrly_values || ! is_array( $current_squirrly_values ) ) {
 		$current_squirrly_values = array();
 	}
 
-	// something is wrong -> return false.
-	if ( ! is_array( $current_squirrly_values ) || empty( $current_squirrly_values ) ) {
-		return false;
+	// A missing or unreadable Squirrly row cannot be synchronized safely.
+	if ( empty( $current_squirrly_values ) ) {
+		return $write_result;
 	}
 
-	// check the current value.
+	// Non-overwrite mode treats an existing integration value as an intentional successful skip.
 	if ( $only_if_empty ) {
-		if ( isset( $current_squirrly_values[ $this_slim_seo_json_key ] ) && $current_squirrly_values[ $this_slim_seo_json_key ] ) {
-			return false;
+		if ( isset( $current_squirrly_values[ $this_squirrly_seo_key ] ) && $current_squirrly_values[ $this_squirrly_seo_key ] ) {
+			$write_result['write_succeeded']  = true;
+			$write_result['skipped_existing'] = true;
+			return $write_result;
 		}
 	}
 
-	// update the value.
-	$current_squirrly_values[ $this_slim_seo_json_key ] = sanitize_text_field( $metadata_value );
+	// Replace only the requested key before writing the complete serialized collection back.
+	$requested_metadata_value                            = sanitize_text_field( $metadata_value );
+	$current_squirrly_values[ $this_squirrly_seo_key ]  = $requested_metadata_value;
+	$write_result['write_attempted']                     = true;
 
-	$wpdb->query( $wpdb->prepare( "UPDATE {$wpdb->prefix}qss SET seo = %s WHERE post LIKE %s", maybe_serialize( $current_squirrly_values ), $pattern ) );
+	$query_result = $wpdb->query(
+		$wpdb->prepare(
+			"UPDATE {$wpdb->prefix}qss SET seo = %s WHERE post LIKE %s",
+			maybe_serialize( $current_squirrly_values ),
+			$squirrly_post_pattern
+		)
+	);
 
-	if ( $wpdb->last_error ) {
+	if ( false === $query_result || $wpdb->last_error ) {
 		ai4seo_debug_message( 984321684, 'Database error: ' . $wpdb->last_error, true );
-		return false;
+		return $write_result;
 	}
 
-	return true;
+	// A positive affected-row count proves the requested serialized collection was written.
+	if ( $query_result > 0 ) {
+		$write_result['write_succeeded']               = true;
+		$write_result['write_reached_requested_state'] = true;
+		return $write_result;
+	}
+
+	// Read back the affected field because a zero-row SQL result may still be an idempotent success.
+	$latest_squirrly_values = $wpdb->get_var(
+		$wpdb->prepare(
+			"SELECT seo FROM {$wpdb->prefix}qss WHERE post LIKE %s",
+			$squirrly_post_pattern
+		)
+	);
+
+	if ( $wpdb->last_error ) {
+		ai4seo_debug_message( 984321688, 'Database error: ' . $wpdb->last_error, true );
+		return $write_result;
+	}
+
+	$latest_squirrly_values = maybe_unserialize( $latest_squirrly_values );
+
+	if ( is_string( $latest_squirrly_values ) ) {
+		$latest_squirrly_values = maybe_unserialize( $latest_squirrly_values );
+	}
+
+	$write_result['write_succeeded'] = is_array( $latest_squirrly_values )
+		&& array_key_exists( $this_squirrly_seo_key, $latest_squirrly_values )
+		&& $requested_metadata_value === (string) $latest_squirrly_values[ $this_squirrly_seo_key ];
+	$write_result['write_reached_requested_state'] = $write_result['write_succeeded'];
+
+	return $write_result;
 }
 
 // =========================================================================================== \\
 
 /**
- * Updates the metadata for a post for the Slim SEO plugin
+ * Updates one Slim SEO metadata field while preserving its shared postmeta structure.
  *
- * @param int    $post_id the post id
- * @param string $metadata_identifier the metadata identifier
- * @param string $metadata_value the metadata value
- * @param bool   $only_if_empty if true, the metadata will only be updated if it is empty
- * @return bool true if we updated something, false if not
+ * @param int    $post_id             Post ID.
+ * @param string $metadata_identifier Metadata identifier.
+ * @param string $metadata_value      Metadata value.
+ * @param bool   $only_if_empty       Whether existing non-empty metadata should be preserved.
+ * @return array{write_attempted: bool, write_succeeded: bool, skipped_existing: bool, write_reached_requested_state: bool}
  */
-function ai4seo_update_active_metadata_for_slim_seo( int $post_id, string $metadata_identifier, string $metadata_value, bool $only_if_empty = false ): bool {
-	// check postmeta "slim_seo". It's serialized with keys "title" and "description", nothing else.
-	$metadata_identifier_mapping = array(
-		'meta-title'       => 'title',
-		'meta-description' => 'description',
+function ai4seo_update_active_metadata_for_slim_seo(
+	int $post_id,
+	string $metadata_identifier,
+	string $metadata_value,
+	bool $only_if_empty = false
+): array {
+	// Missing mappings retain an explicit non-attempted failure result.
+	$write_result = ai4seo_build_third_party_seo_plugin_metadata_write_result();
+
+	// Reuse the integration registry so inbound hooks and outbound writes share one field mapping.
+	$third_party_seo_plugins = ai4seo_get_third_party_seo_plugin_details();
+	$compound_sync_details   = ai4seo_get_third_party_seo_plugin_compound_postmeta_sync_details(
+		$third_party_seo_plugins[ AI4SEO_THIRD_PARTY_PLUGIN_SLIM_SEO ] ?? array()
 	);
+	$slim_seo_postmeta_key   = $compound_sync_details['postmeta_key'] ?? '';
+	$metadata_array_keys     = $compound_sync_details['generation_field_array_keys'] ?? array();
+	$this_slim_seo_key       = $metadata_array_keys[ $metadata_identifier ] ?? '';
 
-	$this_slim_seo_key = $metadata_identifier_mapping[ $metadata_identifier ] ?? '';
-
-	if ( ! $this_slim_seo_key ) {
-		return false;
+	if ( ! $slim_seo_postmeta_key || ! $this_slim_seo_key ) {
+		return $write_result;
 	}
 
-	// read postmeta entry.
-	$current_slim_seo_values = get_post_meta( $post_id, 'slim_seo', true );
+	// Load the shared value so updating one field cannot discard its sibling.
+	$current_slim_seo_values = get_post_meta( $post_id, $slim_seo_postmeta_key, true );
 	$current_slim_seo_values = maybe_unserialize( $current_slim_seo_values );
 
-	// something is wrong -> return false.
+	// A missing or malformed value is equivalent to an empty Slim SEO collection.
 	if ( ! is_array( $current_slim_seo_values ) || ! $current_slim_seo_values ) {
 		$current_slim_seo_values = array();
 	}
 
-	// check the current value.
+	// Non-overwrite mode treats an existing integration value as an intentional successful skip.
 	if ( $only_if_empty ) {
 		if ( isset( $current_slim_seo_values[ $this_slim_seo_key ] ) && $current_slim_seo_values[ $this_slim_seo_key ] ) {
-			return false;
+			$write_result['write_succeeded']  = true;
+			$write_result['skipped_existing'] = true;
+			return $write_result;
 		}
 	}
 
-	// update the value.
+	// Replace only the requested key and persist the complete collection through the shared wrapper.
 	$current_slim_seo_values[ $this_slim_seo_key ] = sanitize_text_field( $metadata_value );
+	$write_result['write_attempted']                = true;
+	$write_result['write_succeeded']                = ai4seo_update_post_meta( $post_id, $slim_seo_postmeta_key, $current_slim_seo_values );
+	$write_result['write_reached_requested_state']  = $write_result['write_succeeded'];
 
-	return ai4seo_update_post_meta( $post_id, 'slim_seo', $current_slim_seo_values );
+	return $write_result;
 }
 
 // =========================================================================================== \\
 
 /**
- * Updates the metadata for a post for the Blog2Social plugin
+ * Checks whether AIOSEO has initialized canonical storage for a post.
  *
- * @param int    $post_id the post id
- * @param string $metadata_identifier the metadata identifier
- * @param string $metadata_value the metadata value
- * @param bool   $only_if_empty if true, the metadata will only be updated if it is empty
- * @return bool true if we updated something, false if not
+ * @param int $post_id Post ID.
+ * @return bool True when AIOSEO owns a row for the post.
  */
-function ai4seo_update_active_metadata_for_blog2social( int $post_id, string $metadata_identifier, string $metadata_value, bool $only_if_empty = false ): bool {
-	// check postmeta "_b2s_post_meta". It's serialized with keys "og_title", "og_desc", "card_title" and "card_desc".
-	$metadata_identifier_mapping = array(
-		'facebook-title'       => 'og_title',
-		'facebook-description' => 'og_desc',
-		'twitter-title'        => 'card_title',
-		'twitter-description'  => 'card_desc',
+function ai4seo_does_all_in_one_seo_post_row_exist( int $post_id ): bool {
+	global $wpdb;
+	static $row_exists_by_post_id = array();
+
+	if ( array_key_exists( $post_id, $row_exists_by_post_id ) ) {
+		return $row_exists_by_post_id[ $post_id ];
+	}
+
+	// Read only the canonical identifier because field values are irrelevant to the preflight decision.
+	$aioseo_post_id = $wpdb->get_var(
+		$wpdb->prepare(
+			"SELECT post_id FROM {$wpdb->prefix}aioseo_posts WHERE post_id = %d LIMIT 1",
+			$post_id
+		)
 	);
 
-	$this_mapped_key = $metadata_identifier_mapping[ $metadata_identifier ] ?? '';
-
-	if ( ! $this_mapped_key ) {
+	if ( $wpdb->last_error ) {
+		ai4seo_debug_message( 874321686, 'Database error: ' . $wpdb->last_error, true );
 		return false;
 	}
 
-	// read postmeta entry.
-	$current_values = get_post_meta( $post_id, '_b2s_post_meta', true );
-	$current_values = maybe_unserialize( $current_values );
+	$row_exists_by_post_id[ $post_id ] = null !== $aioseo_post_id;
 
-	// something is wrong -> return false.
-	if ( ! is_array( $current_values ) || ! $current_values ) {
-		$current_values = array();
-	}
-
-	// check the current value.
-	if ( $only_if_empty ) {
-		if ( isset( $current_values[ $this_mapped_key ] ) && $current_values[ $this_mapped_key ] ) {
-			return false;
-		}
-	}
-
-	// update the value.
-	$current_values[ $this_mapped_key ] = sanitize_text_field( $metadata_value );
-
-	return ai4seo_update_post_meta( $post_id, '_b2s_post_meta', $current_values );
+	return $row_exists_by_post_id[ $post_id ];
 }
 
 // =========================================================================================== \\
 
 /**
- * Updates the metadata for a post for the All in One SEO plugin
+ * Updates one AIOSEO metadata field in its own table.
  *
- * @param int    $post_id the post id
- * @param string $metadata_identifier the metadata identifier
- * @param string $metadata_value the metadata value
- * @param bool   $only_if_empty if true, the metadata will only be updated if it is empty
- * @return bool true if we updated something, false if not
+ * @param int    $post_id             Post ID.
+ * @param string $metadata_identifier Metadata identifier.
+ * @param string $metadata_value      Metadata value.
+ * @param bool   $only_if_empty       Whether existing non-empty metadata should be preserved.
+ * @return array{write_attempted: bool, write_succeeded: bool, skipped_existing: bool, write_reached_requested_state: bool}
  */
-function ai4seo_update_active_metadata_for_all_in_one_seo( int $post_id, string $metadata_identifier, string $metadata_value, bool $only_if_empty = false ): bool {
-	// check table "wp_aioseo_posts" for the post id. Columns are "title", "description", "og_title", "og_description", "twitter_title", "twitter_description".
-	$metadata_identifier_mapping = array(
-		'meta-title'           => 'title',
-		'meta-description'     => 'description',
-		'facebook-title'       => 'og_title',
-		'facebook-description' => 'og_description',
-		'twitter-title'        => 'twitter_title',
-		'twitter-description'  => 'twitter_description',
-	);
+function ai4seo_update_active_metadata_for_all_in_one_seo(
+	int $post_id,
+	string $metadata_identifier,
+	string $metadata_value,
+	bool $only_if_empty = false
+): array {
+	// Missing mappings retain an explicit non-attempted failure result.
+	$write_result = ai4seo_build_third_party_seo_plugin_metadata_write_result();
 
-	$this_aioseo_column = $metadata_identifier_mapping[ $metadata_identifier ] ?? '';
+	// Reuse the read-path allowlist so only supported AIOSEO columns can reach the dynamic query.
+	$metadata_identifier_mapping = ai4seo_get_all_in_one_seo_metadata_identifier_mapping();
 
-	if ( ! $this_aioseo_column ) {
-		return false;
+	$this_aioseo_column_name = $metadata_identifier_mapping[ $metadata_identifier ] ?? '';
+
+	if ( ! $this_aioseo_column_name ) {
+		return $write_result;
 	}
 
 	global $wpdb;
 
-	$post_id_exists = $wpdb->get_var( $wpdb->prepare( "SELECT post_id FROM {$wpdb->prefix}aioseo_posts WHERE post_id = %d", $post_id ) );
-
-	if ( $wpdb->last_error ) {
-		ai4seo_debug_message( 984321685, 'Database error: ' . $wpdb->last_error, true );
-		return false;
-	}
-
-	if ( ! $post_id_exists ) {
-		return false;
-	}
-
-	// check the current value.
 	if ( $only_if_empty ) {
-		$current_value = $wpdb->get_var(
+		// The preservation path needs the current value and simultaneously confirms row ownership.
+		$current_aioseo_row = $wpdb->get_row(
 			$wpdb->prepare(
-				'SELECT ' . esc_sql( $this_aioseo_column ) . "
-            FROM {$wpdb->prefix}aioseo_posts
-            WHERE post_id = %d",
+				'SELECT ' . esc_sql( $this_aioseo_column_name ) . " AS metadata_value FROM {$wpdb->prefix}aioseo_posts WHERE post_id = %d",
 				$post_id
 			)
 		);
 
 		if ( $wpdb->last_error ) {
 			ai4seo_debug_message( 984321686, 'Database error: ' . $wpdb->last_error, true );
-			return false;
+			return $write_result;
 		}
 
-		if ( $current_value ) {
-			return false;
+		// AIOSEO owns row creation; an absent row intentionally becomes a silent synchronization failure.
+		if ( ! is_object( $current_aioseo_row ) || ! property_exists( $current_aioseo_row, 'metadata_value' ) ) {
+			return $write_result;
 		}
+
+		if ( $current_aioseo_row->metadata_value ) {
+			$write_result['write_succeeded']  = true;
+			$write_result['skipped_existing'] = true;
+			return $write_result;
+		}
+	} elseif ( ! ai4seo_does_all_in_one_seo_post_row_exist( $post_id ) ) {
+		return $write_result;
 	}
 
-	// update the value.
-	$wpdb->query( $wpdb->prepare( "UPDATE {$wpdb->prefix}aioseo_posts SET " . esc_sql( $this_aioseo_column ) . ' = %s WHERE post_id = %d', $metadata_value, $post_id ) );
+	// Sanitize and write only the allowlisted column selected by the fixed identifier mapping above.
+	$requested_metadata_value        = sanitize_text_field( $metadata_value );
+	$write_result['write_attempted'] = true;
+	$query_result                    = $wpdb->query(
+		$wpdb->prepare(
+			"UPDATE {$wpdb->prefix}aioseo_posts SET " . esc_sql( $this_aioseo_column_name ) . ' = %s WHERE post_id = %d',
+			$requested_metadata_value,
+			$post_id
+		)
+	);
+
+	if ( false === $query_result || $wpdb->last_error ) {
+		ai4seo_debug_message( 984321687, 'Database error: ' . $wpdb->last_error, true );
+		return $write_result;
+	}
+
+	// A positive affected-row count proves the requested column value was written.
+	if ( $query_result > 0 ) {
+		$write_result['write_succeeded']               = true;
+		$write_result['write_reached_requested_state'] = true;
+		return $write_result;
+	}
+
+	// A zero-row result requires readback to distinguish idempotence from an absent row.
+	$latest_metadata_row = $wpdb->get_row(
+		$wpdb->prepare(
+			'SELECT ' . esc_sql( $this_aioseo_column_name ) . " AS metadata_value FROM {$wpdb->prefix}aioseo_posts WHERE post_id = %d",
+			$post_id
+		)
+	);
 
 	if ( $wpdb->last_error ) {
-		ai4seo_debug_message( 984321687, 'Database error: ' . $wpdb->last_error, true );
-		return false;
+		ai4seo_debug_message( 984321689, 'Database error: ' . $wpdb->last_error, true );
+		return $write_result;
 	}
 
-	return true;
+	$write_result['write_succeeded'] = is_object( $latest_metadata_row )
+		&& property_exists( $latest_metadata_row, 'metadata_value' )
+		&& $requested_metadata_value === (string) $latest_metadata_row->metadata_value;
+	$write_result['write_reached_requested_state'] = $write_result['write_succeeded'];
+
+	return $write_result;
 }
 
 

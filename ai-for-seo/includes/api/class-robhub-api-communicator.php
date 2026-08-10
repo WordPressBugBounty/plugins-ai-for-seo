@@ -1332,7 +1332,19 @@ class Ai4Seo_RobHubApiCommunicator {
 	 */
 	function build_api_username( string $base_username = '' ): string {
 		if ( ! $base_username ) {
-			$base_username = $this->get_server_identity();
+			// WordPress Playground stores a UUID in this option through the official
+			// Blueprint. Prefer it over the shared Playground server name so every
+			// disposable Playground installation receives its own free account.
+			$playground_instance_id = get_option( 'ai4seo_playground_demo_instance_id', '' );
+
+			if ( is_string( $playground_instance_id ) && wp_is_uuid( strtolower( $playground_instance_id ) ) ) {
+				// Keep the readable UUID prefix while hashing the complete ID before the shared 32-character truncation.
+				$normalized_playground_instance_id = strtolower( $playground_instance_id );
+				$playground_instance_hash          = hash( 'sha256', $normalized_playground_instance_id );
+				$base_username                     = 'playground-' . substr( $normalized_playground_instance_id, 0, 8 ) . '-' . substr( $playground_instance_hash, 0, 12 );
+			} else {
+				$base_username = $this->get_server_identity();
+			}
 		}
 
 		// remove schema.

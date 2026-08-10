@@ -140,8 +140,11 @@ function ai4seo_update_setting( string $setting_name, $new_setting_value ): bool
 		return false;
 	}
 
+	// Compare against the effective default when a setting has not been stored explicitly yet.
+	$current_setting_value = $ai4seo_settings[ $setting_name ] ?? AI4SEO_DEFAULT_SETTINGS[ $setting_name ] ?? '';
+
 	// no change at all?
-	if ( $ai4seo_settings[ $setting_name ] == $new_setting_value ) {
+	if ( $current_setting_value == $new_setting_value ) {
 		return true;
 	}
 

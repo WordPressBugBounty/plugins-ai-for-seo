@@ -42,8 +42,18 @@ if ( $ai4seo_this_attachment_post_id <= 0 ) {
 	ai4seo_send_ajax_error( esc_html__( 'Post id is invalid.', 'ai-for-seo' ), 291920824 );
 }
 
-// get sanitized all_post_ids parameter.
-$ai4seo_all_attachment_post_ids = isset( $_REQUEST['all_attachment_post_ids'] ) && is_array( $_REQUEST['all_attachment_post_ids'] ) ? array_map( 'absint', $_REQUEST['all_attachment_post_ids'] ) : array();
+// The plugin-level role gate does not replace WordPress's object-level media permission check.
+if ( ! ai4seo_can_edit_post( $ai4seo_this_attachment_post_id ) ) {
+	ai4seo_send_ajax_error( esc_html__( 'You are not allowed to edit this media entry.', 'ai-for-seo' ), 291920825 );
+}
+
+// Normalize the navigation list before using it for authorization or next-entry selection.
+$ai4seo_all_attachment_post_ids = isset( $_REQUEST['all_attachment_post_ids'] ) && is_array( $_REQUEST['all_attachment_post_ids'] )
+	? array_values( array_unique( array_filter( array_map( 'absint', (array) wp_unslash( $_REQUEST['all_attachment_post_ids'] ) ) ) ) )
+	: array();
+
+// Keep only editable navigation targets so one unrelated media entry cannot block the authorized editor.
+$ai4seo_all_attachment_post_ids = ai4seo_filter_editable_post_ids( $ai4seo_all_attachment_post_ids );
 
 // Reuse the ordered-list helper so media and metadata editors calculate their next-entry targets identically.
 $ai4seo_next_attachment_post_id = ai4seo_get_next_post_id_from_ordered_post_ids( $ai4seo_this_attachment_post_id, $ai4seo_all_attachment_post_ids );

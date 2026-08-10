@@ -27,9 +27,20 @@ $ai4seo_help_page_url     = ai4seo_get_subpage_url( 'help' );
 
 $ai4seo_active_plugin_page = ai4seo_get_active_subpage();
 $ai4seo_current_post_type  = ai4seo_get_active_post_type_subpage();
+$ai4seo_menu_registry      = ai4seo_get_plugins_menu_registry();
+
+$ai4seo_page_heading_label = '';
+
+if ( 'post' === $ai4seo_active_plugin_page ) {
+	$ai4seo_page_heading_label = $ai4seo_menu_registry['post_types'][ $ai4seo_current_post_type ]['label'] ?? '';
+} else {
+	$ai4seo_page_heading_label = $ai4seo_menu_registry[ $ai4seo_active_plugin_page ]['label'] ?? '';
+}
+
+$ai4seo_page_heading = AI4SEO_PLUGIN_NAME . ( '' !== $ai4seo_page_heading_label ? ': ' . $ai4seo_page_heading_label : '' );
 
 $ai4seo_active_attachment_attributes = ai4seo_get_active_attachment_attributes();
-$ai4seo_supported_post_types         = ai4seo_get_supported_post_types();
+$ai4seo_supported_post_types         = array_keys( $ai4seo_menu_registry['post_types'] ?? array() );
 
 if ( $ai4seo_is_dashboard_open ) {
 	$ai4seo_unread_notifications_count = 0;
@@ -82,7 +93,13 @@ echo "<div class='ai4seo-mobile-top-bar'>";
 	// toggle button.
 	$ai4seo_toggle_sidebar_label = __( 'Toggle navigation', 'ai-for-seo' );
 
-	echo "<button type='button' class='ai4seo-mobile-top-bar-toggle-button' aria-label='" . esc_attr( $ai4seo_toggle_sidebar_label ) . "' title='" . esc_attr( $ai4seo_toggle_sidebar_label ) . "' onclick='ai4seo_toggle_sidebar();'>";
+	echo "<button type='button'"
+		. " class='ai4seo-mobile-top-bar-toggle-button'"
+		. " aria-controls='ai4seo-sidebar'"
+		. " aria-expanded='false'"
+		. " aria-label='" . esc_attr( $ai4seo_toggle_sidebar_label ) . "'"
+		. " title='" . esc_attr( $ai4seo_toggle_sidebar_label ) . "'"
+		. " onclick='ai4seo_toggle_sidebar();'>";
 		ai4seo_echo_wp_kses( ai4seo_get_svg_tag( 'bars-sort' ) );
 	echo '</button>';
 
@@ -105,7 +122,7 @@ echo "<div class='wrap ai4seo-wrap'>";
 	// === OUTPUT: SIDE BAR / NAVIGATION (DESKTOP) ======================================================= \\
 	// ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
-	echo "<div class='ai4seo-sidebar'>";
+	echo "<div id='ai4seo-sidebar' class='ai4seo-sidebar'>";
 
 		// Main logo.
 		echo "<div class='ai4seo-sidebar-headline'>";
@@ -120,8 +137,13 @@ if ( ai4seo_robhub_api()->are_we_using_local_api() ) {
 
 		echo "<nav class='nav-tab-wrapper ai4seo-menu-items-wrapper'>";
 			// Dashboard page.
-			echo "<a href='" . esc_url( $ai4seo_dashboard_url ) . "' class='nav-tab ai4seo-menu-item" . ( $ai4seo_is_dashboard_open ? ' nav-tab-active ai4seo-active-menu-item' : '' ) . "'>";
-				echo '<i class="dashicons dashicons-dashboard ai4seo-menu-item-icon"></i>';
+			echo "<a href='" . esc_url( $ai4seo_dashboard_url ) . "'"
+				. " class='nav-tab ai4seo-menu-item"
+				. ( $ai4seo_is_dashboard_open ? ' nav-tab-active ai4seo-active-menu-item' : '' )
+				. "'"
+				. ( $ai4seo_is_dashboard_open ? " aria-current='page'" : '' )
+				. '>';
+				ai4seo_echo_wp_kses( ai4seo_get_dashicon_tag( 'dashboard', 'ai4seo-menu-item-icon', true ) );
 				echo '<span>';
 					echo esc_html__( 'Dashboard', 'ai-for-seo' );
 
@@ -141,7 +163,12 @@ foreach ( $ai4seo_supported_post_types as $ai4seo_this_post_type ) {
 	$ai4seo_this_page_is_active  = ( $ai4seo_current_post_type === $ai4seo_this_post_type );
 	$ai4seo_this_page_url        = ai4seo_get_post_type_page_url( $ai4seo_this_post_type );
 
-	echo "<a href='" . esc_url( $ai4seo_this_page_url ) . "' class='nav-tab ai4seo-menu-item" . ( $ai4seo_this_page_is_active ? ' nav-tab-active ai4seo-active-menu-item' : '' ) . "'>";
+	echo "<a href='" . esc_url( $ai4seo_this_page_url ) . "'"
+		. " class='nav-tab ai4seo-menu-item"
+		. ( $ai4seo_this_page_is_active ? ' nav-tab-active ai4seo-active-menu-item' : '' )
+		. "'"
+		. ( $ai4seo_this_page_is_active ? " aria-current='page'" : '' )
+		. '>';
 		ai4seo_echo_wp_kses( $ai4seo_this_menu_item_icon );
 		echo '<div>';
 			echo esc_html( $ai4seo_this_menu_item_label );
@@ -151,7 +178,12 @@ foreach ( $ai4seo_supported_post_types as $ai4seo_this_post_type ) {
 
 if ( $ai4seo_active_attachment_attributes ) {
 	// Media page.
-	echo "<a href='" . esc_url( $ai4seo_media_page_url ) . "' class='nav-tab ai4seo-menu-item" . ( 'media' === $ai4seo_active_plugin_page ? ' nav-tab-active ai4seo-active-menu-item' : '' ) . "'>";
+	echo "<a href='" . esc_url( $ai4seo_media_page_url ) . "'"
+		. " class='nav-tab ai4seo-menu-item"
+		. ( 'media' === $ai4seo_active_plugin_page ? ' nav-tab-active ai4seo-active-menu-item' : '' )
+		. "'"
+		. ( 'media' === $ai4seo_active_plugin_page ? " aria-current='page'" : '' )
+		. '>';
 		ai4seo_echo_wp_kses( ai4seo_get_dashicon_tag_for_navigation( 'attachment' ) );
 		echo '<span>';
 			echo esc_html( ai4seo_get_media_menu_label() );
@@ -160,24 +192,39 @@ if ( $ai4seo_active_attachment_attributes ) {
 }
 
 			// Account page.
-			echo "<a href='" . esc_url( $ai4seo_account_page_url ) . "' class='nav-tab ai4seo-menu-item" . ( 'account' === $ai4seo_active_plugin_page ? ' nav-tab-active ai4seo-active-menu-item' : '' ) . "'>";
-				ai4seo_echo_wp_kses( ai4seo_get_svg_tag( 'key', '', 'ai4seo-menu-item-icon' ) );
+			echo "<a href='" . esc_url( $ai4seo_account_page_url ) . "'"
+				. " class='nav-tab ai4seo-menu-item"
+				. ( 'account' === $ai4seo_active_plugin_page ? ' nav-tab-active ai4seo-active-menu-item' : '' )
+				. "'"
+				. ( 'account' === $ai4seo_active_plugin_page ? " aria-current='page'" : '' )
+				. '>';
+				ai4seo_echo_wp_kses( ai4seo_get_svg_tag( 'key', '', 'ai4seo-menu-item-icon', true ) );
 				echo '<span>';
 					echo esc_html__( 'Account', 'ai-for-seo' );
 				echo '</span>';
 			echo '</a>';
 
 			// Settings page.
-			echo "<a href='" . esc_url( $ai4seo_settings_page_url ) . "' class='nav-tab ai4seo-menu-item" . ( 'settings' === $ai4seo_active_plugin_page ? ' nav-tab-active ai4seo-active-menu-item' : '' ) . "'>";
-				echo '<i class="dashicons dashicons-admin-generic ai4seo-menu-item-icon"></i>';
+			echo "<a href='" . esc_url( $ai4seo_settings_page_url ) . "'"
+				. " class='nav-tab ai4seo-menu-item"
+				. ( 'settings' === $ai4seo_active_plugin_page ? ' nav-tab-active ai4seo-active-menu-item' : '' )
+				. "'"
+				. ( 'settings' === $ai4seo_active_plugin_page ? " aria-current='page'" : '' )
+				. '>';
+				ai4seo_echo_wp_kses( ai4seo_get_dashicon_tag( 'admin-generic', 'ai4seo-menu-item-icon', true ) );
 				echo '<span>';
 					echo esc_html__( 'Settings', 'ai-for-seo' );
 				echo '</span>';
 			echo '</a>';
 
 			// Help page.
-			echo "<a href='" . esc_url( $ai4seo_help_page_url ) . "' class='nav-tab ai4seo-menu-item" . ( 'help' === $ai4seo_active_plugin_page ? ' nav-tab-active ai4seo-active-menu-item' : '' ) . "'>";
-				echo '<i class="dashicons dashicons-editor-help ai4seo-menu-item-icon"></i>';
+			echo "<a href='" . esc_url( $ai4seo_help_page_url ) . "'"
+				. " class='nav-tab ai4seo-menu-item"
+				. ( 'help' === $ai4seo_active_plugin_page ? ' nav-tab-active ai4seo-active-menu-item' : '' )
+				. "'"
+				. ( 'help' === $ai4seo_active_plugin_page ? " aria-current='page'" : '' )
+				. '>';
+				ai4seo_echo_wp_kses( ai4seo_get_dashicon_tag( 'editor-help', 'ai4seo-menu-item-icon', true ) );
 				echo '<span>';
 					echo esc_html__( 'Help', 'ai-for-seo' );
 				echo '</span>';
@@ -210,8 +257,8 @@ if ( $ai4seo_active_attachment_attributes ) {
 
 	echo "<div class='ai4seo-content-wrapper'>";
 
-		// Keep WordPress' expected page heading; external notices are suppressed by page hooks instead of this wrapper.
-		echo "<h1 class='ai4seo-display-none'>" . esc_html( AI4SEO_PLUGIN_NAME ) . '</h1>';
+		// Keep one accessible page-specific heading as WordPress' notice-placement anchor.
+		echo "<h1 class='screen-reader-text'>" . esc_html( $ai4seo_page_heading ) . '</h1>';
 
 		// === CHECK FOR NEW TOS ===================================================================== \\
 

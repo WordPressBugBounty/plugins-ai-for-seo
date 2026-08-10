@@ -19,6 +19,19 @@ ai4seo_add_content_type_list_cache_invalidation_hooks();
 // Keep local summary recovery available even when account-dependent cron initialization is unavailable.
 add_action( AI4SEO_GENERATION_STATUS_SUMMARY_REBUILD_CRON_JOB_NAME, AI4SEO_GENERATION_STATUS_SUMMARY_REBUILD_CRON_JOB_NAME );
 
+// Mirror supported persisted third-party changes for every request type before any bootstrap early return.
+add_action( 'added_post_meta', 'ai4seo_sync_third_party_postmeta_change_to_active_metadata', 10, 4 );
+add_action( 'updated_post_meta', 'ai4seo_sync_third_party_postmeta_change_to_active_metadata', 10, 4 );
+add_action( 'deleted_post_meta', 'ai4seo_sync_third_party_postmeta_change_to_active_metadata', 10, 4 );
+add_action( 'before_delete_post', 'ai4seo_track_deleting_post_for_third_party_seo_metadata_sync' );
+
+// Squirrly persists its snippet outside postmeta; cover both its purple Save button and WordPress post saves.
+add_action( 'sq_save_seo_after', 'ai4seo_sync_squirrly_seo_editor_save_to_active_metadata' );
+add_action( 'save_post', 'ai4seo_sync_squirrly_seo_post_save_to_active_metadata', 30, 2 );
+
+// Finalize after ordinary shutdown writers but before maximum-priority option summary reconciliation.
+add_action( 'shutdown', 'ai4seo_finalize_third_party_seo_metadata_sync', PHP_INT_MAX - 1 );
+
 // CRON CALL ONLY.
 if ( wp_doing_cron() ) {
 	// init cron jobs.

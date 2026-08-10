@@ -59,41 +59,6 @@ function ai4seo_normalize_plan_identifier( $plan ): string {
 // =========================================================================================== \\
 
 /**
- * Return the normalized plan key for the current account.
- *
- * @return string Normalized plan key.
- */
-function ai4seo_get_current_user_plan(): string {
-	global $ai4seo_current_user_plan;
-
-	if ( isset( $ai4seo_current_user_plan ) ) {
-		return $ai4seo_current_user_plan;
-	}
-
-	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
-		ai4seo_debug_message( 508736227, 'Prevented loop', true );
-		return 'free';
-	}
-
-	// The server-side subscription sync is authoritative; inactive accounts are expected to be stored as free.
-	$robhub_api           = ai4seo_robhub_api();
-	$current_subscription = $robhub_api->read_environmental_variable( $robhub_api::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION );
-
-	if ( ! is_array( $current_subscription ) ) {
-		$ai4seo_current_user_plan = 'free';
-		return $ai4seo_current_user_plan;
-	}
-
-	// Unknown local plan values should not unlock any paid-tier behavior.
-	$current_plan             = ai4seo_normalize_plan_identifier( $current_subscription['plan'] ?? 'free' );
-	$ai4seo_current_user_plan = $current_plan ?: 'free';
-
-	return $ai4seo_current_user_plan;
-}
-
-// =========================================================================================== \\
-
-/**
  * Function to retrieve the given plans amount of credits
  *
  * @param mixed $plan The plan value.
@@ -119,96 +84,6 @@ function ai4seo_get_plan_name( $plan ): string {
 	$plan            = ai4seo_normalize_plan_identifier( $plan );
 
 	return $available_plans[ $plan ]['name'] ?? $available_plans['free']['name'];
-}
-
-// =========================================================================================== \\
-
-/**
- * Determine whether the current account has at least the required plan level.
- *
- * Accepts plan identifiers (free, s, m, l) or their textual equivalents (basic, pro, premium).
- *
- * @since 2.3.0
- *
- * @param string $required_plan Plan identifier or name to compare against.
- *
- * @return bool True when the user's subscription meets or exceeds the requirement.
- */
-function ai4seo_user_has_at_least_plan( string $required_plan ): bool {
-	global $ai4seo_user_has_at_least_plan;
-
-	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
-		ai4seo_debug_message( 988736227, 'Prevented loop', true );
-		return false;
-	}
-
-	// Normalize required plans so settings-page gates can use identifiers or readable plan names interchangeably.
-	$required_plan = ai4seo_normalize_plan_identifier( $required_plan );
-
-	if ( ! $required_plan ) {
-		return false;
-	}
-
-	if ( isset( $ai4seo_user_has_at_least_plan[ $required_plan ] ) ) {
-		return (bool) $ai4seo_user_has_at_least_plan[ $required_plan ];
-	}
-
-	// Compare known plan positions only; malformed local subscription data is treated as free.
-	$current_plan               = ai4seo_get_current_user_plan();
-	$available_plans            = ai4seo_get_available_plans();
-	$available_plan_identifiers = array_keys( $available_plans );
-	$current_plan_index         = array_search( $current_plan, $available_plan_identifiers, true );
-
-	if ( false === $current_plan_index ) {
-		$current_plan_index = 0;
-	}
-
-	// Build the comparison cache in one pass because settings pages often query several tiers at once.
-	foreach ( $available_plan_identifiers as $this_plan_index => $this_plan_identifier ) {
-		$ai4seo_user_has_at_least_plan[ $this_plan_identifier ] = $current_plan_index >= $this_plan_index;
-	}
-
-	return (bool) ( $ai4seo_user_has_at_least_plan[ $required_plan ] ?? false );
-}
-
-// =========================================================================================== \\
-
-/**
- * Determine whether the current account exactly matches the required plan.
- *
- * @param string $required_plan Plan identifier or name to compare against.
- * @return bool True when the current plan exactly matches the requirement.
- */
-function ai4seo_user_has_exact_plan( string $required_plan ): bool {
-	// Exact checks share the same normalization source as tier-gated settings checks.
-	$required_plan = ai4seo_normalize_plan_identifier( $required_plan );
-
-	if ( ! $required_plan ) {
-		return false;
-	}
-
-	return ai4seo_get_current_user_plan() === $required_plan;
-}
-
-// =========================================================================================== \\
-
-/**
- * Determine whether the current account has an active paid subscription.
- *
- * Credits packs and Pay-As-You-Go do not unlock subscription-only limits.
- *
- * @param string $required_plan Minimum paid plan identifier or name.
- * @return bool True when the current account has at least the required paid plan.
- */
-function ai4seo_user_has_active_subscription( string $required_plan = 's' ): bool {
-	// Active subscriptions are paid plans only; server-side sync downgrades inactive subscriptions to free.
-	$required_plan = ai4seo_normalize_plan_identifier( $required_plan );
-
-	if ( ! $required_plan || 'free' === $required_plan ) {
-		return false;
-	}
-
-	return ai4seo_user_has_at_least_plan( $required_plan );
 }
 
 // =========================================================================================== \\

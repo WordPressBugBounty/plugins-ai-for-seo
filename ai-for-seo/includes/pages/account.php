@@ -81,7 +81,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 		// === HEADLINE ============================================================================== \\
 
 		echo '<h2>';
-			echo "<i class='dashicons dashicons-id-alt ai4seo-menu-item-icon'></i>";
+			ai4seo_echo_wp_kses( ai4seo_get_dashicon_tag( 'id-alt', 'ai4seo-menu-item-icon', true ) );
 			echo esc_html__( 'License', 'ai-for-seo' );
 		echo '</h2>';
 
@@ -200,7 +200,7 @@ if ( $ai4seo_license_username && $ai4seo_license_key && $ai4seo_show_license_det
 		// === HEADLINE ============================================================================== \\
 
 		echo '<h2>';
-			echo "<i class='dashicons dashicons-megaphone ai4seo-menu-item-icon'></i>";
+			ai4seo_echo_wp_kses( ai4seo_get_dashicon_tag( 'megaphone', 'ai4seo-menu-item-icon', true ) );
 			echo esc_html__( 'For SEO and Web Agencies', 'ai-for-seo' );
 		echo '</h2>';
 
@@ -404,7 +404,7 @@ if ( $ai4seo_license_username && $ai4seo_license_key && $ai4seo_show_license_det
 			echo "<div class='card ai4seo-form-section'>";
 			// Headline.
 			echo '<h2>';
-			echo '<i class="dashicons dashicons-shield ai4seo-menu-item-icon"></i>';
+			ai4seo_echo_wp_kses( ai4seo_get_dashicon_tag( 'shield', 'ai4seo-menu-item-icon', true ) );
 			echo esc_html__( 'Privacy & Agreements', 'ai-for-seo' );
 			echo '</h2>';
 
@@ -449,7 +449,14 @@ if ( $ai4seo_license_username && $ai4seo_license_key && $ai4seo_show_license_det
 					// Keep the tooltip trigger outside the label so both controls retain their native keyboard behavior.
 					echo "<span class='ai4seo-label-with-tooltip'>";
 						echo "<label for='" . esc_attr( $ai4seo_this_prefixed_input_id ) . "'>" . esc_html__( 'I agree to share extended data to support the ongoing development of the plugin. I may opt out at any time.', 'ai-for-seo' ) . '</label>';
-						ai4seo_echo_wp_kses( ai4seo_get_icon_with_tooltip_tag( $extended_data_collection_tooltip_text ) );
+						ai4seo_echo_wp_kses(
+							ai4seo_get_icon_with_tooltip_tag(
+								$extended_data_collection_tooltip_text,
+								'',
+								'circle-question',
+								__( 'Enhanced Reporting help', 'ai-for-seo' )
+							)
+						);
 					echo '</span>';
 					echo "<input type='checkbox' id='" . esc_attr( $ai4seo_this_prefixed_input_id ) . "' name='" . esc_attr( $ai4seo_this_prefixed_input_id ) . "' class='ai4seo-single-checkbox' " . ( $ai4seo_did_user_accept_enhanced_reporting ? " checked='checked'" : '' ) . '>';
 				echo '</div>';

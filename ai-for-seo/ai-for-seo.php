@@ -3,7 +3,7 @@
  * Plugin Name: SOOZ - AI for SEO
  * Plugin URI: https://sooz.ai
  * Description: One-Click SEO solution. *SOOZ - AI for SEO* helps your website to rank higher in Web Search results.
- * Version: 2.4.2
+ * Version: 2.4.3
  * Author: spacecodes
  * Author URI: https://spa.ce.codes
  * Text Domain: ai-for-seo
@@ -23,14 +23,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 // Store the plugin entry file for hooks and URL/path helpers that require main-file semantics.
 const AI4SEO_PLUGIN_FILE     = __FILE__;
 const AI4SEO_PLUGIN_DIR_PATH = __DIR__ . '/';
-
-// Handle early-exit support paths before the rest of the plugin registers hooks or loads modules.
-// The deactivation branch intentionally uses WordPress' page variable so no custom raw parameter remains.
-// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- The page variable is the requested early-loader trigger.
-if ( isset( $_GET['page'] ) && 'deactivate-ai-for-seo' === sanitize_key( wp_unslash( $_GET['page'] ) ) ) {
-	deactivate_plugins( plugin_basename( AI4SEO_PLUGIN_FILE ) );
-	return;
-}
 
 // Load the early prohibit-token handler separately while keeping the final stop decision in this loader.
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/prohibit-plugin.php';
@@ -78,7 +70,9 @@ require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/environmental-variables.php
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/notifications-notices.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/terms-of-service.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/latest-activity.php';
-require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/pay-as-you-go.php';
+
+// Account operations load after their plan, storage, notification, and API dependencies.
+require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/account.php';
 
 // Register hooks last and return the bootstrap result so its early blockers exit this plugin file.
 return require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/bootstrap-hooks.php';

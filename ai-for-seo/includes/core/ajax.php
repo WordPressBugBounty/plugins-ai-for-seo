@@ -14,6 +14,121 @@ if ( ! defined( 'ABSPATH' ) ) {
 // =========================================================================================== \\
 
 /**
+ * Gatekeeper for AI4SEO AJAX requests.
+ *
+ * @return void
+ */
+function ai4seo_on_ajax_action() {
+	if ( wp_doing_ajax() === false ) {
+		return;
+	}
+
+	$action = isset( $_REQUEST['action'] ) ? sanitize_key( wp_unslash( $_REQUEST['action'] ) ) : '';
+
+	if ( '' === $action ) {
+		if ( ai4seo_request_contains_prefixed_parameters() ) {
+			ai4seo_debug_message( 2512181226, 'AJAX request is missing the action parameter. The POST body may have been truncated by PHP max_input_vars.', true );
+			ai4seo_send_ajax_error(
+				esc_html__( 'The AJAX request was incomplete before WordPress could route it. Please increase the PHP max_input_vars limit and try again.', 'ai-for-seo' ),
+				2512181226
+			);
+		}
+
+		return;
+	}
+
+	if ( strpos( $action, 'ai4seo_' ) !== 0 ) {
+		return;
+	}
+
+	// we have an AJAX request for our plugin, let's run the security gate.
+	ai4seo_ajax_security_gate();
+
+	if ( ! in_array( $action, AI4SEO_ALLOWED_AJAX_FUNCTIONS, true ) ) {
+		ai4seo_debug_message( 2312181226, 'Blocked unknown AJAX action: ' . $action, true );
+		ai4seo_send_ajax_error(
+			esc_html__( 'AJAX action is not allowed. Please refresh the page and try again.', 'ai-for-seo' ),
+			2312181226
+		);
+	}
+
+	$ajax_hook_name = "wp_ajax_{$action}";
+
+	if ( has_action( $ajax_hook_name ) === false ) {
+		ai4seo_debug_message( 2412181226, 'AJAX action has no registered handler: ' . $action, true );
+		ai4seo_send_ajax_error(
+			esc_html__( 'AJAX action is not available. Please refresh the page and try again.', 'ai-for-seo' ),
+			2412181226
+		);
+	}
+}
+
+// =========================================================================================== \\
+
+/**
+ * Checks whether the current request contains plugin-prefixed parameters.
+ *
+ * @return bool
+ */
+function ai4seo_request_contains_prefixed_parameters(): bool {
+	foreach ( $_REQUEST as $parameter_name => $parameter_value ) {
+		if ( ! is_string( $parameter_name ) ) {
+			continue;
+		}
+
+		if ( strpos( $parameter_name, AI4SEO_POST_PARAMETER_PREFIX ) === 0 ) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// =========================================================================================== \\
+
+/**
+ * Validates nonce and permissions for AI4SEO AJAX requests.
+ *
+ * Sends an AJAX error and exits on failure.
+ *
+ * @return void
+ */
+function ai4seo_ajax_security_gate() {
+	$ajax_nonce = '';
+
+	if ( isset( $_REQUEST[ AI4SEO_GLOBAL_NONCE_IDENTIFIER ] ) ) {
+		$ajax_nonce = sanitize_text_field( wp_unslash( $_REQUEST[ AI4SEO_GLOBAL_NONCE_IDENTIFIER ] ) );
+	} elseif ( isset( $_REQUEST['security'] ) ) {
+		$ajax_nonce = sanitize_text_field( wp_unslash( $_REQUEST['security'] ) );
+	}
+
+	if ( '' === $ajax_nonce ) {
+		ai4seo_send_ajax_error(
+			esc_html__( 'Action blocked due to security reasons. Please refresh this page and try again.', 'ai-for-seo' ),
+			401271224
+		);
+	}
+
+	if ( wp_verify_nonce( $ajax_nonce, AI4SEO_GLOBAL_NONCE_IDENTIFIER ) === false ) {
+		ai4seo_send_ajax_error(
+			esc_html__( 'Action blocked due to security reasons. Please refresh this page and try again.', 'ai-for-seo' ),
+			411271224
+		);
+	}
+
+	if ( ai4seo_can_manage_this_plugin() === false ) {
+		ai4seo_send_ajax_error(
+			esc_html__( 'Action blocked due to security reasons. Please refresh this page and try again.', 'ai-for-seo' ),
+			11420725
+		);
+	}
+
+	$GLOBALS['ai4seo_ajax_nonce'] = $ajax_nonce;
+}
+
+// =========================================================================================== \\
+
+/**
  * Helper: send clean JSON and log any noise safely.
  *
  * @param array $response The response value.
@@ -277,24 +392,31 @@ function ai4seo_save_anything( $additional_upcoming_updates = array() ) {
 	}
 
 	// Run categories against one shared update bag so normalization remains visible in the established processor order.
-	foreach ( $save_anything_processors as $save_anything_processor ) {
-		$save_anything_processor_error = $save_anything_processor( $upcoming_save_anything_updates );
+	$save_anything_response = array();
 
-		// A null result means that the category either succeeded or had no applicable values.
-		if ( ! ( $save_anything_processor_error instanceof WP_Error ) ) {
+	foreach ( $save_anything_processors as $save_anything_processor ) {
+		$save_anything_processor_result = $save_anything_processor( $upcoming_save_anything_updates );
+
+		// Arrays contribute response data; null and other non-errors preserve the existing success/no-op behavior.
+		if ( is_array( $save_anything_processor_result ) ) {
+			$save_anything_response = array_replace_recursive( $save_anything_response, $save_anything_processor_result );
+			continue;
+		}
+
+		if ( ! ( $save_anything_processor_result instanceof WP_Error ) ) {
 			continue;
 		}
 
 		// Keep JSON response formatting centralized in the existing AJAX error mechanism.
 		ai4seo_send_ajax_error(
-			$save_anything_processor_error->get_error_message(),
-			(int) $save_anything_processor_error->get_error_code()
+			$save_anything_processor_result->get_error_message(),
+			(int) $save_anything_processor_result->get_error_code()
 		);
 		return;
 	}
 
 	// Report success only after every category has completed without returning an error.
-	ai4seo_send_ajax_success();
+	ai4seo_send_ajax_success( $save_anything_response );
 }
 // =========================================================================================== \\
 
@@ -537,6 +659,12 @@ function ai4seo_apply_bulk_generation_queue_action() {
 		return;
 	}
 
+	// Validate every selected object because the AJAX payload is independent of the visible admin table.
+	if ( ! ai4seo_can_edit_post_ids( $post_ids ) ) {
+		ai4seo_send_ajax_error( esc_html__( 'You are not allowed to edit one or more selected entries.', 'ai-for-seo' ), 3106062606 );
+		return;
+	}
+
 	$result = ai4seo_process_bulk_generation_queue_action(
 		$bulk_generation_queue_action,
 		$post_ids,
@@ -585,6 +713,12 @@ function ai4seo_apply_bulk_custom_instructions_action() {
 
 	if ( ! $post_ids ) {
 		ai4seo_send_ajax_error( esc_html__( 'Please select at least one entry.', 'ai-for-seo' ), 1407062603 );
+		return;
+	}
+
+	// Validate every selected object before applying its entry-level custom instructions.
+	if ( ! ai4seo_can_edit_post_ids( $post_ids ) ) {
+		ai4seo_send_ajax_error( esc_html__( 'You are not allowed to edit one or more selected entries.', 'ai-for-seo' ), 1407062606 );
 		return;
 	}
 
@@ -2091,6 +2225,12 @@ function ai4seo_check_attachment_usage_context() {
 		return;
 	}
 
+	// Usage lookup exposes surrounding post context, so require access to the requested media object first.
+	if ( ! ai4seo_can_edit_post( $attachment_post_id ) ) {
+		ai4seo_send_ajax_error( esc_html__( 'You are not allowed to edit this media entry.', 'ai-for-seo' ), 16032603 );
+		return;
+	}
+
 	$attachment_post = get_post( $attachment_post_id );
 
 	if ( ! $attachment_post || 'attachment' !== $attachment_post->post_type ) {
@@ -2102,8 +2242,8 @@ function ai4seo_check_attachment_usage_context() {
 	$is_deep_context_search_supported        = (bool) ( $deep_context_search_site_support_status['is_supported'] ?? false );
 	$is_deep_context_search_enabled          = (bool) ai4seo_get_setting( AI4SEO_SETTING_DEEP_CONTEXT_SEARCH_FOR_IMAGES );
 
-	// Resolve the first eligible usage post once and expose its permalink for the editor's context link.
-	$usage_post_id    = ai4seo_get_first_attachment_using_post_id( $attachment_post_id );
+	// Resolve only an editable usage post so the context link cannot expose an unauthorized entry.
+	$usage_post_id    = ai4seo_get_first_attachment_using_post_id( $attachment_post_id, true );
 	$usage_post_title = '';
 	$usage_post_url   = '';
 

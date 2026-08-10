@@ -40,6 +40,11 @@ if ( ! $ai4seo_post_ids ) {
 	ai4seo_send_ajax_error( esc_html__( 'Please select at least one entry.', 'ai-for-seo' ), 1507062603 );
 }
 
+// Validate every modal target because the submitted selection can differ from the visible admin table.
+if ( ! ai4seo_can_edit_post_ids( $ai4seo_post_ids ) ) {
+	ai4seo_send_ajax_error( esc_html__( 'You are not allowed to edit one or more selected entries.', 'ai-for-seo' ), 1507062604 );
+}
+
 // === PREPARE =============================================================================== \\
 
 $ai4seo_selected_entries_count         = count( $ai4seo_post_ids );

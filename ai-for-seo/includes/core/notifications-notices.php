@@ -8,6 +8,88 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 /**
+ * Register early notice suppression for a plugin admin page hook.
+ *
+ * @param string $hook_suffix The WordPress admin page hook suffix.
+ * @return void
+ */
+function ai4seo_register_plugin_admin_notice_suppression( string $hook_suffix ): void {
+	// Remember suffixes within this request so duplicate menu hooks do not add duplicate callbacks.
+	static $registered_hook_suffixes = array();
+
+	// Normalize WordPress' returned hook suffix before building page-specific action names.
+	$hook_suffix = trim( $hook_suffix );
+
+	// Ignore failed or duplicate registrations because top-level and submenu pages may overlap.
+	if ( '' === $hook_suffix || isset( $registered_hook_suffixes[ $hook_suffix ] ) ) {
+		return;
+	}
+
+	// Use page-specific hooks so notice suppression runs only on SOOZ admin screens.
+	add_action( 'load-' . $hook_suffix, 'ai4seo_suppress_external_admin_notices_on_plugin_page', 0 );
+	add_action( 'admin_print_styles-' . $hook_suffix, 'ai4seo_output_admin_notice_suppression_styles', 0 );
+
+	// Track registered suffixes locally to avoid duplicate hook callbacks on the dashboard page.
+	$registered_hook_suffixes[ $hook_suffix ] = true;
+}
+
+// =========================================================================================== \\
+
+/**
+ * Suppress external WordPress admin notices on AI4SEO plugin pages.
+ *
+ * @return void
+ */
+function ai4seo_suppress_external_admin_notices_on_plugin_page(): void {
+	// Keep the callback harmless if WordPress or another plugin reuses a registered hook suffix unexpectedly.
+	if ( ! ai4seo_is_user_inside_our_plugin_admin_pages() ) {
+		return;
+	}
+
+	// Remove each WordPress admin notice channel before it can output third-party notices on SOOZ pages.
+	$notice_hook_names = array(
+		'admin_notices',
+		'all_admin_notices',
+		'network_admin_notices',
+		'user_admin_notices',
+	);
+
+	// Apply the same suppression to all notice channels while keeping the hook list easy to audit.
+	foreach ( $notice_hook_names as $this_notice_hook_name ) {
+		remove_all_actions( $this_notice_hook_name );
+	}
+}
+
+// =========================================================================================== \\
+
+/**
+ * Hide direct WordPress notice output before first paint on AI4SEO plugin pages.
+ *
+ * @return void
+ */
+function ai4seo_output_admin_notice_suppression_styles(): void {
+	// Keep this fallback scoped to SOOZ pages in case WordPress calls the style hook unexpectedly.
+	if ( ! ai4seo_is_user_inside_our_plugin_admin_pages() ) {
+		return;
+	}
+
+	// Preserve SOOZ notices while hiding direct WordPress notice children early enough to prevent a first-paint flash.
+	$preserved_notice_selector_suffix = ':not(.ai4seo-notice):not(.ai4seo-debug-notice)';
+	$notice_suppression_selectors     = array(
+		'#wpbody-content > .notice' . $preserved_notice_selector_suffix,
+		'#wpbody-content > .updated' . $preserved_notice_selector_suffix,
+		'#wpbody-content > .error' . $preserved_notice_selector_suffix,
+	);
+
+	// Inline output is intentional here because the normal plugin stylesheet is too late for notice flash prevention.
+	echo '<style id="ai4seo-admin-notice-suppression">';
+		echo wp_kses( implode( ',', $notice_suppression_selectors ), array() ) . '{display:none!important;}';
+	echo '</style>';
+}
+
+// =========================================================================================== \\
+
+/**
  * Function to push a new unread notification
  *
  * @param string $notification_index The notification identifier
@@ -221,14 +303,19 @@ function ai4seo_echo_notice_from_notification( string $notification_index, array
 		return;
 	}
 
+	// Discount presentation flags also determine whether the generic notice chrome remains useful.
 	$is_dismissable                  = ! ( isset( $notification['is_permanent'] ) && $notification['is_permanent'] );
+	$show_generic_coupon_text        = (bool) ( $notification['show_generic_coupon_text'] ?? true );
+	$show_buttons_row                = (bool) ( $notification['show_buttons_row'] ?? true );
+	$is_image_only_notification      = ! $show_generic_coupon_text && ! $show_buttons_row;
+	$show_notice_dismiss_button      = $is_dismissable && ! $is_image_only_notification;
 	$show_contact_us_info            = (bool) ( $notification['contact_us_info'] ?? ( $notification['contact_us'] ?? false ) );
 	$notice_class                    = $notification['notice_type'] ?? 'notice-info';
 	$message                         = $notification['message'];
 	$is_unread                       = ! isset( $notification['read'] ) || ! $notification['read'];
 	$ignore_during_dashboard_refresh = (bool) ( $notification['ignore_during_dashboard_refresh'] ?? true );
 
-	if ( $show_contact_us_info ) {
+	if ( $show_contact_us_info && $show_generic_coupon_text ) {
 		$message .= '<br /><br />' . __( 'If you have any questions, just click the button below to <strong>contact us</strong>. We’re happy to help. In any language you prefer.', 'ai-for-seo' );
 	}
 
@@ -243,14 +330,25 @@ function ai4seo_echo_notice_from_notification( string $notification_index, array
 		$additional_classes .= ' ai4seo-ignore-during-dashboard-refresh';
 	}
 
-	echo '<div class="notice ai4seo-notice ai4seo-notification' . ( $is_dismissable ? ' is-dismissible' : '' ) . ' ' . esc_attr( $notice_class ) . esc_attr( $additional_classes ) . '" data-notification-index="' . esc_attr( $notification_index ) . '">';
+	if ( $is_image_only_notification ) {
+		$additional_classes .= ' ai4seo-image-only-notification';
+	}
+
+	echo '<div class="notice ai4seo-notice ai4seo-notification' . ( $show_notice_dismiss_button ? ' is-dismissible' : '' ) . ' ' . esc_attr( $notice_class ) . esc_attr( $additional_classes ) . '" data-notification-index="' . esc_attr( $notification_index ) . '">';
+
+	if ( ! $is_image_only_notification ) {
 		ai4seo_echo_wp_kses( ai4seo_get_sooz_logo_image_tag( 'sooz-oo' ) );
+	}
 
-		// the message.
+	// Image-only notifications contain prebuilt safe markup; ordinary notices retain placeholder filtering.
+	if ( $is_image_only_notification ) {
+		ai4seo_echo_wp_kses( $message );
+	} else {
 		ai4seo_echo_wp_kses( ai4seo_filter_notification_message( $message, $notification_index, $notification ) );
+	}
 
-		// Add footer.
-		$notification_buttons = ai4seo_get_notification_buttons( $notification_index, $notification );
+	// Suppressed button rows must not leave an empty footer wrapper in image-only notices.
+	$notification_buttons = $show_buttons_row ? ai4seo_get_notification_buttons( $notification_index, $notification ) : '';
 
 	if ( $notification_buttons ) {
 		echo '<div class="ai4seo-buttons-wrapper">';
@@ -258,11 +356,13 @@ function ai4seo_echo_notice_from_notification( string $notification_index, array
 		echo '</div>';
 	}
 
-		// Keep the existing spacer workaround for WordPress notice dismiss button layout bugs.
+	// Keep the existing spacer workaround for WordPress notice dismiss button layout bugs.
+	if ( ! $is_image_only_notification ) {
 		echo '<span></span><span></span>';
+	}
 
-		// Render the dismiss button server-side because JavaScript now only binds the dismiss action.
-	if ( $is_dismissable ) {
+	// Render the dismiss button server-side because JavaScript now only binds the dismiss action.
+	if ( $show_notice_dismiss_button ) {
 		echo '<button type="button" class="notice-dismiss ai4seo-ignore-during-dashboard-refresh"><span class="screen-reader-text">' . esc_html__( 'Dismiss this notice.', 'ai-for-seo' ) . '</span></button>';
 	}
 
@@ -280,7 +380,7 @@ function ai4seo_filter_notification_message( $message, string $notification_inde
 	}
 
 	// add avatar and greetings if the notification has 'show_avatar' set to true.
-	if ( isset( $notification['show_avatar'] ) ) {
+	if ( ! empty( $notification['show_avatar'] ) ) {
 		$avatar           = "<div class='ai4seo-developer-avatar-wrapper'><img src='" . esc_attr( ai4seo_get_assets_images_url( 'andre-erbis-at-space-codes.webp' ) ) . "'></div>";
 		$users_first_name = ai4seo_is_function_usable( 'get_current_user_id' ) && get_current_user_id() ? get_user_meta( get_current_user_id(), 'first_name', true ) : '';
 
@@ -1995,28 +2095,92 @@ function ai4seo_check_for_finished_seo_autopilot_notification( $force = false ) 
 
 // =========================================================================================== \\
 
+/**
+ * Build accessible alt text for a discount notification image from its generic coupon copy.
+ *
+ * @param string $generic_coupon_text Generic coupon copy, including the call to action.
+ * @param string $voucher_code Coupon code displayed for the discount.
+ * @param int    $expire_in Remaining validity in seconds.
+ * @return string
+ */
+function ai4seo_get_discount_notification_image_alt_text( string $generic_coupon_text, string $voucher_code, int $expire_in ): string {
+	// Convert the existing rich coupon copy into one plain-text equivalent for non-visual users.
+	$expire_countdown = $expire_in > 0 ? ai4seo_format_seconds_to_hhmmss_or_days_hhmmss( $expire_in ) : '';
+	$alt_text         = str_replace( '{{EXPIRE_COUNTDOWN}}', $expire_countdown, $generic_coupon_text );
+	$alt_text         = preg_replace( '/<br\s*\/?>/i', ' ', $alt_text ) ?? '';
+	$alt_text         = html_entity_decode( wp_strip_all_tags( $alt_text ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+	$alt_text         = preg_replace( '/\s+/u', ' ', trim( $alt_text ) ) ?? '';
+	$voucher_code     = sanitize_text_field( $voucher_code );
+
+	if ( $voucher_code ) {
+		$alt_text .= ' ' . sprintf(
+			/* translators: %s: Voucher code. */
+			__( 'Enter this voucher code during checkout to apply the discount: %s.', 'ai-for-seo' ),
+			$voucher_code
+		);
+	}
+
+	return trim( $alt_text );
+}
+
+// =========================================================================================== \\
+
+/**
+ * Build the complete image element for a discount notification.
+ *
+ * @param string $image_url Image URL received from RobHub.
+ * @param string $alt_text Accessible image alternative text.
+ * @return string
+ */
+function ai4seo_get_discount_notification_image_tag( string $image_url, string $alt_text ): string {
+	// Require a safe URL and a meaningful text alternative before rendering remote content.
+	$image_url = esc_url( $image_url );
+	$alt_text  = trim( $alt_text );
+
+	if ( ! $image_url || ! $alt_text ) {
+		return '';
+	}
+
+	return '<img class="ai4seo-notification-image" src="' . $image_url . '" alt="' . esc_attr( $alt_text ) . '">';
+}
+
+// =========================================================================================== \\
+
 function ai4seo_check_discount_notification( $discount, $allow_notification_force = false ) {
 	if ( ! ai4seo_singleton( __FUNCTION__ ) ) {
 		return;
 	}
 
+	// Normalize API-provided content and display flags before composing the stored notification.
 	$notification_index           = 'discount';
 	$discount_name                = $discount['name'] ?? '';
-	$discount_description         = $discount['description'] ?? '';
+	$discount_description         = (string) ( $discount['description'] ?? '' );
+	$discount_image_url           = esc_url_raw( (string) ( $discount['image'] ?? '' ) );
 	$discount_percentage          = $discount['percentage'] ?? 0;
 	$discount_expire_in           = $discount['expire_in'] ?? 0;
 	$expire_within_next_24h       = $discount_expire_in > 0 && $discount_expire_in <= 24 * HOUR_IN_SECONDS;
 	$expire_at                    = $discount_expire_in > 0 ? time() + $discount_expire_in : 0;
 	$discount_first_purchase_only = $discount['first_purchase_only'] ?? false;
-	$discount_voucher_code        = $discount['voucher_code'] ?? '';
+	$discount_voucher_code        = (string) ( $discount['voucher_code'] ?? '' );
+	$show_generic_coupon_text     = (bool) ( $discount['show_generic_coupon_text'] ?? true );
+	$show_buttons_row             = (bool) ( $discount['show_buttons_row'] ?? true );
+	$is_permanent                 = (bool) ( $discount['is_permanent'] ?? false );
 	$force                        = false;
+
+	// A valid image is required before generic coupon text can safely be hidden.
+	if ( ! $discount_image_url ) {
+		$show_generic_coupon_text = true;
+	} else {
+		// Modern clients build the image tag themselves and ignore the legacy HTML fallback.
+		$discount_description = '';
+	}
 
 	// if we enter the last 24h, force push this notification again.
 	if ( $allow_notification_force && $expire_within_next_24h ) {
 		$force = true;
 	}
 
-	// pre-defined discount descriptions.
+	// Pre-defined discount descriptions.
 	if ( 'early-bird' === $discount_name ) {
 		$discount_description = sprintf(
 			/* translators: 1: Discount percentage. 2: Remaining discount time. */
@@ -2066,28 +2230,55 @@ function ai4seo_check_discount_notification( $discount, $allow_notification_forc
 		}
 	}
 
-	// save hours and boost rankings
-	// $discount_description .= "<br>🚀 ";
-	// $discount_description .= esc_html__("Save hours of manual work and boost your rankings – effortlessly.", "ai-for-seo");.
-	$discount_description .= '<br><br>';
+	// Mention the action only when the corresponding button row will actually be rendered.
+	$discount_call_to_action = '';
 
-	// take your chance.
-	$discount_description .= ' ' . sprintf(
-		/* translators: %s: Call-to-action button label. */
-		esc_html__( 'Click %1$s below to apply the discount now.', 'ai-for-seo' ),
-		'<strong>"' . esc_html__( 'Grab Deal', 'ai-for-seo' ) . '"</strong>'
-	);
+	if ( $show_buttons_row ) {
+		$discount_call_to_action = sprintf(
+			/* translators: %s: Call-to-action button label. */
+			esc_html__( 'Click %1$s below to apply the discount now.', 'ai-for-seo' ),
+			'<strong>"' . esc_html__( 'Grab Deal', 'ai-for-seo' ) . '"</strong>'
+		);
+	}
 
-	// build notification.
-	$message = $discount_description;
+	$generic_coupon_text = $discount_description;
+
+	if ( $discount_call_to_action ) {
+		$generic_coupon_text .= '<br><br>' . $discount_call_to_action;
+	}
+
+	$message             = $generic_coupon_text;
+
+	if ( $discount_image_url ) {
+		$image_alt_text = ai4seo_get_discount_notification_image_alt_text( $generic_coupon_text, $discount_voucher_code, (int) $discount_expire_in );
+		$image_tag      = ai4seo_get_discount_notification_image_tag( $discount_image_url, $image_alt_text );
+
+		if ( $image_tag ) {
+			if ( $show_generic_coupon_text ) {
+				$message = $discount_description . '<br><br>' . $image_tag;
+
+				if ( $discount_call_to_action ) {
+					$message .= '<br><br>' . $discount_call_to_action;
+				}
+			} else {
+				$message = $image_tag;
+			}
+		} else {
+			$show_generic_coupon_text = true;
+		}
+	}
 
 	$additional_fields = array(
 		'notice_type'                        => 'notice-success',
-		'show_avatar'                        => true,
+		'image'                              => $discount_image_url,
+		'show_generic_coupon_text'           => $show_generic_coupon_text,
+		'show_buttons_row'                   => $show_buttons_row,
+		'is_permanent'                       => $is_permanent,
+		'show_avatar'                        => $show_generic_coupon_text,
 		'grab_deal_button'                   => true,
 		'not_now_button'                     => true,
 		'expire_at'                          => $expire_at,
-		'voucher_code'                       => $discount_voucher_code,
+		'voucher_code'                       => $show_generic_coupon_text ? $discount_voucher_code : '',
 		'is_robhub_account_synced_condition' => true, // only show this notification if the RobHub account is synced
 		// "min_num_missing_entries_condition" => 50, # todo: use this, if we can distinguish between agency and non-agency users
 		// "do_credits_cover_all_missing_entries_condition" => false, # todo: use this, if we can distinguish between agency and non-agency users.

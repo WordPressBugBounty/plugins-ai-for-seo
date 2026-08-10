@@ -59,6 +59,11 @@ if ( $ai4seo_this_attachment_post_id <= 0 ) {
 	ai4seo_send_ajax_error( esc_html__( 'Media post id is invalid.', 'ai-for-seo' ), 211823824 );
 }
 
+// Generation can later persist attributes, so enforce WordPress's permission for this media object.
+if ( ! ai4seo_can_edit_post( $ai4seo_this_attachment_post_id ) ) {
+	ai4seo_send_ajax_error( esc_html__( 'You are not allowed to edit this media entry.', 'ai-for-seo' ), 211823825 );
+}
+
 
 // === CHECK PARAMETER: GENERATION FIELDS ==================================================== \\
 
@@ -163,7 +168,7 @@ if ( $ai4seo_wpml_language ) {
 
 $ai4seo_robhub_api_call_parameters['trigger']         = 'manual';
 $ai4seo_robhub_api_call_parameters['website_context'] = ai4seo_get_website_context();
-$ai4seo_attachment_usage_context                      = ai4seo_get_attachment_post_related_context( $ai4seo_this_attachment_post_id );
+$ai4seo_attachment_usage_context                      = ai4seo_get_attachment_post_related_context( $ai4seo_this_attachment_post_id, true );
 
 if ( ! empty( $ai4seo_attachment_usage_context ) ) {
 	$ai4seo_robhub_api_call_parameters['attachment_usage_context'] = $ai4seo_attachment_usage_context;

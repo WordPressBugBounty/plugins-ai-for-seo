@@ -979,26 +979,6 @@ function ai4seo_get_sooz_logo_url( string $variant = '32x32' ): string {
 // =========================================================================================== \\
 
 /**
- * Returns the purchase plan url
- *
- * @param string $ai4seo_client_id
- * @return string The purchase plan url
- */
-function ai4seo_get_purchase_plan_url( string $ai4seo_client_id ): string {
-	$ai4seo_client_id   = sanitize_key( $ai4seo_client_id );
-	$ai4seo_pricing_url = trailingslashit( AI4SEO_OFFICIAL_PRICING_URL );
-
-	// Keep the pricing link usable without attribution when no RobHub client id is available yet.
-	if ( '' === $ai4seo_client_id ) {
-		return $ai4seo_pricing_url;
-	}
-
-	return add_query_arg( 'client-id', $ai4seo_client_id, $ai4seo_pricing_url );
-}
-
-// =========================================================================================== \\
-
-/**
  * This function uses wp_kses with our collection of allowed html tags and attributes
  *
  * @param string $content The content to sanitize.
@@ -1626,12 +1606,6 @@ function ai4seo_is_user_inside_installed_plugins_page(): bool {
 
 // =========================================================================================== \\
 
-function ai4seo_is_wordpress_cron_disabled(): bool {
-	return defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON;
-}
-
-// =========================================================================================== \\
-
 function ai4seo_get_prefixed_input_name( $input_id ): string {
 	return AI4SEO_POST_PARAMETER_PREFIX . $input_id;
 }
@@ -1879,130 +1853,6 @@ function ai4seo_get_mime_type_from_url( string $url ): ?string {
 	}
 
 	return ai4seo_get_remote_mime_type( $url );
-}
-
-// =========================================================================================== \\
-
-function ai4seo_get_attachment_post_mime_type( $attachment_post_id ): ?string {
-	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
-		ai4seo_debug_message( 373146404, 'Prevented loop', true );
-		return null;
-	}
-
-	$attachment_post = get_post( $attachment_post_id );
-
-	if ( ! $attachment_post || empty( $attachment_post->post_type ) ) {
-		return null;
-	}
-
-	// we found it already in the post_mime_type field.
-	if ( ! empty( $attachment_post->post_mime_type ) ) {
-		return ai4seo_normalize_mime_type_string( $attachment_post->post_mime_type );
-	}
-
-	// fallback: try to get it from the url.
-	$attachment_url = ai4seo_get_attachment_url( $attachment_post_id );
-
-	if ( ! $attachment_url ) {
-		return '';
-	}
-
-	return ai4seo_get_mime_type_from_url( $attachment_url );
-}
-
-// =========================================================================================== \\
-
-function ai4seo_get_attachment_url( $attachment_post_id ): ?string {
-	$attachment_post = get_post( $attachment_post_id );
-
-	if ( ! $attachment_post || empty( $attachment_post->post_type ) ) {
-		return null;
-	}
-
-	// check if it's an attachment.
-	if ( 'attachment' === $attachment_post->post_type ) {
-		// check url of the attachment.
-		$ai4seo_attachment_url = wp_get_attachment_url( $attachment_post_id );
-	} else {
-		$ai4seo_attachment_url = get_the_guid( $attachment_post );
-	}
-
-	return $ai4seo_attachment_url;
-}
-
-// =========================================================================================== \\
-
-/**
- * Get the best available attachment source.
- * Attention: Only use this function on a small number of attachments at once.
- *
- * Returns either a local file path or a reachable URL.
- *
- * @param int $attachment_post_id Attachment post ID.
- * @return array|null
- */
-function ai4seo_get_best_attachment_source( int $attachment_post_id ): ?array {
-	try {
-		$attachment_post = get_post( $attachment_post_id );
-
-		if ( ! $attachment_post || 'attachment' !== $attachment_post->post_type ) {
-			return null;
-		}
-
-		$attachment_path = get_attached_file( $attachment_post_id );
-
-		if ( $attachment_path && file_exists( $attachment_path ) && is_readable( $attachment_path ) ) {
-			return array(
-				'type'   => 'path',
-				'source' => $attachment_path,
-			);
-		}
-
-		$attachment_url = wp_get_attachment_url( $attachment_post_id );
-
-		if ( ! $attachment_url || wp_http_validate_url( $attachment_url ) === false ) {
-			return null;
-		}
-
-		$response = wp_remote_head(
-			$attachment_url,
-			array(
-				'timeout'     => 10,
-				'redirection' => 3,
-			)
-		);
-
-		if ( is_wp_error( $response ) ) {
-			$response = wp_remote_get(
-				$attachment_url,
-				array(
-					'timeout'     => 10,
-					'redirection' => 3,
-					'stream'      => false,
-					'headers'     => array(
-						'Range' => 'bytes=0-0',
-					),
-				)
-			);
-		}
-
-		if ( is_wp_error( $response ) ) {
-			return null;
-		}
-
-		$response_code = (int) wp_remote_retrieve_response_code( $response );
-
-		if ( $response_code >= 200 && $response_code < 400 ) {
-			return array(
-				'type'   => 'url',
-				'source' => $attachment_url,
-			);
-		}
-	} catch ( Exception $e ) {
-		return null;
-	}
-
-	return null;
 }
 
 // =========================================================================================== \\
@@ -2343,69 +2193,6 @@ function ai4seo_stringify( $value ): string {
 	}
 
 	return var_export( $value, true );
-}
-
-// =========================================================================================== \\
-
-function ai4seo_get_recommended_credits_pack_size_by_num_missing_entries(): int {
-	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
-		ai4seo_debug_message( 978225511, 'Prevented loop', true );
-		return 0;
-	}
-
-	$approximate_credits_needed = ai4seo_get_approximate_credits_needed();
-	$credits_packs              = ai4seo_get_credits_packs();
-
-	// find the smallest credit pack size that is larger than the approximate credits needed
-	// only consider first three entries.
-	$n = 0;
-	foreach ( $credits_packs as $this_credits_pack ) {
-		$this_credits_amount = (int) $this_credits_pack['credits_amount'];
-		++$n;
-
-		if ( $this_credits_amount >= $approximate_credits_needed ) {
-			return $this_credits_amount;
-		}
-
-		// we reached the third entry, return the current entry.
-		if ( $n >= 3 ) {
-			return $this_credits_amount;
-		}
-	}
-
-	// fallback: return the smallest pack size.
-	$first_credits_pack = reset( $credits_packs );
-	return (int) ( $first_credits_pack['credits_amount'] ?? 0 );
-}
-
-// =========================================================================================== \\
-
-function ai4seo_get_approximate_credits_needed(): int {
-	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
-		ai4seo_debug_message( 736466930, 'Prevented loop', true );
-		return 0;
-	}
-
-	$approximate_credits_needed = 0;
-
-	$num_missing_posts_by_post_type = ai4seo_get_num_missing_posts_by_post_type();
-
-	if ( ! $num_missing_posts_by_post_type ) {
-		return 0;
-	}
-
-	$metadata_credits_cost_per_post                 = ai4seo_calculate_metadata_credits_cost_per_post();
-	$attachment_attributes_cost_per_attachment_post = ai4seo_calculate_attachment_attributes_credits_cost_per_attachment_post();
-
-	foreach ( $num_missing_posts_by_post_type as $post_type => $num_missing_posts ) {
-		if ( 'attachment' === $post_type ) {
-			$approximate_credits_needed += $num_missing_posts * $attachment_attributes_cost_per_attachment_post;
-		} else {
-			$approximate_credits_needed += $num_missing_posts * $metadata_credits_cost_per_post;
-		}
-	}
-
-	return $approximate_credits_needed;
 }
 
 // =========================================================================================== \\

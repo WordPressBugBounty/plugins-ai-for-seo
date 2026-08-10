@@ -41,8 +41,18 @@ if ( $ai4seo_post_id <= 0 ) {
 	ai4seo_send_ajax_error( esc_html__( 'Post id is invalid.', 'ai-for-seo' ), 2306230638 );
 }
 
-// get sanitized all_post_ids parameter.
-$ai4seo_all_post_ids = isset( $_REQUEST['all_post_ids'] ) && is_array( $_REQUEST['all_post_ids'] ) ? array_map( 'absint', $_REQUEST['all_post_ids'] ) : array();
+// The plugin-level role gate does not replace WordPress's object-level post permission check.
+if ( ! ai4seo_can_edit_post( $ai4seo_post_id ) ) {
+	ai4seo_send_ajax_error( esc_html__( 'You are not allowed to edit this entry.', 'ai-for-seo' ), 2306230643 );
+}
+
+// Normalize the navigation list before using it for authorization or next-entry selection.
+$ai4seo_all_post_ids = isset( $_REQUEST['all_post_ids'] ) && is_array( $_REQUEST['all_post_ids'] )
+	? array_values( array_unique( array_filter( array_map( 'absint', (array) wp_unslash( $_REQUEST['all_post_ids'] ) ) ) ) )
+	: array();
+
+// Keep only editable navigation targets so one unrelated entry cannot block the authorized editor.
+$ai4seo_all_post_ids = ai4seo_filter_editable_post_ids( $ai4seo_all_post_ids );
 
 // Reuse the ordered-list helper so metadata and media editors calculate their next-entry targets identically.
 $ai4seo_next_post_id = ai4seo_get_next_post_id_from_ordered_post_ids( $ai4seo_post_id, $ai4seo_all_post_ids );
@@ -56,8 +66,36 @@ $ai4seo_this_post_title = get_the_title( $ai4seo_post_id );
 // read all metadata values for this post.
 $ai4seo_this_metadata_values = ai4seo_read_available_metadata_by_post_ids( array( $ai4seo_post_id ) );
 
-if ( $ai4seo_this_metadata_values ) {
+if ( is_array( $ai4seo_this_metadata_values ) ) {
 	$ai4seo_this_metadata_values = $ai4seo_this_metadata_values[ $ai4seo_post_id ] ?? array();
+} else {
+	$ai4seo_this_metadata_values = array();
+}
+
+// Start with no client snapshot so persisted metadata remains authoritative outside the current page editor.
+$ai4seo_live_yoast_metadata_identifiers = array();
+$ai4seo_live_yoast_metadata             = array();
+
+// Unslash the nested snapshot as one unit; recognized fields are sanitized individually below.
+if ( isset( $_REQUEST['live_yoast_metadata'] ) && is_array( $_REQUEST['live_yoast_metadata'] ) ) {
+	$ai4seo_live_yoast_metadata = wp_unslash( $_REQUEST['live_yoast_metadata'] );
+}
+
+// Prefer Yoast's current editor values only for fields actively configured to synchronize with Yoast.
+$ai4seo_yoast_sync_metadata_identifiers = ai4seo_get_third_party_seo_plugin_sync_metadata_identifiers( AI4SEO_THIRD_PARTY_PLUGIN_YOAST_SEO );
+
+foreach ( $ai4seo_yoast_sync_metadata_identifiers as $ai4seo_live_yoast_metadata_identifier ) {
+	if ( ! array_key_exists( $ai4seo_live_yoast_metadata_identifier, $ai4seo_live_yoast_metadata )
+		|| ! is_scalar( $ai4seo_live_yoast_metadata[ $ai4seo_live_yoast_metadata_identifier ] ) ) {
+		continue;
+	}
+
+	// Use the same field sanitizer as persisted editor values before allowing the snapshot into rendered form controls.
+	$ai4seo_live_yoast_metadata_value = ai4seo_sanitize_editor_field_value(
+		$ai4seo_live_yoast_metadata[ $ai4seo_live_yoast_metadata_identifier ]
+	);
+	$ai4seo_this_metadata_values[ $ai4seo_live_yoast_metadata_identifier ] = ai4seo_normalize_editor_input_value( $ai4seo_live_yoast_metadata_value );
+	$ai4seo_live_yoast_metadata_identifiers[] = $ai4seo_live_yoast_metadata_identifier;
 }
 
 // Source hints compare the active editor values with SOOZ and third-party snapshots before rendering labels.
@@ -65,6 +103,15 @@ $ai4seo_metadata_source_details = ai4seo_read_metadata_editor_source_details(
 	$ai4seo_post_id,
 	$ai4seo_this_metadata_values
 );
+
+// Distinguish live unsaved Yoast state from values read from Yoast postmeta.
+foreach ( $ai4seo_live_yoast_metadata_identifiers as $ai4seo_live_yoast_metadata_identifier ) {
+	$ai4seo_metadata_source_details[ $ai4seo_live_yoast_metadata_identifier ] = ai4seo_get_editor_field_third_party_source_details(
+		'Yoast SEO',
+		false,
+		true
+	);
+}
 
 // Prepare variables for prefixes and suffixes.
 $ai4seo_metadata_prefixes = ai4seo_get_setting( AI4SEO_SETTING_METADATA_PREFIXES );
@@ -164,6 +211,22 @@ echo "<div class='ai4seo-metadata-editor-entry-context'>";
 			$ai4seo_this_metadata_prefix      = sanitize_text_field( $ai4seo_metadata_prefixes[ $ai4seo_this_metadata_identifier ] ?? '' );
 			$ai4seo_this_metadata_suffix      = sanitize_text_field( $ai4seo_metadata_suffixes[ $ai4seo_this_metadata_identifier ] ?? '' );
 
+			// Resolve the effective generation target once so initial markup and live feedback share the same bounds.
+			$ai4seo_this_quality_window       = ai4seo_get_generation_length_quality_window( 'metadata', $ai4seo_this_metadata_identifier );
+			$ai4seo_this_minimum_length       = absint( $ai4seo_this_quality_window['min-length'] ?? 0 );
+			$ai4seo_this_maximum_length       = absint( $ai4seo_this_quality_window['max-length'] ?? 0 );
+			$ai4seo_has_quality_window        = 0 < $ai4seo_this_minimum_length && $ai4seo_this_minimum_length <= $ai4seo_this_maximum_length;
+			$ai4seo_length_feedback_id        = $ai4seo_this_metadata_input_name . '-length-feedback';
+			$ai4seo_length_input_class        = $ai4seo_has_quality_window ? ' ai4seo-editor-length-tracked' : '';
+			$ai4seo_length_input_attributes   = '';
+
+			// Expose valid bounds to JavaScript and associate the input with its live output element.
+			if ( $ai4seo_has_quality_window ) {
+				$ai4seo_length_input_attributes = ' aria-describedby="' . esc_attr( $ai4seo_length_feedback_id ) . '"'
+					. ' data-ai4seo-min-length="' . esc_attr( $ai4seo_this_minimum_length ) . '"'
+					. ' data-ai4seo-max-length="' . esc_attr( $ai4seo_this_maximum_length ) . '"';
+			}
+
 			// Keep each metadata field in the shared editor form-item structure used by attachment fields.
 			echo "<div class='ai4seo-form-item ai4seo-form-item-flush'>";
 
@@ -216,6 +279,34 @@ echo "<div class='ai4seo-metadata-editor-entry-context'>";
 				echo '</span>';
 			}
 
+			// Server-render the initial count so the target remains available before modal JavaScript initializes.
+			if ( $ai4seo_has_quality_window ) {
+				$ai4seo_this_input_length        = ai4seo_mb_strlen( $ai4seo_this_metadata_input_value );
+				$ai4seo_length_feedback_classes = 'ai4seo-editor-length-feedback ai4seo-sub-info';
+
+				// Empty values stay neutral because the quality window is a generation target, not a required-field rule.
+				if ( 0 < $ai4seo_this_input_length
+					&& ( $ai4seo_this_input_length < $ai4seo_this_minimum_length || $ai4seo_this_input_length > $ai4seo_this_maximum_length ) ) {
+					$ai4seo_length_feedback_classes .= ' ai4seo-editor-length-feedback-outside-target';
+				}
+
+				/* translators: 1: Current character count. 2: Minimum target length. 3: Maximum target length. */
+				$ai4seo_length_feedback_text = sprintf(
+					_n( '%1$d character · target %2$d–%3$d', '%1$d characters · target %2$d–%3$d', $ai4seo_this_input_length, 'ai-for-seo' ),
+					$ai4seo_this_input_length,
+					$ai4seo_this_minimum_length,
+					$ai4seo_this_maximum_length
+				);
+
+				echo '<output'
+					. ' class="' . esc_attr( $ai4seo_length_feedback_classes ) . '"'
+					. ' id="' . esc_attr( $ai4seo_length_feedback_id ) . '"'
+					. ' for="' . esc_attr( $ai4seo_this_metadata_input_name ) . '"'
+					. '>'
+					. esc_html( $ai4seo_length_feedback_text )
+					. '</output>';
+			}
+
 			echo '</span>';
 
 			// Render the registry-defined control inside the shared generate-button wrapper.
@@ -237,12 +328,22 @@ echo "<div class='ai4seo-metadata-editor-entry-context'>";
 				echo '</span><br>';
 			}
 
-				// Text field.
+			// Text field.
 			if ( 'textfield' === $ai4seo_this_metadata_details['input'] ) {
-				echo '<input type="text" class="ai4seo-textfield ai4seo-editor-textfield" name="' . esc_attr( $ai4seo_this_metadata_input_name ) . '" id="' . esc_attr( $ai4seo_this_metadata_input_name ) . '" value="' . esc_attr( $ai4seo_this_metadata_input_value ) . '" />';
+				echo '<input type="text"'
+					. ' class="ai4seo-textfield ai4seo-editor-textfield' . esc_attr( $ai4seo_length_input_class ) . '"'
+					. ' name="' . esc_attr( $ai4seo_this_metadata_input_name ) . '"'
+					. ' id="' . esc_attr( $ai4seo_this_metadata_input_name ) . '"'
+					. ' value="' . esc_attr( $ai4seo_this_metadata_input_value ) . '"'
+					. $ai4seo_length_input_attributes
+					. ' />';
 			} elseif ( 'textarea' === $ai4seo_this_metadata_details['input'] ) {
 				// Preserve multiline editing for metadata fields declared as textareas in the shared registry.
-				echo '<textarea class="ai4seo-textarea ai4seo-editor-textarea ai4seo-auto-resize-textarea" name="' . esc_attr( $ai4seo_this_metadata_input_name ) . '" id="' . esc_attr( $ai4seo_this_metadata_input_name ) . '">' . esc_textarea( $ai4seo_this_metadata_input_value ) . '</textarea>';
+				echo '<textarea class="ai4seo-textarea ai4seo-editor-textarea ai4seo-auto-resize-textarea' . esc_attr( $ai4seo_length_input_class ) . '"'
+					. ' name="' . esc_attr( $ai4seo_this_metadata_input_name ) . '"'
+					. ' id="' . esc_attr( $ai4seo_this_metadata_input_name ) . '"'
+					. $ai4seo_length_input_attributes
+					. '>' . esc_textarea( $ai4seo_this_metadata_input_value ) . '</textarea>';
 			}
 
 				// Suffix.
@@ -299,11 +400,16 @@ echo "<div class='ai4seo-metadata-editor-entry-context'>";
 			array(
 				'true' === $ai4seo_read_page_content_via_js,
 				$ai4seo_all_post_ids,
-			)
+			),
+			'ai4seo_handle_metadata_editor_save_success'
 		);
 
 		// Keep the normal save action last, matching the previous explicit footer markup.
-		$ai4seo_modal_footer_button_tags[] = ai4seo_get_submit_button_tag( esc_html__( 'Save changes', 'ai-for-seo' ), 'ai4seo-big-button ai4seo-lockable ai4seo-start-inactive', 'ai4seo_save_anything(jQuery(this), ai4seo_validate_metadata_editor_inputs, function() { ai4seo_safe_page_load(); });' );
+		$ai4seo_modal_footer_button_tags[] = ai4seo_get_submit_button_tag(
+			esc_html__( 'Save changes', 'ai-for-seo' ),
+			'ai4seo-big-button ai4seo-lockable ai4seo-start-inactive',
+			'ai4seo_save_anything(jQuery(this), ai4seo_validate_metadata_editor_inputs, ai4seo_handle_metadata_editor_save_success);'
+		);
 
 		// Render the action row through the shared footer helper used by AJAX modals.
 		ai4seo_echo_wp_kses( ai4seo_get_modal_footer_tag( $ai4seo_modal_footer_button_tags ) );

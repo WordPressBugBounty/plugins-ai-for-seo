@@ -88,6 +88,99 @@ function ai4seo_can_manage_this_plugin(): bool {
 // =========================================================================================== \\
 
 /**
+ * Checks whether the current plugin user may edit a specific post object.
+ *
+ * @param int $post_id Post ID to check.
+ * @return bool
+ */
+function ai4seo_can_edit_post( int $post_id ): bool {
+	// Object checks apply only after the current user has passed the plugin-wide role gate.
+	if ( $post_id <= 0 || ! ai4seo_can_manage_this_plugin() || ! function_exists( 'current_user_can' ) ) {
+		return false;
+	}
+
+	// Delegate per-object ownership and post-type capability mapping to WordPress.
+	return current_user_can( 'edit_post', $post_id );
+}
+
+// =========================================================================================== \\
+
+/**
+ * Checks whether the current plugin user may edit every supplied post object.
+ *
+ * @param array $post_ids Post IDs to check.
+ * @return bool
+ */
+function ai4seo_can_edit_post_ids( array $post_ids ): bool {
+	// Bulk operations are all-or-nothing so one forbidden object rejects the complete request.
+	foreach ( $post_ids as $post_id ) {
+		if ( ! ai4seo_can_edit_post( absint( $post_id ) ) ) {
+			return false;
+		}
+	}
+
+	// An empty list is valid here because callers decide separately whether their action requires entries.
+	return true;
+}
+
+// =========================================================================================== \\
+
+/**
+ * Returns only post IDs the current plugin user may edit.
+ *
+ * @param array $post_ids Post IDs to filter.
+ * @return array Editable post IDs in their original order.
+ */
+function ai4seo_filter_editable_post_ids( array $post_ids ): array {
+	$post_ids = array_values( array_unique( array_filter( array_map( 'absint', $post_ids ) ) ) );
+
+	if ( ! $post_ids || ! ai4seo_can_manage_this_plugin() || ! function_exists( 'current_user_can' ) ) {
+		return array();
+	}
+
+	// Check the plugin-wide gate once before applying WordPress's per-object capability mapping.
+	return array_values(
+		array_filter(
+			$post_ids,
+			function ( int $post_id ): bool {
+				return current_user_can( 'edit_post', $post_id );
+			}
+		)
+	);
+}
+
+// =========================================================================================== \\
+
+/**
+ * Checks whether optimized list queries may include every author's entries for the given post types.
+ *
+ * @param array $post_types Post type identifiers.
+ * @return bool True when the current plugin user may edit other users' entries for every post type.
+ */
+function ai4seo_can_edit_others_posts_for_post_types( array $post_types ): bool {
+	$post_types = array_values( array_unique( array_filter( array_map( 'sanitize_key', $post_types ) ) ) );
+
+	if ( ! $post_types || ! ai4seo_can_manage_this_plugin() || ! function_exists( 'current_user_can' ) ) {
+		return false;
+	}
+
+	foreach ( $post_types as $post_type ) {
+		$post_type_object = get_post_type_object( $post_type );
+		$edit_others_cap  = is_object( $post_type_object ) && isset( $post_type_object->cap->edit_others_posts )
+			? (string) $post_type_object->cap->edit_others_posts
+			: '';
+
+		if ( '' === $edit_others_cap || ! current_user_can( $edit_others_cap ) ) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+// =========================================================================================== \\
+
+/**
  * Retrieve an array of all user-roles that are currently available
  *
  * @return array An array of all user-roles
@@ -161,6 +254,10 @@ function ai4seo_remove_forbidden_allowed_user_roles( &$user_roles ) {
 	global $ai4seo_forbidden_allowed_user_roles;
 
 	if ( ! is_array( $user_roles ) ) {
+		return;
+	}
+
+	if ( ! is_array( $ai4seo_forbidden_allowed_user_roles ) ) {
 		return;
 	}
 

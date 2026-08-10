@@ -13,9 +13,15 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @param string $icon_name The name of the icon. Check function for allowed icon names.
  * @param string $alt_text (optional)
  * @param string $icon_css_class (optional)
+ * @param bool   $is_decorative Whether the icon is decorative (optional).
  * @return string The icon SVG tag
  */
-function ai4seo_get_svg_tag( string $icon_name, string $alt_text = '', string $icon_css_class = '' ): string {
+function ai4seo_get_svg_tag(
+	string $icon_name,
+	string $alt_text = '',
+	string $icon_css_class = '',
+	bool $is_decorative = false
+): string {
 	// Use the shared icon registry so output helpers cannot render arbitrary SVG markup.
 	$svg_tags = ai4seo_get_svg_tags();
 
@@ -39,6 +45,8 @@ function ai4seo_get_svg_tag( string $icon_name, string $alt_text = '', string $i
 	if ( $alt_text ) {
 		$svg_tag = str_replace( '<svg', "<svg aria-label='" . esc_attr( $alt_text ) . "'", $svg_tag );
 		$svg_tag = str_replace( '</svg>', '<title>' . esc_html( $alt_text ) . '</title></svg>', $svg_tag );
+	} elseif ( $is_decorative ) {
+		$svg_tag = str_replace( '<svg', "<svg aria-hidden='true'", $svg_tag );
 	}
 
 	// Strip CDATA wrappers because registry SVGs are embedded directly in HTML rather than parsed as XML.
@@ -183,13 +191,15 @@ function ai4seo_get_next_post_id_from_ordered_post_ids( int $current_post_id, ar
  * @param string $validation_function  JavaScript validation function name.
  * @param string $open_modal_function  JavaScript modal-opening function name.
  * @param array  $open_modal_arguments Additional JavaScript arguments after the next post ID.
+ * @param string $save_success_function Optional JavaScript function called with the response before opening the next modal.
  * @return string HTML.
  */
 function ai4seo_get_editor_save_next_button_tag(
 	int $next_post_id,
 	string $validation_function,
 	string $open_modal_function,
-	array $open_modal_arguments = array()
+	array $open_modal_arguments = array(),
+	string $save_success_function = ''
 ): string {
 	// Normalize the optional next entry ID so callers can pass raw list-navigation values safely.
 	$next_post_id = absint( $next_post_id );
@@ -205,6 +215,7 @@ function ai4seo_get_editor_save_next_button_tag(
 	if (
 		! preg_match( $ai4seo_javascript_function_name_pattern, $validation_function )
 		|| ! preg_match( $ai4seo_javascript_function_name_pattern, $open_modal_function )
+		|| ( $save_success_function && ! preg_match( $ai4seo_javascript_function_name_pattern, $save_success_function ) )
 	) {
 		return '';
 	}
@@ -225,8 +236,9 @@ function ai4seo_get_editor_save_next_button_tag(
 	}
 
 	// Reuse the existing save-anything flow while swapping only the success callback target per editor.
-	$ai4seo_onclick = 'ai4seo_save_anything(jQuery(this), ' . $validation_function . ', function() { '
-		. $open_modal_function . '(' . implode( ', ', $ai4seo_encoded_arguments ) . '); });';
+	$ai4seo_save_success_javascript = $save_success_function ? $save_success_function . '(response, false); ' : '';
+	$ai4seo_onclick                 = 'ai4seo_save_anything(jQuery(this), ' . $validation_function . ', function(response) { '
+		. $ai4seo_save_success_javascript . $open_modal_function . '(' . implode( ', ', $ai4seo_encoded_arguments ) . '); });';
 
 	// Render through the shared button helper so the footer action keeps the existing classes and escaping path.
 	return ai4seo_get_button_tag(
@@ -372,22 +384,32 @@ function ai4seo_get_editor_field_source_message_tag( array $source_details ): st
 			$message .= ' ' . __( 'This value appears to have been changed by a user after it was generated.', 'ai-for-seo' );
 		}
 	} elseif ( 'third_party_seo_plugin' === $source_type ) {
-		// Third-party messages name the plugin that supplied the value before it entered the SOOZ editor.
-		$plugin_name = sanitize_text_field( $source_details['plugin_name'] ?? '' );
+		// Third-party messages distinguish persisted imports from the current external editor state.
+		$plugin_name          = sanitize_text_field( $source_details['plugin_name'] ?? '' );
+		$is_live_editor_value = ! empty( $source_details['is_live_editor_value'] );
 
 		if ( ! $plugin_name ) {
 			// Omit ambiguous third-party notices because a source name is required to explain the field provenance.
 			return '';
 		}
 
-		$css_class = 'ai4seo-red-message';
-		$message   = sprintf(
-			/* translators: %s: Third-party SEO plugin name. */
-			__( 'This field value comes from the %s plugin and was imported.', 'ai-for-seo' ),
-			$plugin_name
-		);
+		if ( $is_live_editor_value ) {
+			$css_class = 'ai4seo-gray-message';
+			$message   = sprintf(
+				/* translators: %s: Third-party SEO plugin name. */
+				__( 'This field value comes from the current %s editor state and may include unsaved changes.', 'ai-for-seo' ),
+				$plugin_name
+			);
+		} else {
+			$css_class = 'ai4seo-red-message';
+			$message   = sprintf(
+				/* translators: %s: Third-party SEO plugin name. */
+				__( 'This field value comes from the %s plugin and was imported.', 'ai-for-seo' ),
+				$plugin_name
+			);
+		}
 
-		if ( $was_changed_by_user ) {
+		if ( $was_changed_by_user && ! $is_live_editor_value ) {
 			// Preserve the imported source while disclosing that the current value no longer exactly matches that import.
 			$message .= ' ' . __( 'This value appears to have been changed by a user after it was imported.', 'ai-for-seo' );
 		}
@@ -599,9 +621,9 @@ function ai4seo_echo_half_donut_chart_with_headline_and_percentage(
 
 	// Keep the chart, completion text, and optional multilingual context inside one per-post-type container.
 	echo "<div class='ai4seo-chart-container'>";
-		echo '<h4>';
+		echo "<h2 class='ai4seo-dashboard-section-heading'>";
 			ai4seo_echo_wp_kses( $headline );
-		echo '</h4>';
+		echo '</h2>';
 
 		echo "<div class='ai4seo-half-donut-chart-container'>";
 			ai4seo_echo_half_donut_chart( $chart_values );
@@ -684,7 +706,7 @@ function ai4seo_echo_half_donut_chart( array $values ) {
 function ai4seo_echo_chart_legend( array $values, bool $is_seo_autopilot_enabled = true ) {
 	// The legend is rendered once beside all charts and receives their aggregated status values.
 	echo '<div class="ai4seo-chart-legend">';
-		echo '<h4>' . esc_html__( 'Legend', 'ai-for-seo' ) . '</h4>';
+		echo "<h2 class='ai4seo-dashboard-section-heading'>" . esc_html__( 'Legend', 'ai-for-seo' ) . '</h2>';
 
 	// Render only represented statuses while preserving the insertion order shared with the charts.
 	foreach ( $values as $type => $info ) {
@@ -2033,12 +2055,18 @@ function ai4seo_get_prompt_slider_setting_description( string $setting_name ): s
  *
  * This keeps the settings page compact while preserving the normal save-anything radio workflow.
  *
- * @param string $setting_name Setting name.
- * @param string $setting_label Visible setting label.
- * @param bool   $is_advanced_setting Whether the setting is hidden behind the advanced toggle.
+ * @param string $setting_name          Setting name.
+ * @param string $setting_label         Visible setting label.
+ * @param bool   $is_advanced_setting   Whether the setting is hidden behind the advanced toggle.
+ * @param string $setting_section_label Settings section used to distinguish repeated labels.
  * @return string Setting form item HTML.
  */
-function ai4seo_get_prompt_slider_setting_form_item_tag( string $setting_name, string $setting_label, bool $is_advanced_setting = false ): string {
+function ai4seo_get_prompt_slider_setting_form_item_tag(
+	string $setting_name,
+	string $setting_label,
+	bool $is_advanced_setting = false,
+	string $setting_section_label = ''
+): string {
 	// Resolve the setting type once because it controls entitlement fallback and label layout.
 	$is_generation_length_setting = ai4seo_is_generation_length_slider_setting( $setting_name );
 	$stages                       = ai4seo_get_prompt_slider_setting_stages( $setting_name );
@@ -2065,7 +2093,24 @@ function ai4seo_get_prompt_slider_setting_form_item_tag( string $setting_name, s
 	}
 
 	// Normalize the source ID once so the visible label and radiogroup reference share the exact token.
-	$setting_label_id = sanitize_key( $setting_input_name . '-label' );
+	$setting_label_id      = sanitize_key( $setting_input_name . '-label' );
+	$setting_section_label = trim( sanitize_text_field( $setting_section_label ) );
+
+	// Include the section when repeated setting labels would otherwise produce identical help-trigger names.
+	if ( '' !== $setting_section_label ) {
+		$help_trigger_aria_label = sprintf(
+			/* translators: 1: Settings section. 2: Setting label. */
+			__( '%1$s help for %2$s', 'ai-for-seo' ),
+			$setting_section_label,
+			$setting_label
+		);
+	} else {
+		$help_trigger_aria_label = sprintf(
+			/* translators: %s: Setting label. */
+			__( 'Help for %s', 'ai-for-seo' ),
+			$setting_label
+		);
+	}
 
 	// Fall back to the conservative default if stored/imported data falls outside the slider range.
 	if ( ! ai4seo_validate_prompt_slider_setting_value( $setting_name, $setting_input_value ) ) {
@@ -2087,17 +2132,18 @@ function ai4seo_get_prompt_slider_setting_form_item_tag( string $setting_name, s
 			// Render the setting purpose after the selected stage so the stage-specific prompt text stays primary.
 			$output .= ai4seo_get_slider_input_tag(
 				array(
-					'id'                 => $setting_input_name,
-					'name'               => $setting_input_name,
-					'aria_labelledby'    => $setting_label_id,
-					'value'              => (string) $setting_input_value,
-					'preserved_value'    => $preserved_setting_value,
-					'stages'             => $stages,
-					'show_help_tooltip'  => ! $is_generation_length_setting,
-					'rotate_long_labels' => ! $is_generation_length_setting,
-					'track_background'   => 'linear-gradient(to right, var(--ai4seo-gray), #d63638)',
-					'track_thickness'    => '8px',
-					'track_opacity'      => '0.5',
+					'id'                      => $setting_input_name,
+					'name'                    => $setting_input_name,
+					'aria_labelledby'         => $setting_label_id,
+					'value'                   => (string) $setting_input_value,
+					'preserved_value'         => $preserved_setting_value,
+					'stages'                  => $stages,
+					'show_help_tooltip'       => ! $is_generation_length_setting,
+					'help_trigger_aria_label' => $help_trigger_aria_label,
+					'rotate_long_labels'      => ! $is_generation_length_setting,
+					'track_background'        => 'linear-gradient(to right, var(--ai4seo-gray), #d63638)',
+					'track_thickness'         => '8px',
+					'track_opacity'           => '0.5',
 				)
 			);
 
@@ -2257,7 +2303,8 @@ function ai4seo_get_slider_input_tag( array $args ): string {
 	}
 
 	// Preserve the caller's DOM ID reference while removing markup and control whitespace before escaping.
-	$aria_labelledby_value = trim( sanitize_text_field( (string) ( $args['aria_labelledby'] ?? '' ) ) );
+	$aria_labelledby_value    = trim( sanitize_text_field( (string) ( $args['aria_labelledby'] ?? '' ) ) );
+	$help_trigger_aria_label = trim( sanitize_text_field( (string) ( $args['help_trigger_aria_label'] ?? '' ) ) );
 
 	// Normalize layout options so the markup only emits supported CSS modifier classes.
 	$input_name  = isset( $args['name'] ) ? sanitize_text_field( (string) $args['name'] ) : '';
@@ -2480,7 +2527,12 @@ function ai4seo_get_slider_input_tag( array $args ): string {
 
 	if ( '' !== $help_tooltip_html ) {
 		$output     .= '<span class="ai4seo-slider-input-help">';
-			$output .= ai4seo_get_icon_with_tooltip_tag( $help_tooltip_html, 'ai4seo-slider-input-help-icon' );
+			$output .= ai4seo_get_icon_with_tooltip_tag(
+				$help_tooltip_html,
+				'ai4seo-slider-input-help-icon',
+				'circle-question',
+				$help_trigger_aria_label
+			);
 		$output     .= '</span>';
 	}
 		$output     .= '</div>';
@@ -2972,10 +3024,18 @@ function ai4seo_get_voucher_code_output( $voucher_code ): string {
  *
  * @param string $icon_name The name of the dashicon.
  * @param string $css_class The CSS class to add to the icon (optional).
+ * @param bool   $is_decorative Whether the icon is decorative (optional).
  * @return string The HTML for the dashicon tag
  */
-function ai4seo_get_dashicon_tag( string $icon_name, string $css_class = '' ): string {
-	return '<i class="dashicons dashicons-' . esc_attr( $icon_name ) . ' ' . esc_attr( $css_class ) . '"></i>';
+function ai4seo_get_dashicon_tag(
+	string $icon_name,
+	string $css_class = '',
+	bool $is_decorative = false
+): string {
+	$aria_hidden_attribute = $is_decorative ? ' aria-hidden="true"' : '';
+
+	return '<i' . $aria_hidden_attribute
+		. ' class="dashicons dashicons-' . esc_attr( $icon_name ) . ' ' . esc_attr( $css_class ) . '"></i>';
 }
 
 // =========================================================================================== \\
@@ -3005,7 +3065,7 @@ function ai4seo_get_dashicon_tag_for_navigation( $plugin_page ): string {
 
 	$icon_name = $icon_name_mapping[ $plugin_page ] ?? $icon_name_mapping['default'];
 
-	return ai4seo_get_dashicon_tag( $icon_name, 'ai4seo-menu-item-icon' );
+	return ai4seo_get_dashicon_tag( $icon_name, 'ai4seo-menu-item-icon', true );
 }
 
 

@@ -7,6 +7,130 @@ if ( ! defined( 'ABSPATH' ) ) {
 // region ATTACHMENTS / MEDIA =================================================================== \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
+function ai4seo_get_attachment_post_mime_type( $attachment_post_id ): ?string {
+	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
+		ai4seo_debug_message( 373146404, 'Prevented loop', true );
+		return null;
+	}
+
+	$attachment_post = get_post( $attachment_post_id );
+
+	if ( ! $attachment_post || empty( $attachment_post->post_type ) ) {
+		return null;
+	}
+
+	// we found it already in the post_mime_type field.
+	if ( ! empty( $attachment_post->post_mime_type ) ) {
+		return ai4seo_normalize_mime_type_string( $attachment_post->post_mime_type );
+	}
+
+	// fallback: try to get it from the url.
+	$attachment_url = ai4seo_get_attachment_url( $attachment_post_id );
+
+	if ( ! $attachment_url ) {
+		return '';
+	}
+
+	return ai4seo_get_mime_type_from_url( $attachment_url );
+}
+
+// =========================================================================================== \\
+
+function ai4seo_get_attachment_url( $attachment_post_id ): ?string {
+	$attachment_post = get_post( $attachment_post_id );
+
+	if ( ! $attachment_post || empty( $attachment_post->post_type ) ) {
+		return null;
+	}
+
+	// check if it's an attachment.
+	if ( 'attachment' === $attachment_post->post_type ) {
+		// check url of the attachment.
+		$ai4seo_attachment_url = wp_get_attachment_url( $attachment_post_id );
+	} else {
+		$ai4seo_attachment_url = get_the_guid( $attachment_post );
+	}
+
+	return $ai4seo_attachment_url;
+}
+
+// =========================================================================================== \\
+
+/**
+ * Get the best available attachment source.
+ * Attention: Only use this function on a small number of attachments at once.
+ *
+ * Returns either a local file path or a reachable URL.
+ *
+ * @param int $attachment_post_id Attachment post ID.
+ * @return array|null
+ */
+function ai4seo_get_best_attachment_source( int $attachment_post_id ): ?array {
+	try {
+		$attachment_post = get_post( $attachment_post_id );
+
+		if ( ! $attachment_post || 'attachment' !== $attachment_post->post_type ) {
+			return null;
+		}
+
+		$attachment_path = get_attached_file( $attachment_post_id );
+
+		if ( $attachment_path && file_exists( $attachment_path ) && is_readable( $attachment_path ) ) {
+			return array(
+				'type'   => 'path',
+				'source' => $attachment_path,
+			);
+		}
+
+		$attachment_url = wp_get_attachment_url( $attachment_post_id );
+
+		if ( ! $attachment_url || wp_http_validate_url( $attachment_url ) === false ) {
+			return null;
+		}
+
+		$response = wp_remote_head(
+			$attachment_url,
+			array(
+				'timeout'     => 10,
+				'redirection' => 3,
+			)
+		);
+
+		if ( is_wp_error( $response ) ) {
+			$response = wp_remote_get(
+				$attachment_url,
+				array(
+					'timeout'     => 10,
+					'redirection' => 3,
+					'stream'      => false,
+					'headers'     => array(
+						'Range' => 'bytes=0-0',
+					),
+				)
+			);
+		}
+
+		if ( is_wp_error( $response ) ) {
+			return null;
+		}
+
+		$response_code = (int) wp_remote_retrieve_response_code( $response );
+
+		if ( $response_code >= 200 && $response_code < 400 ) {
+			return array(
+				'type'   => 'url',
+				'source' => $attachment_url,
+			);
+		}
+	} catch ( Exception $e ) {
+		return null;
+	}
+
+	return null;
+}
+
+// =========================================================================================== \\
+
 /**
  * Function to read and analyze the attachment attributes coverage of the given attachment ids (post ids)
  *
@@ -1062,10 +1186,11 @@ function ai4seo_get_valid_attachment_related_post_id_from_value( $related_post_i
 /**
  * Reads the attachment related-post fallback ID.
  *
- * @param int $attachment_post_id Attachment post ID.
+ * @param int  $attachment_post_id    Attachment post ID.
+ * @param bool $require_editable_post Whether the current plugin user must be able to edit the related post.
  * @return int Related post ID, or 0 when missing or invalid.
  */
-function ai4seo_get_attachment_related_post_id( int $attachment_post_id ): int {
+function ai4seo_get_attachment_related_post_id( int $attachment_post_id, bool $require_editable_post = false ): int {
 	// Do not expose fallback values for non-attachment posts, even if the meta key exists there.
 	$attachment_post_id = absint( $attachment_post_id );
 
@@ -1083,7 +1208,8 @@ function ai4seo_get_attachment_related_post_id( int $attachment_post_id ): int {
 	foreach ( $related_post_id_values as $this_related_post_id_value ) {
 		$this_related_post_id = ai4seo_get_valid_attachment_related_post_id_from_value( $this_related_post_id_value );
 
-		if ( $this_related_post_id > 0 ) {
+		if ( $this_related_post_id > 0
+			&& ( ! $require_editable_post || ai4seo_can_edit_post( $this_related_post_id ) ) ) {
 			return $this_related_post_id;
 		}
 	}
@@ -1211,12 +1337,13 @@ function ai4seo_update_attachment_related_post_id_for_attachment_post_ids(
 /**
  * Returns post-related context for an attachment.
  *
- * @param int $attachment_post_id the attachment post id
+ * @param int  $attachment_post_id    The attachment post ID.
+ * @param bool $require_editable_post Whether the current plugin user must be able to edit the context post.
  * @return string the post-related context for the attachment, including condensed content and surrounding content
  * of the first occurrence of the attachment in the content, separated by " | ".
  * Returns an empty string if no related post or content is found.
  */
-function ai4seo_get_attachment_post_related_context( int $attachment_post_id ): string {
+function ai4seo_get_attachment_post_related_context( int $attachment_post_id, bool $require_editable_post = false ): string {
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 630085028, 'Prevented loop', true );
 		return '';
@@ -1232,7 +1359,7 @@ function ai4seo_get_attachment_post_related_context( int $attachment_post_id ): 
 	$attachment_url = ai4seo_get_attachment_url( $attachment_post_id );
 
 	// try to find a post where the attachment is used (e.g. as featured image or in the content).
-	$post_id = ai4seo_get_first_attachment_using_post_id( $attachment_post_id );
+	$post_id = ai4seo_get_first_attachment_using_post_id( $attachment_post_id, $require_editable_post );
 
 	if ( $post_id <= 0 ) {
 		// ai4seo_debug_message(630085030, 'No post found using the attachment', true);.
@@ -2370,16 +2497,17 @@ function ai4seo_get_database_statement_timeout_support(): array {
  * 3) Deep search (optional): post_content + postmeta references
  * 4) Related Media modal fallback (ai4seo_related_post_id)
  *
- * @param int $attachment_post_id the attachment post id
+ * @param int  $attachment_post_id    The attachment post ID.
+ * @param bool $require_editable_post Whether the current plugin user must be able to edit the context post.
  * @return int first matching post id or 0 if not found
  */
-function ai4seo_get_first_attachment_using_post_id( int $attachment_post_id ): int {
+function ai4seo_get_first_attachment_using_post_id( int $attachment_post_id, bool $require_editable_post = false ): int {
 	$attachment_post_id = absint( $attachment_post_id );
 
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 605028311, 'Prevented loop', true );
 		// If recursion protection blocks fresh discovery, the stored modal result is still safe to read.
-		return ai4seo_get_attachment_related_post_id( $attachment_post_id );
+		return ai4seo_get_attachment_related_post_id( $attachment_post_id, $require_editable_post );
 	}
 
 	if ( $attachment_post_id <= 0 ) {
@@ -2399,7 +2527,8 @@ function ai4seo_get_first_attachment_using_post_id( int $attachment_post_id ): i
 	// try parent post relation first.
 	$parent_post_id = absint( $attachment_post->post_parent ?? 0 );
 
-	if ( ai4seo_is_attachment_context_post_eligible( $parent_post_id ) ) {
+	if ( ai4seo_is_attachment_context_post_eligible( $parent_post_id )
+		&& ( ! $require_editable_post || ai4seo_can_edit_post( $parent_post_id ) ) ) {
 		return $parent_post_id;
 	}
 
@@ -2419,7 +2548,7 @@ function ai4seo_get_first_attachment_using_post_id( int $attachment_post_id ): i
 	);
 
 	if ( ! empty( $thumbnail_post_ids ) && is_array( $thumbnail_post_ids ) ) {
-		$thumbnail_post_id = ai4seo_get_first_eligible_attachment_context_post_id( $thumbnail_post_ids );
+		$thumbnail_post_id = ai4seo_get_first_eligible_attachment_context_post_id( $thumbnail_post_ids, $require_editable_post );
 
 		if ( $thumbnail_post_id > 0 ) {
 			return $thumbnail_post_id;
@@ -2428,12 +2557,12 @@ function ai4seo_get_first_attachment_using_post_id( int $attachment_post_id ): i
 
 	// From here we only continue if deep context search for images is enabled, otherwise use the modal fallback.
 	if ( ! ai4seo_get_setting( AI4SEO_SETTING_DEEP_CONTEXT_SEARCH_FOR_IMAGES ) ) {
-		return ai4seo_get_attachment_related_post_id( $attachment_post_id );
+		return ai4seo_get_attachment_related_post_id( $attachment_post_id, $require_editable_post );
 	}
 
 	if ( ! ai4seo_is_deep_context_search_supported_for_current_site() ) {
 		ai4seo_disable_deep_context_search_for_images();
-		return ai4seo_get_attachment_related_post_id( $attachment_post_id );
+		return ai4seo_get_attachment_related_post_id( $attachment_post_id, $require_editable_post );
 	}
 
 	// deep search: look for the attachment post id or url in the content of posts and postmeta
@@ -2545,7 +2674,7 @@ function ai4seo_get_first_attachment_using_post_id( int $attachment_post_id ): i
     // phpcs:enable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
 	if ( ! empty( $content_post_ids ) && is_array( $content_post_ids ) ) {
-		$content_post_id = ai4seo_get_first_eligible_attachment_context_post_id( $content_post_ids );
+		$content_post_id = ai4seo_get_first_eligible_attachment_context_post_id( $content_post_ids, $require_editable_post );
 
 		if ( $content_post_id > 0 ) {
 			return $content_post_id;
@@ -2554,7 +2683,7 @@ function ai4seo_get_first_attachment_using_post_id( int $attachment_post_id ): i
 
 	if ( ! ai4seo_get_setting( AI4SEO_SETTING_DEEP_CONTEXT_SEARCH_FOR_IMAGES ) ) {
 		// The content search may disable deep search after a timeout, so fall back before scanning postmeta.
-		return ai4seo_get_attachment_related_post_id( $attachment_post_id );
+		return ai4seo_get_attachment_related_post_id( $attachment_post_id, $require_editable_post );
 	}
 
 	// if not found in content, look in postmeta.
@@ -2578,14 +2707,14 @@ function ai4seo_get_first_attachment_using_post_id( int $attachment_post_id ): i
     // phpcs:enable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
 	if ( ! empty( $postmeta_post_ids ) && is_array( $postmeta_post_ids ) ) {
-		$postmeta_post_id = ai4seo_get_first_eligible_attachment_context_post_id( $postmeta_post_ids );
+		$postmeta_post_id = ai4seo_get_first_eligible_attachment_context_post_id( $postmeta_post_ids, $require_editable_post );
 
 		if ( $postmeta_post_id > 0 ) {
 			return $postmeta_post_id;
 		}
 	}
 
-	return ai4seo_get_attachment_related_post_id( $attachment_post_id );
+	return ai4seo_get_attachment_related_post_id( $attachment_post_id, $require_editable_post );
 }
 
 // =========================================================================================== \\
@@ -2593,14 +2722,16 @@ function ai4seo_get_first_attachment_using_post_id( int $attachment_post_id ): i
 /**
  * Returns the first eligible post ID from a list of candidates.
  *
- * @param array $candidate_post_ids list of post ids
+ * @param array $candidate_post_ids     List of post IDs.
+ * @param bool  $require_editable_post Whether the current plugin user must be able to edit the candidate.
  * @return int first eligible post id or 0
  */
-function ai4seo_get_first_eligible_attachment_context_post_id( array $candidate_post_ids ): int {
+function ai4seo_get_first_eligible_attachment_context_post_id( array $candidate_post_ids, bool $require_editable_post = false ): int {
 	foreach ( $candidate_post_ids as $candidate_post_id ) {
 		$candidate_post_id = absint( $candidate_post_id );
 
-		if ( ai4seo_is_attachment_context_post_eligible( $candidate_post_id ) ) {
+		if ( ai4seo_is_attachment_context_post_eligible( $candidate_post_id )
+			&& ( ! $require_editable_post || ai4seo_can_edit_post( $candidate_post_id ) ) ) {
 			return $candidate_post_id;
 		}
 	}

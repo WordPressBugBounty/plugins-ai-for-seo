@@ -25,13 +25,23 @@ $ai4seo_help_page_url              = ai4seo_get_subpage_url( 'help' );
 
 // === EXECUTE BULK GENERATION SOONER ======================================================== \\
 
-// check if the cron job should be executed sooner.
-if ( isset( $_GET['ai4seo-execute-cron-job-sooner'] ) && sanitize_text_field( wp_unslash( $_GET['ai4seo-execute-cron-job-sooner'] ) ) ) {
+// Keep the action and submitted token together because this dashboard link mutates cron state through GET.
+$ai4seo_execute_sooner_nonce_action = 'ai4seo_execute_cron_job_sooner';
+$ai4seo_execute_sooner_nonce        = sanitize_text_field( wp_unslash( $_GET['ai4seo_execute_cron_job_sooner_nonce'] ?? '' ) );
+
+// Execute the state-changing action only when it originated from the protected dashboard link.
+if ( isset( $_GET['ai4seo-execute-cron-job-sooner'] ) && wp_verify_nonce( $ai4seo_execute_sooner_nonce, $ai4seo_execute_sooner_nonce_action ) ) {
 	ai4seo_inject_additional_cronjob_call( AI4SEO_BULK_GENERATION_CRON_JOB_NAME );
 }
 
-// execute cron job sooner link.
-$ai4seo_execute_sooner_text_link_url = ai4seo_get_subpage_url( 'dashboard', array( 'ai4seo-execute-cron-job-sooner' => true ) );
+// Embed a fresh matching token in the action link so the subsequent GET can pass the nonce gate above.
+$ai4seo_execute_sooner_text_link_url = ai4seo_get_subpage_url(
+	'dashboard',
+	array(
+		'ai4seo-execute-cron-job-sooner'       => 'true',
+		'ai4seo_execute_cron_job_sooner_nonce' => wp_create_nonce( $ai4seo_execute_sooner_nonce_action ),
+	)
+);
 $ai4seo_execute_sooner_button        = ai4seo_get_small_a_tag_icon_button_tag( $ai4seo_execute_sooner_text_link_url, '', '', 'bolt', __( 'Execute sooner!', 'ai-for-seo' ), '', 'ai4seo_add_loading_html_to_element(this); ai4seo_show_full_page_loading_screen();' );
 
 
@@ -412,9 +422,9 @@ if ( isset( $ai4seo_total_num_pending_posts ) && $ai4seo_total_num_pending_posts
 
 		// credits balance.
 		echo "<div class='ai4seo-credits-container'>";
-			echo '<h4>';
+			echo "<h2 class='ai4seo-dashboard-section-heading'>";
 				echo esc_html__( 'Credits', 'ai-for-seo' );
-			echo '</h4>';
+			echo '</h2>';
 
 			echo "<div class='ai4seo-credits-number'>";
 if ( $ai4seo_is_robhub_account_synced ) {
@@ -574,7 +584,7 @@ if ( $ai4seo_is_robhub_account_synced ) {
 
 	// CARD.
 	echo "<div class='card ai4seo-card ai4seo-centered-card ai4seo-dashboard-card-min-height'>";
-		echo '<h4>' . esc_html__( 'SEO Autopilot (Bulk Generation)', 'ai-for-seo' ) . '</h4>';
+		echo "<h2 class='ai4seo-dashboard-section-heading'>" . esc_html__( 'SEO Autopilot (Bulk Generation)', 'ai-for-seo' ) . '</h2>';
 
 		echo "<div class='ai4seo-bulk-generation-status-container'>";
 	if ( ! $ai4seo_is_any_bulk_generation_enabled ) {
@@ -756,7 +766,7 @@ if ( $ai4seo_is_robhub_account_synced ) {
 
 	// Give the failed-status legend action a stable target within the incrementally refreshed dashboard.
 	echo "<div id='ai4seo-recent-activity' class='card ai4seo-card ai4seo-dashboard-card-min-height'>";
-		echo '<h4>' . esc_html__( 'Recent Activity', 'ai-for-seo' ) . '</h4>';
+		echo "<h2 class='ai4seo-dashboard-section-heading'>" . esc_html__( 'Recent Activity', 'ai-for-seo' ) . '</h2>';
 
 if ( ! $ai4seo_latest_activity ) {
 	echo "<p class='ai4seo-latest-activity-empty-message'>" . esc_html__( 'No recent activity. Try to generate metadata or media attributes first.', 'ai-for-seo' ) . '</p>';
@@ -898,7 +908,7 @@ if ( ! $ai4seo_latest_activity ) {
 	$ai4seo_support_feedback_panel_id   = 'ai4seo-support-feedback-panel';
 
 	echo "<div class='card ai4seo-card ai4seo-ignore-during-dashboard-refresh'>";
-		echo "<h4 class='ai4seo-dashboard-collapsible-heading'>";
+		echo "<h2 class='ai4seo-dashboard-section-heading ai4seo-dashboard-collapsible-heading'>";
 		echo "<button type='button' class='ai4seo-dashboard-collapsible-trigger' id='" . esc_attr( $ai4seo_support_feedback_trigger_id ) . "' aria-expanded='true' aria-controls='" . esc_attr( $ai4seo_support_feedback_panel_id ) . "' onclick='" . esc_attr( $ai4seo_dashboard_toggle_onclick ) . "' onkeydown='" . esc_attr( $ai4seo_dashboard_toggle_onkeydown ) . "'>";
 			echo esc_html__( 'Support & Feedback', 'ai-for-seo' );
 			echo "<span class='ai4seo-caret-down'>";
@@ -908,7 +918,7 @@ if ( ! $ai4seo_latest_activity ) {
 				ai4seo_echo_wp_kses( ai4seo_get_svg_tag( 'caret-up' ) );
 			echo '</span>';
 		echo '</button>';
-		echo '</h4>';
+		echo '</h2>';
 
 		echo "<div class='ai4seo-dashboard-section-content' id='" . esc_attr( $ai4seo_support_feedback_panel_id ) . "'>";
 			// HELP SECTION
@@ -980,7 +990,7 @@ if ( ! $ai4seo_latest_activity ) {
 			$ai4seo_recent_plugin_updates_panel_id   = 'ai4seo-recent-plugin-updates-panel';
 
 			echo "<div class='card ai4seo-card ai4seo-ignore-during-dashboard-refresh' id='ai4seo_recent_plugin_updates'>";
-			echo "<h4 class='ai4seo-dashboard-collapsible-heading'>";
+			echo "<h2 class='ai4seo-dashboard-section-heading ai4seo-dashboard-collapsible-heading'>";
 			echo "<button type='button' class='ai4seo-dashboard-collapsible-trigger' id='" . esc_attr( $ai4seo_recent_plugin_updates_trigger_id ) . "' aria-expanded='" . ( $ai4seo_pre_open_recent_plugin_updates ? 'true' : 'false' ) . "' aria-controls='" . esc_attr( $ai4seo_recent_plugin_updates_panel_id ) . "' onclick='" . esc_attr( $ai4seo_dashboard_toggle_onclick ) . "' onkeydown='" . esc_attr( $ai4seo_dashboard_toggle_onkeydown ) . "'>";
 			echo esc_html__( 'Recent Plugin Updates', 'ai-for-seo' );
 			echo "<span class='ai4seo-caret-down'>";
@@ -990,7 +1000,7 @@ if ( ! $ai4seo_latest_activity ) {
 				ai4seo_echo_wp_kses( ai4seo_get_svg_tag( 'caret-up' ) );
 			echo '</span>';
 			echo '</button>';
-			echo '</h4>';
+			echo '</h2>';
 
 			echo "<div class='ai4seo-recent-plugin-updates-content" . ( $ai4seo_pre_open_recent_plugin_updates ? '' : ' ai4seo-display-none' ) . "' id='" . esc_attr( $ai4seo_recent_plugin_updates_panel_id ) . "'>";
 			echo esc_html__( 'We update the plugin regularly to improve its performance and add new features. Please check the changelog for more information.', 'ai-for-seo' ) . '<br>';
@@ -1121,7 +1131,7 @@ if ( ! $ai4seo_latest_activity ) {
 			$ai4seo_guarantee_panel_id   = 'ai4seo-guarantee-panel';
 
 			echo "<div class='card ai4seo-card ai4seo-ignore-during-dashboard-refresh'>";
-			echo "<h4 class='ai4seo-dashboard-collapsible-heading'>";
+			echo "<h2 class='ai4seo-dashboard-section-heading ai4seo-dashboard-collapsible-heading'>";
 			echo "<button type='button' class='ai4seo-dashboard-collapsible-trigger' id='" . esc_attr( $ai4seo_guarantee_trigger_id ) . "' aria-expanded='false' aria-controls='" . esc_attr( $ai4seo_guarantee_panel_id ) . "' onclick='" . esc_attr( $ai4seo_dashboard_toggle_onclick ) . "' onkeydown='" . esc_attr( $ai4seo_dashboard_toggle_onkeydown ) . "'>";
 			echo esc_html__( 'Guarantee', 'ai-for-seo' );
 			echo "<span class='ai4seo-caret-down'>";
@@ -1131,7 +1141,7 @@ if ( ! $ai4seo_latest_activity ) {
 				ai4seo_echo_wp_kses( ai4seo_get_svg_tag( 'caret-up' ) );
 			echo '</span>';
 			echo '</button>';
-			echo '</h4>';
+			echo '</h2>';
 
 			echo "<div class='ai4seo-dashboard-section-content ai4seo-display-none' id='" . esc_attr( $ai4seo_guarantee_panel_id ) . "'>";
 			ai4seo_echo_wp_kses( ai4seo_get_svg_tag( 'handshake', __( 'Guarantee', 'ai-for-seo' ), 'ai4seo-handshake-icon' ) );
