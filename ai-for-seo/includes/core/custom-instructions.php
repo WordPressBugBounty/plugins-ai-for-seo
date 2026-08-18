@@ -178,9 +178,17 @@ function ai4seo_validate_custom_instructions_setting_value( string $setting_name
  * @param string $input_value            Current value.
  * @param string $additional_css_classes Additional textarea classes.
  * @param string $field_label            Label used by client-side validation.
+ * @param string $placeholder            Optional placeholder text.
  * @return string Textarea HTML.
  */
-function ai4seo_get_custom_instructions_textarea_tag( string $input_id, string $input_name, string $input_value = '', string $additional_css_classes = '', string $field_label = '' ): string {
+function ai4seo_get_custom_instructions_textarea_tag(
+	string $input_id,
+	string $input_name,
+	string $input_value = '',
+	string $additional_css_classes = '',
+	string $field_label = '',
+	string $placeholder = ''
+): string {
 	$length_limit = ai4seo_get_custom_instructions_length_limit();
 	$input_value  = ai4seo_normalize_custom_instructions_value( $input_value, $length_limit );
 	$classes      = trim( 'ai4seo-textarea ai4seo-auto-resize-textarea ai4seo-custom-instructions-input ' . $additional_css_classes );
@@ -190,6 +198,8 @@ function ai4seo_get_custom_instructions_textarea_tag( string $input_id, string $
 		. ' class="' . esc_attr( $classes ) . '"'
 		. ' id="' . esc_attr( $input_id ) . '"'
 		. ' name="' . esc_attr( $input_name ) . '"'
+		. ' rows="1"'
+		. ( '' !== $placeholder ? " placeholder='" . esc_attr( $placeholder ) . "'" : '' )
 		. ' data-ai4seo-custom-instructions-limit="' . esc_attr( $length_limit ) . '"'
 		. ' data-ai4seo-custom-instructions-label="' . esc_attr( $field_label ) . '"'
 		. '>' . esc_textarea( $input_value ) . '</textarea>';
@@ -211,8 +221,9 @@ function ai4seo_get_custom_instructions_character_counter_tag( string $input_id 
 	$html  = '<p class="ai4seo-form-item-description ai4seo-custom-instructions-counter" data-input-id="' . esc_attr( $input_id ) . '" data-max-length="' . esc_attr( $length_limit ) . '">';
 	$html .= '<span class="ai4seo-custom-instructions-characters-left">';
 	$html .= sprintf(
-		/* translators: %s: Number of remaining characters. */
-		esc_html__( '%s chars left', 'ai-for-seo' ),
+		/* translators: %1$s: Number of used characters. %2$s: Character limit. */
+		esc_html__( '%1$s / %2$s characters', 'ai-for-seo' ),
+		ai4seo_format_number_i18n( 0 ),
 		ai4seo_format_number_i18n( $length_limit )
 	);
 	$html .= '</span>';
@@ -244,12 +255,12 @@ function ai4seo_get_custom_instructions_character_counter_tag( string $input_id 
 // =========================================================================================== \\
 
 /**
- * Return an examples-and-limits tooltip for a custom instruction field.
+ * Return examples and limit support text for a custom instruction context.
  *
- * @param string $context The custom instruction field context.
- * @return string Tooltip HTML.
+ * @param string $context The custom instruction context.
+ * @return array{intro: string, examples: string[]} Context details.
  */
-function ai4seo_get_custom_instructions_examples_tooltip_tag( string $context ): string {
+function ai4seo_get_custom_instructions_examples_context_data( string $context ): array {
 	$context  = sanitize_key( $context );
 	$intro    = '';
 	$examples = array();
@@ -312,6 +323,79 @@ function ai4seo_get_custom_instructions_examples_tooltip_tag( string $context ):
 			break;
 	}
 
+	if ( ! $examples ) {
+		return array(
+			'intro'    => '',
+			'examples' => array(),
+		);
+	}
+
+	return array(
+		'intro'    => $intro,
+		'examples' => $examples,
+	);
+}
+
+/**
+ * Build compact placeholder snippets from 3-4 word examples.
+ *
+ * @param string $context            Examples context.
+ * @param int    $snippet_word_count Number of words per snippet.
+ * @param int    $max_snippets       Maximum number of snippets to include.
+ * @return string Placeholder text.
+ */
+function ai4seo_get_custom_instructions_placeholder( string $context, int $snippet_word_count = 4, int $max_snippets = 3 ): string {
+	$context = sanitize_key( $context );
+
+	// Entry editors use concise starters tailored to the output generated in each modal.
+	if ( 'metadata-editor' === $context ) {
+		return __( 'Include keyword..., Use concise tone..., Mention location..., Avoid clickbait...', 'ai-for-seo' );
+	}
+
+	if ( 'attachment-attributes-editor' === $context ) {
+		return __( 'Focus on..., Material is..., Do not mention..., Her name is...', 'ai-for-seo' );
+	}
+
+	$context_data = ai4seo_get_custom_instructions_examples_context_data( $context );
+	if ( empty( $context_data['examples'] ) || ! is_array( $context_data['examples'] ) ) {
+		return '';
+	}
+
+	$max_snippets = max( 1, min( 5, $max_snippets ) );
+	$max_words    = max( 3, min( 4, $snippet_word_count ) );
+	$snippets     = array();
+
+	foreach ( array_slice( $context_data['examples'], 0, $max_snippets ) as $example ) {
+		$example = trim( str_replace( array( "\r", "\n", "\t" ), ' ', wp_strip_all_tags( (string) $example ) ) );
+		if ( '' === $example ) {
+			continue;
+		}
+
+		$example = preg_replace( '/\s+/', ' ', $example );
+		$words   = preg_split( '/\s+/', preg_replace( '/["“”‘’]/u', '', $example ), -1, PREG_SPLIT_NO_EMPTY );
+		if ( ! is_array( $words ) || ! $words ) {
+			continue;
+		}
+
+		$snippets[] = implode( ' ', array_slice( $words, 0, $max_words ) ) . '...';
+	}
+
+	return implode( ', ', $snippets );
+}
+
+/**
+ * Return an examples-and-limits tooltip for a custom instruction field.
+ *
+ * @param string $context         The custom instruction field context.
+ * @param string $description     Optional visible description to include in tooltip.
+ * @param bool   $as_icon_trigger If true, render tooltip trigger as a help icon.
+ * @return string Tooltip HTML.
+ */
+function ai4seo_get_custom_instructions_examples_tooltip_tag( string $context, string $description = '', bool $as_icon_trigger = false ): string {
+	$context_data = ai4seo_get_custom_instructions_examples_context_data( $context );
+	$intro        = $context_data['intro'];
+	$examples     = $context_data['examples'];
+
 	// Unsupported contexts intentionally render no trigger instead of showing generic or misleading examples.
 	if ( ! $examples ) {
 		return '';
@@ -320,11 +404,14 @@ function ai4seo_get_custom_instructions_examples_tooltip_tag( string $context ):
 	$tooltip_html = '';
 
 	// Keep the contextual introduction optional because every supported context still has useful examples.
+	if ( '' !== $description ) {
+		$tooltip_html .= '<span class="ai4seo-custom-instructions-description">' . wpautop( wp_kses_post( $description ) ) . '</span>';
+	}
 	if ( '' !== $intro ) {
 		$tooltip_html .= '<span class="ai4seo-custom-instructions-examples-description">' . esc_html( $intro ) . '</span>';
 	}
 
-	$tooltip_html .= '<span class="ai4seo-custom-instructions-examples-caption"><strong>' . esc_html__( 'Examples', 'ai-for-seo' ) . '</strong></span>';
+	$tooltip_html .= '<span class="ai4seo-custom-instructions-examples-caption"><strong>' . esc_html__( 'Examples & limits', 'ai-for-seo' ) . '</strong></span>';
 	$tooltip_html .= '<span class="ai4seo-custom-instructions-examples-list">';
 
 	// Render each example separately so wrapping and spacing remain predictable inside the constrained tooltip.
@@ -352,12 +439,17 @@ function ai4seo_get_custom_instructions_examples_tooltip_tag( string $context ):
 	$tooltip_html .= '</span>';
 
 	// Use the shared trigger so the expanded guidance supports mouse and keyboard interaction consistently.
+	$tooltip_trigger = $as_icon_trigger
+		? ai4seo_get_svg_tag( 'circle-question', '', 'ai4seo-gray-icon ai4seo-custom-instructions-examples-icon' )
+		: esc_html__( 'Examples & limits', 'ai-for-seo' );
+
 	return ai4seo_get_tooltip_tag(
-		esc_html__( 'Examples & limits', 'ai-for-seo' ),
+		$tooltip_trigger,
 		$tooltip_html,
 		array(
-			'holder_css_class'  => 'ai4seo-custom-instructions-examples',
-			'trigger_css_class' => 'ai4seo-custom-instructions-examples-trigger',
+			'holder_css_class'   => 'ai4seo-custom-instructions-examples',
+			'trigger_css_class'  => $as_icon_trigger ? 'ai4seo-icon-tooltip-trigger ai4seo-custom-instructions-examples-trigger' : 'ai4seo-custom-instructions-examples-trigger',
+			'trigger_aria_label' => $as_icon_trigger ? __( 'Custom Instructions: Help', 'ai-for-seo' ) : '',
 		)
 	);
 }
@@ -377,6 +469,8 @@ function ai4seo_get_custom_instructions_examples_tooltip_tag( string $context ):
  * @param string $additional_form_item_css_classes Additional wrapper classes.
  * @param string $label_prefix_html                Optional HTML rendered before the visible label.
  * @param string $examples_context                 Optional examples tooltip context.
+ * @param string $placeholder                      Optional placeholder text for textarea.
+ * @param bool   $show_description_in_tooltip      Show description and examples inside a tooltip next to the label.
  * @return string Form item HTML.
  */
 function ai4seo_get_custom_instructions_form_item_tag(
@@ -389,7 +483,9 @@ function ai4seo_get_custom_instructions_form_item_tag(
 	string $field_label = '',
 	string $additional_form_item_css_classes = '',
 	string $label_prefix_html = '',
-	string $examples_context = ''
+	string $examples_context = '',
+	string $placeholder = '',
+	bool $show_description_in_tooltip = false
 ): string {
 	$form_item_css_classes = trim( 'ai4seo-form-item ' . $additional_form_item_css_classes );
 
@@ -398,14 +494,39 @@ function ai4seo_get_custom_instructions_form_item_tag(
 		$field_label = $label;
 	}
 
+	$active_description = trim( $description );
+	$active_placeholder = trim( $placeholder );
+
+	// Entry-editor tooltips provide their own concise placeholder when callers do not override it.
+	if ( '' === $active_placeholder && $show_description_in_tooltip ) {
+		$active_placeholder = ai4seo_get_custom_instructions_placeholder( $examples_context );
+	}
+
+	$description_tooltip_tag = '';
+	if ( '' !== $active_description || '' !== $examples_context ) {
+		$description_tooltip_tag = ai4seo_get_custom_instructions_examples_tooltip_tag( $examples_context, $active_description, $show_description_in_tooltip );
+	}
+
 	// Reuse the shared textarea and counter helpers so settings pages and AJAX editors stay in sync.
 	$html  = '<div class="' . esc_attr( $form_item_css_classes ) . '">';
-	$html .= '<label for="' . esc_attr( $input_id ) . '">';
+
+	if ( $show_description_in_tooltip ) {
+		$html .= '<span class="ai4seo-label-with-tooltip">';
+	}
 
 	// Allow shared label prefixes, such as setting badges, while keeping the main label escaped.
+	$html .= '<label for="' . esc_attr( $input_id ) . '">';
 	$html .= ai4seo_wp_kses( $label_prefix_html );
 	$html .= esc_html( $label );
 	$html .= '</label>';
+
+	// Tooltip mode groups the label and help trigger without duplicating the label-rendering path.
+	if ( $show_description_in_tooltip ) {
+		if ( '' !== $description_tooltip_tag ) {
+			$html .= ai4seo_wp_kses( $description_tooltip_tag );
+		}
+		$html .= '</span>';
+	}
 
 	$html .= '<div class="ai4seo-form-item-input-wrapper">';
 	$html .= ai4seo_get_custom_instructions_textarea_tag(
@@ -413,16 +534,17 @@ function ai4seo_get_custom_instructions_form_item_tag(
 		$input_name,
 		$input_value,
 		$additional_textarea_css_classes,
-		$field_label
+		$field_label,
+		$active_placeholder
 	);
 	$html .= ai4seo_wp_kses( ai4seo_get_custom_instructions_character_counter_tag( $input_id ) );
 
 	// Append optional guidance inside the input wrapper so it follows the counter in every form surface.
-	if ( '' !== $description ) {
+	if ( ! $show_description_in_tooltip && '' !== $active_description ) {
 		$examples_tooltip_html = ai4seo_get_custom_instructions_examples_tooltip_tag( $examples_context );
 
 		$html .= '<p class="ai4seo-form-item-description">';
-		$html .= ai4seo_wp_kses( $description );
+		$html .= ai4seo_wp_kses( $active_description );
 
 		// Only add the separator when a supported examples context returned a tooltip.
 		if ( '' !== $examples_tooltip_html ) {
@@ -466,9 +588,6 @@ function ai4seo_get_custom_instructions_setting_form_item_tag(
 	$input_name  = ai4seo_get_prefixed_input_name( $setting_name );
 	$input_value = ai4seo_get_setting( $setting_name );
 
-	// Apply the inline NEW badge only to settings-page controls, not entry-editor fields.
-	$label_prefix_html = "<span class='ai4seo-green-bubble'>" . esc_html__( 'NEW', 'ai-for-seo' ) . '</span> ';
-
 	// Delegate the remaining markup to the same renderer used by AJAX editor fields.
 	return ai4seo_get_custom_instructions_form_item_tag(
 		$input_name,
@@ -479,7 +598,7 @@ function ai4seo_get_custom_instructions_setting_form_item_tag(
 		$additional_textarea_css_classes,
 		$field_label,
 		$additional_form_item_css_classes,
-		$label_prefix_html,
+		'',
 		$examples_context
 	);
 }

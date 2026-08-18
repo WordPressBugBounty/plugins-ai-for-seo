@@ -1207,6 +1207,173 @@ function ai4seo_get_supported_post_types( bool $apply_user_setting = true ): arr
 // =========================================================================================== \\
 
 /**
+ * Retrieve the translation for the different content types
+ *
+ * @param mixed $post_type The post type value.
+ * @param bool  $count_or_plural The count or plural value.
+ * @return string The translation
+ */
+function ai4seo_get_post_type_translation( $post_type, $count_or_plural = false ): string {
+	$post_type_original = $post_type;
+	$post_type          = strtolower( $post_type );
+	$translation        = $post_type_original;
+
+	switch ( $post_type ) {
+		case 'post':
+		case 'posts':
+			// Plural.
+			if ( true === $count_or_plural ) {
+				$translation = __( 'posts', 'ai-for-seo' );
+			}
+			// Singular.
+			elseif ( false === $count_or_plural ) {
+				$translation = __( 'post', 'ai-for-seo' );
+			}
+			// Singular or plural with count.
+			else {
+				/* translators: %s: Number of posts. */
+				$translation = sprintf(
+					/* translators: %s: Number of posts. */
+					_nx( '%1$s post', '%1$s posts', $count_or_plural, 'noun', 'ai-for-seo' ),
+					$count_or_plural
+				);
+			}
+			break;
+		case 'page':
+		case 'pages':
+			// Plural.
+			if ( true === $count_or_plural ) {
+				$translation = __( 'pages', 'ai-for-seo' );
+			}
+			// Singular.
+			elseif ( false === $count_or_plural ) {
+				$translation = __( 'page', 'ai-for-seo' );
+			}
+			// Singular or plural with count.
+			else {
+				/* translators: %s: Number of pages. */
+				$translation = sprintf(
+					/* translators: %s: Number of pages. */
+					_nx( '%1$s page', '%1$s pages', $count_or_plural, 'noun', 'ai-for-seo' ),
+					$count_or_plural
+				);
+			}
+			break;
+		case 'product':
+		case 'products':
+			// Plural.
+			if ( true === $count_or_plural ) {
+				$translation = __( 'products', 'ai-for-seo' );
+			}
+			// Singular.
+			elseif ( false === $count_or_plural ) {
+				$translation = __( 'product', 'ai-for-seo' );
+			}
+			// Singular or plural with count.
+			else {
+				/* translators: %s: Number of products. */
+				$translation = sprintf(
+					/* translators: %s: Number of products. */
+					_nx( '%1$s product', '%1$s products', $count_or_plural, 'noun', 'ai-for-seo' ),
+					$count_or_plural
+				);
+			}
+			break;
+		case 'portfolio':
+		case 'portfolios':
+			// Plural.
+			if ( true === $count_or_plural ) {
+				$translation = __( 'portfolios', 'ai-for-seo' );
+			}
+			// Singular.
+			elseif ( false === $count_or_plural ) {
+				$translation = __( 'portfolio', 'ai-for-seo' );
+			}
+			// Singular or plural with count.
+			else {
+				/* translators: %s: Number of portfolios. */
+				$translation = sprintf(
+					/* translators: %s: Number of portfolios. */
+					_nx( '%1$s portfolio', '%1$s portfolios', $count_or_plural, 'noun', 'ai-for-seo' ),
+					$count_or_plural
+				);
+			}
+			break;
+		case 'attachment':
+		case 'attachments':
+			// Plural.
+			if ( true === $count_or_plural ) {
+				$translation = __( 'attachments', 'ai-for-seo' );
+			}
+			// Singular.
+			elseif ( false === $count_or_plural ) {
+				$translation = __( 'attachment', 'ai-for-seo' );
+			}
+			// Singular or plural with count.
+			else {
+				/* translators: %s: Number of attachments. */
+				$translation = sprintf(
+					/* translators: %s: Number of attachments. */
+					_nx( '%1$s attachment', '%1$s attachments', $count_or_plural, 'noun', 'ai-for-seo' ),
+					$count_or_plural
+				);
+			}
+			break;
+		// Media is not a post type, but names attachments consistently in user-facing text.
+		case 'media':
+		case 'medias':
+			// Plural.
+			if ( true === $count_or_plural ) {
+				$translation = _n( 'medium', 'media', 2, 'ai-for-seo' );
+			}
+			// Singular.
+			elseif ( false === $count_or_plural ) {
+				$translation = _n( 'medium', 'media', 1, 'ai-for-seo' );
+			}
+			// Singular or plural with count.
+			else {
+				/* translators: %s: Number of media items. */
+				$translation = sprintf(
+					/* translators: %s: Number of media items. */
+					_nx( '%1$s medium', '%1$s media', $count_or_plural, 'noun', 'ai-for-seo' ),
+					$count_or_plural
+				);
+			}
+			break;
+		// Media file is not a post type, but provides a more specific attachment label where needed.
+		case 'media file':
+		case 'media files':
+			// Plural.
+			if ( true === $count_or_plural ) {
+				$translation = __( 'media files', 'ai-for-seo' );
+			}
+			// Singular.
+			elseif ( false === $count_or_plural ) {
+				$translation = __( 'media file', 'ai-for-seo' );
+			}
+			// Singular or plural with count.
+			else {
+				/* translators: %s: Number of media files. */
+				$translation = sprintf(
+					/* translators: %s: Number of media files. */
+					_nx( '%1$s media file', '%1$s media files', $count_or_plural, 'noun', 'ai-for-seo' ),
+					$count_or_plural
+				);
+			}
+			break;
+		default:
+			// Unknown content types remain unchanged unless a numeric count needs to be prefixed.
+			if ( is_numeric( $count_or_plural ) ) {
+				$translation = $count_or_plural . ' ' . $post_type_original;
+			}
+	}
+
+	return $translation;
+}
+
+// =========================================================================================== \\
+
+/**
  * @param int         $post_id The ID of the post to get the pure text content for.
  * @param bool        $debug Whether to enable debug mode (default: false).
  * @param string|null $strict_visible_text Optional structure-free visible text output.

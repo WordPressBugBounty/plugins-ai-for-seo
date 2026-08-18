@@ -1633,6 +1633,52 @@ function ai4seo_handle_failed_attachment_generation( int $attachment_post_id, st
 // =========================================================================================== \\
 
 /**
+ * Resolve the new/existing-entry filter into query-safe date state.
+ *
+ * The inactive "both" mode uses a valid, neutral DATETIME binding so strict database modes never
+ * receive an empty value. Active date filters require a positive integer timestamp that formats to
+ * an exact MySQL DATETIME value; corrupted state is rejected instead of widening the queue scope.
+ *
+ * @param mixed $filter Stored new/existing filter.
+ * @param mixed $reference_timestamp Stored filter reference timestamp.
+ * @return array|false Query-safe filter and DATETIME value, or false when the state is invalid.
+ */
+function ai4seo_resolve_bulk_generation_date_filter( $filter, $reference_timestamp ) {
+	// Reuse the canonical validator before exposing state to either prepared-query path.
+	$date_filter_state = ai4seo_get_bulk_generation_date_filter_state( $filter, $reference_timestamp );
+
+	if ( empty( $date_filter_state['is_valid'] ) ) {
+		// Map each validation failure to a stable diagnostic without exposing invalid data to SQL.
+		switch ( $date_filter_state['error_code'] ?? '' ) {
+			case 'invalid_filter':
+				ai4seo_debug_message( 748217659, 'Invalid SEO Autopilot new/existing filter; queue excavation was skipped.', true );
+				break;
+
+			case 'invalid_reference_timestamp':
+				ai4seo_debug_message( 758217659, 'Invalid SEO Autopilot date-filter timestamp; queue excavation was skipped.', true );
+				break;
+
+			case 'reference_timestamp_format_failed':
+				ai4seo_debug_message( 768217659, 'SEO Autopilot could not format its date-filter timestamp; queue excavation was skipped.', true );
+				break;
+
+			case 'invalid_post_date_gmt':
+			default:
+				ai4seo_debug_message( 778217659, 'SEO Autopilot produced an invalid database DATETIME value; queue excavation was skipped.', true );
+				break;
+		}
+
+		return false;
+	}
+
+	// Return only the values consumed by the candidate-query variants.
+	return array(
+		'filter'        => $date_filter_state['filter'],
+		'post_date_gmt' => $date_filter_state['post_date_gmt'],
+	);
+}
+
+/**
  * Add automatically discovered entries to a generation queue without losing retained force-overwrite markers.
  *
  * @param array  $post_ids Post IDs selected by automatic queue excavation.
@@ -1789,9 +1835,20 @@ function ai4seo_excavate_post_entries_with_missing_metadata( bool $debug = false
 			break;
 	}
 
-	// check if we should only generate metadata for new or existing posts.
-	$bulk_generation_new_or_existing_filter                     = ai4seo_get_setting( AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER );
-	$bulk_generation_new_or_existing_filter_reference_timestamp = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME );
+	// Resolve the optional date filter before any candidate query can reach the database.
+	$bulk_generation_date_filter_query_state = ai4seo_resolve_bulk_generation_date_filter(
+		ai4seo_get_setting( AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER ),
+		ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME )
+	);
+
+	// Stop before candidate SQL when stored date-filter state cannot be represented safely.
+	if ( false === $bulk_generation_date_filter_query_state ) {
+		return false;
+	}
+
+	// Unpack the validated state once so query parameters retain the established concise vocabulary.
+	$post_date_filter = $bulk_generation_date_filter_query_state['filter'];
+	$post_date_gmt    = $bulk_generation_date_filter_query_state['post_date_gmt'];
 
 	$database_chunk_size = ai4seo_get_database_chunk_size();
 
@@ -1799,15 +1856,6 @@ function ai4seo_excavate_post_entries_with_missing_metadata( bool $debug = false
 	foreach ( $enabled_bulk_generation_post_types as $this_post_type ) {
 		if ( count( $new_pending_post_ids ) >= 2 ) {
 			break;
-		}
-
-		// Normalize the optional date filter before choosing the matching prepared query variant below.
-		$post_date_filter = 'both';
-		$post_date_gmt    = '';
-
-		if ( 'both' !== $bulk_generation_new_or_existing_filter && $bulk_generation_new_or_existing_filter_reference_timestamp && is_numeric( $bulk_generation_new_or_existing_filter_reference_timestamp ) ) {
-			$post_date_filter = ( 'new' === $bulk_generation_new_or_existing_filter ) ? 'new' : 'existing';
-			$post_date_gmt    = ai4seo_gmdate( 'Y-m-d H:i:s', (int) $bulk_generation_new_or_existing_filter_reference_timestamp );
 		}
 
 		// chunk candidates and query only current post type, stop once we have 2 IDs total.
@@ -2041,18 +2089,20 @@ function ai4seo_excavate_attachments_with_missing_attributes( bool $debug = fals
 	// check bulk generation order.
 	$bulk_generation_order = ai4seo_get_setting( AI4SEO_SETTING_BULK_GENERATION_ORDER );
 
-	// check if we should only generate media attributes for new or existing media files.
-	$bulk_generation_new_or_existing_filter                     = ai4seo_get_setting( AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER );
-	$bulk_generation_new_or_existing_filter_reference_timestamp = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME );
+	// Resolve the optional date filter before any candidate query can reach the database.
+	$bulk_generation_date_filter_query_state = ai4seo_resolve_bulk_generation_date_filter(
+		ai4seo_get_setting( AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER ),
+		ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME )
+	);
 
-	// Normalize the optional date filter before choosing the matching prepared query variant below.
-	$post_date_filter = 'both';
-	$post_date_gmt    = '';
-
-	if ( 'both' !== $bulk_generation_new_or_existing_filter && $bulk_generation_new_or_existing_filter_reference_timestamp && is_numeric( $bulk_generation_new_or_existing_filter_reference_timestamp ) ) {
-		$post_date_filter = ( 'new' === $bulk_generation_new_or_existing_filter ) ? 'new' : 'existing';
-		$post_date_gmt    = ai4seo_gmdate( 'Y-m-d H:i:s', (int) $bulk_generation_new_or_existing_filter_reference_timestamp );
+	// Stop before candidate SQL when stored date-filter state cannot be represented safely.
+	if ( false === $bulk_generation_date_filter_query_state ) {
+		return false;
 	}
+
+	// Unpack the validated state once so query parameters retain the established concise vocabulary.
+	$post_date_filter = $bulk_generation_date_filter_query_state['filter'];
+	$post_date_gmt    = $bulk_generation_date_filter_query_state['post_date_gmt'];
 
 	// Bind supported attachment post types as placeholders instead of concatenating a post_type clause.
 	$supported_attachment_post_types = array_slice( $supported_attachment_post_types ?: array( '' ), 0, 256 );

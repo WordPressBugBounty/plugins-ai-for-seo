@@ -53,6 +53,10 @@ add_action( 'init', 'ai4seo_register_ajax_actions', 8 );
 // init (logged-in) user essentials after all plugins have been loaded, used for admin area and frontend.
 add_action( 'init', 'ai4seo_init_user_essentials' );
 
+// Elementor rebuilds its asset queues and footer, so register the primary bundle and schemas on its editor lifecycle.
+add_action( 'elementor/editor/before_enqueue_scripts', 'ai4seo_enqueue_primary_assets' );
+add_action( 'elementor/editor/footer', 'ai4seo_include_modal_schemas_file' );
+
 // perform ajax nonce check.
 add_action( 'admin_init', 'ai4seo_on_ajax_action', 9999 );
 

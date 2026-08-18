@@ -101,7 +101,15 @@ if ( $ai4seo_total_num_generated_posts > 0 ) {
 			echo esc_html( $ai4seo_generated_entries_message );
 		echo '</strong>';
 		ai4seo_echo_wp_kses( $ai4seo_remove_generated_data_sentence );
-		ai4seo_echo_wp_kses( ai4seo_get_icon_with_tooltip_tag( $ai4seo_reset_generated_data_tooltip ) );
+		// Give the icon-only removal tooltip trigger a descriptive accessible name.
+		ai4seo_echo_wp_kses(
+			ai4seo_get_icon_with_tooltip_tag(
+				$ai4seo_reset_generated_data_tooltip,
+				'',
+				'circle-question',
+				__( 'AI-generated data removal help', 'ai-for-seo' )
+			)
+		);
 
 		echo "<div id='ai4seo-remove-generated-data-action-container' class='ai4seo-remove-generated-data-action-container ai4seo-display-none'>";
 			ai4seo_echo_wp_kses( ai4seo_get_icon_button_tag( 'triangle-exclamation', esc_html__( 'Remove AI-generated data', 'ai-for-seo' ), 'ai4seo-lockable ai4seo-danger-button ai4seo-remove-generated-data-button', 'ai4seo_confirm_autopilot_remove_generated_data();' ) );
@@ -234,8 +242,16 @@ if ( $ai4seo_found_any_all_done_post_types ) {
 					echo "<span class='ai4seo-form-item-label ai4seo-label-with-tooltip'>";
 						echo "<label for='" . esc_attr( $ai4seo_this_bulk_generation_setting_name ) . "'>";
 							echo esc_html__( 'Generate metadata and media attributes for:', 'ai-for-seo' );
-						echo '</label>';
-						ai4seo_echo_wp_kses( ai4seo_get_icon_with_tooltip_tag( esc_html__( "Choose whether to generate metadata or media attributes for existing entries, newly created entries, or both. Changing this setting marks all current entries as 'existing', while any entries created afterward are considered 'new'. This distinction is refreshed each time the setting is changed, except for direct swaps between 'New entries only' and 'Existing entries only'.", 'ai-for-seo' ) ) );
+							echo '</label>';
+						// Describe the purpose of this icon-only filter help trigger to assistive technology.
+						ai4seo_echo_wp_kses(
+							ai4seo_get_icon_with_tooltip_tag(
+								esc_html__( "Choose whether to generate metadata or media attributes for existing entries, newly created entries, or both. Changing this setting marks all current entries as 'existing', while any entries created afterward are considered 'new'. This distinction is refreshed each time the setting is changed, except for direct swaps between 'New entries only' and 'Existing entries only'.", 'ai-for-seo' ),
+								'',
+								'circle-question',
+								__( 'New or existing entries help', 'ai-for-seo' )
+							)
+						);
 					echo '</span>';
 
 					echo "<div class='ai4seo-form-item-input-wrapper'>";
@@ -287,7 +303,15 @@ if ( 'new' === $ai4seo_current_automated_generation_new_or_existing_filter ) {
 					echo "<div class='ai4seo-form-item-input-wrapper'>";
 						echo esc_html__( 'Note: Auto Queue Entries is disabled. You will need to queue potential entries manually from the Posts or Media lists.', 'ai-for-seo' );
 						echo ' ';
-						ai4seo_echo_wp_kses( ai4seo_get_icon_with_tooltip_tag( $ai4seo_manual_queue_note_tooltip ) );
+						// Describe the manual-queue help trigger independently from its visual icon.
+						ai4seo_echo_wp_kses(
+							ai4seo_get_icon_with_tooltip_tag(
+								$ai4seo_manual_queue_note_tooltip,
+								'',
+								'circle-question',
+								__( 'Manual queueing help', 'ai-for-seo' )
+							)
+						);
 					echo '</div>';
 				echo '</div>';
 

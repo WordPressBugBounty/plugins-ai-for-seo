@@ -17,27 +17,30 @@ if ( ! ai4seo_can_manage_this_plugin() ) {
 // === PREPARE =============================================================================== \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
-$ai4seo_active_plugin_page = ai4seo_get_active_subpage();
-$ai4seo_modal_schemas      = array();
+$ai4seo_active_plugin_page     = ai4seo_get_active_subpage();
+$ai4seo_modal_schemas          = array();
+$ai4seo_primary_asset_contexts = ai4seo_get_primary_asset_contexts();
 
 
 // === FIND SUITABLE MODAL SCHEMAS =========================================================== \\
 
 $is_user_inside_plugin_admin_pages     = ai4seo_is_user_inside_our_plugin_admin_pages();
 $is_user_inside_installed_plugins_page = ai4seo_is_user_inside_installed_plugins_page();
+$ai4seo_is_tos_gate_context            = in_array( 'tos-gate', $ai4seo_primary_asset_contexts, true );
 
-if ( $is_user_inside_plugin_admin_pages ) {
+// Foreign admin pages receive only the TOS schema selected by their dedicated asset context.
+if ( $ai4seo_is_tos_gate_context && ai4seo_does_user_need_to_accept_tos_toc_and_pp( true ) ) {
+	$ai4seo_modal_schemas[] = 'tos';
+}
+
+// Internal plugin pages retain their existing subpage-specific schema selection.
+if ( $is_user_inside_plugin_admin_pages && in_array( 'plugin-ui', $ai4seo_primary_asset_contexts, true ) ) {
 	// TOS.
 	if ( ai4seo_does_user_need_to_accept_tos_toc_and_pp( true ) ) {
 		$ai4seo_modal_schemas[] = 'tos'; // group a -> every page.
 	} else {
 		if ( ai4seo_does_user_need_to_accept_tos_toc_and_pp( false ) && 'account' === $ai4seo_active_plugin_page ) {
 			$ai4seo_modal_schemas[] = 'tos'; // group b -> via account page.
-		}
-
-		if ( 'dashboard' === $ai4seo_active_plugin_page || 'account' === $ai4seo_active_plugin_page ) {
-			$ai4seo_modal_schemas[] = 'select-credits-pack';
-			$ai4seo_modal_schemas[] = 'customize-pay-as-you-go';
 		}
 
 		if ( 'dashboard' === $ai4seo_active_plugin_page ) {
@@ -48,18 +51,26 @@ if ( $is_user_inside_plugin_admin_pages ) {
 			$ai4seo_modal_schemas[] = 'export-import-settings';
 		}
 
+		// The Credits overview opens both purchase dialogs, so keep its complete schema pack available.
 		$ai4seo_modal_schemas[] = 'get-more-credits';
+		$ai4seo_modal_schemas[] = 'select-credits-pack';
+		$ai4seo_modal_schemas[] = 'customize-pay-as-you-go';
 	}
 }
 
-if ( $is_user_inside_installed_plugins_page ) {
+// Deactivation and PAYG schemas accompany only the Installed Plugins integration context.
+if ( $is_user_inside_installed_plugins_page && in_array( 'plugin-deactivation', $ai4seo_primary_asset_contexts, true ) ) {
 	$ai4seo_modal_schemas[] = 'plugin-deactivation-feedback';
 	$ai4seo_modal_schemas[] = 'customize-pay-as-you-go';
 }
 
+// Avoid an empty schema container when no page-specific modal is required.
 if ( ! $ai4seo_modal_schemas ) {
 	return;
 }
+
+// TOS may be selected by both plugin UI and gate context; emit every schema only once.
+$ai4seo_modal_schemas = array_values( array_unique( $ai4seo_modal_schemas ) );
 
 
 // ___________________________________________________________________________________________ \\

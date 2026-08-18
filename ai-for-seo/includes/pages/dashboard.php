@@ -97,8 +97,8 @@ $ai4seo_next_cron_job_call_diff = ( $ai4seo_next_cron_job_call ? $ai4seo_next_cr
 // === NEW OR EXISTING FILTER =============================================================== \\
 
 // check if we should only generate data for new or existing posts.
-$bulk_generation_new_or_existing_filter                     = ai4seo_get_setting( AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER );
-$bulk_generation_new_or_existing_filter_reference_timestamp = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME );
+// Resolve the shared state once so statistics and filter notices use the queue contract.
+$ai4seo_bulk_generation_date_filter_state = ai4seo_get_current_bulk_generation_date_filter_state();
 
 
 // === POST TYPES =========================================================================== \\
@@ -322,33 +322,40 @@ if ( $ai4seo_all_supported_post_types ) {
 			echo '</div>';
 		}
 
-		// on active new / existing filter.
-		if ( 'both' !== $bulk_generation_new_or_existing_filter ) {
-			// echo message about the existing filter and that maybe entries are not shown in the stats.
-			$ai4seo_new_or_existing_filter_text = '';
-
-			if ( 'new' === $bulk_generation_new_or_existing_filter ) {
-				$ai4seo_new_or_existing_filter_text = sprintf(
-					/* translators: %s: reference timestamp */
-					esc_html__( 'The SEO Autopilot is currently set to only generate data for new content created after %s. Therefore, existing content before this date is not included in the above statistics.', 'ai-for-seo' ),
-					'<strong>' . esc_html( ai4seo_format_unix_timestamp( $bulk_generation_new_or_existing_filter_reference_timestamp ) ) . '</strong>'
-				);
-			} elseif ( 'existing' === $bulk_generation_new_or_existing_filter ) {
-				$ai4seo_new_or_existing_filter_text = sprintf(
-					/* translators: %s: reference timestamp */
-					esc_html__( 'The SEO Autopilot is currently set to only generate data for existing content created before %s. Therefore, new content after this date is not included in the above statistics.', 'ai-for-seo' ),
-					'<strong>' . esc_html( ai4seo_format_unix_timestamp( $bulk_generation_new_or_existing_filter_reference_timestamp ) ) . '</strong>'
-				);
-			}
-
-			echo "<div class='ai4seo-dashboard-new-or-existing-filter-note ai4seo-dashboard-statistics-message-row ai4seo-red-message'>";
-				echo "<div class='ai4seo-dashboard-statistics-message-content ai4seo-red-message'>";
-					echo '<strong>' . esc_html__( 'Note:', 'ai-for-seo' ) . '</strong> ';
-					ai4seo_echo_wp_kses( $ai4seo_new_or_existing_filter_text );
-					ai4seo_echo_wp_kses( ' ' . esc_html__( 'You can change this setting in the SEO Autopilot settings.', 'ai-for-seo' ) );
-				echo '</div>';
+	// Surface invalid persisted state instead of silently presenting statistics the queue cannot reproduce.
+	if ( empty( $ai4seo_bulk_generation_date_filter_state['is_valid'] ) ) {
+		echo "<div class='ai4seo-dashboard-new-or-existing-filter-note ai4seo-dashboard-statistics-message-row ai4seo-red-message'>";
+			echo "<div class='ai4seo-dashboard-statistics-message-content ai4seo-red-message'>";
+				echo '<strong>' . esc_html__( 'SEO Autopilot paused:', 'ai-for-seo' ) . '</strong> ';
+				echo esc_html( ai4seo_get_invalid_bulk_generation_date_filter_message() );
 			echo '</div>';
+		echo '</div>';
+	} elseif ( 'both' !== $ai4seo_bulk_generation_date_filter_state['filter'] ) {
+		// echo message about the existing filter and that maybe entries are not shown in the stats.
+		$ai4seo_new_or_existing_filter_text = '';
+
+		if ( 'new' === $ai4seo_bulk_generation_date_filter_state['filter'] ) {
+			$ai4seo_new_or_existing_filter_text = sprintf(
+				/* translators: %s: reference timestamp */
+				esc_html__( 'The SEO Autopilot is currently set to only generate data for new content created after %s. Therefore, existing content before this date is not included in the above statistics.', 'ai-for-seo' ),
+				'<strong>' . esc_html( ai4seo_format_unix_timestamp( (int) $ai4seo_bulk_generation_date_filter_state['reference_timestamp'] ) ) . '</strong>'
+			);
+		} elseif ( 'existing' === $ai4seo_bulk_generation_date_filter_state['filter'] ) {
+			$ai4seo_new_or_existing_filter_text = sprintf(
+				/* translators: %s: reference timestamp */
+				esc_html__( 'The SEO Autopilot is currently set to only generate data for existing content created before %s. Therefore, new content after this date is not included in the above statistics.', 'ai-for-seo' ),
+				'<strong>' . esc_html( ai4seo_format_unix_timestamp( (int) $ai4seo_bulk_generation_date_filter_state['reference_timestamp'] ) ) . '</strong>'
+			);
 		}
+
+		echo "<div class='ai4seo-dashboard-new-or-existing-filter-note ai4seo-dashboard-statistics-message-row ai4seo-red-message'>";
+			echo "<div class='ai4seo-dashboard-statistics-message-content ai4seo-red-message'>";
+				echo '<strong>' . esc_html__( 'Note:', 'ai-for-seo' ) . '</strong> ';
+				ai4seo_echo_wp_kses( $ai4seo_new_or_existing_filter_text );
+				ai4seo_echo_wp_kses( ' ' . esc_html__( 'You can change this setting in the SEO Autopilot settings.', 'ai-for-seo' ) );
+			echo '</div>';
+		echo '</div>';
+	}
 
 		if ( $ai4seo_retry_all_failed_metadata_button_tags || $ai4seo_retry_all_failed_attachment_attributes_generations_link_tag ) {
 			echo "<div class='ai4seo-buttons-wrapper ai4seo-dashboard-retry-all-failed-wrapper ai4seo-ignore-during-dashboard-refresh'>";

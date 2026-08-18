@@ -19,8 +19,6 @@ function ai4seo_is_bulk_generation_enabled( string $post_type ): bool {
 	return is_array( $enabled_bulk_generation_post_types ) && in_array( $post_type, $enabled_bulk_generation_post_types );
 }
 
-// =========================================================================================== \\
-
 /**
  * Check if any auto generation is enabled
  *
@@ -32,8 +30,6 @@ function ai4seo_is_any_bulk_generation_enabled(): bool {
 	return count( $enabled_bulk_generations_post_types ) > 0;
 }
 
-// =========================================================================================== \\
-
 /**
  * Check if SEO Autopilot should automatically queue applicable entries.
  *
@@ -41,6 +37,155 @@ function ai4seo_is_any_bulk_generation_enabled(): bool {
  */
 function ai4seo_should_auto_queue_bulk_generation_entries(): bool {
 	return ai4seo_get_setting( AI4SEO_SETTING_BULK_GENERATION_AUTO_QUEUE_ENTRIES ) === true;
+}
+
+/**
+ * Check whether the SEO Autopilot new/existing setting activates its date boundary.
+ *
+ * @param mixed $filter Stored new/existing filter.
+ * @return bool True for the new and existing modes.
+ */
+function ai4seo_is_bulk_generation_date_filter_active( $filter ): bool {
+	// Only the complementary new/existing modes require a persisted reference time.
+	return in_array( $filter, array( 'new', 'existing' ), true );
+}
+
+/**
+ * Resolve persisted SEO Autopilot date-filter state without side effects.
+ *
+ * The inactive "both" mode deliberately ignores its reference time and returns a neutral valid
+ * DATETIME binding. Active filters require a positive integer timestamp whose UTC representation
+ * fits MySQL's supported DATETIME range.
+ *
+ * @param mixed $filter Stored new/existing filter.
+ * @param mixed $reference_timestamp Stored filter reference timestamp.
+ * @return array Canonical state with validity, filter, reference time, SQL date, and error code.
+ */
+function ai4seo_get_bulk_generation_date_filter_state( $filter, $reference_timestamp ): array {
+	// Canonicalize only string input because other persisted types are invalid filter state.
+	$filter = is_string( $filter ) ? sanitize_key( $filter ) : '';
+
+	// Start fail-closed so every rejected branch returns the same complete state shape.
+	$filter_state = array(
+		'is_valid'            => false,
+		'filter'              => $filter,
+		'reference_timestamp' => 0,
+		'post_date_gmt'       => '',
+		'error_code'          => 'invalid_filter',
+	);
+
+	// Reject unsupported filter values before considering their associated reference time.
+	if ( ! in_array( $filter, AI4SEO_AVAILABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_OPTIONS, true ) ) {
+		return $filter_state;
+	}
+
+	// Supply a valid neutral SQL binding when the query does not apply a date comparison.
+	if ( 'both' === $filter ) {
+		$filter_state['is_valid']      = true;
+		$filter_state['post_date_gmt'] = AI4SEO_MYSQL_DATETIME_MINIMUM;
+		$filter_state['error_code']    = '';
+
+		return $filter_state;
+	}
+
+	// Require an exact positive integer so malformed persisted values cannot widen queue scope.
+	$reference_timestamp = ( is_int( $reference_timestamp ) || is_string( $reference_timestamp ) )
+		? filter_var(
+			$reference_timestamp,
+			FILTER_VALIDATE_INT,
+			array(
+				'options' => array(
+					'min_range' => 1,
+				),
+			)
+		)
+		: false;
+
+	if ( false === $reference_timestamp ) {
+		$filter_state['error_code'] = 'invalid_reference_timestamp';
+
+		return $filter_state;
+	}
+
+	// Format through DateTime so platform range failures remain explicit and recoverable.
+	try {
+		$reference_datetime = new DateTimeImmutable( '@' . $reference_timestamp );
+		$post_date_gmt      = $reference_datetime
+			->setTimezone( new DateTimeZone( 'UTC' ) )
+			->format( 'Y-m-d H:i:s' );
+	} catch ( Throwable $throwable ) {
+		$filter_state['error_code'] = 'reference_timestamp_format_failed';
+
+		return $filter_state;
+	}
+
+	// Keep invalid or out-of-range SQL dates out of every prepared query consumer.
+	if ( ! ai4seo_is_valid_mysql_datetime( $post_date_gmt ) ) {
+		$filter_state['error_code'] = 'invalid_post_date_gmt';
+
+		return $filter_state;
+	}
+
+	// Publish the canonical active state only after every timestamp and SQL-date check succeeds.
+	$filter_state['is_valid']            = true;
+	$filter_state['reference_timestamp'] = $reference_timestamp;
+	$filter_state['post_date_gmt']       = $post_date_gmt;
+	$filter_state['error_code']          = '';
+
+	return $filter_state;
+}
+
+/**
+ * Resolve the currently persisted SEO Autopilot date-filter setting and reference time.
+ *
+ * @return array Canonical state from ai4seo_get_bulk_generation_date_filter_state().
+ */
+function ai4seo_get_current_bulk_generation_date_filter_state(): array {
+	// Pair the owning setting with its environmental boundary before validating either consumer.
+	return ai4seo_get_bulk_generation_date_filter_state(
+		ai4seo_get_setting( AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER ),
+		ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME )
+	);
+}
+
+/**
+ * Check whether an entry timestamp is eligible under resolved SEO Autopilot date-filter state.
+ *
+ * @param array $filter_state Canonical state from ai4seo_get_bulk_generation_date_filter_state().
+ * @param int   $entry_timestamp Entry publication/upload timestamp in UTC.
+ * @return bool True when the entry is inside the configured date scope.
+ */
+function ai4seo_does_bulk_generation_date_filter_include_timestamp( array $filter_state, int $entry_timestamp ): bool {
+	// Invalid state is always fail-closed, matching queue excavation and analysis behavior.
+	if ( empty( $filter_state['is_valid'] ) ) {
+		return false;
+	}
+
+	// The inactive mode includes every entry without consulting its neutral reference time.
+	if ( 'both' === ( $filter_state['filter'] ?? '' ) ) {
+		return true;
+	}
+
+	$reference_timestamp = (int) ( $filter_state['reference_timestamp'] ?? 0 );
+
+	// New entries begin strictly after the shared boundary.
+	if ( 'new' === ( $filter_state['filter'] ?? '' ) ) {
+		return $entry_timestamp > $reference_timestamp;
+	}
+
+	// The boundary itself belongs to the complementary existing-entry scope.
+	return 'existing' === ( $filter_state['filter'] ?? '' )
+		&& $entry_timestamp <= $reference_timestamp;
+}
+
+/**
+ * Return the shared admin-facing explanation for invalid SEO Autopilot date-filter state.
+ *
+ * @return string Translated recovery guidance.
+ */
+function ai4seo_get_invalid_bulk_generation_date_filter_message(): string {
+	// Keep recovery guidance identical everywhere invalid state is surfaced to administrators.
+	return __( "SEO Autopilot cannot automatically queue entries because the 'New or existing entries' filter has an invalid reference date. Open the SEO Autopilot settings and save this filter again.", 'ai-for-seo' );
 }
 
 // =========================================================================================== \\

@@ -7,6 +7,62 @@ if ( ! defined( 'ABSPATH' ) ) {
 // region ATTACHMENTS / MEDIA =================================================================== \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
+/**
+ * Build constant attachment data used by the client-side Media Attributes previews.
+ *
+ * @param array  $attribute_values   Current attribute values.
+ * @param array  $active_fields      Active attachment attribute identifiers.
+ * @param bool   $is_image           Whether the attachment is a supported image.
+ * @param string $attachment_url     Attachment URL.
+ * @return array<string, mixed> Preview context.
+ */
+function ai4seo_get_attachment_editor_preview_context(
+	array $attribute_values,
+	array $active_fields,
+	bool $is_image,
+	string $attachment_url
+): array {
+	$preview_values      = array();
+	$attachment_url_path = wp_parse_url( $attachment_url, PHP_URL_PATH );
+
+	// Normalize every supported value once so all preview cards consume the same safe snapshot.
+	foreach ( AI4SEO_AVAILABLE_ATTACHMENT_ATTRIBUTE_IDENTIFIERS as $attribute_identifier ) {
+		$attribute_identifier = sanitize_key( $attribute_identifier );
+
+		$value = $attribute_values[ $attribute_identifier ] ?? '';
+
+		$preview_values[ $attribute_identifier ] = is_scalar( $value ) ? ai4seo_normalize_editor_input_value( (string) $value ) : '';
+	}
+
+	$attachment_quality_windows       = array();
+	$fixed_attachment_quality_windows = AI4SEO_GENERATED_OUTPUT_QUALITY_WINDOWS['attachment_attributes'] ?? array();
+	foreach ( array( 'title', 'alt-text', 'caption', 'description' ) as $attachment_attribute_identifier ) {
+		$window = ai4seo_get_generation_length_quality_window( 'attachment_attributes', $attachment_attribute_identifier );
+
+		// Only Alt Text currently has a configurable stage, so retain declared targets for the remaining attributes.
+		if ( ! $window ) {
+			$window = $fixed_attachment_quality_windows[ $attachment_attribute_identifier ] ?? array();
+		}
+
+		$attachment_quality_windows[ sanitize_key( $attachment_attribute_identifier ) ] = array(
+			'min' => absint( $window['min-length'] ?? 0 ),
+			'max' => absint( $window['max-length'] ?? 0 ),
+		);
+	}
+
+	// Keep the client context presentation-only; form controls remain authoritative for saving.
+	return array(
+		'context'        => 'attachment',
+		'values'         => $preview_values,
+		'activeFields'   => array_values( array_map( 'sanitize_key', $active_fields ) ),
+		'isImage'        => $is_image,
+		'fileName'       => sanitize_file_name( wp_basename( is_string( $attachment_url_path ) ? $attachment_url_path : '' ) ),
+		'qualityWindows' => $attachment_quality_windows,
+	);
+}
+
+// End attachment preview-context construction before the existing media utilities begin.
+
 function ai4seo_get_attachment_post_mime_type( $attachment_post_id ): ?string {
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 373146404, 'Prevented loop', true );
@@ -836,109 +892,297 @@ function ai4seo_generate_attachment_attributes_using_base64(
 // =========================================================================================== \\
 
 /**
- * Creates a base64-encoded string of an image, downsizing it if necessary to fit within 3 MB.
+ * Create a WordPress image editor for raw image bytes.
+ *
+ * WordPress selects the available backend, so conversion works with Imagick or GD without
+ * requiring either extension directly.
+ *
+ * @param string $image_data                 Raw source bytes.
+ * @param string $source_mime_type           MIME type detected from the source bytes.
+ * @param string $derivative_mime_type       MIME type required for the derivative.
+ * @param array  $temporary_image_file_paths Temporary paths that must be deleted by the caller.
+ * @return WP_Image_Editor|WP_Error
+ */
+function ai4seo_get_image_editor_from_data(
+	string $image_data,
+	string $source_mime_type,
+	string $derivative_mime_type,
+	array &$temporary_image_file_paths
+) {
+	// Load the WordPress temporary-file helper only when the host has not loaded it already.
+	if ( ! function_exists( 'wp_tempnam' ) ) {
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+	}
+
+	// Return a normalized editor error when WordPress cannot expose the required abstraction.
+	if ( ! function_exists( 'wp_tempnam' ) || ! function_exists( 'wp_get_image_editor' ) ) {
+		return new WP_Error( 'ai4seo_image_editor_unavailable', 'WordPress image editing is unavailable.' );
+	}
+
+	// Give the selected editor a local source path while tracking it for unconditional cleanup.
+	$source_file_path = wp_tempnam( 'ai4seo-image-source' );
+
+	// Stop before writing when WordPress could not reserve the source path.
+	if ( ! $source_file_path ) {
+		return new WP_Error( 'ai4seo_image_temp_file_failed', 'Could not create a temporary image file.' );
+	}
+
+	$temporary_image_file_paths[] = $source_file_path;
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- WordPress image editors require a local temporary source path.
+	$written_bytes = file_put_contents( $source_file_path, $image_data );
+
+	// Partial writes cannot produce a trustworthy image editor input.
+	if ( strlen( $image_data ) !== $written_bytes ) {
+		return new WP_Error( 'ai4seo_image_temp_file_write_failed', 'Could not write the complete temporary image file.' );
+	}
+
+	// Let WordPress select whichever installed backend supports both the source and derivative formats.
+	return wp_get_image_editor(
+		$source_file_path,
+		array(
+			'mime_type'        => $source_mime_type,
+			'output_mime_type' => $derivative_mime_type,
+		)
+	);
+}
+
+// phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Project section separator.
+// =========================================================================================== \\
+
+/**
+ * Save the current image-editor state to a tracked temporary derivative.
+ *
+ * @param WP_Image_Editor $image_editor               Loaded WordPress image editor.
+ * @param string          $derivative_mime_type      Requested output MIME type.
+ * @param array           $temporary_image_file_paths Temporary paths that must be deleted by the caller.
+ * @return array|WP_Error
+ */
+function ai4seo_save_temporary_image_derivative(
+	$image_editor,
+	string $derivative_mime_type,
+	array &$temporary_image_file_paths
+) {
+	// Reserve a predictable local output path and return a normalized error if that is unavailable.
+	$derivative_placeholder_path = wp_tempnam( 'ai4seo-image-derivative' );
+
+	// Stop before saving when WordPress could not reserve the derivative path.
+	if ( ! $derivative_placeholder_path ) {
+		return new WP_Error( 'ai4seo_image_derivative_temp_file_failed', 'Could not create a temporary derivative file.' );
+	}
+
+	// Track both the placeholder and the backend-selected output path because extensions can differ.
+	$temporary_image_file_paths[] = $derivative_placeholder_path;
+	$saved_derivative             = $image_editor->save( $derivative_placeholder_path, $derivative_mime_type );
+
+	// Track an alternate path when the backend appends or replaces the requested extension.
+	if ( ! is_wp_error( $saved_derivative ) && ! empty( $saved_derivative['path'] ) ) {
+		$temporary_image_file_paths[] = $saved_derivative['path'];
+	}
+
+	return $saved_derivative;
+}
+
+// phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Project section separator.
+// =========================================================================================== \\
+
+/**
+ * Delete temporary image sources and derivatives.
+ *
+ * @param array $temporary_image_file_paths Temporary paths created during image conversion.
+ * @return void
+ */
+function ai4seo_delete_temporary_image_files( array $temporary_image_file_paths ): void {
+	// De-duplicate backend paths before removing every source, placeholder, and derivative still present.
+	foreach ( array_unique( $temporary_image_file_paths ) as $temporary_image_file_path ) {
+		// Ignore invalid or already-removed entries while cleaning every remaining local file.
+		if ( is_string( $temporary_image_file_path ) && '' !== $temporary_image_file_path && file_exists( $temporary_image_file_path ) ) {
+			wp_delete_file( $temporary_image_file_path );
+		}
+	}
+}
+
+// phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Project section separator.
+// =========================================================================================== \\
+
+/**
+ * Scale image dimensions while keeping each side valid for WordPress image editors.
+ *
+ * @param array $current_dimensions Current width and height.
+ * @param float $scale              Proportional scale to apply.
+ * @return array{width: int, height: int} Scaled dimensions.
+ */
+function ai4seo_get_scaled_image_dimensions( array $current_dimensions, float $scale ): array {
+	// Preserve the aspect ratio and prevent rounding from producing an invalid zero-sized side.
+	return array(
+		'width'  => max( 1, (int) floor( $current_dimensions['width'] * $scale ) ),
+		'height' => max( 1, (int) floor( $current_dimensions['height'] * $scale ) ),
+	);
+}
+
+// phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Project section separator.
+// =========================================================================================== \\
+
+/**
+ * Create a model-compatible base64 image, converting or downsizing when necessary.
  *
  * @param string      $image_data        The image data to encode.
  * @param string      $source_mime_type  MIME type detected from the source bytes.
  * @param string|null $encoded_mime_type Actual MIME type of the encoded output.
- * @return string The base64-encoded image data, or false if there was an error.
+ * @return string The base64-encoded image data, or an empty string on error.
  */
 function ai4seo_smart_image_base64_encode(
 	string $image_data,
 	string $source_mime_type = '',
 	?string &$encoded_mime_type = null
 ): string {
-	// Default to the detected source MIME; the GD conversion branch replaces it with JPEG below.
+	// Default to the detected source MIME; a derivative branch replaces it with a compatible format below.
 	$encoded_mime_type = ai4seo_normalize_mime_type_string( $source_mime_type ) ?? '';
 
+	// Preserve the existing recursion guard before allocating temporary files or image-editor resources.
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 241293986, 'Prevented loop', true );
 		return '';
 	}
 
-	// Set the file size limit to 1 MB.
-	$max_file_size = 100000; // 1 MB in bytes.
+	// Keep encoded images near the shared model-input target using a bounded conversion loop.
+	$target_image_size_bytes    = AI4SEO_ATTACHMENT_GENERATION_TARGET_IMAGE_SIZE_BYTES;
+	$temporary_image_file_paths = array();
 
+	// Isolate backend and filesystem failures so every conversion error retains the established return contract.
 	try {
-		// Get the size of the decoded image data in bytes.
-		$image_size = strlen( $image_data );
+		// Decide whether the source can pass through unchanged or requires a compatible derivative.
+		$source_image_size_bytes        = strlen( $image_data );
+		$requires_compatible_derivative = 'image/avif' === $encoded_mime_type;
 
-		// If the image size is less than or equal to the limit, return the original image as base64.
-		if ( $image_size <= $max_file_size ) {
+		// RobHub requires an AVIF derivative even when the source is already below the size limit.
+		if ( $source_image_size_bytes <= $target_image_size_bytes && ! $requires_compatible_derivative ) {
+			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- Encode the image payload for the model request.
 			return base64_encode( $image_data );
 		}
 
-		// check if we can use the image functions.
-		if ( ! function_exists( 'imagecreatefromstring' )
-			|| ! function_exists( 'imagejpeg' )
-			|| ! function_exists( 'imagecopyresampled' )
-			|| ! function_exists( 'imagecreatetruecolor' )
-			|| ! function_exists( 'imagedestroy' )
-		) {
-			throw new Exception( 'Required image functions are not available.' );
+		// PNG preserves AVIF transparency across WordPress image backends; other oversized formats retain JPEG output.
+		$derivative_mime_type = $requires_compatible_derivative ? 'image/png' : 'image/jpeg';
+		$image_editor         = ai4seo_get_image_editor_from_data(
+			$image_data,
+			$encoded_mime_type,
+			$derivative_mime_type,
+			$temporary_image_file_paths
+		);
+
+		// Backend-selection failures are normalized through the common conversion error path.
+		if ( is_wp_error( $image_editor ) ) {
+			throw new Exception( $image_editor->get_error_message() );
 		}
 
-		// Try to create an image from the string.
-		$image = @imagecreatefromstring( $image_data );
+		// Use the declared derivative quality consistently across whichever backend WordPress selected.
+		$quality_result = $image_editor->set_quality( AI4SEO_ATTACHMENT_GENERATION_DERIVATIVE_QUALITY );
 
-		if ( false === $image ) {
-			throw new Exception( 'Failed to create image from string.' );
+		// Quality configuration failures make all following derivative measurements unreliable.
+		if ( is_wp_error( $quality_result ) ) {
+			throw new Exception( $quality_result->get_error_message() );
 		}
 
-		// Get the original image dimensions.
-		$width  = imagesx( $image );
-		$height = imagesy( $image );
+		// Capture dimensions after loading because the correction loop always scales the current editor state.
+		$current_dimensions = $image_editor->get_size();
 
-		// Calculate the scaling factor to downsize the image to fit within 1 MB.
-		$scale      = sqrt( $max_file_size / $image_size );
-		$new_width  = intval( $width * $scale );
-		$new_height = intval( $height * $scale );
-
-		// Create a new image with the new dimensions.
-		$new_image = imagecreatetruecolor( $new_width, $new_height );
-
-		if ( ! imagecopyresampled( $new_image, $image, 0, 0, 0, 0, $new_width, $new_height, $width, $height ) ) {
-			throw new Exception( 'Failed to resample the image.' );
+		// Reject editor states that cannot support proportional resizing.
+		if ( empty( $current_dimensions['width'] ) || empty( $current_dimensions['height'] ) ) {
+			throw new Exception( 'Could not determine image dimensions.' );
 		}
 
-		// Start output buffering to capture the downsized image data.
-		ob_start();
+		// Apply the source-size estimate once, then correct against actual derivative bytes below.
+		if ( $source_image_size_bytes > $target_image_size_bytes ) {
+			$initial_scale      = min( 1, sqrt( $target_image_size_bytes / $source_image_size_bytes ) );
+			$initial_dimensions = ai4seo_get_scaled_image_dimensions( $current_dimensions, $initial_scale );
 
-		if ( ! imagejpeg( $new_image, null, 75 ) ) { // 75 is the quality for the JPEG.
-			ob_end_clean();
-			throw new Exception( 'Failed to output the resized image.' );
+			// Avoid a no-op resize when the source estimate already retains the loaded dimensions.
+			if ( $initial_dimensions['width'] < $current_dimensions['width'] || $initial_dimensions['height'] < $current_dimensions['height'] ) {
+				$resize_result = $image_editor->resize(
+					$initial_dimensions['width'],
+					$initial_dimensions['height'],
+					false
+				);
+
+				// Surface backend-specific resizing failures through the shared conversion error contract.
+				if ( is_wp_error( $resize_result ) ) {
+					throw new Exception( $resize_result->get_error_message() );
+				}
+			}
 		}
 
-		$downsized_image_data = ob_get_contents();
-		ob_end_clean();
+		// Re-encode only a bounded number of times while using measured derivative bytes for correction.
+		for ( $encoding_attempt = 1; $encoding_attempt <= AI4SEO_ATTACHMENT_GENERATION_MAX_ENCODING_ATTEMPTS; ++$encoding_attempt ) {
+			$saved_derivative = ai4seo_save_temporary_image_derivative(
+				$image_editor,
+				$derivative_mime_type,
+				$temporary_image_file_paths
+			);
 
-		// imagejpeg() always changes the encoded output format regardless of the source format.
-		$encoded_mime_type = 'image/jpeg';
+			// Normalize image-editor save errors before attempting to read an output path.
+			if ( is_wp_error( $saved_derivative ) ) {
+				throw new Exception( $saved_derivative->get_error_message() );
+			}
 
-		// Free memory.
-		imagedestroy( $image );
-		imagedestroy( $new_image );
+			// Use the actual path returned by the selected backend rather than assuming the placeholder extension.
+			$derivative_path = $saved_derivative['path'] ?? '';
 
-		// Return the new base64-encoded image.
-		return base64_encode( $downsized_image_data );
+			// A successful save result still needs a readable local derivative path.
+			if ( ! is_string( $derivative_path ) || '' === $derivative_path || ! is_readable( $derivative_path ) ) {
+				throw new Exception( 'Could not read the generated image derivative.' );
+			}
 
-	} catch ( Exception $e ) {
-		// Log the error message for debugging (WordPress style).
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- The derivative is a bounded local temporary file.
+			$derivative_image_data = file_get_contents( $derivative_path );
+
+			// Empty or unreadable derivative bodies cannot be sent to the model.
+			if ( ! is_string( $derivative_image_data ) || '' === $derivative_image_data ) {
+				throw new Exception( 'The generated image derivative is empty.' );
+			}
+
+			// Measure decoded bytes because base64 expansion is outside the model's image-size target.
+			$derivative_image_size_bytes = strlen( $derivative_image_data );
+
+			// The first compliant derivative is final and exposes the backend-confirmed output MIME.
+			if ( $derivative_image_size_bytes <= $target_image_size_bytes ) {
+				$encoded_mime_type = $saved_derivative['mime-type'] ?? $derivative_mime_type;
+				// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- Encode the bounded derivative for the model request.
+				return base64_encode( $derivative_image_data );
+			}
+
+			// Stop at the configured bound instead of performing an unbounded size-correction cycle.
+			if ( AI4SEO_ATTACHMENT_GENERATION_MAX_ENCODING_ATTEMPTS === $encoding_attempt ) {
+				throw new Exception( 'Could not reduce the image derivative to the target file size.' );
+			}
+
+			// Add a small reduction margin so the next derivative converges below the byte target.
+			$current_dimensions   = $image_editor->get_size();
+			$corrective_scale     = min( 0.95, sqrt( $target_image_size_bytes / $derivative_image_size_bytes ) * 0.95 );
+			$corrected_dimensions = ai4seo_get_scaled_image_dimensions( $current_dimensions, $corrective_scale );
+
+			// Stop when integer rounding leaves both dimensions unchanged.
+			if ( $current_dimensions['width'] === $corrected_dimensions['width']
+				&& $current_dimensions['height'] === $corrected_dimensions['height'] ) {
+				throw new Exception( 'Could not reduce the image derivative dimensions further.' );
+			}
+
+			$resize_result = $image_editor->resize(
+				$corrected_dimensions['width'],
+				$corrected_dimensions['height'],
+				false
+			);
+
+			// Any corrective resize failure makes the conversion attempt unusable.
+			if ( is_wp_error( $resize_result ) ) {
+				throw new Exception( $resize_result->get_error_message() );
+			}
+		}
+	} catch ( Throwable $e ) {
+		// Keep backend failures observable while preserving the established empty-string error contract.
 		ai4seo_debug_message( 578877568, $e->getMessage(), true );
-
-		if ( function_exists( 'imagedestroy' ) && function_exists( 'is_resource' ) ) {
-			// Free any allocated resources in case of an error.
-			if ( isset( $image ) && is_resource( $image ) ) {
-				imagedestroy( $image );
-			}
-
-			if ( isset( $new_image ) && is_resource( $new_image ) ) {
-				imagedestroy( $new_image );
-			}
-		}
-
-		// Return "" to indicate failure.
 		return '';
+	} finally {
+		// Always clean backend-generated files, including early returns and failed conversions.
+		ai4seo_delete_temporary_image_files( $temporary_image_file_paths );
 	}
 }
 
@@ -2302,6 +2546,98 @@ function ai4seo_is_attachment_like_reference_key( string $context_key ): bool {
 
 	// Ambiguous keys such as id, ids, url, and src are ignored unless nested under a media-like context.
 	return false;
+}
+
+// =========================================================================================== \
+
+/**
+ * Returns whether deep image usage search is supported for the current database size.
+ * Failed count lookups are treated as unsupported because the database size is unknown.
+ *
+ * @return array
+ */
+function ai4seo_get_deep_context_search_site_support_status(): array {
+	$current_num_posts_table_entries    = ai4seo_get_current_posts_table_entries_count();
+	$current_num_postmeta_table_entries = ai4seo_get_current_postmeta_table_entries_count();
+	$blocking_reasons                   = array();
+
+	if ( $current_num_posts_table_entries < 0 ) {
+		$blocking_reasons[] = 'posts_count_unavailable';
+	} elseif ( $current_num_posts_table_entries >= AI4SEO_LARGE_SITE_POSTS_THRESHOLD ) {
+		$blocking_reasons[] = 'posts';
+	}
+
+	if ( $current_num_postmeta_table_entries < 0 ) {
+		$blocking_reasons[] = 'postmeta_count_unavailable';
+	} elseif ( $current_num_postmeta_table_entries >= AI4SEO_DEEP_CONTEXT_SEARCH_POSTMETA_THRESHOLD ) {
+		$blocking_reasons[] = 'postmeta';
+	}
+
+	return array(
+		'is_supported'           => empty( $blocking_reasons ),
+		'blocking_reasons'       => $blocking_reasons,
+		'posts_table_entries'    => $current_num_posts_table_entries,
+		'postmeta_table_entries' => $current_num_postmeta_table_entries,
+	);
+}
+
+// =========================================================================================== \
+
+/**
+ * Returns whether deep image usage search can be activated on the current site.
+ *
+ * @return bool
+ */
+function ai4seo_is_deep_context_search_supported_for_current_site(): bool {
+	$site_support_status = ai4seo_get_deep_context_search_site_support_status();
+
+	return (bool) $site_support_status['is_supported'];
+}
+
+// =========================================================================================== \
+
+/**
+ * Deactivates deep image usage search and persists the default/off state.
+ *
+ * @return bool
+ */
+function ai4seo_disable_deep_context_search_for_images(): bool {
+	global $ai4seo_settings;
+	global $ai4seo_are_settings_initialized;
+
+	if ( ! $ai4seo_are_settings_initialized ) {
+		ai4seo_init_settings();
+	}
+
+	if ( ! $ai4seo_are_settings_initialized ) {
+		return false;
+	}
+
+	$ai4seo_settings[ AI4SEO_SETTING_DEEP_CONTEXT_SEARCH_FOR_IMAGES ] = false;
+
+	return ai4seo_push_local_setting_changes_to_database();
+}
+
+// =========================================================================================== \
+
+/**
+ * Disables deep image usage search if it is active on an unsupported site.
+ *
+ * @return bool True when the setting was disabled.
+ */
+function ai4seo_maybe_disable_deep_context_search_for_large_site(): bool {
+	$raw_settings                   = ai4seo_read_settings();
+	$is_deep_context_search_enabled = (bool) ( $raw_settings[ AI4SEO_SETTING_DEEP_CONTEXT_SEARCH_FOR_IMAGES ] ?? ai4seo_get_setting( AI4SEO_SETTING_DEEP_CONTEXT_SEARCH_FOR_IMAGES ) );
+
+	if ( ! $is_deep_context_search_enabled ) {
+		return false;
+	}
+
+	if ( ai4seo_is_deep_context_search_supported_for_current_site() ) {
+		return false;
+	}
+
+	return ai4seo_disable_deep_context_search_for_images();
 }
 
 // =========================================================================================== \

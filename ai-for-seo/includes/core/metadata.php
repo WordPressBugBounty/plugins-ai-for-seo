@@ -8,6 +8,140 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 /**
+ * Resolve metadata affixes exactly as frontend output presents them for one post.
+ *
+ * @param int   $post_id Current post ID.
+ * @param array $affixes Stored prefix or suffix map.
+ *
+ * @return array<string, string> Resolved affixes keyed by metadata identifier.
+ */
+function ai4seo_get_metadata_editor_preview_affixes( int $post_id, array $affixes ): array {
+	$resolved_affixes         = array();
+	$post_type                = get_post_type( $post_id );
+	$placeholder_replacements = ai4seo_get_metadata_output_placeholder_replacements( $post_id );
+	$post_title               = $placeholder_replacements['TITLE'] ?? '';
+
+	foreach ( AI4SEO_AVAILABLE_METADATA_IDENTIFIERS as $metadata_identifier ) {
+		$metadata_identifier = sanitize_key( $metadata_identifier );
+		$raw_affix           = $affixes[ $metadata_identifier ] ?? '';
+		$raw_affix           = is_scalar( $raw_affix ) ? (string) $raw_affix : '';
+		$resolved_affix      = trim( sanitize_text_field( $raw_affix ) );
+
+		// Product placeholders are omitted outside products, matching frontend metadata output.
+		if ( 'product' !== $post_type && ai4seo_text_contains_product_placeholder( $raw_affix ) ) {
+			$resolved_affix = '';
+		} else {
+			$resolved_affix = ai4seo_replace_text_placeholders( $resolved_affix, $placeholder_replacements );
+		}
+
+		$resolved_affixes[ $metadata_identifier ] = trim(
+			ai4seo_replace_metadata_title_placeholder( $resolved_affix, $post_title )
+		);
+	}
+
+	return $resolved_affixes;
+}
+
+// phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Project section separator.
+// =========================================================================================== \\
+
+/**
+ * Build constant post and site data used by the client-side metadata previews.
+ *
+ * The live field values remain in their existing form controls; this context supplies only
+ * fallbacks and presentation data that cannot be derived safely in the browser.
+ *
+ * @param int   $post_id         Post ID.
+ * @param array $metadata_values Current editor metadata values.
+ * @param array $active_fields   Active metadata identifiers.
+ * @return array<string, mixed> Preview context.
+ */
+function ai4seo_get_metadata_editor_preview_context( int $post_id, array $metadata_values, array $active_fields ): array {
+	$preview_values       = array();
+	$fallback_preferences = array();
+	$quality_windows      = array();
+	$prefixes             = ai4seo_get_setting( AI4SEO_SETTING_METADATA_PREFIXES );
+	$suffixes             = ai4seo_get_setting( AI4SEO_SETTING_METADATA_SUFFIXES );
+
+	// Invalid stored affix shapes cannot contribute safely to the effective preview value.
+	if ( ! is_array( $prefixes ) ) {
+		$prefixes = array();
+	}
+
+	if ( ! is_array( $suffixes ) ) {
+		$suffixes = array();
+	}
+
+	$prefixes = ai4seo_get_metadata_editor_preview_affixes( $post_id, $prefixes );
+	$suffixes = ai4seo_get_metadata_editor_preview_affixes( $post_id, $suffixes );
+
+	// Build parallel value, fallback, and quality maps keyed by the existing metadata identifiers.
+	foreach ( AI4SEO_AVAILABLE_METADATA_IDENTIFIERS as $metadata_identifier ) {
+		$metadata_identifier = sanitize_key( $metadata_identifier );
+
+		$value = $metadata_values[ $metadata_identifier ] ?? '';
+
+		$preview_values[ $metadata_identifier ] = is_scalar( $value ) ? ai4seo_normalize_editor_input_value( (string) $value ) : '';
+
+		$fallback_setting_name = ai4seo_get_metadata_fallback_setting_name( $metadata_identifier );
+
+		// Only metadata types with a declared fallback participate in client-side resolution.
+		if ( $fallback_setting_name ) {
+			$fallback_preference = ai4seo_get_setting( $fallback_setting_name );
+
+			$fallback_preferences[ $metadata_identifier ] = is_string( $fallback_preference ) ? $fallback_preference : 'no-fallback';
+		}
+
+		$quality_window = ai4seo_get_generation_length_quality_window( 'metadata', $metadata_identifier );
+
+		// Empty windows represent fields such as keywords that use item-based guidance instead.
+		if ( $quality_window ) {
+			$quality_windows[ $metadata_identifier ] = array(
+				'min' => absint( $quality_window['min-length'] ?? 0 ),
+				'max' => absint( $quality_window['max-length'] ?? 0 ),
+			);
+		}
+	}
+
+	// Resolve immutable WordPress context once for every platform preview in this workspace.
+	$post_url       = get_permalink( $post_id );
+	$featured_image = get_the_post_thumbnail_url( $post_id, 'large' );
+	$site_url       = home_url( '/' );
+	$site_domain    = wp_parse_url( $site_url, PHP_URL_HOST );
+	$site_domain    = is_string( $site_domain ) ? $site_domain : '';
+	$post_url       = is_string( $post_url ) ? $post_url : '';
+	$featured_image = is_string( $featured_image ) ? $featured_image : '';
+
+	// Keep the client context presentation-only; live form controls remain authoritative for saving.
+	return array(
+		'context'                 => 'metadata',
+		'focusKeyphraseMaxLength' => AI4SEO_FOCUS_KEYPHRASE_RECOMMENDED_MAX_LENGTH,
+		'keywordsMinimumItems'    => AI4SEO_METADATA_KEYWORDS_RECOMMENDED_MIN_ITEMS,
+		'keywordsMaximumItems'    => AI4SEO_METADATA_KEYWORDS_RECOMMENDED_MAX_ITEMS,
+		'values'                  => $preview_values,
+		'activeFields'            => array_values( array_map( 'sanitize_key', $active_fields ) ),
+		'fallbackPreferences'     => $fallback_preferences,
+		'fallbackSources'         => array(
+			'post-title'   => ai4seo_get_metadata_fallback_post_title( $post_id ),
+			'post-excerpt' => ai4seo_get_metadata_fallback_post_excerpt( $post_id ),
+			'content'      => ai4seo_get_metadata_fallback_post_content( $post_id ),
+		),
+		'prefixes'                => $prefixes,
+		'suffixes'                => $suffixes,
+		'qualityWindows'          => $quality_windows,
+		'postUrl'                 => $post_url,
+		'siteUrl'                 => $site_url,
+		'siteDomain'              => $site_domain,
+		'siteName'                => sanitize_text_field( get_bloginfo( 'name' ) ),
+		'siteIcon'                => esc_url_raw( get_site_icon_url( 64 ) ),
+		'featuredImage'           => esc_url_raw( $featured_image ),
+		'featuredImageAltText'    => sanitize_text_field( get_post_meta( get_post_thumbnail_id( $post_id ), '_wp_attachment_image_alt', true ) ),
+	);
+}
+
+// End metadata preview-context construction before the existing metadata utilities begin.
+
+/**
  * Function to get the summary (amount of posts) of a specific options (generation status)
  *
  * @param string $option_name the name of the option (generation status).
@@ -1693,17 +1827,23 @@ function ai4seo_prepare_generated_data_field_value( string $generated_data_ident
 // =========================================================================================== \\
 
 /**
- * Prepares generated data for editor usage while keeping generated_at separate.
+ * Prepares generated data for editor usage while keeping provenance timestamps separate.
  *
  * @param array $generated_data The decoded generated data.
  * @return array
  */
 function ai4seo_prepare_generated_data_details( array $generated_data ): array {
-	// Keep generated_at at entry level so field-value readers never treat it as generated content.
-	$prepared_generated_data = array();
-	$generated_at            = absint( $generated_data['generated_at'] ?? 0 );
+	// Keep provenance entries outside field values so content readers never treat them as generated content.
+	$prepared_generated_data       = array();
+	$generated_at                  = absint( $generated_data['generated_at'] ?? 0 );
+	$generated_at_by_field         = array();
+	$generated_at_by_field_storage = $generated_data['generated_at_by_field'] ?? array();
 
-	unset( $generated_data['generated_at'] );
+	if ( ! is_array( $generated_at_by_field_storage ) ) {
+		$generated_at_by_field_storage = array();
+	}
+
+	unset( $generated_data['generated_at'], $generated_data['generated_at_by_field'] );
 
 	// Field values use the same normalization and length limits as editor inputs for exact matching.
 	foreach ( $generated_data as $this_generated_data_identifier => $this_generated_data_value ) {
@@ -1723,11 +1863,19 @@ function ai4seo_prepare_generated_data_details( array $generated_data ): array {
 		);
 
 		$prepared_generated_data[ $this_generated_data_identifier ] = $this_generated_data_value;
+
+		// Legacy snapshots use one timestamp; retain it as the fallback until a field is generated again.
+		$this_generated_at = absint( $generated_at_by_field_storage[ $this_generated_data_identifier ] ?? $generated_at );
+
+		if ( $this_generated_at > 0 ) {
+			$generated_at_by_field[ $this_generated_data_identifier ] = $this_generated_at;
+		}
 	}
 
 	return array(
-		'generated_data' => $prepared_generated_data,
-		'generated_at'   => $generated_at,
+		'generated_data'        => $prepared_generated_data,
+		'generated_at'          => $generated_at,
+		'generated_at_by_field' => $generated_at_by_field,
 	);
 }
 
@@ -1740,14 +1888,15 @@ function ai4seo_prepare_generated_data_details( array $generated_data ): array {
  * @return array
  */
 function ai4seo_read_generated_data_details_from_post_meta( int $post_id ): array {
-	// The detail reader is the only generated-data reader that exposes the entry-level timestamp.
+	// The detail reader is the only generated-data reader that exposes provenance timestamps.
 	$generated_data_raw = get_post_meta( $post_id, AI4SEO_POST_META_GENERATED_DATA_META_KEY, true );
 	$generated_data     = ai4seo_decode_generated_data_postmeta_value( $generated_data_raw );
 
 	if ( ! $generated_data ) {
 		return array(
-			'generated_data' => array(),
-			'generated_at'   => 0,
+			'generated_data'        => array(),
+			'generated_at'          => 0,
+			'generated_at_by_field' => array(),
 		);
 	}
 
@@ -1776,7 +1925,7 @@ function ai4seo_read_generated_data_from_post_meta( int $post_id ): array {
  *
  * @param int   $post_id The post id.
  * @param array $generated_data The generated data.
- * @param bool  $update_generated_at Whether to update the top-level generated_at timestamp.
+ * @param bool  $update_generated_at Whether to update the field and top-level generated_at timestamps.
  * @param int   $generated_at The generated-at timestamp to store. Uses the current time when empty.
  * @param array $unresolved_fields Requested field identifiers omitted from a partial response.
  * @return bool
@@ -1792,6 +1941,8 @@ function ai4seo_save_generated_data_to_postmeta(
 	$generated_data_details = ai4seo_read_generated_data_details_from_post_meta( $post_id );
 	$old_generated_data     = $generated_data_details['generated_data'] ?? array();
 	$old_generated_at       = absint( $generated_data_details['generated_at'] ?? 0 );
+	$generated_at_by_field  = $generated_data_details['generated_at_by_field'] ?? array();
+	$generation_timestamp   = $update_generated_at ? ( $generated_at > 0 ? absint( $generated_at ) : time() ) : 0;
 	$is_field_value_updated = false;
 
 	if ( ! $old_generated_data ) {
@@ -1804,6 +1955,7 @@ function ai4seo_save_generated_data_to_postmeta(
 
 		if ( $this_unresolved_field && 'generated_at' !== $this_unresolved_field ) {
 			unset( $old_generated_data[ $this_unresolved_field ] );
+			unset( $generated_at_by_field[ $this_unresolved_field ] );
 		}
 	}
 
@@ -1811,7 +1963,11 @@ function ai4seo_save_generated_data_to_postmeta(
 		$this_generated_data_identifier = sanitize_key( $this_generated_data_identifier );
 
 		// generated_at is managed as entry metadata, never as a generated field value.
-		if ( ! $this_generated_data_identifier || 'generated_at' === $this_generated_data_identifier ) {
+		if (
+			! $this_generated_data_identifier ||
+			'generated_at' === $this_generated_data_identifier ||
+			'generated_at_by_field' === $this_generated_data_identifier
+		) {
 			continue;
 		}
 
@@ -1827,16 +1983,24 @@ function ai4seo_save_generated_data_to_postmeta(
 
 		$old_generated_data[ $this_generated_data_identifier ] = $this_generated_data_value;
 		$is_field_value_updated                                = true;
+
+		if ( $update_generated_at ) {
+			$generated_at_by_field[ $this_generated_data_identifier ] = $generation_timestamp;
+		}
 	}
 
-	// Manual and bulk generations stamp the snapshot; legacy migrations keep their unknown date.
+	// Manual and bulk generations retain a latest-entry timestamp for older readers while stamping each updated field.
 	if ( $update_generated_at && $is_field_value_updated ) {
-		$old_generated_data['generated_at'] = $generated_at > 0 ? absint( $generated_at ) : time();
+		$old_generated_data['generated_at'] = $generation_timestamp;
 	} elseif ( $old_generated_at > 0 ) {
 		$old_generated_data['generated_at'] = $old_generated_at;
 	}
 
-	// Keep the generated-data postmeta flat: field identifiers plus the optional top-level generated_at entry.
+	if ( $generated_at_by_field ) {
+		$old_generated_data['generated_at_by_field'] = $generated_at_by_field;
+	}
+
+	// Keep values and their provenance in one atomic generated-data snapshot.
 	$generated_data_json_string = wp_json_encode( $old_generated_data, JSON_UNESCAPED_UNICODE );
 
 	return ai4seo_update_post_meta(
@@ -1970,7 +2134,7 @@ function ai4seo_read_metadata_editor_source_details( int $post_id, array $active
 
 	$generated_data_details        = ai4seo_read_generated_data_details_from_post_meta( $post_id );
 	$generated_data                = $generated_data_details['generated_data'] ?? array();
-	$generated_at                  = absint( $generated_data_details['generated_at'] ?? 0 );
+	$generated_at_by_field         = $generated_data_details['generated_at_by_field'] ?? array();
 	$third_party_source_candidates = ai4seo_read_metadata_editor_third_party_source_candidates( $post_id );
 	$source_details                = array();
 
@@ -2002,7 +2166,9 @@ function ai4seo_read_metadata_editor_source_details( int $post_id, array $active
 		}
 
 		if ( $this_has_generated_value && $this_active_value === $this_generated_value ) {
-			$source_details[ $this_metadata_identifier ] = ai4seo_get_editor_field_sooz_source_details( $generated_at, false );
+			$this_generated_at = absint( $generated_at_by_field[ $this_metadata_identifier ] ?? 0 );
+
+			$source_details[ $this_metadata_identifier ] = ai4seo_get_editor_field_sooz_source_details( $this_generated_at, false );
 			continue;
 		}
 
@@ -2012,7 +2178,9 @@ function ai4seo_read_metadata_editor_source_details( int $post_id, array $active
 		}
 
 		if ( $this_has_generated_value ) {
-			$source_details[ $this_metadata_identifier ] = ai4seo_get_editor_field_sooz_source_details( $generated_at, true );
+			$this_generated_at = absint( $generated_at_by_field[ $this_metadata_identifier ] ?? 0 );
+
+			$source_details[ $this_metadata_identifier ] = ai4seo_get_editor_field_sooz_source_details( $this_generated_at, true );
 			continue;
 		}
 
@@ -2043,7 +2211,7 @@ function ai4seo_read_attachment_attributes_editor_source_details( int $attachmen
 
 	$generated_data_details = ai4seo_read_generated_data_details_from_post_meta( $attachment_post_id );
 	$generated_data         = $generated_data_details['generated_data'] ?? array();
-	$generated_at           = absint( $generated_data_details['generated_at'] ?? 0 );
+	$generated_at_by_field  = $generated_data_details['generated_at_by_field'] ?? array();
 	$source_details         = array();
 
 	// Compare against the active attachment attributes shown in the modal to detect user edits.
@@ -2057,7 +2225,7 @@ function ai4seo_read_attachment_attributes_editor_source_details( int $attachmen
 		}
 
 		$source_details[ $this_attachment_attribute_identifier ] = ai4seo_get_editor_field_sooz_source_details(
-			$generated_at,
+			absint( $generated_at_by_field[ $this_attachment_attribute_identifier ] ?? 0 ),
 			$this_active_value !== $this_generated_value
 		);
 	}

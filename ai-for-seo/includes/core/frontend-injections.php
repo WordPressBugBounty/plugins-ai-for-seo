@@ -259,51 +259,13 @@ function ai4seo_inject_our_meta_tags_into_the_html_head( string $full_html_buffe
 		return $full_html_buffer;
 	}
 
-	$current_product_price_for_placeholders = '';
-	$current_product_name_for_placeholders  = '';
-	$current_post_title_for_placeholders    = '';
-
-	$current_post_title_raw = get_the_title( $post_id );
-
-	if ( is_string( $current_post_title_raw ) ) {
-		$current_post_title_for_placeholders = trim( wp_strip_all_tags( $current_post_title_raw ) );
-	}
-
-	if ( 'product' === $current_post_type
-		&& ai4seo_is_plugin_or_theme_active( AI4SEO_THIRD_PARTY_PLUGIN_WOOCOMMERCE )
-		&& function_exists( 'wc_get_product' ) && ai4seo_is_function_usable( 'wc_get_product' )
-		&& function_exists( 'wc_price' ) && ai4seo_is_function_usable( 'wc_price' )
-		&& class_exists( 'WC_Product' )
-	) {
-		$current_wc_product = wc_get_product( $post_id );
-
-		if ( $current_wc_product instanceof WC_Product ) {
-			$current_product_name_for_placeholders = wp_strip_all_tags( $current_wc_product->get_name() );
-			$current_wc_product_price_raw          = $current_wc_product->get_price();
-
-			if ( '' !== $current_wc_product_price_raw && null !== $current_wc_product_price_raw ) {
-				$current_wc_product_price               = wc_price( $current_wc_product_price_raw );
-				$current_wc_product_price               = wp_strip_all_tags( $current_wc_product_price );
-				$current_wc_product_price               = html_entity_decode( $current_wc_product_price, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
-				$current_wc_product_price               = str_replace( ' ', ' ', $current_wc_product_price );
-				$current_product_price_for_placeholders = trim( $current_wc_product_price );
-			}
-		}
-	}
-
 	// go through each meta tag and decide what to do with it.
 	$add_this_metadata                 = array();
 	$remove_this_third_party_meta_tags = array();
 
-	$metadata_placeholder_replacements = ai4seo_get_metadata_placeholder_replacements(
-		$post_id,
-		$current_product_price_for_placeholders,
-		$current_product_name_for_placeholders
-	);
-
-	if ( '' !== $current_post_title_for_placeholders ) {
-		$metadata_placeholder_replacements['TITLE'] = $current_post_title_for_placeholders;
-	}
+	$metadata_placeholder_replacements      = ai4seo_get_metadata_output_placeholder_replacements( $post_id );
+	$current_post_title_for_placeholders    = $metadata_placeholder_replacements['TITLE'] ?? '';
+	$current_product_price_for_placeholders = $metadata_placeholder_replacements['PRODUCT_PRICE'] ?? '';
 
 	foreach ( AI4SEO_METADATA_DETAILS as $this_metadata_identifier => $this_metadata_field_details ) {
 		$this_found_third_party_meta_tags = $found_third_party_meta_tags[ $this_metadata_identifier ] ?? array();

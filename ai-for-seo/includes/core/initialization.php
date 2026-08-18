@@ -62,8 +62,8 @@ function ai4seo_init_user_essentials() {
 	}
 
 	// enqueue scripts and styles.
-	add_action( 'wp_enqueue_scripts', 'ai4seo_enqueue_admin_scripts' );
-	add_action( 'admin_enqueue_scripts', 'ai4seo_enqueue_admin_scripts' );
+	add_action( 'wp_enqueue_scripts', 'ai4seo_enqueue_primary_assets' );
+	add_action( 'admin_enqueue_scripts', 'ai4seo_enqueue_primary_assets' );
 
 	// add modal schemas to the footer.
 	add_action( 'wp_footer', 'ai4seo_include_modal_schemas_file' );
@@ -180,12 +180,8 @@ function ai4seo_init_admin_area_essentials() {
 	$does_user_need_to_accept_tos_toc_and_pp = ai4seo_does_user_need_to_accept_tos_toc_and_pp();
 
 	if ( $does_user_need_to_accept_tos_toc_and_pp ) {
-		$last_tos_modal_open_time = (int) ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_TOS_LAST_MODAL_OPEN_TIME );
-
-		// outside the plugin admin pages, show the modal only once a week.
-		if ( $is_user_inside_our_plugin_admin_pages || $last_tos_modal_open_time < time() - WEEK_IN_SECONDS ) {
-			add_action( 'wp_footer', 'ai4seo_show_terms_of_service_modal' );
-			add_action( 'get_footer', 'ai4seo_show_terms_of_service_modal' );
+		// Register the footer output only when the shared request-level TOS decision also enables its assets and schema.
+		if ( ai4seo_should_show_terms_of_service_modal_on_current_request() ) {
 			add_action( 'admin_footer', 'ai4seo_show_terms_of_service_modal' );
 		}
 
@@ -233,6 +229,9 @@ function ai4seo_init_settings() {
 	foreach ( $from_database_settings as $setting_name => $setting_value ) {
 		// Normalize legacy or imported instruction values before generic setting validation runs.
 		$setting_value = ai4seo_normalize_custom_instructions_setting_value( $setting_name, $setting_value );
+
+		// Convert supported stored boolean representations before strict type validation.
+		$setting_value = ai4seo_normalize_boolean_setting_value( $setting_name, $setting_value );
 
 		// Make sure that this setting is valid.
 		if ( ! ai4seo_validate_setting_value( $setting_name, $setting_value ) ) {
@@ -345,27 +344,6 @@ function ai4seo_on_deactivation() {
 
 // =========================================================================================== \\
 
-function ai4seo_is_incognito_mode_enabled(): bool {
-	// prevent infinite loops (0 depth, max 10 calls).
-	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
-		ai4seo_debug_message( 176167926, 'Prevented loop', true );
-		return false;
-	}
-
-	// Check if the incognito mode is enabled.
-	$ai4seo_setting_enable_incognito_mode = ai4seo_get_setting( AI4SEO_SETTING_ENABLE_INCOGNITO_MODE );
-
-	// If the incognito mode is enabled, return true.
-	if ( $ai4seo_setting_enable_incognito_mode ) {
-		return true;
-	}
-
-	// Otherwise, return false.
-	return false;
-}
-
-// =========================================================================================== \\
-
 /**
  * Function to check if we have updated recently and do some actions accordingly
  *
@@ -410,6 +388,42 @@ function ai4seo_check_and_handle_plugin_update() {
 	}
 }
 
+// =========================================================================================== \\
+
+/**
+ * Restore the previous version marker when a compatibility-setting migration fails.
+ *
+ * This localized retry keeps the next request eligible for the failed migration without changing
+ * the sequencing of established update routines.
+ *
+ * @param bool   $migration_succeeded      Whether the compatibility setting was persisted.
+ * @param string $last_known_plugin_version Previous installed plugin version.
+ * @return bool True when no retry is needed or the retry marker was stored successfully.
+ */
+function ai4seo_restore_plugin_update_retry_after_failed_setting_migration(
+	bool $migration_succeeded,
+	string $last_known_plugin_version
+): bool {
+	// Successful migrations and fresh installs do not need the update marker rewound.
+	if ( $migration_succeeded || '' === $last_known_plugin_version ) {
+		return true;
+	}
+
+	// Rewind only the version marker so the next request re-enters the normal update migration path.
+	$retry_marker_stored = ai4seo_update_environmental_variable(
+		AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_KNOWN_PLUGIN_VERSION,
+		$last_known_plugin_version
+	);
+
+	// Retain operational visibility if the retry marker itself cannot be persisted.
+	if ( ! $retry_marker_stored ) {
+		ai4seo_debug_message( 928451620, 'Could not retain the plugin update retry marker.', true );
+	}
+
+	return $retry_marker_stored;
+}
+
+// phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Project section separator.
 // =========================================================================================== \\
 
 /**
@@ -726,6 +740,25 @@ function ai4seo_tidy_up( string $last_known_plugin_version = AI4SEO_PLUGIN_VERSI
 	}
 
 	// region 2.4.X ==============================================================================.
+
+	// V2.4.4: Existing users keep their former third-party SEO sync behavior unless they chose a selection explicitly.
+	if ( ai4seo_should_migrate_default_third_party_seo_plugin_sync( $last_known_plugin_version, $raw_settings ) ) {
+		$third_party_seo_sync_migration_succeeded = ai4seo_update_setting(
+			AI4SEO_SETTING_APPLY_CHANGES_TO_THIRD_PARTY_SEO_PLUGINS,
+			AI4SEO_LEGACY_DEFAULT_THIRD_PARTY_SEO_PLUGIN_SYNC_IDENTIFIERS
+		);
+
+		// A failed compatibility write must remain eligible for the next update check.
+		ai4seo_restore_plugin_update_retry_after_failed_setting_migration(
+			$third_party_seo_sync_migration_succeeded,
+			$last_known_plugin_version
+		);
+	}
+
+	// V2.4.4: Existing users keep the field-first editor experience unless they already chose a mode explicitly.
+	if ( ai4seo_should_migrate_default_editor_view_mode( $last_known_plugin_version, $raw_settings ) ) {
+		ai4seo_update_setting( AI4SEO_SETTING_DEFAULT_EDITOR_VIEW_MODE, AI4SEO_EDITOR_VIEW_MODE_EDITOR );
+	}
 
 	// V2.4.0: Initialize prompt slider settings for upgraded sites with current-behavior defaults.
 	if ( $last_known_plugin_version && version_compare( $last_known_plugin_version, '2.4.0', '<' ) ) {
@@ -1219,6 +1252,11 @@ function ai4seo_include_menu_frame_file() {
  * @return void
  */
 function ai4seo_include_modal_schemas_file() {
+	// Modal schemas accompany the primary bundle, so unrelated requests skip even the schema autoloader.
+	if ( ! ai4seo_get_primary_asset_contexts() ) {
+		return;
+	}
+
 	if ( ! ai4seo_singleton( __FUNCTION__ ) ) {
 		return;
 	}
@@ -1317,14 +1355,200 @@ function ai4seo_add_no_optimize_attribute_to_admin_asset_tag( $tag, $handle ) {
 // =========================================================================================== \\
 
 /**
- * Function to enqueue javascript- and css-files
+ * Returns the primary asset contexts needed by the current request.
  *
+ * @param string $hook_suffix Current WordPress admin page hook suffix.
+ * @return array Valid primary asset context identifiers.
+ */
+function ai4seo_get_primary_asset_contexts( string $hook_suffix = '' ): array {
+	// The resolver repeats the plugin-wide role gate because the public filter must never opt unauthorized users in.
+	if ( ! ai4seo_can_manage_this_plugin() ) {
+		return array();
+	}
+
+	// Reuse one authoritative result across enqueue and footer callbacks in the same request.
+	static $cached_asset_contexts = array();
+
+	// Capture the request surface once because it participates in cache and classification decisions.
+	$is_admin_request = is_admin();
+
+	// Footer callers receive no argument, so recover the admin hook suffix recorded by WordPress.
+	if ( $is_admin_request && '' === $hook_suffix && isset( $GLOBALS['hook_suffix'] ) && is_string( $GLOBALS['hook_suffix'] ) ) {
+		$hook_suffix = $GLOBALS['hook_suffix'];
+	}
+
+	// Separate otherwise identical frontend and admin hook suffixes in the request cache.
+	$hook_suffix             = sanitize_text_field( $hook_suffix );
+	$asset_context_cache_key = ( $is_admin_request ? 'admin:' : 'frontend:' ) . $hook_suffix;
+
+	// Return the first resolved result so later footer work cannot drift from the enqueued bundle.
+	if ( isset( $cached_asset_contexts[ $asset_context_cache_key ] ) ) {
+		return $cached_asset_contexts[ $asset_context_cache_key ];
+	}
+
+	$asset_contexts = array();
+
+	// Classify WordPress admin screens separately from the intentionally narrow frontend integration.
+	if ( $is_admin_request ) {
+		// Read the current screen once so all admin classifications use the same request state.
+		$screen      = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+		$screen_base = ( $screen && isset( $screen->base ) ) ? sanitize_key( $screen->base ) : '';
+		$screen_id   = ( $screen && isset( $screen->id ) ) ? sanitize_key( $screen->id ) : '';
+		$post_type   = ( $screen && isset( $screen->post_type ) ) ? sanitize_key( $screen->post_type ) : '';
+
+		// Every internal SOOZ page uses the complete plugin interface group.
+		if ( ai4seo_is_user_inside_our_plugin_admin_pages() ) {
+			$asset_contexts[] = 'plugin-ui';
+		}
+
+		// TOS assets must follow the exact same weekly request decision as the footer output.
+		if ( ai4seo_should_show_terms_of_service_modal_on_current_request() ) {
+			$asset_contexts[] = 'tos-gate';
+		}
+
+		$does_user_need_to_accept_tos_toc_and_pp = ai4seo_does_user_need_to_accept_tos_toc_and_pp();
+
+		// Mandatory TOS acceptance suppresses every normal integration until the legal gate is cleared.
+		if ( ! $does_user_need_to_accept_tos_toc_and_pp ) {
+			// The Installed Plugins screen alone needs the deactivation feedback integration.
+			if ( 'plugins.php' === $hook_suffix || 'plugins' === $screen_base ) {
+				$asset_contexts[] = 'plugin-deactivation';
+			}
+
+			// Native content lists opt in through either the built-in metadata column or a registered bulk action.
+			if ( 'edit' === $screen_base && $post_type ) {
+				$has_metadata_editor_column = in_array( $post_type, array( 'post', 'page' ), true );
+				$has_native_bulk_actions    = has_filter( "bulk_actions-edit-{$post_type}", 'ai4seo_add_native_bulk_generation_queue_bulk_actions' );
+
+				if ( $has_metadata_editor_column || $has_native_bulk_actions ) {
+					$asset_contexts[] = 'content-list';
+				}
+			}
+
+			// Classify metadata editors from the registered post type and settings without populating content caches.
+			$is_post_edit_screen       = ai4seo_is_post_edit_screen();
+			$is_attachment_edit_screen = $is_post_edit_screen && 'attachment' === $post_type;
+
+			if ( $is_post_edit_screen && ! $is_attachment_edit_screen && $post_type ) {
+				$publicly_accessible_post_types = ai4seo_get_publicly_accessible_post_types();
+				$disabled_post_types             = ai4seo_get_setting( AI4SEO_SETTING_DISABLED_POST_TYPES );
+
+				if ( ! is_array( $disabled_post_types ) ) {
+					$disabled_post_types = array();
+				} else {
+					$disabled_post_types = ai4seo_deep_sanitize( $disabled_post_types, 'sanitize_key' );
+				}
+
+				if (
+					isset( $publicly_accessible_post_types[ $post_type ] )
+					&& ai4seo_get_active_meta_tags()
+					&& ! in_array( $post_type, $disabled_post_types, true )
+				) {
+					$asset_contexts[] = 'post-editor';
+				}
+			}
+
+			// External media controls are independent from metadata support and include the core Site Editor.
+			$are_external_media_generate_buttons_enabled = true === ai4seo_get_setting( AI4SEO_SETTING_ENABLE_EXTERNAL_MEDIA_GENERATE_BUTTONS );
+			$is_media_library_screen                       = (
+				in_array( $hook_suffix, array( 'upload.php', 'media-new.php' ), true )
+				|| in_array( $screen_base, array( 'upload', 'media' ), true )
+				|| in_array( $screen_id, array( 'upload', 'media' ), true )
+			);
+			$is_site_editor_screen                         = (
+				'site-editor.php' === $hook_suffix
+				|| 'site-editor' === $screen_base
+				|| 'site-editor' === $screen_id
+			);
+			$is_post_editor_media_screen                   = $is_post_edit_screen && ! $is_attachment_edit_screen;
+			$should_enqueue_external_media_assets          = (
+				$are_external_media_generate_buttons_enabled
+				&& (
+					$is_media_library_screen
+					|| $is_attachment_edit_screen
+					|| $is_post_editor_media_screen
+					|| $is_site_editor_screen
+				)
+			);
+
+			if ( $should_enqueue_external_media_assets ) {
+				$asset_contexts[] = 'external-media';
+			}
+
+			// Media list bulk actions need the common content-list confirmation handlers as a second context.
+			if ( 'upload' === $screen_base && has_filter( 'bulk_actions-upload', 'ai4seo_add_native_bulk_generation_queue_bulk_actions' ) ) {
+				$asset_contexts[] = 'content-list';
+			}
+		}
+	} else {
+		// Frontend assets serve only singular admin-bar editors and enabled page-builder integrations.
+		if (
+			! ai4seo_does_user_need_to_accept_tos_toc_and_pp()
+			&& is_singular()
+			&& (
+				is_admin_bar_showing()
+				|| true === ai4seo_get_setting( AI4SEO_SETTING_ENABLE_EXTERNAL_METADATA_GENERATE_BUTTONS )
+			)
+		) {
+			$asset_contexts[] = 'frontend-metadata-editor';
+		}
+	}
+
+	// Deduplicate core results before integrations receive their opt-in extension point.
+	$core_asset_contexts = array_values( array_unique( $asset_contexts ) );
+
+	/**
+	 * Filters the primary asset contexts needed by the current request.
+	 *
+	 * Core contexts are mandatory; integrations may return them with additional known contexts.
+	 *
+	 * @param array  $core_asset_contexts Core context identifiers detected for the request.
+	 * @param string $hook_suffix         Current WordPress admin page hook suffix.
+	 */
+	$filtered_asset_contexts = apply_filters( 'ai4seo_primary_asset_contexts', $core_asset_contexts, $hook_suffix );
+
+	// Invalid filter return types fall back to core behavior instead of disabling required assets.
+	if ( ! is_array( $filtered_asset_contexts ) ) {
+		$filtered_asset_contexts = $core_asset_contexts;
+	}
+
+	// Keep only unique, known context identifiers before combining them with mandatory core contexts.
+	$filtered_asset_contexts = array_filter( $filtered_asset_contexts, 'is_string' );
+	$filtered_asset_contexts = array_map( 'sanitize_key', $filtered_asset_contexts );
+	$filtered_asset_contexts = array_values(
+		array_unique(
+			array_intersect(
+				AI4SEO_PRIMARY_ASSET_CONTEXTS,
+				array_merge( $core_asset_contexts, $filtered_asset_contexts )
+			)
+		)
+	);
+
+	// Persist the validated list for every remaining consumer in this request.
+	$cached_asset_contexts[ $asset_context_cache_key ] = $filtered_asset_contexts;
+
+	return $cached_asset_contexts[ $asset_context_cache_key ];
+}
+
+// =========================================================================================== \\
+
+/**
+ * Enqueues the shared primary JavaScript and CSS bundle when the current request needs it.
+ *
+ * @param string $hook_suffix Current WordPress admin page hook suffix.
  * @return void
  */
-function ai4seo_enqueue_admin_scripts() {
+function ai4seo_enqueue_primary_assets( string $hook_suffix = '' ) {
 	global $ai4seo_scripts_version_number;
 
-	// prevent multiple calls of this function.
+	// Resolve contexts before singleton or asset work so unrelated requests remain effectively no-op.
+	$asset_contexts = ai4seo_get_primary_asset_contexts( $hook_suffix );
+
+	if ( ! $asset_contexts ) {
+		return;
+	}
+
+	// Prevent multiple calls of this function.
 	if ( ! ai4seo_singleton( __FUNCTION__ ) ) {
 		return;
 	}
@@ -1354,7 +1578,7 @@ function ai4seo_enqueue_admin_scripts() {
 	);
 
 	// Set localization parameters.
-	ai4seo_set_localization_parameters();
+	ai4seo_set_localization_parameters( $asset_contexts );
 
 	// Route both primary admin assets through the shared optimizer opt-out mechanism.
 	add_filter(
@@ -1377,9 +1601,10 @@ function ai4seo_enqueue_admin_scripts() {
 /**
  * Function to set localization parameters
  *
+ * @param array $asset_contexts Primary asset contexts active for the current request.
  * @return void
  */
-function ai4seo_set_localization_parameters() {
+function ai4seo_set_localization_parameters( array $asset_contexts ) {
 	global $ai4seo_scripts_version_number;
 	global $wp_locale;
 
@@ -1411,7 +1636,14 @@ function ai4seo_set_localization_parameters() {
 	$attachment_attributes_price_table = ai4seo_get_attachment_attributes_price_table();
 	// Provide the server-selected instruction cap to dynamically rendered settings and editor forms.
 	$custom_instructions_length_limit = ai4seo_get_custom_instructions_length_limit();
-	$seopress_generation_metadata     = array();
+	$seopress_generation_metadata                     = array();
+	$active_generation_editor_integration_identifiers = array();
+	$is_post_editor_asset_context                      = in_array( 'post-editor', $asset_contexts, true );
+
+	// Reactive third-party editor discovery is relevant only on WordPress post editors.
+	if ( $enable_external_metadata_generate_buttons && $is_post_editor_asset_context ) {
+		$active_generation_editor_integration_identifiers = ai4seo_get_active_generation_editor_integration_identifiers();
+	}
 
 	// Seed fields only when the active SEOPress editor can render SOOZ generation controls.
 	if ( $current_post_id
@@ -1435,6 +1667,7 @@ function ai4seo_set_localization_parameters() {
 	// region LOCALIZATION PARAMETERS ==============================================.
 
 	$localization_parameters = array(
+		'ai4seo_asset_contexts'                            => array_values( $asset_contexts ),
 		'ai4seo_plugin_identifier'                         => AI4SEO_PLUGIN_IDENTIFIER,
 		'ai4seo_plugin_name'                               => AI4SEO_PLUGIN_NAME,
 		'ai4seo_short_plugin_name'                         => AI4SEO_SHORT_PLUGIN_NAME,
@@ -1463,6 +1696,7 @@ function ai4seo_set_localization_parameters() {
 		'ai4seo_active_attachment_attributes'              => $active_attachment_attributes,
 		'ai4seo_enable_external_metadata_generate_buttons' => $enable_external_metadata_generate_buttons,
 		'ai4seo_enable_external_media_generate_buttons'    => $enable_external_media_generate_buttons,
+		'ai4seo_active_generation_editor_integrations'     => $active_generation_editor_integration_identifiers,
 		'ai4seo_max_editor_input_lengths'                  => AI4SEO_MAX_EDITOR_INPUT_LENGTHS,
 		'ai4seo_custom_instructions_length_limit'          => $custom_instructions_length_limit,
 		'ai4seo_metadata_price_table'                      => $metadata_price_table,
@@ -1722,6 +1956,55 @@ function ai4seo_get_metadata_placeholder_replacements( int $post_id, string $pro
 
 	$replacements['PRODUCT_NAME']  = $product_name_value;
 	$replacements['PRODUCT_PRICE'] = $product_price_value;
+
+	return $replacements;
+}
+
+// phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Project section separator.
+// =========================================================================================== \\
+
+/**
+ * Return the runtime placeholder replacements used by rendered metadata and editor previews.
+ *
+ * @param int $post_id Current post ID.
+ *
+ * @return array<string, string> Resolved placeholder values.
+ */
+function ai4seo_get_metadata_output_placeholder_replacements( int $post_id ): array {
+	$post_type     = get_post_type( $post_id );
+	$product_name  = '';
+	$product_price = '';
+
+	// Product placeholders mirror frontend output only when WooCommerce can provide the product.
+	if ( 'product' === $post_type
+		&& ai4seo_is_plugin_or_theme_active( AI4SEO_THIRD_PARTY_PLUGIN_WOOCOMMERCE )
+		&& function_exists( 'wc_get_product' ) && ai4seo_is_function_usable( 'wc_get_product' )
+		&& function_exists( 'wc_price' ) && ai4seo_is_function_usable( 'wc_price' )
+		&& class_exists( 'WC_Product' )
+	) {
+		$product = wc_get_product( $post_id );
+
+		if ( $product instanceof WC_Product ) {
+			$product_name      = wp_strip_all_tags( $product->get_name() );
+			$product_price_raw = $product->get_price();
+
+			if ( '' !== $product_price_raw && null !== $product_price_raw ) {
+				$product_price = wc_price( $product_price_raw );
+				$product_price = wp_strip_all_tags( $product_price );
+				$product_price = html_entity_decode( $product_price, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+				$product_price = str_replace( ' ', ' ', $product_price );
+				$product_price = trim( $product_price );
+			}
+		}
+	}
+
+	$replacements = ai4seo_get_metadata_placeholder_replacements( $post_id, $product_price, $product_name );
+	$post_title   = get_the_title( $post_id );
+	$post_title   = is_string( $post_title ) ? trim( wp_strip_all_tags( $post_title ) ) : '';
+
+	if ( '' !== $post_title ) {
+		$replacements['TITLE'] = $post_title;
+	}
 
 	return $replacements;
 }
@@ -2023,256 +2306,6 @@ function ai4seo_add_incognito_note_to_plugin_meta( array $plugin_meta, string $p
 	}
 
 	return $plugin_meta;
-}
-
-// =========================================================================================== \\
-
-/**
- * Returns the current number of entries in the wp_posts table.
- *
- * Uses the environmental variable cache when available to avoid repeated COUNT queries.
- *
- * @return int Number of wp_posts entries, or -1 if the count query fails.
- */
-function ai4seo_get_current_posts_table_entries_count(): int {
-	global $wpdb;
-
-	if ( ai4seo_is_environmental_variable_cache_available( AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_CURRENT_POSTS_TABLE_ENTRIES ) ) {
-		return (int) ai4seo_read_environmental_variable(
-			AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_CURRENT_POSTS_TABLE_ENTRIES
-		);
-	}
-
-	$current_num_posts_table_entries = (int) $wpdb->get_var( "SELECT COUNT(ID) FROM {$wpdb->posts}" );
-
-	if ( $wpdb->last_error ) {
-		ai4seo_debug_message( 984321671, 'Database error: ' . $wpdb->last_error, true );
-		return -1;
-	}
-
-	ai4seo_update_environmental_variable(
-		AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_CURRENT_POSTS_TABLE_ENTRIES,
-		$current_num_posts_table_entries,
-		true,
-		HOUR_IN_SECONDS
-	);
-
-	return $current_num_posts_table_entries;
-}
-
-// =========================================================================================== \\
-
-/**
- * Returns the current number of entries in the wp_postmeta table.
- *
- * Uses the environmental variable cache when available to avoid repeated COUNT queries.
- *
- * @return int Number of wp_postmeta entries, or -1 if the count query fails.
- */
-function ai4seo_get_current_postmeta_table_entries_count(): int {
-	global $wpdb;
-
-	if ( ai4seo_is_environmental_variable_cache_available( AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_CURRENT_POSTMETA_TABLE_ENTRIES ) ) {
-		return (int) ai4seo_read_environmental_variable(
-			AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_CURRENT_POSTMETA_TABLE_ENTRIES
-		);
-	}
-
-	$current_num_postmeta_table_entries = (int) $wpdb->get_var( "SELECT COUNT(meta_id) FROM {$wpdb->postmeta}" );
-
-	if ( $wpdb->last_error ) {
-		ai4seo_debug_message( 984321709, 'Database error: ' . $wpdb->last_error, true );
-		return -1;
-	}
-
-	ai4seo_update_environmental_variable(
-		AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_CURRENT_POSTMETA_TABLE_ENTRIES,
-		$current_num_postmeta_table_entries,
-		true,
-		HOUR_IN_SECONDS * 4
-	);
-
-	return $current_num_postmeta_table_entries;
-}
-
-// =========================================================================================== \\
-
-/**
- * Returns whether deep image usage search is supported for the current database size.
- * Failed count lookups are treated as unsupported because the database size is unknown.
- *
- * @return array
- */
-function ai4seo_get_deep_context_search_site_support_status(): array {
-	$current_num_posts_table_entries    = ai4seo_get_current_posts_table_entries_count();
-	$current_num_postmeta_table_entries = ai4seo_get_current_postmeta_table_entries_count();
-	$blocking_reasons                   = array();
-
-	if ( $current_num_posts_table_entries < 0 ) {
-		$blocking_reasons[] = 'posts_count_unavailable';
-	} elseif ( $current_num_posts_table_entries >= AI4SEO_LARGE_SITE_POSTS_THRESHOLD ) {
-		$blocking_reasons[] = 'posts';
-	}
-
-	if ( $current_num_postmeta_table_entries < 0 ) {
-		$blocking_reasons[] = 'postmeta_count_unavailable';
-	} elseif ( $current_num_postmeta_table_entries >= AI4SEO_DEEP_CONTEXT_SEARCH_POSTMETA_THRESHOLD ) {
-		$blocking_reasons[] = 'postmeta';
-	}
-
-	return array(
-		'is_supported'           => empty( $blocking_reasons ),
-		'blocking_reasons'       => $blocking_reasons,
-		'posts_table_entries'    => $current_num_posts_table_entries,
-		'postmeta_table_entries' => $current_num_postmeta_table_entries,
-	);
-}
-
-// =========================================================================================== \\
-
-/**
- * Returns whether deep image usage search can be activated on the current site.
- *
- * @return bool
- */
-function ai4seo_is_deep_context_search_supported_for_current_site(): bool {
-	$site_support_status = ai4seo_get_deep_context_search_site_support_status();
-
-	return (bool) $site_support_status['is_supported'];
-}
-
-// =========================================================================================== \\
-
-/**
- * Deactivates deep image usage search and persists the default/off state.
- *
- * @return bool
- */
-function ai4seo_disable_deep_context_search_for_images(): bool {
-	global $ai4seo_settings;
-	global $ai4seo_are_settings_initialized;
-
-	if ( ! $ai4seo_are_settings_initialized ) {
-		ai4seo_init_settings();
-	}
-
-	if ( ! $ai4seo_are_settings_initialized ) {
-		return false;
-	}
-
-	$ai4seo_settings[ AI4SEO_SETTING_DEEP_CONTEXT_SEARCH_FOR_IMAGES ] = false;
-
-	return ai4seo_push_local_setting_changes_to_database();
-}
-
-// =========================================================================================== \\
-
-/**
- * Disables deep image usage search if it is active on an unsupported site.
- *
- * @return bool True when the setting was disabled.
- */
-function ai4seo_maybe_disable_deep_context_search_for_large_site(): bool {
-	$raw_settings                   = ai4seo_read_settings();
-	$is_deep_context_search_enabled = (bool) ( $raw_settings[ AI4SEO_SETTING_DEEP_CONTEXT_SEARCH_FOR_IMAGES ] ?? ai4seo_get_setting( AI4SEO_SETTING_DEEP_CONTEXT_SEARCH_FOR_IMAGES ) );
-
-	if ( ! $is_deep_context_search_enabled ) {
-		return false;
-	}
-
-	if ( ai4seo_is_deep_context_search_supported_for_current_site() ) {
-		return false;
-	}
-
-	return ai4seo_disable_deep_context_search_for_images();
-}
-
-// =========================================================================================== \\
-
-/**
- * Returns whether a small dashboard refresh request should force a fresh performance analysis.
- *
- * @param int $current_num_posts_table_entries Current number of wp_posts entries.
- * @return bool Whether to refresh analysis during this dashboard request.
- */
-function ai4seo_should_refresh_performance_analysis_for_small_dashboard_request( int $current_num_posts_table_entries ): bool {
-	if ( $current_num_posts_table_entries < 0 ) {
-		return false;
-	}
-
-	if ( wp_doing_cron() ) {
-		return false;
-	}
-
-	// Keep automatic AJAX refreshes limited to the trusted dashboard HTML endpoint.
-	if ( wp_doing_ajax() ) {
-		$is_dashboard_refresh_request = ai4seo_is_dashboard_refresh_ajax_request();
-	} else {
-		$is_dashboard_refresh_request = ai4seo_is_plugin_page_active( 'dashboard' );
-	}
-
-	if ( ! $is_dashboard_refresh_request ) {
-		return false;
-	}
-
-	// One-batch sites are cheap enough to keep dashboard counters in sync during page and AJAX refreshes.
-	return ( $current_num_posts_table_entries <= AI4SEO_POST_TABLE_ANALYSIS_BATCH_SIZE );
-}
-
-// =========================================================================================== \\
-
-/**
- * Checks if the plugin performance analysis should be run
- */
-function ai4seo_check_for_performance_analysis() {
-	if ( ! ai4seo_singleton( __FUNCTION__ ) ) {
-		return;
-	}
-
-	// compare cached and real count of posts.
-	$last_known_num_posts_table_entries = (int) ai4seo_read_environmental_variable(
-		AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_LAST_KNOWN_POSTS_TABLE_ENTRIES
-	);
-
-	$current_num_posts_table_entries = ai4seo_get_current_posts_table_entries_count();
-
-	if ( $current_num_posts_table_entries < 0 ) {
-		return;
-	}
-
-	$posts_table_analysis_state        = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_STATE );
-	$is_dashboard_refresh_ajax_request = ai4seo_is_dashboard_refresh_ajax_request();
-
-	// Small dashboard refreshes should show counters from a fresh analysis immediately.
-	if ( ai4seo_should_refresh_performance_analysis_for_small_dashboard_request( $current_num_posts_table_entries ) ) {
-		ai4seo_analyze_plugin_performance( false, true );
-		ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_LAST_KNOWN_POSTS_TABLE_ENTRIES, $current_num_posts_table_entries );
-		return;
-	}
-
-	if ( $last_known_num_posts_table_entries !== $current_num_posts_table_entries ) {
-		ai4seo_analyze_plugin_performance();
-		ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_LAST_KNOWN_POSTS_TABLE_ENTRIES, $current_num_posts_table_entries );
-		return;
-	}
-
-	if ( 'completed' !== $posts_table_analysis_state && $is_dashboard_refresh_ajax_request ) {
-		ai4seo_try_start_posts_table_analysis( false );
-		return;
-	}
-
-	$last_performance_analysis_time = (int) ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_PERFORMANCE_ANALYSIS_TIME );
-	$num_batches_needed             = ceil( $current_num_posts_table_entries / AI4SEO_POST_TABLE_ANALYSIS_BATCH_SIZE );
-	$analyze_performance_interval   = AI4SEO_ANALYZE_PERFORMANCE_INTERVAL;
-
-	if ( $num_batches_needed > 1 ) {
-		$analyze_performance_interval += ( $num_batches_needed * 60 ); // add extra time based on number of batches needed.
-	}
-
-	// mainly useful if cron job didn't run for a while or on first plugin activation.
-	if ( $last_performance_analysis_time <= time() - $analyze_performance_interval ) {
-		ai4seo_analyze_plugin_performance();
-	}
 }
 
 // =========================================================================================== \\

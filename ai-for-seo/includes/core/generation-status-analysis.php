@@ -16,6 +16,158 @@ if ( ! defined( 'ABSPATH' ) ) {
 // =========================================================================================== \\
 
 /**
+ * Returns the current number of entries in the wp_posts table.
+ *
+ * Uses the environmental variable cache when available to avoid repeated COUNT queries.
+ *
+ * @return int Number of wp_posts entries, or -1 if the count query fails.
+ */
+function ai4seo_get_current_posts_table_entries_count(): int {
+	global $wpdb;
+
+	if ( ai4seo_is_environmental_variable_cache_available( AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_CURRENT_POSTS_TABLE_ENTRIES ) ) {
+		return (int) ai4seo_read_environmental_variable(
+			AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_CURRENT_POSTS_TABLE_ENTRIES
+		);
+	}
+
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The result is cached in the environmental-variable store below.
+	$current_num_posts_table_entries = (int) $wpdb->get_var( "SELECT COUNT(ID) FROM {$wpdb->posts}" );
+
+	if ( $wpdb->last_error ) {
+		ai4seo_debug_message( 984321671, 'Database error: ' . $wpdb->last_error, true );
+		return -1;
+	}
+
+	ai4seo_update_environmental_variable(
+		AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_CURRENT_POSTS_TABLE_ENTRIES,
+		$current_num_posts_table_entries,
+		true,
+		HOUR_IN_SECONDS
+	);
+
+	return $current_num_posts_table_entries;
+}
+
+/**
+ * Returns the current number of entries in the wp_postmeta table.
+ *
+ * Uses the environmental variable cache when available to avoid repeated COUNT queries.
+ *
+ * @return int Number of wp_postmeta entries, or -1 if the count query fails.
+ */
+function ai4seo_get_current_postmeta_table_entries_count(): int {
+	global $wpdb;
+
+	if ( ai4seo_is_environmental_variable_cache_available( AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_CURRENT_POSTMETA_TABLE_ENTRIES ) ) {
+		return (int) ai4seo_read_environmental_variable(
+			AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_CURRENT_POSTMETA_TABLE_ENTRIES
+		);
+	}
+
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The result is cached in the environmental-variable store below.
+	$current_num_postmeta_table_entries = (int) $wpdb->get_var( "SELECT COUNT(meta_id) FROM {$wpdb->postmeta}" );
+
+	if ( $wpdb->last_error ) {
+		ai4seo_debug_message( 984321709, 'Database error: ' . $wpdb->last_error, true );
+		return -1;
+	}
+
+	ai4seo_update_environmental_variable(
+		AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_CURRENT_POSTMETA_TABLE_ENTRIES,
+		$current_num_postmeta_table_entries,
+		true,
+		HOUR_IN_SECONDS * 4
+	);
+
+	return $current_num_postmeta_table_entries;
+}
+
+/**
+ * Returns whether a small dashboard refresh request should force a fresh performance analysis.
+ *
+ * @param int $current_num_posts_table_entries Current number of wp_posts entries.
+ * @return bool Whether to refresh analysis during this dashboard request.
+ */
+function ai4seo_should_refresh_performance_analysis_for_small_dashboard_request( int $current_num_posts_table_entries ): bool {
+	if ( $current_num_posts_table_entries < 0 ) {
+		return false;
+	}
+
+	if ( wp_doing_cron() ) {
+		return false;
+	}
+
+	// Keep automatic AJAX refreshes limited to the trusted dashboard HTML endpoint.
+	if ( wp_doing_ajax() ) {
+		$is_dashboard_refresh_request = ai4seo_is_dashboard_refresh_ajax_request();
+	} else {
+		$is_dashboard_refresh_request = ai4seo_is_plugin_page_active( 'dashboard' );
+	}
+
+	if ( ! $is_dashboard_refresh_request ) {
+		return false;
+	}
+
+	// One-batch sites are cheap enough to keep dashboard counters in sync during page and AJAX refreshes.
+	return ( $current_num_posts_table_entries <= AI4SEO_POST_TABLE_ANALYSIS_BATCH_SIZE );
+}
+
+/**
+ * Checks if the plugin performance analysis should be run
+ */
+function ai4seo_check_for_performance_analysis() {
+	if ( ! ai4seo_singleton( __FUNCTION__ ) ) {
+		return;
+	}
+
+	// compare cached and real count of posts.
+	$last_known_num_posts_table_entries = (int) ai4seo_read_environmental_variable(
+		AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_LAST_KNOWN_POSTS_TABLE_ENTRIES
+	);
+
+	$current_num_posts_table_entries = ai4seo_get_current_posts_table_entries_count();
+
+	if ( $current_num_posts_table_entries < 0 ) {
+		return;
+	}
+
+	$posts_table_analysis_state        = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_STATE );
+	$is_dashboard_refresh_ajax_request = ai4seo_is_dashboard_refresh_ajax_request();
+
+	// Small dashboard refreshes should show counters from a fresh analysis immediately.
+	if ( ai4seo_should_refresh_performance_analysis_for_small_dashboard_request( $current_num_posts_table_entries ) ) {
+		ai4seo_analyze_plugin_performance( false, true );
+		ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_LAST_KNOWN_POSTS_TABLE_ENTRIES, $current_num_posts_table_entries );
+		return;
+	}
+
+	if ( $last_known_num_posts_table_entries !== $current_num_posts_table_entries ) {
+		ai4seo_analyze_plugin_performance();
+		ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_LAST_KNOWN_POSTS_TABLE_ENTRIES, $current_num_posts_table_entries );
+		return;
+	}
+
+	if ( 'completed' !== $posts_table_analysis_state && $is_dashboard_refresh_ajax_request ) {
+		ai4seo_try_start_posts_table_analysis( false );
+		return;
+	}
+
+	$last_performance_analysis_time = (int) ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_PERFORMANCE_ANALYSIS_TIME );
+	$num_batches_needed             = ceil( $current_num_posts_table_entries / AI4SEO_POST_TABLE_ANALYSIS_BATCH_SIZE );
+	$analyze_performance_interval   = AI4SEO_ANALYZE_PERFORMANCE_INTERVAL;
+
+	if ( $num_batches_needed > 1 ) {
+		$analyze_performance_interval += ( $num_batches_needed * 60 ); // add extra time based on number of batches needed.
+	}
+
+	// mainly useful if cron job didn't run for a while or on first plugin activation.
+	if ( $last_performance_analysis_time <= time() - $analyze_performance_interval ) {
+		ai4seo_analyze_plugin_performance();
+	}
+}
+
+/**
  * Checks if an automatic performance analysis should be skipped for large sites.
  *
  * Manual refreshes can force the analysis even inside the automatic throttle window.
@@ -399,9 +551,8 @@ function ai4seo_perform_posts_table_analysis( int $posts_table_analysis_last_pos
 	$generated_data_post_ids            = array();
 	$generated_data_attachment_post_ids = array();
 
-	// check if we should only generate data for new or existing posts.
-	$bulk_generation_new_or_existing_filter                     = ai4seo_get_setting( AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER );
-	$bulk_generation_new_or_existing_filter_reference_timestamp = (int) ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME );
+	// Resolve the same date-filter state used by queue excavation and content-list eligibility.
+	$bulk_generation_date_filter_state = ai4seo_get_current_bulk_generation_date_filter_state();
 
 	// PRE-FILTER POSTS & SEPARATE ATTACHMENTS.
 
@@ -459,21 +610,25 @@ function ai4seo_perform_posts_table_analysis( int $posts_table_analysis_last_pos
 				$generated_data_attachment_post_ids[ $this_post_id ] = $this_post_type;
 			}
 
-			// check new and existing filter.
-			if ( 'both' !== $bulk_generation_new_or_existing_filter && $bulk_generation_new_or_existing_filter_reference_timestamp && is_numeric( $bulk_generation_new_or_existing_filter_reference_timestamp ) ) {
-				$posted_date           = $this_raw_post['post_date_gmt'] ?: $this_raw_post['post_date'] ?: $this_raw_post['post_modified_gmt'] ?: $this_raw_post['post_modified'];
-				$posted_date_timestamp = @strtotime( $posted_date );
+			// Apply the exact > / <= boundary contract used by the prepared queue queries.
+			$posted_date = $this_raw_post['post_date_gmt'];
 
-				if ( $posted_date && $posted_date_timestamp ) {
-					if ( 'new' === $bulk_generation_new_or_existing_filter ) {
-						if ( $posted_date_timestamp < $bulk_generation_new_or_existing_filter_reference_timestamp ) {
-							continue; // skip existing posts.
-						}
-					} elseif ( $posted_date_timestamp >= $bulk_generation_new_or_existing_filter_reference_timestamp ) {
-							continue; // skip new posts.
+			if ( ! $posted_date ) {
+				$posted_date = $this_raw_post['post_date'];
+			}
 
-					}
-				}
+			if ( ! $posted_date ) {
+				$posted_date = $this_raw_post['post_modified_gmt'];
+			}
+
+			if ( ! $posted_date ) {
+				$posted_date = $this_raw_post['post_modified'];
+			}
+
+			$posted_date_timestamp = $posted_date ? (int) strtotime( $posted_date ) : 0;
+
+			if ( ! ai4seo_does_bulk_generation_date_filter_include_timestamp( $bulk_generation_date_filter_state, $posted_date_timestamp ) ) {
+				continue;
 			}
 
 			// check by post type.

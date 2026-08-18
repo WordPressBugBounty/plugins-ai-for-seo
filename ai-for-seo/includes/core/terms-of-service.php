@@ -39,6 +39,30 @@ function ai4seo_does_user_need_to_accept_tos_toc_and_pp( $check_group = true ): 
 // =========================================================================================== \\
 
 /**
+ * Returns whether the TOS modal should be rendered during the current admin request.
+ *
+ * @return bool Whether the current request should render the TOS modal.
+ */
+function ai4seo_should_show_terms_of_service_modal_on_current_request(): bool {
+	// Frontend requests and users with current acceptance never need the admin-only gate.
+	if ( ! is_admin() || ! ai4seo_does_user_need_to_accept_tos_toc_and_pp() ) {
+		return false;
+	}
+
+	// Internal plugin pages must always expose the acceptance gate before normal functionality continues.
+	if ( ai4seo_is_user_inside_our_plugin_admin_pages() ) {
+		return true;
+	}
+
+	// Foreign admin pages retain the existing weekly reminder interval.
+	$last_tos_modal_open_time = (int) ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_TOS_LAST_MODAL_OPEN_TIME );
+
+	return $last_tos_modal_open_time < time() - WEEK_IN_SECONDS;
+}
+
+// =========================================================================================== \\
+
+/**
  * Returns the latest timestamp of the terms of service, terms of conditions or privacy policy update, depending on
  * what is the latest
  *
@@ -89,14 +113,8 @@ function ai4seo_show_terms_of_service_modal() {
 		return;
 	}
 
-	// check if we are in the admin area of WordPress.
-	if ( ! is_admin() ) {
-		return;
-	}
-
-	$does_user_need_to_accept_tos_toc_and_pp = ai4seo_does_user_need_to_accept_tos_toc_and_pp();
-
-	if ( ! $does_user_need_to_accept_tos_toc_and_pp ) {
+	// Recheck the shared request decision immediately before output to keep assets, schema, and modal aligned.
+	if ( ! ai4seo_should_show_terms_of_service_modal_on_current_request() ) {
 		return;
 	}
 
@@ -295,7 +313,6 @@ function ai4seo_set_tos_accept_details( bool $accepted_enhanced_reporting, strin
 		'website_name'                      => sanitize_text_field( get_bloginfo( 'name' ) ),
 		'email_address'                     => sanitize_email( ai4seo_get_option( 'admin_email' ) ),
 		'client_ip_address'                 => ai4seo_get_client_ip(),
-		'server_ip_address'                 => ai4seo_get_server_ip(),
 		'user_agent'                        => ai4seo_get_client_user_agent(),
 		'tos_version'                       => AI4SEO_TOS_VERSION_TIMESTAMP,
 		'timestamp'                         => time(),

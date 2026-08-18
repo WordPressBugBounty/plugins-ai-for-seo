@@ -1,4 +1,15 @@
 == Changelog ==
+= 2.5.0 =
+* Added preview-first Metadata and Media Attributes editors with responsive Google, social, keyword, accessibility, and media appearance previews, field-specific edit shortcuts, and live quality guidance.
+* Added a setting to choose whether Preview or Editor mode opens by default while preserving Editor mode for existing users.
+* Improved "Generate with SOOZ" controls across the WordPress editor, Media Library, frontend page builders, and supported third-party SEO editors so dynamically loaded fields and frames initialize more reliably.
+* Added AVIF support for media attribute generation by preparing compatible image data automatically.
+* Improved SEO Autopilot with consistent new-versus-existing date filters, clearer paused-state feedback, and contextual descriptions for bulk actions.
+* Changed third-party SEO synchronization on fresh installations to opt-in while preserving existing sites' current synchronization choices.
+* Improved the Get More Credits flow with reliable on-demand access to subscriptions, credit packs, Pay-As-You-Go, and free-credit options.
+* Improved Help and account experiences with accessible FAQ accordions, direct Help-section links, and WordPress-language-aware account synchronization.
+* Bug Fixes & Maintenance: Fixed 5 minor bugs and implemented 2 performance improvements.
+
 = 2.4.3 =
 * Improved third-party SEO workflows with embedded generation controls, two-way metadata synchronization where supported, template-aware values, and live editor refreshes across Yoast SEO, Rank Math, All in One SEO, SEOPress, Slim SEO, SEO Simple Pack, Squirrly SEO, The SEO Framework, and SEOKEY.
 * Improved metadata generation accuracy for Gutenberg and builder-driven pages by analyzing visible local content and avoiding unrelated fallback text on sparse or structural pages.

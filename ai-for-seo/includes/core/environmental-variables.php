@@ -208,6 +208,59 @@ function ai4seo_update_environmental_variable( string $environmental_variable_na
 	return $success;
 }
 
+/**
+ * Keep the SEO Autopilot date-filter reference time consistent with its active setting.
+ *
+ * A supplied reference time is used when environmental-variable reset needs to restore the valid
+ * boundary that belonged to the retained setting. Invalid active state receives a fresh boundary;
+ * the inactive "both" filter deliberately keeps the environmental default of zero.
+ *
+ * @param mixed $reference_timestamp Optional reference time to restore instead of reading current state.
+ * @return bool True when the existing state is valid or a valid reference time was persisted.
+ */
+function ai4seo_reconcile_bulk_generation_date_filter_reference_timestamp( $reference_timestamp = null ): bool {
+	// Distinguish an explicit zero activation marker from the absence of an override.
+	$has_reference_timestamp_override = func_num_args() > 0;
+	$date_filter                      = ai4seo_get_setting( AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER );
+
+	// Read the persisted reference only when the caller did not supply reset or activation state.
+	if ( ! $has_reference_timestamp_override ) {
+		$reference_timestamp = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME );
+	}
+
+	$date_filter_state = ai4seo_get_bulk_generation_date_filter_state( $date_filter, $reference_timestamp );
+
+	// Preserve valid current state, but persist a valid override when environmental data was reset.
+	if ( ! empty( $date_filter_state['is_valid'] ) ) {
+		if ( 'both' === $date_filter_state['filter'] || ! $has_reference_timestamp_override ) {
+			return true;
+		}
+
+		return ai4seo_update_environmental_variable(
+			AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME,
+			$date_filter_state['reference_timestamp']
+		);
+	}
+
+	// An unknown setting value cannot be repaired by changing only its environmental timestamp.
+	if ( 'invalid_filter' === ( $date_filter_state['error_code'] ?? '' ) ) {
+		return false;
+	}
+
+	// Replace invalid active-filter timestamps with one validated current boundary.
+	$replacement_reference_timestamp = time();
+	$replacement_date_filter_state   = ai4seo_get_bulk_generation_date_filter_state( $date_filter, $replacement_reference_timestamp );
+
+	if ( empty( $replacement_date_filter_state['is_valid'] ) ) {
+		return false;
+	}
+
+	return ai4seo_update_environmental_variable(
+		AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME,
+		$replacement_date_filter_state['reference_timestamp']
+	);
+}
+
 // =========================================================================================== \\
 
 /**
@@ -476,7 +529,20 @@ function ai4seo_validate_environmental_variable_value( string $environmental_var
 			return true;
 
 		case AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME:
-			if ( ! is_numeric( $environmental_variable_value ) || $environmental_variable_value < 0 ) {
+			// Match the queue validator while retaining zero as the inactive filter's sentinel value.
+			$validated_reference_timestamp = ( is_int( $environmental_variable_value ) || is_string( $environmental_variable_value ) )
+				? filter_var(
+					$environmental_variable_value,
+					FILTER_VALIDATE_INT,
+					array(
+						'options' => array(
+							'min_range' => 0,
+						),
+					)
+				)
+				: false;
+
+			if ( false === $validated_reference_timestamp ) {
 				ai4seo_debug_message( 5713171224, 'Invalid value in the automated generations new or existing filter reference times setting.', true );
 				return false;
 			}

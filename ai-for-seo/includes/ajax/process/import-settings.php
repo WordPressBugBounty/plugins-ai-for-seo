@@ -145,55 +145,6 @@ function ai4seo_make_nicer_setting_value( $setting_value ): string {
 // === IMPORT VALUE HELPERS =================================================================== \\
 
 /**
- * Parses imported boolean setting values without silently accepting invalid strings.
- *
- * @param mixed $raw_setting_value Raw imported setting value.
- * @param bool  $is_valid Whether the imported value could be parsed.
- * @return bool Parsed boolean value.
- */
-function ai4seo_parse_import_boolean_setting_value( $raw_setting_value, bool &$is_valid ): bool {
-	$is_valid = true;
-
-	// JSON imports can provide native booleans, which already match the stored setting type.
-	if ( is_bool( $raw_setting_value ) ) {
-		return $raw_setting_value;
-	}
-
-	// Numeric import values are accepted only for the conventional 1/0 boolean representation.
-	if ( is_int( $raw_setting_value ) ) {
-		if ( 1 === $raw_setting_value ) {
-			return true;
-		}
-
-		if ( 0 === $raw_setting_value ) {
-			return false;
-		}
-
-		$is_valid = false;
-		return false;
-	}
-
-	// String imports may come from serialized form data, but invalid text must not become false silently.
-	if ( is_string( $raw_setting_value ) ) {
-		$normalized_setting_value = strtolower( trim( $raw_setting_value ) );
-
-		if ( 'true' === $normalized_setting_value || '1' === $normalized_setting_value ) {
-			return true;
-		}
-
-		if ( 'false' === $normalized_setting_value || '0' === $normalized_setting_value ) {
-			return false;
-		}
-	}
-
-	// Tell the validator loop to mark the setting invalid and skip it during execute mode.
-	$is_valid = false;
-	return false;
-}
-
-// =========================================================================================== \\
-
-/**
  * Converts disabled stored values into the active values submitted by UI checkboxes.
  *
  * @param array $available_values Available values on this website.
@@ -456,23 +407,17 @@ foreach ( $ai4seo_categorized_new_settings as $ai4seo_this_category => $ai4seo_t
 		// Get the current value from the settings.
 		$ai4seo_current_value = $ai4seo_settings[ $ai4seo_this_setting_name ] ?? null;
 
+		// Normalize imported boolean representations from current and older export formats.
+		$ai4seo_this_setting_new_value = ai4seo_normalize_boolean_setting_value(
+			$ai4seo_this_setting_name,
+			$ai4seo_this_setting_new_value
+		);
+
 		// convert the new value to the same type as the current value.
 		if ( is_int( $ai4seo_current_value ) ) {
 			$ai4seo_this_setting_new_value = (int) $ai4seo_this_setting_new_value;
 		} elseif ( is_float( $ai4seo_current_value ) ) {
 			$ai4seo_this_setting_new_value = (float) $ai4seo_this_setting_new_value;
-		} elseif ( is_bool( $ai4seo_current_value ) ) {
-			// Imports should accept standard boolean representations without treating arbitrary text as false.
-			$ai4seo_is_valid_import_boolean_value = true;
-			$ai4seo_this_setting_new_value        = ai4seo_parse_import_boolean_setting_value(
-				$ai4seo_this_setting_new_value,
-				$ai4seo_is_valid_import_boolean_value
-			);
-
-			if ( ! $ai4seo_is_valid_import_boolean_value ) {
-				$ai4seo_invalid_settings[ $ai4seo_this_setting_name ] = $ai4seo_this_setting_name;
-				continue;
-			}
 		}
 
 		// Custom-instruction imports use the same capping/cleanup path as settings saves before validation.

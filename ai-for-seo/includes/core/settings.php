@@ -22,6 +22,7 @@ function ai4seo_get_all_settings(): array {
 	return $ai4seo_settings;
 }
 
+// phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Project section separator.
 // =========================================================================================== \\
 
 /**
@@ -42,6 +43,7 @@ function ai4seo_get_all_exportable_settings(): array {
 	);
 }
 
+// phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Project section separator.
 // =========================================================================================== \\
 
 /**
@@ -62,6 +64,7 @@ function ai4seo_get_exportable_settings(): array {
 	return $ai4seo_exportable_settings;
 }
 
+// phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Project section separator.
 // =========================================================================================== \\
 
 /**
@@ -104,6 +107,176 @@ function ai4seo_get_setting( string $setting_name ) {
 // =========================================================================================== \\
 
 /**
+ * Return whether incognito mode is enabled.
+ *
+ * @return bool Whether incognito mode is enabled.
+ */
+function ai4seo_is_incognito_mode_enabled(): bool {
+	// Keep this shared query loop-safe because it is called during settings initialization and access checks.
+	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
+		ai4seo_debug_message( 176167926, 'Prevented loop', true );
+		return false;
+	}
+
+	return (bool) ai4seo_get_setting( AI4SEO_SETTING_ENABLE_INCOGNITO_MODE );
+}
+
+// phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Project section separator.
+// =========================================================================================== \\
+
+/**
+ * Retrieve the configured default view mode for both entry editors.
+ *
+ * @return string Preview or editor.
+ */
+function ai4seo_get_editor_default_view_mode(): string {
+	$view_mode = ai4seo_get_setting( AI4SEO_SETTING_DEFAULT_EDITOR_VIEW_MODE );
+
+	// Invalid or legacy values fall back to the declared fresh-install default.
+	if ( ! is_string( $view_mode ) || ! in_array( $view_mode, AI4SEO_EDITOR_VIEW_MODES, true ) ) {
+		return AI4SEO_EDITOR_VIEW_MODE_PREVIEW;
+	}
+
+	return $view_mode;
+}
+
+// phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Project section separator.
+// =========================================================================================== \\
+
+/**
+ * Retrieve translated editor view-mode options for settings controls.
+ *
+ * @return array<string, string> Mode labels keyed by stored value.
+ */
+function ai4seo_get_editor_view_mode_options(): array {
+	// Keep this registry as the shared source for the setting and modal switch order.
+	return array(
+		AI4SEO_EDITOR_VIEW_MODE_PREVIEW => esc_html__( 'Preview', 'ai-for-seo' ),
+		AI4SEO_EDITOR_VIEW_MODE_EDITOR  => esc_html__( 'Editor', 'ai-for-seo' ),
+	);
+}
+
+// phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Project section separator.
+// =========================================================================================== \\
+
+/**
+ * Determine whether a setting with a pre-2.4.4 default needs a compatibility value.
+ *
+ * @param string $last_known_plugin_version Previous installed plugin version.
+ * @param array  $raw_settings              Settings stored before the update.
+ * @param string $setting_name              Setting whose former default may need migration.
+ * @return bool True when the former default must be stored explicitly.
+ */
+function ai4seo_should_migrate_pre_244_setting_default(
+	string $last_known_plugin_version,
+	array $raw_settings,
+	string $setting_name
+): bool {
+	// Fresh installs and explicit stored choices must use the current declared defaults unchanged.
+	return '' !== $last_known_plugin_version
+		&& version_compare( $last_known_plugin_version, '2.4.3', '<=' )
+		&& ! array_key_exists( $setting_name, $raw_settings );
+}
+
+// phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Project section separator.
+// =========================================================================================== \\
+
+/**
+ * Determine whether an upgraded site needs the compatibility editor-mode default.
+ *
+ * @param string $last_known_plugin_version Previous installed plugin version.
+ * @param array  $raw_settings              Settings stored before the update.
+ * @return bool True when the compatibility value must be stored.
+ */
+function ai4seo_should_migrate_default_editor_view_mode(
+	string $last_known_plugin_version,
+	array $raw_settings
+): bool {
+	// Reuse the shared version and explicit-choice gate for the former editor-first default.
+	return ai4seo_should_migrate_pre_244_setting_default(
+		$last_known_plugin_version,
+		$raw_settings,
+		AI4SEO_SETTING_DEFAULT_EDITOR_VIEW_MODE
+	);
+}
+
+// phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Project section separator.
+// =========================================================================================== \\
+
+/**
+ * Determine whether an upgraded site needs the compatibility third-party SEO sync selection.
+ *
+ * @param string $last_known_plugin_version Previous installed plugin version.
+ * @param array  $raw_settings              Settings stored before the update.
+ * @return bool True when the legacy selection must be stored.
+ */
+function ai4seo_should_migrate_default_third_party_seo_plugin_sync(
+	string $last_known_plugin_version,
+	array $raw_settings
+): bool {
+	// Reuse the shared version and explicit-choice gate for the former synchronization selection.
+	return ai4seo_should_migrate_pre_244_setting_default(
+		$last_known_plugin_version,
+		$raw_settings,
+		AI4SEO_SETTING_APPLY_CHANGES_TO_THIRD_PARTY_SEO_PLUGINS
+	);
+}
+
+// phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Project section separator.
+// =========================================================================================== \\
+
+/**
+ * Normalize supported representations for settings whose declared default is boolean.
+ *
+ * Invalid values remain unchanged so the setting validator can reject them instead of silently
+ * converting arbitrary input to false.
+ *
+ * @param string $setting_name Setting name.
+ * @param mixed  $setting_value Setting value.
+ * @return mixed Normalized boolean or the unchanged value.
+ */
+function ai4seo_normalize_boolean_setting_value( string $setting_name, $setting_value ) {
+	if (
+		! array_key_exists( $setting_name, AI4SEO_DEFAULT_SETTINGS )
+		|| ! is_bool( AI4SEO_DEFAULT_SETTINGS[ $setting_name ] )
+	) {
+		return $setting_value;
+	}
+
+	if ( is_bool( $setting_value ) ) {
+		return $setting_value;
+	}
+
+	if ( is_int( $setting_value ) ) {
+		if ( 1 === $setting_value ) {
+			return true;
+		}
+
+		if ( 0 === $setting_value ) {
+			return false;
+		}
+
+		return $setting_value;
+	}
+
+	if ( is_string( $setting_value ) ) {
+		$normalized_setting_value = strtolower( trim( $setting_value ) );
+
+		if ( 'true' === $normalized_setting_value || '1' === $normalized_setting_value ) {
+			return true;
+		}
+
+		if ( 'false' === $normalized_setting_value || '0' === $normalized_setting_value ) {
+			return false;
+		}
+	}
+
+	return $setting_value;
+}
+
+// =========================================================================================== \\
+
+/**
  * Update value a setting
  *
  * @param string $setting_name The setting name value.
@@ -130,6 +303,9 @@ function ai4seo_update_setting( string $setting_name, $new_setting_value ): bool
 
 	// Normalize instruction settings before validation so direct updates and settings-page saves behave the same.
 	$new_setting_value = ai4seo_normalize_custom_instructions_setting_value( $setting_name, $new_setting_value );
+
+	// Normalize checkbox, API, and compatibility representations before strict boolean validation.
+	$new_setting_value = ai4seo_normalize_boolean_setting_value( $setting_name, $new_setting_value );
 
 	// Keep slider values as strings across form saves and imported integer values.
 	$new_setting_value = ai4seo_normalize_prompt_slider_setting_value( $setting_name, $new_setting_value );
@@ -175,6 +351,9 @@ function ai4seo_bulk_update_settings( array $setting_changes ): bool {
 	foreach ( $setting_changes as $this_setting_name => $this_setting_value ) {
 		// Normalize each instruction value before the batch is committed to the global settings array.
 		$this_setting_value = ai4seo_normalize_custom_instructions_setting_value( $this_setting_name, $this_setting_value );
+
+		// Keep bulk updates aligned with single-setting and form-save boolean normalization.
+		$this_setting_value = ai4seo_normalize_boolean_setting_value( $this_setting_name, $this_setting_value );
 
 		// Apply the same string normalization used by single-setting updates before validating the batch.
 		$this_setting_value = ai4seo_normalize_prompt_slider_setting_value( $this_setting_name, $this_setting_value );
@@ -480,7 +659,15 @@ function ai4seo_get_generation_length_quality_window( string $context, string $f
 		return is_array( $quality_window ) ? $quality_window : array();
 	}
 
-	return array();
+	$fixed_quality_window = AI4SEO_GENERATED_OUTPUT_QUALITY_WINDOWS[ $context ][ $field_identifier ] ?? array();
+
+	// Fields without a configurable stage still use their declared natural-quality window.
+	if ( ! is_array( $fixed_quality_window )
+		|| ! isset( $fixed_quality_window['min-length'], $fixed_quality_window['max-length'] ) ) {
+		return array();
+	}
+
+	return $fixed_quality_window;
 }
 
 // =========================================================================================== \\
@@ -620,6 +807,10 @@ function ai4seo_validate_setting_value( string $setting_name, $setting_value ): 
 	}
 
 	switch ( $setting_name ) {
+		case AI4SEO_SETTING_DEFAULT_EDITOR_VIEW_MODE:
+			return is_string( $setting_value )
+				&& in_array( $setting_value, AI4SEO_EDITOR_VIEW_MODES, true );
+
 		case AI4SEO_SETTING_BULK_GENERATION_DURATION:
 			// cast to int.
 			$setting_value = (int) $setting_value;
@@ -885,7 +1076,10 @@ function ai4seo_validate_setting_value( string $setting_name, $setting_value ): 
 		case AI4SEO_SETTING_ENABLE_NATIVE_BULK_ACTIONS:
 		case AI4SEO_SETTING_ENABLE_EXTERNAL_METADATA_GENERATE_BUTTONS:
 		case AI4SEO_SETTING_ENABLE_EXTERNAL_MEDIA_GENERATE_BUTTONS:
-			// Boolean settings reach validation after their callers have normalized checkbox or API input.
+		case AI4SEO_SETTING_ENABLE_INCOGNITO_MODE:
+		case AI4SEO_SETTING_ENABLE_WHITE_LABEL:
+		case AI4SEO_SETTING_ADD_GENERATOR_HINTS:
+			// Boolean settings reach validation after their callers have normalized supported input representations.
 			return is_bool( $setting_value );
 
 		case AI4SEO_SETTING_DEEP_CONTEXT_SEARCH_FOR_IMAGES:
@@ -926,16 +1120,6 @@ function ai4seo_validate_setting_value( string $setting_name, $setting_value ): 
 		case AI4SEO_SETTING_ATTACHMENT_ATTRIBUTES_SUFFIXES:
 			return ai4seo_validate_prefix_suffix_setting_values( $setting_name, $setting_value );
 
-		case AI4SEO_SETTING_ENABLE_INCOGNITO_MODE:
-		case AI4SEO_SETTING_ENABLE_WHITE_LABEL:
-			// Make sure that setting-value is 0 or 1.
-			if ( '0' !== $setting_value && '1' !== $setting_value ) {
-				ai4seo_debug_message( 385825154, 'Invalid value for setting "' . $setting_name . '"', true );
-				return false;
-			}
-
-			return true;
-
 		case AI4SEO_SETTING_INCOGNITO_MODE_USER_ID:
 			// Make sure that setting-value is 0 or numeric.
 			if ( '0' !== $setting_value && ! is_numeric( $setting_value ) ) {
@@ -966,15 +1150,6 @@ function ai4seo_validate_setting_value( string $setting_name, $setting_value ): 
 
 			if ( ! is_string( $setting_value ) || ai4seo_mb_strlen( $setting_value ) < 3 || ai4seo_mb_strlen( $setting_value ) > 140 ) {
 				ai4seo_debug_message( 385825157, 'Invalid value in the plugin-description for setting "' . $setting_name . '"', true );
-				return false;
-			}
-
-			return true;
-
-		case AI4SEO_SETTING_ADD_GENERATOR_HINTS:
-			// Make sure that setting-value is 0 or 1.
-			if ( '0' !== $setting_value && '1' !== $setting_value ) {
-				ai4seo_debug_message( 385825158, 'Invalid value for setting "' . $setting_name . '"', true );
 				return false;
 			}
 

@@ -119,6 +119,10 @@ $ai4seo_filter_query_args = ai4seo_get_content_type_filter_query_args( $ai4seo_f
 
 $ai4seo_bulk_generation_new_or_existing_filter                     = ai4seo_get_setting( AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER );
 $ai4seo_bulk_generation_new_or_existing_filter_reference_timestamp = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME );
+$ai4seo_bulk_generation_date_filter_state                          = ai4seo_get_bulk_generation_date_filter_state(
+	$ai4seo_bulk_generation_new_or_existing_filter,
+	$ai4seo_bulk_generation_new_or_existing_filter_reference_timestamp
+);
 $ai4seo_metadata_credits_costs_per_post                            = ai4seo_calculate_metadata_credits_cost_per_post();
 
 // Start with empty per-page state; the optimized resolver fills only what row rendering needs.
@@ -417,6 +421,13 @@ $ai4seo_content_type_filter_controls_html     = ai4seo_get_content_type_filter_c
 
 ai4seo_echo_wp_kses( $ai4seo_content_type_filter_controls_html );
 
+// Explain why automatic queuing is paused when persisted date-filter state cannot be used safely.
+if ( empty( $ai4seo_bulk_generation_date_filter_state['is_valid'] ) ) {
+	echo "<p class='ai4seo-red-message'><strong>" . esc_html__( 'SEO Autopilot paused:', 'ai-for-seo' ) . '</strong> ';
+	echo esc_html( ai4seo_get_invalid_bulk_generation_date_filter_message() );
+	echo '</p>';
+}
+
 // Stop script if no posts have been found -> show message and stop page rendering.
 if ( ! $ai4seo_all_posts ) {
 	$ai4seo_remove_filters_button_html = ai4seo_get_content_type_remove_filters_button_html( $ai4seo_filter_context );
@@ -515,13 +526,12 @@ foreach ( $ai4seo_all_posts as $ai4seo_this_post ) {
 		$ai4seo_this_post_date_display = ai4seo_format_unix_timestamp( $ai4seo_this_post_date_local_timestamp );
 	}
 
-	// check if the new-or-existing filter complies with this post ("both" -> yes, "new" -> only posts with post_date_timestamp > reference_timestamp, "existing" -> only posts with post_date_timestamp <= reference_timestamp).
-	$ai4seo_is_excluded_by_new_or_existing_filter = false;
-	if ( 'new' === $ai4seo_bulk_generation_new_or_existing_filter && $ai4seo_this_post_date_timestamp <= $ai4seo_bulk_generation_new_or_existing_filter_reference_timestamp ) {
-		$ai4seo_is_excluded_by_new_or_existing_filter = true;
-	} elseif ( 'existing' === $ai4seo_bulk_generation_new_or_existing_filter && $ai4seo_this_post_date_timestamp > $ai4seo_bulk_generation_new_or_existing_filter_reference_timestamp ) {
-		$ai4seo_is_excluded_by_new_or_existing_filter = true;
-	}
+	// Keep row-level exclusion aligned with queue SQL and the waiting-to-queue status resolver.
+	$ai4seo_is_excluded_by_new_or_existing_filter = ! empty( $ai4seo_bulk_generation_date_filter_state['is_valid'] )
+		&& ! ai4seo_does_bulk_generation_date_filter_include_timestamp(
+			$ai4seo_bulk_generation_date_filter_state,
+			(int) $ai4seo_this_post_date_timestamp
+		);
 
 	// this post meta coverage summary.
 	if ( $ai4seo_active_meta_tags ) {
@@ -718,7 +728,7 @@ foreach ( $ai4seo_all_posts as $ai4seo_this_post ) {
 				ai4seo_echo_wp_kses( ai4seo_get_small_icon_button_tag( 'arrow-up-right-from-square', __( 'Try it manually', 'ai-for-seo' ), '', 'ai4seo_open_metadata_editor_modal("' . esc_js( $ai4seo_this_post_id ) . '");' ) );
 			echo '</div>';
 		} elseif ( $ai4seo_is_excluded_by_new_or_existing_filter && $ai4seo_this_metadata_generation_is_not_finished ) {
-			$ai4seo_new_or_existing_filter_reference_timestamp_formatted = ai4seo_format_unix_timestamp( $ai4seo_bulk_generation_new_or_existing_filter_reference_timestamp );
+			$ai4seo_new_or_existing_filter_reference_timestamp_formatted = ai4seo_format_unix_timestamp( (int) $ai4seo_bulk_generation_date_filter_state['reference_timestamp'] );
 			echo "<div class='ai4seo-sub-info ai4seo-red-message'>";
 			if ( 'new' === $ai4seo_bulk_generation_new_or_existing_filter ) {
 					printf(

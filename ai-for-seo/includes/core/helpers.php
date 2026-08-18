@@ -1326,6 +1326,38 @@ function ai4seo_get_last_execution_time_text( int $execution_timestamp ): string
 // =========================================================================================== \\
 
 /**
+ * Validate a database DATETIME value against the MySQL-supported range and exact format.
+ *
+ * @param string $datetime Database DATETIME value.
+ * @return bool True when the value is safe for a MySQL DATETIME comparison.
+ */
+function ai4seo_is_valid_mysql_datetime( string $datetime ): bool {
+	// Reserve captures for the exact-format check and the subsequent typed component validation.
+	$datetime_parts = array();
+
+	// Require the exact SQL literal shape before interpreting any calendar or time component.
+	if ( 1 !== preg_match( '/^([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})$/D', $datetime, $datetime_parts ) ) {
+		return false;
+	}
+
+	// Convert the captured components once so the calendar and range checks remain explicit.
+	$year   = (int) $datetime_parts[1];
+	$month  = (int) $datetime_parts[2];
+	$day    = (int) $datetime_parts[3];
+	$hour   = (int) $datetime_parts[4];
+	$minute = (int) $datetime_parts[5];
+	$second = (int) $datetime_parts[6];
+
+	// Enforce MySQL's year boundary together with real calendar and clock component ranges.
+	return $year >= 1000
+		&& $year <= 9999
+		&& checkdate( $month, $day, $year )
+		&& $hour <= 23
+		&& $minute <= 59
+		&& $second <= 59;
+}
+
+/**
  * Safely wrap gmdate() and provide fallbacks if gmdate is unavailable.
  *
  * @param string $format         The date/time format.
@@ -1530,7 +1562,7 @@ function ai4seo_get_client_user_agent(): string {
 /**
  * Function to return the webservers ip
  *
- * @return string The webservers ip
+ * @return string The webservers ip.
  */
 function ai4seo_get_server_ip(): string {
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
@@ -1538,26 +1570,12 @@ function ai4seo_get_server_ip(): string {
 		return '';
 	}
 
-	try {
-		$server_ip_response = ai4seo_file_get_contents( 'https://api.ipify.org' );
+	if ( isset( $_SERVER['SERVER_ADDR'] ) ) {
+		$server_ip = sanitize_text_field( wp_unslash( $_SERVER['SERVER_ADDR'] ) );
 
-		if ( false !== $server_ip_response ) {
-			$server_ip = sanitize_text_field( $server_ip_response );
-
-			if ( ai4seo_is_valid_ip( $server_ip ) ) {
-				return $server_ip;
-			}
+		if ( ai4seo_is_valid_ip( $server_ip ) ) {
+			return $server_ip;
 		}
-
-		if ( isset( $_SERVER['SERVER_ADDR'] ) ) {
-			$server_ip = sanitize_text_field( wp_unslash( $_SERVER['SERVER_ADDR'] ) );
-
-			if ( ai4seo_is_valid_ip( $server_ip ) ) {
-				return $server_ip;
-			}
-		}
-	} catch ( Exception $e ) {
-		return '';
 	}
 
 	return '';

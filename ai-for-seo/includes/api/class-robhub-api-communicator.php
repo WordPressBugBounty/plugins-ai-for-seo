@@ -1219,7 +1219,6 @@ class Ai4Seo_RobHubApiCommunicator {
 			'website_name'            => sanitize_text_field( get_bloginfo( 'name' ) ),
 			'admin_email_address'     => sanitize_email( ai4seo_get_option( 'admin_email' ) ),
 			'client_ip_address'       => ai4seo_get_client_ip(),
-			'server_ip_address'       => ai4seo_get_server_ip(),
 			'user_agent'              => ai4seo_get_client_user_agent(),
 		);
 	}
@@ -1443,15 +1442,21 @@ class Ai4Seo_RobHubApiCommunicator {
 	 * @param string $sync_reason The reason for the sync (optional).
 	 * @return array $api_response if the RobHub Account was synced, false on error
 	 */
-	function sync_account( string $sync_reason = 'unknown' ): array {
-		$sync_reason  = sanitize_key( $sync_reason );
-		$parameters   = array_merge(
-			array(
-				'reason' => $sync_reason,
-			),
-			$this->build_client_context_parameters(),
-			$this->build_client_sync_report_parameters()
+	public function sync_account( string $sync_reason = 'unknown' ): array {
+		$sync_reason = sanitize_key( $sync_reason );
+
+		// Send WordPress' native underscore locale so RobHub can resolve exact regional mappings.
+		$parameters = array(
+			'reason'             => $sync_reason,
+			'wordpress_language' => sanitize_text_field( get_locale() ),
 		);
+
+		// Preserve the established override order for general context and the detailed sync report.
+		$client_context_parameters     = $this->build_client_context_parameters();
+		$client_sync_report_parameters = $this->build_client_sync_report_parameters();
+		$parameters                    = array_merge( $parameters, $client_context_parameters, $client_sync_report_parameters );
+
+		// Submit the complete sync context through the communicator's established request path.
 		$api_response = self::call( 'client/sync', $parameters );
 
 		// Interpret response & check data payload.

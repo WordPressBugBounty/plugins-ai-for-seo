@@ -762,10 +762,18 @@ if ( ! function_exists( 'ai4seo_get_content_type_waiting_to_get_queued_post_ids'
 			return array();
 		}
 
-		$new_or_existing_filter = sanitize_key( (string) ( $args['new_or_existing_filter'] ?? 'both' ) );
-		$reference_timestamp    = (int) ( $args['new_or_existing_filter_reference_timestamp'] ?? 0 );
+		$date_filter_state = ai4seo_get_bulk_generation_date_filter_state(
+			$args['new_or_existing_filter'] ?? 'both',
+			$args['new_or_existing_filter_reference_timestamp'] ?? 0
+		);
 
-		if ( ! in_array( $new_or_existing_filter, array( 'new', 'existing' ), true ) ) {
+		// Fail closed when stored filter state cannot represent a safe queue boundary.
+		if ( empty( $date_filter_state['is_valid'] ) ) {
+			return array();
+		}
+
+		// Preserve the original candidate set when date filtering is disabled.
+		if ( 'both' === $date_filter_state['filter'] ) {
 			return $waiting_to_get_queued_post_ids;
 		}
 
@@ -780,9 +788,7 @@ if ( ! function_exists( 'ai4seo_get_content_type_waiting_to_get_queued_post_ids'
 
 			$this_post_date_timestamp = (int) get_post_time( 'U', true, $this_post );
 
-			if ( 'new' === $new_or_existing_filter && $this_post_date_timestamp > $reference_timestamp ) {
-				$filtered_waiting_to_get_queued_post_ids[] = $this_post_id;
-			} elseif ( 'existing' === $new_or_existing_filter && $this_post_date_timestamp <= $reference_timestamp ) {
+			if ( ai4seo_does_bulk_generation_date_filter_include_timestamp( $date_filter_state, $this_post_date_timestamp ) ) {
 				$filtered_waiting_to_get_queued_post_ids[] = $this_post_id;
 			}
 		}

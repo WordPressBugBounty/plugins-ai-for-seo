@@ -34,6 +34,42 @@ function ai4seo_get_active_third_party_seo_plugin_details(): array {
 // =========================================================================================== \\
 
 /**
+ * Returns active third-party integrations whose JavaScript editors require DOM discovery.
+ *
+ * @return array Active integration identifiers in stable initialization order.
+ */
+function ai4seo_get_active_generation_editor_integration_identifiers(): array {
+	// Plugin activation state is request-stable, so reuse the filtered list across localization calls.
+	static $active_generation_editor_integration_identifiers = null;
+
+	if ( is_array( $active_generation_editor_integration_identifiers ) ) {
+		return $active_generation_editor_integration_identifiers;
+	}
+
+	// Keep this order aligned with the client definition map for deterministic adapter initialization.
+	$generation_editor_integration_identifiers = array(
+		AI4SEO_THIRD_PARTY_PLUGIN_YOAST_SEO,
+		AI4SEO_THIRD_PARTY_PLUGIN_ALL_IN_ONE_SEO,
+		AI4SEO_THIRD_PARTY_PLUGIN_SEOPRESS,
+		AI4SEO_THIRD_PARTY_PLUGIN_SLIM_SEO,
+		AI4SEO_THIRD_PARTY_PLUGIN_SQUIRRLY_SEO,
+	);
+
+	// Filter server-side so inactive plugins never reach JavaScript discovery or observer setup.
+	$active_generation_editor_integration_identifiers = array();
+
+	foreach ( $generation_editor_integration_identifiers as $generation_editor_integration_identifier ) {
+		if ( ai4seo_is_plugin_or_theme_active( $generation_editor_integration_identifier ) ) {
+			$active_generation_editor_integration_identifiers[] = $generation_editor_integration_identifier;
+		}
+	}
+
+	return $active_generation_editor_integration_identifiers;
+}
+
+// =========================================================================================== \\
+
+/**
  * Returns the configured generation-field postmeta mapping for one integration.
  *
  * The third-party registry is immutable during a request, so keeping one normalized copy per

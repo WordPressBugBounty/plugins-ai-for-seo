@@ -13,6 +13,18 @@ if ( ! ai4seo_can_manage_this_plugin() ) {
 	return;
 }
 
+$ai4seo_get_more_credits_is_ajax_render = isset( $ai4seo_modal_render_context )
+	&& 'ajax' === $ai4seo_modal_render_context;
+$ai4seo_get_more_credits_headline_class = $ai4seo_get_more_credits_is_ajax_render
+	? 'ai4seo-modal-headline'
+	: 'ai4seo-modal-schema-headline';
+$ai4seo_get_more_credits_content_class  = $ai4seo_get_more_credits_is_ajax_render
+	? 'ai4seo-modal-content'
+	: 'ai4seo-modal-schema-content';
+$ai4seo_get_more_credits_footer_class   = $ai4seo_get_more_credits_is_ajax_render
+	? 'ai4seo-modal-footer ai4seo-buttons-wrapper'
+	: 'ai4seo-modal-schema-footer';
+
 
 // ___________________________________________________________________________________________ \\
 // === PREPARE =============================================================================== \\
@@ -61,7 +73,12 @@ $ai4seo_api_username = ai4seo_robhub_api()->get_api_username();
 // === HEADLINE ============================================================================== \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
-echo "<div class='ai4seo-modal-schema-headline'>";
+	echo "<div class='" . esc_attr( $ai4seo_get_more_credits_headline_class ) . "'>";
+	if ( $ai4seo_get_more_credits_is_ajax_render ) {
+		echo "<div class='ai4seo-modal-headline-icon'>";
+			ai4seo_echo_wp_kses( ai4seo_get_sooz_logo_image_tag( 'sooz' ) );
+		echo '</div>';
+	}
 	echo esc_html__( 'How to get more Credits', 'ai-for-seo' );
 echo '</div>';
 
@@ -70,7 +87,7 @@ echo '</div>';
 // === CONTENT =============================================================================== \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
-	echo "<div class='ai4seo-modal-schema-content'>";
+	echo "<div class='" . esc_attr( $ai4seo_get_more_credits_content_class ) . "'>";
 if ( ! $ai4seo_user_is_on_free_plan ) {
 	echo sprintf(
 	/* translators: %s: Current subscription plan name. */
@@ -431,6 +448,6 @@ if ( ! $ai4seo_user_is_on_free_plan ) {
 			// === FOOTER ================================================================================ \\
 			// ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
-			echo "<div class='ai4seo-modal-schema-footer'>";
+			echo "<div class='" . esc_attr( $ai4seo_get_more_credits_footer_class ) . "'>";
 			ai4seo_echo_wp_kses( ai4seo_get_modal_close_button_tag() );
 			echo '</div>';

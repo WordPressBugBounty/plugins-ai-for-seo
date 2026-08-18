@@ -55,7 +55,7 @@ function ai4seo_get_svg_tag(
 	return $svg_tag;
 }
 
-// =========================================================================================== \\
+// Continue with the icon-tooltip wrappers built on the shared tooltip renderer.
 
 /**
  * Returns canonical tooltip markup with a native button trigger.
@@ -95,10 +95,10 @@ function ai4seo_get_tooltip_tag( string $trigger_html, string $tooltip_html, arr
 	$holder_tag           = in_array( $args['holder_tag'], $allowed_wrapper_tags, true ) ? $args['holder_tag'] : 'span';
 	$tooltip_tag          = in_array( $args['tooltip_tag'], $allowed_wrapper_tags, true ) ? $args['tooltip_tag'] : 'span';
 
-	// Preserve canonical classes while sanitizing the one optional modifier accepted for each element.
-	$holder_css_class     = trim( 'ai4seo-tooltip-holder ' . sanitize_html_class( $args['holder_css_class'] ) );
-	$trigger_css_class    = trim( 'ai4seo-tooltip-trigger ' . sanitize_html_class( $args['trigger_css_class'] ) );
-	$tooltip_css_class    = trim( 'ai4seo-tooltip ai4seo-ignore-during-dashboard-refresh ' . sanitize_html_class( $args['tooltip_css_class'] ) );
+	// Preserve canonical classes while sanitizing every optional class independently.
+	$holder_css_class     = trim( 'ai4seo-tooltip-holder ' . ai4seo_sanitize_css_class_list( $args['holder_css_class'] ) );
+	$trigger_css_class    = trim( 'ai4seo-tooltip-trigger ' . ai4seo_sanitize_css_class_list( $args['trigger_css_class'] ) );
+	$tooltip_css_class    = trim( 'ai4seo-tooltip ai4seo-ignore-during-dashboard-refresh ' . ai4seo_sanitize_css_class_list( $args['tooltip_css_class'] ) );
 	$aria_label_attribute = $args['trigger_aria_label'] ? " aria-label='" . esc_attr( $args['trigger_aria_label'] ) . "'" : '';
 
 	// Keep ARIA state in the server-rendered markup so the trigger remains meaningful before JavaScript initialization.
@@ -112,6 +112,27 @@ function ai4seo_get_tooltip_tag( string $trigger_html, string $tooltip_html, arr
 	$output .= '</' . $holder_tag . '>';
 
 	return $output;
+}
+
+// The editor notice helpers follow.
+
+/**
+ * Sanitize a whitespace-separated list of CSS classes without joining adjacent class names.
+ *
+ * @param string $css_classes CSS classes.
+ * @return string Sanitized CSS classes.
+ */
+function ai4seo_sanitize_css_class_list( string $css_classes ): string {
+	$css_classes = preg_split( '/\s+/', trim( $css_classes ), -1, PREG_SPLIT_NO_EMPTY );
+
+	if ( ! is_array( $css_classes ) ) {
+		return '';
+	}
+
+	$css_classes = array_map( 'sanitize_html_class', $css_classes );
+	$css_classes = array_filter( $css_classes );
+
+	return implode( ' ', $css_classes );
 }
 
 // =========================================================================================== \\
@@ -251,6 +272,436 @@ function ai4seo_get_editor_save_next_button_tag(
 // =========================================================================================== \\
 
 /**
+ * Return the accessible Preview and Editor segmented control shared by both entry editors.
+ *
+ * @param string $default_view_mode Configured initial mode.
+ * @return string HTML.
+ */
+function ai4seo_get_editor_mode_switch_tag( string $default_view_mode ): string {
+	// Defensive fallback keeps malformed settings from producing a switch with no active option.
+	if ( ! in_array( $default_view_mode, AI4SEO_EDITOR_VIEW_MODES, true ) ) {
+		$default_view_mode = AI4SEO_EDITOR_VIEW_MODE_PREVIEW;
+	}
+
+	// The group wrapper supplies one accessible name for both mutually exclusive controls.
+	$output = '<div class="ai4seo-editor-mode-switch" role="group" aria-label="' . esc_attr__( 'Editor display mode', 'ai-for-seo' ) . '">';
+
+	// Reuse the settings option registry so the stored modes, labels, and switch order stay aligned.
+	foreach ( ai4seo_get_editor_view_mode_options() as $view_mode => $view_mode_label ) {
+		$is_active = $view_mode === $default_view_mode ? 'true' : 'false';
+		$output   .= '<button type="button" class="ai4seo-editor-mode-switch-button" data-ai4seo-editor-view-mode="' . esc_attr( $view_mode ) . '" aria-pressed="' . esc_attr( $is_active ) . '">';
+		$output   .= esc_html( $view_mode_label );
+		$output   .= '</button>';
+	}
+
+	$output .= '</div>';
+
+	return $output;
+}
+
+// Keep the mode-switch renderer separate from the evaluation renderer used inside each card.
+
+/**
+ * Return the first active source field that an editor preview can reveal.
+ *
+ * @param array $candidate_fields Ordered source-field identifiers for one preview.
+ * @param array $active_fields    Active fields that have editable controls.
+ *
+ * @return string First editable field identifier, or an empty string.
+ */
+function ai4seo_get_editor_preview_edit_target( array $candidate_fields, array $active_fields ): string {
+	$active_fields = array_map( 'sanitize_key', $active_fields );
+
+	foreach ( $candidate_fields as $candidate_field ) {
+		$candidate_field = sanitize_key( $candidate_field );
+
+		if ( in_array( $candidate_field, $active_fields, true ) ) {
+			return $candidate_field;
+		}
+	}
+
+	return '';
+}
+
+// Keep source-field resolution separate from the evaluation renderer used inside each card.
+
+/**
+ * Return labelled edit actions for active fields used by one preview section.
+ *
+ * @param array $candidate_fields Ordered source-field identifiers for one preview.
+ * @param array $active_fields    Active fields that have editable controls.
+ * @param array $field_details    Shared field declaration registry.
+ * @return array<string, string> Edit labels keyed by field identifier.
+ */
+function ai4seo_get_editor_preview_edit_actions( array $candidate_fields, array $active_fields, array $field_details ): array {
+	$active_fields = array_map( 'sanitize_key', $active_fields );
+	$edit_actions  = array();
+
+	foreach ( $candidate_fields as $candidate_field ) {
+		$candidate_field = sanitize_key( $candidate_field );
+
+		if ( ! in_array( $candidate_field, $active_fields, true ) || empty( $field_details[ $candidate_field ]['name'] ) ) {
+			continue;
+		}
+
+		$edit_actions[ $candidate_field ] = sprintf(
+			/* translators: %s: Editable field name. */
+			__( 'Edit %s', 'ai-for-seo' ),
+			wp_strip_all_tags( $field_details[ $candidate_field ]['name'] )
+		);
+	}
+
+	return $edit_actions;
+}
+
+/**
+ * Check whether an editor section has at least one active source field.
+ *
+ * @param array $candidate_fields Source-field identifiers used by one editor section.
+ * @param array $active_fields    Active field identifiers from the current settings.
+ * @return bool Whether the section has active content to display.
+ */
+function ai4seo_has_active_editor_fields( array $candidate_fields, array $active_fields ): bool {
+	$candidate_fields = array_filter( array_map( 'sanitize_key', $candidate_fields ) );
+	$active_fields    = array_filter( array_map( 'sanitize_key', $active_fields ) );
+
+	return (bool) array_intersect( $candidate_fields, $active_fields );
+}
+
+// Keep action-label resolution separate from the heading renderer.
+
+/**
+ * Return the heading and optional edit action for an editor preview card.
+ *
+ * @param string $headline           Preview-card heading.
+ * @param string $edit_target        Optional source field identifier.
+ * @param string $icon_name          Optional icon name displayed before the heading.
+ * @param string $tooltip_text       Optional HTML help text shown through the heading tooltip.
+ * @param string $tooltip_aria_label Optional accessible label for the heading tooltip trigger.
+ * @param array  $edit_actions       Optional edit labels keyed by source-field identifier.
+ * @return string HTML.
+ */
+function ai4seo_get_editor_preview_card_heading_tag(
+	string $headline,
+	string $edit_target = '',
+	string $icon_name = '',
+	string $tooltip_text = '',
+	string $tooltip_aria_label = '',
+	array $edit_actions = array()
+): string {
+	$edit_target        = sanitize_key( $edit_target );
+	$icon_name          = sanitize_key( $icon_name );
+	$tooltip_text       = wp_kses(
+		$tooltip_text,
+		array(
+			'br'     => array(),
+			'strong' => array(),
+		)
+	);
+	$tooltip_aria_label = sanitize_text_field( $tooltip_aria_label );
+	$output             = '<div class="ai4seo-editor-preview-card-heading">';
+	$output            .= '<div class="ai4seo-editor-preview-card-heading-content">';
+
+	if ( $icon_name ) {
+		$output .= ai4seo_get_svg_tag( $icon_name, '', 'ai4seo-24x24-icon ai4seo-gray-icon' );
+	}
+
+	$output .= '<h3>' . esc_html( $headline ) . '</h3>';
+
+	if ( $tooltip_text ) {
+		$output .= ai4seo_get_icon_with_tooltip_tag(
+			$tooltip_text,
+			'',
+			'circle-question',
+			$tooltip_aria_label
+		);
+	}
+
+	$output .= '</div>';
+
+	// Preserve the original single Edit action when no field-specific labels were requested.
+	if ( $edit_target && ! $edit_actions ) {
+		$edit_actions[ $edit_target ] = __( 'Edit', 'ai-for-seo' );
+	}
+
+	if ( $edit_actions ) {
+		$output .= '<div class="ai4seo-editor-preview-edit-actions">';
+
+		foreach ( $edit_actions as $action_target => $action_label ) {
+			$action_target = sanitize_key( $action_target );
+			$action_label  = sanitize_text_field( $action_label );
+
+			if ( ! $action_target || ! $action_label ) {
+				continue;
+			}
+
+			$output .= '<button type="button" class="ai4seo-button ai4seo-small-button ai4seo-editor-preview-edit-button" data-ai4seo-preview-edit-target="' . esc_attr( $action_target ) . '">';
+			$output .= esc_html( $action_label );
+			$output .= '</button>';
+		}
+
+		$output .= '</div>';
+	}
+
+	$output .= '</div>';
+
+	return $output;
+}
+
+// Keep preview-card headings separate from evaluations so edit actions stay near their related card title.
+
+/**
+ * Return the evaluation area appended to an editor preview card.
+ *
+ * @param string $preview_identifier Card identifier used by client-side refresh logic.
+ * @param string $description        Permanent description of the approximation.
+ * @param string $target_description  Optional stored generation target text.
+ * @param string $source_message      Initial generation hint text for this target field.
+ * @param string $source_identifier   Source-field identifier for client-side updates.
+ * @param string $evaluation_id       Optional element ID used by an input's aria-describedby attribute.
+ * @param string $count_label         Optional field label shown before a live count.
+ * @return string HTML.
+ */
+function ai4seo_get_editor_preview_evaluation_tag(
+	string $preview_identifier,
+	string $description,
+	string $target_description = '',
+	string $source_message = '',
+	string $source_identifier = '',
+	string $evaluation_id = '',
+	string $count_label = ''
+): string {
+	// Identifiers enter data attributes, so restrict them to the same key syntax used by fields.
+	$preview_identifier = sanitize_key( $preview_identifier );
+	$source_identifiers = array_filter(
+		array_map(
+			'sanitize_key',
+			array_map( 'trim', explode( ',', $source_identifier ) )
+		)
+	);
+	$source_identifier  = implode( ',', $source_identifiers );
+	$source_message     = sanitize_text_field( $source_message );
+	$evaluation_id      = sanitize_key( $evaluation_id );
+	$count_label        = sanitize_text_field( $count_label );
+
+	// Static description and metric hooks form the shared evaluation shell populated by JavaScript.
+	$output  = '<div class="ai4seo-editor-preview-evaluation"';
+	$output .= $evaluation_id ? ' id="' . esc_attr( $evaluation_id ) . '"' : '';
+	$output .= ' data-ai4seo-preview-card="' . esc_attr( $preview_identifier ) . '"';
+	$output .= $source_identifier ? ' data-ai4seo-editor-field-source-identifier="' . esc_attr( $source_identifier ) . '"' : '';
+	$output .= $count_label ? ' data-ai4seo-editor-evaluation-label="' . esc_attr( $count_label ) . '"' : '';
+	$output .= '>';
+
+	if ( $description ) {
+		$output .= '<p class="ai4seo-editor-preview-description">' . wp_kses( $description, array( 'strong' => array() ) ) . '</p>';
+	}
+	$output .= '<div class="ai4seo-editor-preview-metrics">';
+	$output .= '<span class="ai4seo-editor-preview-count"></span>';
+	$output .= '<span class="ai4seo-editor-preview-target">' . esc_html( $target_description ) . '</span>';
+	$output .= '<span class="ai4seo-editor-preview-fit"></span>';
+	$output .= '</div>';
+	$output .= '<span class="ai4seo-editor-preview-source-message ai4seo-sub-info ai4seo-editor-field-source-message"';
+	$output .= ' data-ai4seo-editor-source-message-default="' . esc_attr( $source_message ) . '"';
+	$output .= '>';
+	$output .= esc_html( $source_message );
+	$output .= '</span>';
+	$output .= '<div class="ai4seo-editor-preview-messages"></div>';
+
+	$output .= '</div>';
+
+	return $output;
+}
+
+/**
+ * Render one shared evaluation footer for every active field represented by a preview section.
+ *
+ * @param array $field_identifiers  Ordered field identifiers.
+ * @param array $evaluation_details Evaluation details keyed by field identifier.
+ * @return string HTML.
+ */
+function ai4seo_get_editor_preview_evaluations_tag( array $field_identifiers, array $evaluation_details ): string {
+	$output = '';
+
+	foreach ( $field_identifiers as $field_identifier ) {
+		if ( ! isset( $evaluation_details[ $field_identifier ] ) ) {
+			continue;
+		}
+
+		$field_details = $evaluation_details[ $field_identifier ];
+		$output       .= ai4seo_get_editor_preview_evaluation_tag(
+			$field_identifier,
+			'',
+			$field_details['target_description'] ?? '',
+			$field_details['source_message'] ?? '',
+			$field_identifier,
+			'',
+			$field_details['count_label'] ?? ''
+		);
+	}
+
+	return $output;
+}
+
+/**
+ * Return one editable metadata field using the shared editor field structure.
+ *
+ * @param string $metadata_identifier Metadata field identifier.
+ * @param array  $metadata_details    Metadata field declaration.
+ * @param string $input_value         Current stored value.
+ * @param string $prefix              Configured output prefix.
+ * @param string $suffix              Configured output suffix.
+ * @param array  $evaluation_details  Shared field evaluation details.
+ * @param string $additional_classes  Optional additional form-item classes.
+ * @param bool   $is_hidden           Whether the field is initially hidden.
+ * @return string HTML.
+ */
+function ai4seo_get_metadata_editor_field_tag(
+	string $metadata_identifier,
+	array $metadata_details,
+	string $input_value,
+	string $prefix,
+	string $suffix,
+	array $evaluation_details,
+	string $additional_classes = '',
+	bool $is_hidden = false
+): string {
+	$metadata_identifier = sanitize_key( $metadata_identifier );
+	$field_name          = sanitize_text_field( $metadata_details['name'] ?? '' );
+	$input_type          = sanitize_key( $metadata_details['input'] ?? '' );
+	$field_hint          = $metadata_details['hint'] ?? '';
+
+	if ( ! $metadata_identifier || ! $field_name || ! in_array( $input_type, array( 'textfield', 'textarea' ), true ) || ! is_string( $field_hint ) ) {
+		return '';
+	}
+
+	$input_name                = sanitize_text_field( ai4seo_get_prefixed_input_name( 'metadata_' . $metadata_identifier ) );
+	$evaluation_id             = sanitize_key( $evaluation_details['evaluation_id'] ?? '' );
+	$minimum_length            = absint( $evaluation_details['minimum_length'] ?? 0 );
+	$feedback_maximum          = absint( $evaluation_details['feedback_maximum'] ?? 0 );
+	$has_feedback              = ! empty( $evaluation_details['has_feedback'] );
+	$length_input_class        = $has_feedback ? ' ai4seo-editor-length-tracked' : '';
+	$length_input_attributes   = ai4seo_get_editor_length_input_attributes( $evaluation_id, $minimum_length, $feedback_maximum );
+	$sanitized_extra_classes   = array();
+	$additional_class_segments = preg_split( '/\s+/', trim( $additional_classes ) );
+
+	if ( is_array( $additional_class_segments ) ) {
+		$sanitized_extra_classes = array_filter( array_map( 'sanitize_html_class', $additional_class_segments ) );
+	}
+
+	$field_classes = array(
+		'ai4seo-form-item',
+		'ai4seo-form-item-flush',
+		'ai4seo-editor-field-card',
+		'ai4seo-editor-field-' . sanitize_html_class( $metadata_identifier ),
+	);
+	$field_classes = array_merge( $field_classes, $sanitized_extra_classes );
+
+	$output  = '<div class="' . esc_attr( implode( ' ', $field_classes ) ) . '"';
+	$output .= $is_hidden ? ' hidden' : '';
+	$output .= '>';
+	$output .= '<span class="ai4seo-form-item-label">';
+	$output .= '<span class="ai4seo-label-with-tooltip">';
+	$output .= '<label for="' . esc_attr( $input_name ) . '">' . esc_html( $field_name ) . '</label>';
+	$output .= ai4seo_get_icon_with_tooltip_tag(
+		$field_hint,
+		'',
+		'circle-question',
+		$field_name . ': ' . __( 'Help', 'ai-for-seo' )
+	);
+	$output .= '</span>';
+	$output .= '</span>';
+	$output .= '<div class="ai4seo-form-item-input-wrapper ai4seo-form-input-wrapper-with-generate-button">';
+
+	if ( $prefix ) {
+		$output .= '<span class="ai4seo-editor-prefix ai4seo-gray-text">';
+		$output .= esc_html__( 'Prefix', 'ai-for-seo' ) . ': ' . esc_html( $prefix ) . ' ';
+		$output .= ai4seo_get_icon_with_tooltip_tag(
+			__( 'Prefix and suffix are added automatically when the page is rendered. Please do not include them in this input field.', 'ai-for-seo' ),
+			'',
+			'circle-question',
+			$field_name . ': ' . __( 'Prefix', 'ai-for-seo' ) . ': ' . __( 'Help', 'ai-for-seo' )
+		);
+		$output .= '</span><br>';
+	}
+
+	if ( 'textfield' === $input_type ) {
+		$output .= '<input type="text"';
+		$output .= ' class="ai4seo-textfield ai4seo-editor-textfield' . esc_attr( $length_input_class ) . '"';
+		$output .= ' name="' . esc_attr( $input_name ) . '"';
+		$output .= ' id="' . esc_attr( $input_name ) . '"';
+		$output .= ' value="' . esc_attr( $input_value ) . '"';
+		$output .= $length_input_attributes; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- The shared attribute helper escapes every emitted value.
+		$output .= ' />';
+	} else {
+		$output .= '<textarea class="ai4seo-textarea ai4seo-editor-textarea ai4seo-auto-resize-textarea' . esc_attr( $length_input_class ) . '"';
+		$output .= ' name="' . esc_attr( $input_name ) . '"';
+		$output .= ' id="' . esc_attr( $input_name ) . '"';
+		$output .= $length_input_attributes; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- The shared attribute helper escapes every emitted value.
+		$output .= '>' . esc_textarea( $input_value ) . '</textarea>';
+	}
+
+	if ( $suffix ) {
+		$output .= '<br><span class="ai4seo-editor-suffix ai4seo-gray-text">';
+		$output .= esc_html__( 'Suffix', 'ai-for-seo' ) . ': ' . esc_html( $suffix ) . ' ';
+		$output .= ai4seo_get_icon_with_tooltip_tag(
+			__( 'Prefix and suffix are added automatically when the page is rendered. Please do not include them in this input field.', 'ai-for-seo' ),
+			'',
+			'circle-question',
+			$field_name . ': ' . __( 'Suffix', 'ai-for-seo' ) . ': ' . __( 'Help', 'ai-for-seo' )
+		);
+		$output .= '</span><br>';
+	}
+
+	$output .= '</div>';
+	$output .= ai4seo_get_editor_preview_evaluation_tag(
+		$metadata_identifier,
+		'',
+		$evaluation_details['target_description'] ?? '',
+		$evaluation_details['source_message'] ?? '',
+		$metadata_identifier,
+		$evaluation_id,
+		$evaluation_details['count_label'] ?? ''
+	);
+	$output .= '</div>';
+
+	return $output;
+}
+
+// End the preview-workspace output helpers before the existing editor notice helpers begin.
+
+/**
+ * Return accessible length-target attributes for an editor input.
+ *
+ * @param string $feedback_id   ID of the related evaluation footer.
+ * @param int    $minimum_length Minimum target length.
+ * @param int    $maximum_length Maximum target length.
+ * @return string HTML attributes, or an empty string when the target is invalid.
+ */
+function ai4seo_get_editor_length_input_attributes( string $feedback_id, int $minimum_length, int $maximum_length ): string {
+	$feedback_id    = sanitize_key( $feedback_id );
+	$minimum_length = absint( $minimum_length );
+	$maximum_length = absint( $maximum_length );
+
+	if ( '' === $feedback_id || ( 0 < $minimum_length && $maximum_length < $minimum_length ) ) {
+		return '';
+	}
+
+	$output = ' aria-describedby="' . esc_attr( $feedback_id ) . '"';
+
+	if ( 0 < $minimum_length ) {
+		$output .= ' data-ai4seo-min-length="' . esc_attr( $minimum_length ) . '"';
+	}
+
+	if ( 0 < $maximum_length ) {
+		$output .= ' data-ai4seo-max-length="' . esc_attr( $maximum_length ) . '"';
+	}
+
+	return $output;
+}
+
+// The editor notice helpers follow.
+
+/**
  * Returns the shared editor notice shown when no fields are active.
  *
  * @param string $message      Notice message.
@@ -330,7 +781,8 @@ function ai4seo_get_editor_inactive_fields_notice_tag(
 	}
 
 	// The wrapper classes match the editor form spacing while the template owns the visible text.
-	$output          = "<div class='ai4seo-form-item ai4seo-form-item-flush'>";
+    $output          = "<div class='ai4seo-medium-gap'></div>";
+    $output         .= "<div class='ai4seo-form-item ai4seo-form-item-flush'>";
 		$output     .= "<div class='ai4seo-yellow-message ai4seo-yellow-message-inline-offset'>";
 			$output .= sprintf(
 				$notice_template,
@@ -352,6 +804,26 @@ function ai4seo_get_editor_inactive_fields_notice_tag(
  * @return string
  */
 function ai4seo_get_editor_field_source_message_tag( array $source_details ): string {
+	$source_message_details = ai4seo_get_editor_field_source_message_details( $source_details );
+	$message                = $source_message_details['message'] ?? '';
+	$css_class              = $source_message_details['class'] ?? '';
+
+	if ( '' === $message || '' === $css_class ) {
+		// Unsupported or incomplete details must not add an empty label subline to editors.
+		return '';
+	}
+
+	// Return a single label subline that can be replaced live after successful generation.
+	return "<span class='ai4seo-editor-field-source-message ai4seo-sub-info " . esc_attr( $css_class ) . "'>" . esc_html( $message ) . '</span>';
+}
+
+/**
+ * Resolve shared source message details for an editor field.
+ *
+ * @param array $source_details The source details.
+ * @return array{message: string, class: string}
+ */
+function ai4seo_get_editor_field_source_message_details( array $source_details ): array {
 	// The renderer receives pre-resolved source details so templates stay free of source priority rules.
 	$source_type         = sanitize_key( $source_details['source_type'] ?? '' );
 	$was_changed_by_user = ! empty( $source_details['was_changed_by_user'] );
@@ -360,7 +832,6 @@ function ai4seo_get_editor_field_source_message_tag( array $source_details ): st
 
 	// SOOZ messages use the generated-data timestamp only when the flat snapshot contains one.
 	if ( 'sooz' === $source_type ) {
-		// Generated values use their timestamp when available so the editor distinguishes a snapshot from an undated source.
 		$generated_at = absint( $source_details['generated_at'] ?? 0 );
 		$css_class    = 'ai4seo-gray-message';
 
@@ -380,17 +851,17 @@ function ai4seo_get_editor_field_source_message_tag( array $source_details ): st
 		}
 
 		if ( $was_changed_by_user ) {
-			// Preserve the generated source while disclosing that the current value no longer exactly matches that snapshot.
 			$message .= ' ' . __( 'This value appears to have been changed by a user after it was generated.', 'ai-for-seo' );
 		}
 	} elseif ( 'third_party_seo_plugin' === $source_type ) {
-		// Third-party messages distinguish persisted imports from the current external editor state.
 		$plugin_name          = sanitize_text_field( $source_details['plugin_name'] ?? '' );
 		$is_live_editor_value = ! empty( $source_details['is_live_editor_value'] );
 
-		if ( ! $plugin_name ) {
-			// Omit ambiguous third-party notices because a source name is required to explain the field provenance.
-			return '';
+		if ( '' === $plugin_name ) {
+			return array(
+				'message' => '',
+				'class'   => '',
+			);
 		}
 
 		if ( $is_live_editor_value ) {
@@ -410,18 +881,21 @@ function ai4seo_get_editor_field_source_message_tag( array $source_details ): st
 		}
 
 		if ( $was_changed_by_user && ! $is_live_editor_value ) {
-			// Preserve the imported source while disclosing that the current value no longer exactly matches that import.
 			$message .= ' ' . __( 'This value appears to have been changed by a user after it was imported.', 'ai-for-seo' );
 		}
 	}
 
-	if ( ! $message || ! $css_class ) {
-		// Unsupported or incomplete details must not add an empty label subline to editors.
-		return '';
+	if ( '' === $message || '' === $css_class ) {
+		return array(
+			'message' => '',
+			'class'   => '',
+		);
 	}
 
-	// Return a single label subline that can be replaced live after successful generation.
-	return "<span class='ai4seo-editor-field-source-message ai4seo-sub-info " . esc_attr( $css_class ) . "'>" . esc_html( $message ) . '</span>';
+	return array(
+		'message' => $message,
+		'class'   => $css_class,
+	);
 }
 
 // =========================================================================================== \\
@@ -433,10 +907,23 @@ function ai4seo_get_editor_field_source_message_tag( array $source_details ): st
  * @param array $all_post_ids all post ids in this current list.
  * @return string The HTML for the button
  */
-function ai4seo_get_edit_metadata_button( int $post_id, array $all_post_ids = array() ): string {
+function ai4seo_get_edit_metadata_button(
+	int $post_id,
+	array $all_post_ids = array()
+): string {
 	$all_post_ids = ai4seo_deep_sanitize( $all_post_ids, 'absint' );
+	$onclick      = 'ai4seo_open_metadata_editor_modal(' . esc_js( $post_id ) . ', false';
 
-	return ai4seo_get_icon_button_tag( 'pen-to-square', '', '', 'ai4seo_open_metadata_editor_modal(' . esc_js( $post_id ) . ', false' . ( $all_post_ids ? ', ' . json_encode( $all_post_ids ) : '' ) . ');', AI4SEO_PLUGIN_NAME . ': ' . esc_html__( 'Metadata Editor', 'ai-for-seo' ) );
+	if ( $all_post_ids ) {
+		$onclick .= ', ' . wp_json_encode( $all_post_ids );
+	}
+
+	$onclick .= ');';
+
+	/* translators: %d: WordPress post ID. */
+	$button_label = sprintf( esc_html__( 'Open Metadata Editor for post ID %d', 'ai-for-seo' ), $post_id );
+
+	return ai4seo_get_icon_button_tag( 'pen-to-square', '', '', $onclick, $button_label );
 }
 
 // =========================================================================================== \\
@@ -448,10 +935,23 @@ function ai4seo_get_edit_metadata_button( int $post_id, array $all_post_ids = ar
  * @param array $all_attachment_post_ids all post ids in this current list.
  * @return string The HTML for the button
  */
-function ai4seo_get_edit_attachment_attributes_button( int $attachment_post_id, array $all_attachment_post_ids = array() ): string {
+function ai4seo_get_edit_attachment_attributes_button(
+	int $attachment_post_id,
+	array $all_attachment_post_ids = array()
+): string {
 	$all_attachment_post_ids = ai4seo_deep_sanitize( $all_attachment_post_ids, 'absint' );
+	$onclick                 = 'ai4seo_open_attachment_attributes_editor_modal(' . esc_js( $attachment_post_id );
 
-	return ai4seo_get_icon_button_tag( 'pen-to-square', '', '', 'ai4seo_open_attachment_attributes_editor_modal(' . esc_js( $attachment_post_id ) . ( $all_attachment_post_ids ? ', ' . json_encode( $all_attachment_post_ids ) : '' ) . ');', AI4SEO_PLUGIN_NAME . ': ' . esc_html__( 'Media Attributes Editor', 'ai-for-seo' ) );
+	if ( $all_attachment_post_ids ) {
+		$onclick .= ', ' . wp_json_encode( $all_attachment_post_ids );
+	}
+
+	$onclick .= ');';
+
+	/* translators: %d: WordPress attachment post ID. */
+	$button_label = sprintf( esc_html__( 'Open Media Attributes Editor for post ID %d', 'ai-for-seo' ), $attachment_post_id );
+
+	return ai4seo_get_icon_button_tag( 'pen-to-square', '', '', $onclick, $button_label );
 }
 
 // =========================================================================================== \\
@@ -506,25 +1006,41 @@ function ai4seo_get_current_language() {
 // =========================================================================================== \\
 
 /**
- * Generates the content for one accordion-element
+ * Generates one accordion element.
  *
- * @param string $headline
- * @param string $content
- * @return string
+ * @param string $headline Accordion headline HTML.
+ * @param string $content Accordion panel HTML.
+ * @return string Accordion markup.
  */
 function ai4seo_get_accordion_element( string $headline, string $content ): string {
-	// Generate output.
-	$output = "<div class='ai4seo-accordion-holder'>";
-		// Add headline to output.
-		$output     .= "<div class='card ai4seo-card ai4seo-accordion-headline' onclick='jQuery(\".ai4seo-accordion-content\").hide();jQuery(this).next().show();'>";
-			$output .= $headline;
-		$output     .= '</div>';
+	// Keep trigger and panel relationships unique across every Help section rendered in one request.
+	static $accordion_number = 0;
 
-		// Add content to output.
-		$output     .= "<div class='card ai4seo-card ai4seo-accordion-content'>";
-			$output .= $content;
-		$output     .= '</div>';
-	$output         .= '</div>';
+	++$accordion_number;
+
+	$accordion_trigger_id = 'ai4seo-accordion-trigger-' . $accordion_number;
+	$accordion_panel_id   = 'ai4seo-accordion-content-' . $accordion_number;
+
+	// Preserve the holder structure consumed by Help search and accordion card styling.
+	$output = "<div class='ai4seo-accordion-holder'>";
+	// Keep the existing card wrapper while the native button owns the interactive semantics.
+	$output .= "<div class='card ai4seo-card ai4seo-accordion-headline'>";
+	$output .= "<button type='button'"
+		. " class='ai4seo-accordion-trigger'"
+		. " id='" . esc_attr( $accordion_trigger_id ) . "'"
+		. " aria-controls='" . esc_attr( $accordion_panel_id ) . "'"
+		. " aria-expanded='false'>";
+	$output .= $headline;
+	$output .= '</button>';
+	$output .= '</div>';
+
+	// Render the controlled panel collapsed until the shared initializer opens it.
+	$output .= "<div class='card ai4seo-card ai4seo-accordion-content'"
+		. " id='" . esc_attr( $accordion_panel_id ) . "'"
+		. " hidden='hidden'>";
+	$output .= $content;
+	$output .= '</div>';
+	$output .= '</div>';
 
 	return $output;
 }
@@ -611,6 +1127,22 @@ function ai4seo_echo_half_donut_chart_with_headline_and_percentage(
 ) {
 	// Derive the displayed percentage from the same totals used to render the chart segments.
 	$ai4seo_percentage_complete = round( $num_complete / $num_total * 100 );
+	$ai4seo_chart_heading_id    = 'ai4seo-dashboard-coverage-heading-' . sanitize_key( $post_type );
+	$ai4seo_progress_busy_value = 'completed' === $posts_table_analysis_state ? 'false' : 'true';
+	$ai4seo_progress_value_text = sprintf(
+		/* translators: %s: SEO coverage percentage. */
+		__( '%s%% complete', 'ai-for-seo' ),
+		ai4seo_format_number_i18n( $ai4seo_percentage_complete )
+	);
+
+	if ( 'completed' === $posts_table_analysis_state ) {
+		$ai4seo_progress_value_text .= ' (' . sprintf(
+			/* translators: 1: Number of complete items. 2: Total number of items. */
+			__( '%1$s/%2$s complete', 'ai-for-seo' ),
+			ai4seo_format_number_i18n( $num_complete ),
+			ai4seo_format_number_i18n( $num_total )
+		) . ')';
+	}
 
 	// Use a status class so the percentage color stays centralized in the stylesheet.
 	if ( $ai4seo_percentage_complete < 99 ) {
@@ -621,11 +1153,17 @@ function ai4seo_echo_half_donut_chart_with_headline_and_percentage(
 
 	// Keep the chart, completion text, and optional multilingual context inside one per-post-type container.
 	echo "<div class='ai4seo-chart-container'>";
-		echo "<h2 class='ai4seo-dashboard-section-heading'>";
+		echo "<h2 id='" . esc_attr( $ai4seo_chart_heading_id ) . "' class='ai4seo-dashboard-section-heading'>";
 			ai4seo_echo_wp_kses( $headline );
 		echo '</h2>';
 
-		echo "<div class='ai4seo-half-donut-chart-container'>";
+		echo "<div class='ai4seo-half-donut-chart-container' role='progressbar'";
+			echo " aria-labelledby='" . esc_attr( $ai4seo_chart_heading_id ) . "'";
+			echo " aria-valuemin='0' aria-valuemax='100'";
+			echo " aria-valuenow='" . esc_attr( $ai4seo_percentage_complete ) . "'";
+			echo " aria-valuetext='" . esc_attr( $ai4seo_progress_value_text ) . "'";
+			echo " aria-busy='" . esc_attr( $ai4seo_progress_busy_value ) . "'";
+			echo '>';
 			ai4seo_echo_half_donut_chart( $chart_values );
 
 			echo "<div class='ai4seo-half-donut-chart-percentage " . esc_attr( $ai4seo_percentage_color_class ) . "'>";
@@ -1168,185 +1706,6 @@ function ai4seo_get_small_a_tag_icon_button_tag( string $a_href, string $a_css_c
 	}
 
 	return ai4seo_get_a_tag_icon_button_tag( $a_href, $a_css_class, $a_target, $button_icon, $button_text, $button_css_class, $button_onclick );
-}
-
-// =========================================================================================== \\
-
-/**
- * Retrieve the translation for the different content types
- *
- * @param mixed $post_type The post type value.
- * @param bool  $count_or_plural The count or plural value.
- * @return string The translation
- */
-function ai4seo_get_post_type_translation( $post_type, $count_or_plural = false ): string {
-	$post_type_original = $post_type;
-	$post_type          = strtolower( $post_type );
-	$translation        = $post_type_original;
-
-	switch ( $post_type ) {
-		case 'post':
-		case 'posts':
-			// Plural.
-			if ( true === $count_or_plural ) {
-				$translation = __( 'posts', 'ai-for-seo' );
-			}
-			// Singular.
-			elseif ( false === $count_or_plural ) {
-				$translation = __( 'post', 'ai-for-seo' );
-			}
-			// Singular or plural with count.
-			else {
-				/* translators: %s: Number of posts. */
-				$translation = sprintf(
-					/* translators: %s: Number of posts. */
-					_nx( '%1$s post', '%1$s posts', $count_or_plural, 'noun', 'ai-for-seo' ),
-					$count_or_plural
-				);
-			}
-			break;
-		case 'page':
-		case 'pages':
-			// Plural.
-			if ( true === $count_or_plural ) {
-				$translation = __( 'pages', 'ai-for-seo' );
-			}
-			// Singular.
-			elseif ( false === $count_or_plural ) {
-				$translation = __( 'page', 'ai-for-seo' );
-			}
-			// Singular or plural with count.
-			else {
-				/* translators: %s: Number of pages. */
-				$translation = sprintf(
-					/* translators: %s: Number of pages. */
-					_nx( '%1$s page', '%1$s pages', $count_or_plural, 'noun', 'ai-for-seo' ),
-					$count_or_plural
-				);
-			}
-			break;
-		case 'product':
-		case 'products':
-			// Plural.
-			if ( true === $count_or_plural ) {
-				$translation = __( 'products', 'ai-for-seo' );
-			}
-			// Singular.
-			elseif ( false === $count_or_plural ) {
-				$translation = __( 'product', 'ai-for-seo' );
-			}
-			// Singular or plural with count.
-			else {
-				/* translators: %s: Number of products. */
-				$translation = sprintf(
-					/* translators: %s: Number of products. */
-					_nx( '%1$s product', '%1$s products', $count_or_plural, 'noun', 'ai-for-seo' ),
-					$count_or_plural
-				);
-			}
-			break;
-		case 'portfolio':
-		case 'portfolios':
-			// Plural.
-			if ( true === $count_or_plural ) {
-				$translation = __( 'portfolios', 'ai-for-seo' );
-			}
-			// Singular.
-			elseif ( false === $count_or_plural ) {
-				$translation = __( 'portfolio', 'ai-for-seo' );
-			}
-			// Singular or plural with count.
-			else {
-				/* translators: %s: Number of portfolios. */
-				$translation = sprintf(
-					/* translators: %s: Number of portfolios. */
-					_nx( '%1$s portfolio', '%1$s portfolios', $count_or_plural, 'noun', 'ai-for-seo' ),
-					$count_or_plural
-				);
-			}
-			break;
-		case 'attachment':
-		case 'attachments':
-			// Plural.
-			if ( true === $count_or_plural ) {
-				$translation = __( 'attachments', 'ai-for-seo' );
-			}
-			// Singular.
-			elseif ( false === $count_or_plural ) {
-				$translation = __( 'attachment', 'ai-for-seo' );
-			}
-			// Singular or plural with count.
-			else {
-				/* translators: %s: Number of attachments. */
-				$translation = sprintf(
-					/* translators: %s: Number of attachments. */
-					_nx( '%1$s attachment', '%1$s attachments', $count_or_plural, 'noun', 'ai-for-seo' ),
-					$count_or_plural
-				);
-			}
-			break;
-		case 'media': // not a post type, but useful to have in some situations, as we describe attachments as media for the user.
-		case 'medias':
-			// Plural.
-			if ( true === $count_or_plural ) {
-				$translation = _n( 'medium', 'media', 2, 'ai-for-seo' );
-			}
-			// Singular.
-			elseif ( false === $count_or_plural ) {
-				$translation = _n( 'medium', 'media', 1, 'ai-for-seo' );
-			}
-			// Singular or plural with count.
-			else {
-				/* translators: %s: Number of media items. */
-				$translation = sprintf(
-					/* translators: %s: Number of media items. */
-					_nx( '%1$s medium', '%1$s media', $count_or_plural, 'noun', 'ai-for-seo' ),
-					$count_or_plural
-				);
-			}
-			break;
-		case 'media file': // not a post type, but useful to have in some situations, as we describe attachments as media for the user.
-		case 'media files':
-			// Plural.
-			if ( true === $count_or_plural ) {
-				$translation = __( 'media files', 'ai-for-seo' );
-			}
-			// Singular.
-			elseif ( false === $count_or_plural ) {
-				$translation = __( 'media file', 'ai-for-seo' );
-			}
-			// Singular or plural with count.
-			else {
-				/* translators: %s: Number of media files. */
-				$translation = sprintf(
-					/* translators: %s: Number of media files. */
-					_nx( '%1$s media file', '%1$s media files', $count_or_plural, 'noun', 'ai-for-seo' ),
-					$count_or_plural
-				);
-			}
-			break;
-		default:
-			// plural.
-			if ( true === $count_or_plural ) {
-				// we do not add an "s" to the end of the translation, as it does not work with every language reliably
-				// $translation .= "s";.
-
-				// singular.
-			} elseif ( false === $count_or_plural ) {
-				// nothing to do.
-
-				// singular / plural with a counter.
-			} elseif ( is_numeric( $count_or_plural ) ) {
-				$translation = $count_or_plural . ' ' . $post_type_original;
-
-				if ( 1 !== $count_or_plural ) {
-					// we do not add an "s" to the end of the translation, as it does not work with every language reliably
-					// $translation .= "s";.
-				}
-			}
-	}
-
-	return $translation;
 }
 
 // =========================================================================================== \\
@@ -2122,8 +2481,6 @@ function ai4seo_get_prompt_slider_setting_form_item_tag(
 	$output                     = "<hr class='ai4seo-form-item-divider" . esc_attr( $advanced_setting_css_class ) . "'>";
 	$output                    .= "<div class='ai4seo-form-item" . esc_attr( $advanced_setting_css_class ) . "'>";
 		$output                .= "<span class='ai4seo-form-item-label'>";
-			// Prompt slider settings are newly introduced controls, so the badge lives with their shared renderer.
-			$output .= "<span class='ai4seo-green-bubble'>" . esc_html__( 'NEW', 'ai-for-seo' ) . '</span> ';
 			// Expose the visible setting label as the accessible name source for the nested radiogroup.
 			$output .= '<span id="' . esc_attr( $setting_label_id ) . '">' . esc_html( $setting_label ) . '</span>';
 		$output     .= '</span>';
@@ -2569,6 +2926,7 @@ function ai4seo_get_bulk_generation_queue_action_controls( string $context, stri
 
 	$bulk_generation_queue_actions = ai4seo_get_bulk_generation_queue_actions( 'custom', $active_status_filter, $context, $list_location );
 	$bulk_action_select_id         = "ai4seo-{$context}-bulk-generation-queue-action";
+	$bulk_action_description_id    = "{$bulk_action_select_id}-selected-description";
 
 	// Reuse the same action metadata as the select options so SOOZ table help text stays aligned.
 	$bulk_action_help_icon_html = ai4seo_get_bulk_generation_queue_action_help_icon_html( 'custom', $active_status_filter, $context, $list_location );
@@ -2579,21 +2937,26 @@ function ai4seo_get_bulk_generation_queue_action_controls( string $context, stri
 		// Keep the server-side custom action validation aligned with the dropdown that was rendered for this filter.
 		$output     .= "<input type='hidden' class='ai4seo-bulk-generation-queue-active-status-filter' value='" . esc_attr( $active_status_filter ) . "'>";
 		$output     .= "<label class='screen-reader-text' for='" . esc_attr( $bulk_action_select_id ) . "'>" . esc_html__( 'Bulk action', 'ai-for-seo' ) . '</label>';
-		$output     .= "<select id='" . esc_attr( $bulk_action_select_id ) . "' name='ai4seo_bulk_generation_queue_action' class='ai4seo-bulk-generation-queue-action-select ai4seo-textfield ai4seo-lockable'>";
+		$output     .= "<select id='" . esc_attr( $bulk_action_select_id ) . "' name='ai4seo_bulk_generation_queue_action' class='ai4seo-bulk-generation-queue-action-select ai4seo-textfield ai4seo-lockable' aria-describedby='" . esc_attr( $bulk_action_description_id ) . "'>";
 			$output .= "<option value=''>" . esc_html__( 'Bulk actions', 'ai-for-seo' ) . '</option>';
 
-	foreach ( array_keys( $bulk_generation_queue_actions ) as $this_action_identifier ) {
-		$this_action_label = ai4seo_get_bulk_generation_queue_action_label( $this_action_identifier, false );
-		$output           .= "<option value='" . esc_attr( $this_action_identifier ) . "'>" . esc_html( $this_action_label ) . '</option>';
+	foreach ( $bulk_generation_queue_actions as $this_action_identifier => $this_action_details ) {
+		$this_action_label       = ai4seo_get_bulk_generation_queue_action_label( $this_action_identifier, false );
+		$this_action_description = trim( (string) ( $this_action_details['description'] ?? '' ) );
+		$output                 .= "<option value='" . esc_attr( $this_action_identifier ) . "' data-ai4seo-description='" . esc_attr( $this_action_description ) . "'>" . esc_html( $this_action_label ) . '</option>';
 	}
-		$output .= '</select>';
-		$output .= $bulk_action_help_icon_html;
-		$output .= ai4seo_get_button_tag(
+		$output     .= '</select>';
+		$output     .= $bulk_action_help_icon_html;
+		$output     .= ai4seo_get_button_tag(
 			esc_html__( 'Apply', 'ai-for-seo' ),
 			'ai4seo-bulk-generation-queue-action-submit',
 			''
 		);
-	$output     .= '</form>';
+		$output     .= "<p id='" . esc_attr( $bulk_action_description_id ) . "' class='ai4seo-bulk-generation-queue-action-selected-description ai4seo-sub-info' aria-live='polite' aria-atomic='true' hidden>";
+			$output .= '<strong>' . esc_html__( 'Selected:', 'ai-for-seo' ) . "</strong> <span class='ai4seo-bulk-generation-queue-action-selected-description-text'></span>";
+		$output     .= '</p>';
+
+	$output .= '</form>';
 
 	return $output;
 }

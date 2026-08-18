@@ -152,6 +152,32 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 			)
 		);
 
+		// === AI4SEO_SETTING_DEFAULT_EDITOR_VIEW_MODE =========================================== \\
+
+		$ai4seo_this_setting_name        = AI4SEO_SETTING_DEFAULT_EDITOR_VIEW_MODE;
+		$ai4seo_this_setting_input_name  = ai4seo_get_prefixed_input_name( $ai4seo_this_setting_name );
+		$ai4seo_this_setting_input_value = ai4seo_get_editor_default_view_mode();
+
+		// Keep this global choice beside the instructions shared by both entry editors.
+		echo "<hr class='ai4seo-form-item-divider'>";
+		echo "<div class='ai4seo-form-item'>";
+			echo "<label for='" . esc_attr( $ai4seo_this_setting_input_name ) . "'>";
+				echo "<span class='ai4seo-green-bubble'>" . esc_html__( 'NEW', 'ai-for-seo' ) . '</span> ';
+				echo esc_html__( 'Default editor mode:', 'ai-for-seo' );
+			echo '</label>';
+			echo "<div class='ai4seo-form-item-input-wrapper'>";
+				echo "<select class='ai4seo-editor-select' id='" . esc_attr( $ai4seo_this_setting_input_name ) . "' name='" . esc_attr( $ai4seo_this_setting_input_name ) . "'>";
+
+		// Render from the same registry used by the modal switch so labels and values cannot diverge.
+		foreach ( ai4seo_get_editor_view_mode_options() as $ai4seo_editor_view_mode_value => $ai4seo_editor_view_mode_label ) {
+			echo "<option value='" . esc_attr( $ai4seo_editor_view_mode_value ) . "'" . selected( $ai4seo_this_setting_input_value, $ai4seo_editor_view_mode_value, false ) . '>' . esc_html( $ai4seo_editor_view_mode_label ) . '</option>';
+		}
+
+				echo '</select>';
+				echo "<p class='ai4seo-form-item-description'>" . esc_html__( 'Choose whether Preview or Editor mode opens first in both the Metadata and Media Attributes editors. You can switch modes at any time inside an editor.', 'ai-for-seo' ) . '</p>';
+			echo '</div>';
+		echo '</div>';
+
 
 		// === AI4SEO_SETTING_ENABLE_NATIVE_BULK_ACTIONS ========================================== \\
 
@@ -182,8 +208,6 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 		// Render as a normal boolean setting so the shared save-anything handler can persist the checkbox value.
 		echo "<div class='ai4seo-form-item'>";
 			echo "<label for='" . esc_attr( $ai4seo_this_setting_input_name ) . "'>";
-				// Keep the NEW badge inline for this manually rendered setting label.
-				echo "<span class='ai4seo-green-bubble'>" . esc_html__( 'NEW', 'ai-for-seo' ) . '</span> ';
 				echo esc_html__( 'Native WordPress bulk actions:', 'ai-for-seo' );
 			echo '</label>';
 
@@ -501,8 +525,6 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 		// Render nested post-type instruction inputs manually because each textarea saves into one setting map.
 		echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
 			echo "<span class='ai4seo-form-item-label'>";
-				// Keep the NEW badge inline for this manually rendered setting label.
-				echo "<span class='ai4seo-green-bubble'>" . esc_html__( 'NEW', 'ai-for-seo' ) . '</span> ';
 				echo esc_html__( 'Post Type Custom Instructions:', 'ai-for-seo' );
 			echo '</span>';
 
@@ -740,8 +762,6 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
 			echo "<div class='ai4seo-form-item'>";
 				echo "<span class='ai4seo-form-item-label'>";
-					// Keep the NEW badge inline for this manually rendered WPML language setting label.
-					echo "<span class='ai4seo-green-bubble'>" . esc_html__( 'NEW', 'ai-for-seo' ) . '</span> ';
 					ai4seo_echo_wp_kses( ai4seo_get_svg_tag( 'wpml', 'WPML', 'ai4seo-medium-icon' ) );
 					echo ' ';
 					echo esc_html__( 'Active Languages:', 'ai-for-seo' );
@@ -1523,8 +1543,6 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
 			echo "<div class='ai4seo-form-item'>";
 				echo "<span class='ai4seo-form-item-label'>";
-					// Keep the NEW badge inline for this manually rendered WPML language setting label.
-					echo "<span class='ai4seo-green-bubble'>" . esc_html__( 'NEW', 'ai-for-seo' ) . '</span> ';
 					ai4seo_echo_wp_kses( ai4seo_get_svg_tag( 'wpml', 'WPML', 'ai4seo-medium-icon' ) );
 					echo ' ';
 					echo esc_html__( 'Active Languages:', 'ai-for-seo' );

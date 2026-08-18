@@ -176,6 +176,12 @@ function ai4seo_process_save_anything_settings( array &$upcoming_save_anything_u
 		// Apply the shared custom-instruction cleanup and plan limit before equality and validation checks.
 		$ai4seo_this_new_setting_value = ai4seo_normalize_custom_instructions_setting_value( $ai4seo_this_setting_name, $ai4seo_this_new_setting_value );
 
+		// Normalize supported checkbox and compatibility representations before comparison and validation.
+		$ai4seo_this_new_setting_value = ai4seo_normalize_boolean_setting_value(
+			$ai4seo_this_setting_name,
+			$ai4seo_this_new_setting_value
+		);
+
 		// Retain loose comparison because saved option scalars can differ only by PHP representation.
 		// phpcs:ignore Universal.Operators.StrictComparisons.LooseEqual -- Preserve existing save-anything equality semantics across scalar option values.
 		if ( $ai4seo_this_new_setting_value == $ai4seo_this_old_setting_value ) {
@@ -212,6 +218,37 @@ function ai4seo_process_save_anything_settings( array &$upcoming_save_anything_u
 		);
 	}
 
+	// Reconcile the date boundary before queue side effects run, including unchanged imported/resaved filters.
+	$ai4seo_bulk_generation_date_filter_state_was_repaired = false;
+
+	if ( isset( $upcoming_save_anything_updates[ AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER ] ) ) {
+		// Only transitions from the inactive mode establish a deliberately fresh boundary.
+		$ai4seo_should_start_bulk_generation_date_filter_with_fresh_reference = isset( $ai4seo_recent_setting_changes[ AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER ] )
+			&& ! ai4seo_is_bulk_generation_date_filter_active( $ai4seo_recent_setting_changes[ AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER ][0] )
+			&& ai4seo_is_bulk_generation_date_filter_active( $ai4seo_recent_setting_changes[ AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER ][1] );
+
+		// Capture validity so repaired unchanged/imported state can trigger one analysis refresh below.
+		$ai4seo_bulk_generation_date_filter_state_before_reconciliation = ai4seo_get_current_bulk_generation_date_filter_state();
+
+		// A zero override requests a fresh boundary while the no-argument path preserves valid state.
+		$ai4seo_bulk_generation_date_filter_state_was_reconciled = $ai4seo_should_start_bulk_generation_date_filter_with_fresh_reference
+			? ai4seo_reconcile_bulk_generation_date_filter_reference_timestamp( 0 )
+			: ai4seo_reconcile_bulk_generation_date_filter_reference_timestamp();
+
+		if ( ! $ai4seo_bulk_generation_date_filter_state_was_reconciled ) {
+			ai4seo_debug_message( 718217659, 'Could not reconcile the SEO Autopilot date-filter reference timestamp after saving settings.', true );
+
+			return new WP_Error(
+				718217659,
+				esc_html__( 'Could not update the SEO Autopilot date-filter reference. Some settings may already have been saved. Please try again.', 'ai-for-seo' )
+			);
+		} elseif ( empty( $ai4seo_bulk_generation_date_filter_state_before_reconciliation['is_valid'] ) || $ai4seo_should_start_bulk_generation_date_filter_with_fresh_reference ) {
+			// Confirm that the persisted replacement is valid before treating analysis as stale.
+			$ai4seo_bulk_generation_date_filter_state_after_reconciliation = ai4seo_get_current_bulk_generation_date_filter_state();
+			$ai4seo_bulk_generation_date_filter_state_was_repaired         = ! empty( $ai4seo_bulk_generation_date_filter_state_after_reconciliation['is_valid'] );
+		}
+	}
+
 	// Keep analysis-sensitive settings declarative so all status-affecting changes share one refresh path.
 	$ai4seo_analysis_trigger_settings = array(
 		AI4SEO_SETTING_ACTIVE_META_TAGS,
@@ -230,13 +267,19 @@ function ai4seo_process_save_anything_settings( array &$upcoming_save_anything_u
 		AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER,
 	);
 
-	// Refresh posts-table analysis once when any persisted setting affects its derived status.
+	// Refresh posts-table analysis once when a setting change or repaired date boundary affects derived status.
+	$ai4seo_should_refresh_posts_table_analysis = $ai4seo_bulk_generation_date_filter_state_was_repaired;
+
 	foreach ( $ai4seo_analysis_trigger_settings as $ai4seo_this_setting_key ) {
 		// The recent-change map prevents refreshes for submitted values that were equal to stored state.
 		if ( isset( $ai4seo_recent_setting_changes[ $ai4seo_this_setting_key ] ) ) {
-			ai4seo_force_posts_table_analysis_refresh_after_admin_mutation();
+			$ai4seo_should_refresh_posts_table_analysis = true;
 			break;
 		}
+	}
+
+	if ( $ai4seo_should_refresh_posts_table_analysis ) {
+		ai4seo_force_posts_table_analysis_refresh_after_admin_mutation();
 	}
 
 	// Tie incognito mode to the enabling administrator so its existing user-scoped behavior remains stable.
@@ -291,14 +334,6 @@ function ai4seo_process_save_anything_settings( array &$upcoming_save_anything_u
 		// Schedule processing only when the enabled-types branch did not already inject the same cron call.
 		if ( ! $ai4seo_bulk_generation_cron_was_injected ) {
 			ai4seo_inject_additional_cronjob_call( AI4SEO_BULK_GENERATION_CRON_JOB_NAME );
-		}
-	}
-
-	// Reset the new/existing reference timestamp only when the previous filter was outside the two swappable modes.
-	if ( isset( $ai4seo_recent_setting_changes[ AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER ] ) ) {
-		// Switching directly between new and existing intentionally retains their shared reference point.
-		if ( 'new' !== $ai4seo_recent_setting_changes[ AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER ][0] && 'existing' !== $ai4seo_recent_setting_changes[ AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER ][0] ) {
-			ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME, time() );
 		}
 	}
 

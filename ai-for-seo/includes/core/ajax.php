@@ -1772,11 +1772,19 @@ function ai4seo_reset_plugin_data() {
 		return;
 	}
 
+	$do_reset_environmental_variables        = ( isset( $_POST['ai4seo_reset_environmental_variables'] ) && 'true' === $_POST['ai4seo_reset_environmental_variables'] );
+	$do_reset_settings                       = ( isset( $_POST['ai4seo_reset_settings'] ) && 'true' === $_POST['ai4seo_reset_settings'] );
 	$do_reset_metadata                       = ( isset( $_POST['ai4seo_reset_metadata'] ) && 'true' === $_POST['ai4seo_reset_metadata'] );
 	$has_reset_metadata_post_types_parameter = array_key_exists( 'ai4seo_reset_metadata_post_types', $_POST );
 	$reset_metadata_is_full_reset            = false;
 	$reset_metadata_post_types               = array();
 	$reset_metadata_post_ids                 = array();
+	$bulk_generation_reference_timestamp     = null;
+
+	// Preserve the date boundary when internal state is reset without resetting its owning setting.
+	if ( $do_reset_environmental_variables && ! $do_reset_settings ) {
+		$bulk_generation_reference_timestamp = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME );
+	}
 
 	if ( $do_reset_metadata ) {
 		if ( isset( $_POST['ai4seo_reset_metadata_is_full_reset'] ) ) {
@@ -1866,16 +1874,25 @@ function ai4seo_reset_plugin_data() {
 	}
 
 	// remove environmental variables.
-	if ( isset( $_POST['ai4seo_reset_environmental_variables'] ) && 'true' === $_POST['ai4seo_reset_environmental_variables'] ) {
+	if ( $do_reset_environmental_variables ) {
 		$ai4seo_environmental_variables            = AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES;
 		$ai4seo_environmental_variables_are_loaded = true;
 		ai4seo_delete_option( AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME );
 
 		ai4seo_robhub_api()->delete_all_environmental_variables();
+
+		if ( ! $do_reset_settings && ! ai4seo_reconcile_bulk_generation_date_filter_reference_timestamp( $bulk_generation_reference_timestamp ) ) {
+			ai4seo_debug_message( 728217659, 'Could not reconcile the SEO Autopilot date-filter reference timestamp after resetting environmental variables.', true );
+			ai4seo_send_ajax_error(
+				esc_html__( 'Could not restore the SEO Autopilot date-filter reference after resetting internal data. Please save the SEO Autopilot settings again.', 'ai-for-seo' ),
+				728217659
+			);
+			return;
+		}
 	}
 
 	// remove/reset settings.
-	if ( isset( $_POST['ai4seo_reset_settings'] ) && 'true' === $_POST['ai4seo_reset_settings'] ) {
+	if ( $do_reset_settings ) {
 		$ai4seo_settings = AI4SEO_DEFAULT_SETTINGS;
 		ai4seo_delete_option( AI4SEO_SETTINGS_OPTION_NAME );
 	}
@@ -2144,6 +2161,38 @@ function ai4seo_show_metadata_editor() {
 	ob_start();
 	require_once ai4seo_get_includes_ajax_display_path( 'metadata-editor.php' );
 	$content = ob_get_clean(); // only your output.
+	ai4seo_send_ajax_success( $content );
+}
+
+
+// =========================================================================================== \\
+
+/**
+ * Called via AJAX - Requires the Get More Credits modal to be displayed.
+ *
+ * @return void
+ */
+function ai4seo_show_get_more_credits_modal() {
+	// Make sure that this function is only called once.
+	if ( ! ai4seo_singleton( __FUNCTION__ ) ) {
+		return;
+	}
+
+	// Recheck the global AJAX nonce before handling this protected admin request.
+	if ( wp_verify_nonce( $GLOBALS['ai4seo_ajax_nonce'] ?? '', AI4SEO_GLOBAL_NONCE_IDENTIFIER ) === false ) {
+		ai4seo_send_ajax_error( esc_html__( 'Nonce verification failed. Please refresh the page and try again.', 'ai-for-seo' ), 1108261201 );
+		return;
+	}
+
+	ob_start();
+	require_once ai4seo_get_includes_ajax_display_path( 'get-more-credits-modal.php' );
+	$content = ob_get_clean();
+
+	if ( ! is_string( $content ) || trim( $content ) === '' ) {
+		ai4seo_send_ajax_error( esc_html__( 'The Credits options could not be loaded. Please refresh the page and try again.', 'ai-for-seo' ), 1108261202 );
+		return;
+	}
+
 	ai4seo_send_ajax_success( $content );
 }
 
