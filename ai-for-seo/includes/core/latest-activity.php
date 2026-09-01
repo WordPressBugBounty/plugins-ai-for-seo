@@ -1,4 +1,10 @@
 <?php
+/**
+ * Provides the latest generated-metadata activity data.
+ *
+ * @package AI_For_SEO
+ */
+
 // Keep extracted core modules inaccessible when WordPress has not loaded the plugin environment.
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -10,11 +16,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Function to add an entry to the latest activity log
  *
- * @param int    $post_id The post id this entry refers to
- * @param string $status The status of the action (success, error)
- * @param string $action The action that was performed ("metadata-manually-generated", "metadata-bulk-generated", "attachment-attributes-manually-generated", "attachment-attributes-bulk-generated")
- * @param int    $cost The cost of the action in credits
- * @param string $details The details of the action
+ * @param int    $post_id The post id this entry refers to.
+ * @param string $status The status of the action (success, error).
+ * @param string $action The action that was performed ("metadata-manually-generated", "metadata-bulk-generated", "attachment-attributes-manually-generated", "attachment-attributes-bulk-generated").
+ * @param int    $cost The cost of the action in credits.
+ * @param string $details The details of the action.
  * @return bool
  */
 function ai4seo_add_latest_activity_entry( int $post_id, string $status, string $action, int $cost = 0, string $details = '' ): bool {
@@ -34,13 +40,13 @@ function ai4seo_add_latest_activity_entry( int $post_id, string $status, string 
 	// check if the status is one of the allowed statuses (success, error).
 	$status = sanitize_text_field( $status );
 
-	if ( ! in_array( $status, array( 'success', 'error' ) ) ) {
+	if ( ! in_array( $status, array( 'success', 'error' ), true ) ) {
 		return false;
 	}
 
 	$action = sanitize_text_field( $action );
 
-	if ( ! in_array( $action, array( 'metadata-manually-generated', 'metadata-bulk-generated', 'attachment-attributes-manually-generated', 'attachment-attributes-bulk-generated' ) ) ) {
+	if ( ! in_array( $action, array( 'metadata-manually-generated', 'metadata-bulk-generated', 'attachment-attributes-manually-generated', 'attachment-attributes-bulk-generated' ), true ) ) {
 		ai4seo_debug_message( 241410125, 'Invalid action in latest activity log.', true );
 		return false;
 	}
@@ -99,24 +105,72 @@ function ai4seo_add_latest_activity_entry( int $post_id, string $status, string 
 		'details'   => $details,
 	);
 
-	// read the latest activity logs.
-	$latest_activity = ai4seo_get_option( AI4SEO_LATEST_ACTIVITY_OPTION_NAME, array() );
+	$maximum_attempts = 5;
 
-	// add the new entry.
-	array_unshift( $latest_activity, $new_entry );
+	// Rebuild the bounded log from the latest authoritative row after every concurrent-write conflict.
+	for ( $attempt = 1; $attempt <= $maximum_attempts; ++$attempt ) {
+		$option_snapshot = ai4seo_get_raw_option_snapshot( AI4SEO_LATEST_ACTIVITY_OPTION_NAME );
 
-	// remove the oldest entry if necessary.
-	if ( count( $latest_activity ) >= AI4SEO_MAX_LATEST_ACTIVITY_LOGS ) {
-		array_pop( $latest_activity );
+		if ( null === $option_snapshot ) {
+			return false;
+		}
+
+		$latest_activity = $option_snapshot['exists'] && is_array( $option_snapshot['value'] )
+			? $option_snapshot['value']
+			: array();
+
+		array_unshift( $latest_activity, $new_entry );
+
+		// Preserve the established maximum-log behavior while applying it to the latest snapshot.
+		if ( count( $latest_activity ) >= AI4SEO_MAX_LATEST_ACTIVITY_LOGS ) {
+			array_pop( $latest_activity );
+		}
+
+		$compare_and_swap_result = ai4seo_compare_and_swap_option_snapshot(
+			AI4SEO_LATEST_ACTIVITY_OPTION_NAME,
+			$option_snapshot,
+			$latest_activity,
+			false
+		);
+
+		if ( null === $compare_and_swap_result ) {
+			return false;
+		}
+
+		if ( $compare_and_swap_result ) {
+			return true;
+		}
 	}
 
-	// save the new latest activity logs.
-	ai4seo_update_option( AI4SEO_LATEST_ACTIVITY_OPTION_NAME, $latest_activity );
-
-	return true;
+	return false;
 }
 
-// =========================================================================================== \\
+
+/**
+ * Filter latest activity entries to objects visible to the current plugin user.
+ *
+ * Site administrators retain the site-wide operational view. Content users only receive entries
+ * for objects they may edit through WordPress's object-level capability mapping.
+ *
+ * @param array $latest_activity Latest activity entries.
+ * @return array Visible latest activity entries in their original order.
+ */
+function ai4seo_filter_latest_activity_entries_for_current_user( array $latest_activity ): array {
+	if ( ai4seo_can_administer_plugin() ) {
+		return $latest_activity;
+	}
+
+	return array_values(
+		array_filter(
+			$latest_activity,
+			static function ( $latest_activity_entry ): bool {
+				return is_array( $latest_activity_entry )
+					&& ai4seo_can_edit_post( absint( $latest_activity_entry['post_id'] ?? 0 ) );
+			}
+		)
+	);
+}
+
 
 /**
  * Returns latest activity entries keyed by post ID.
@@ -182,7 +236,6 @@ function ai4seo_get_latest_activity_entries_by_post_id( array $actions = array()
 	return $latest_activity_entries_by_post_id;
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the subtext shown for entries that are present in the latest activity list.

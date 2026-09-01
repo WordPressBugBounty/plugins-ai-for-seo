@@ -1,4 +1,10 @@
 <?php
+/**
+ * Provides shared sanitization, normalization, and utility helpers.
+ *
+ * @package AI_For_SEO
+ */
+
 // Keep extracted core modules inaccessible when WordPress has not loaded the plugin environment.
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -34,6 +40,7 @@ function ai4seo_ensure_wp_locale_number_format(): void {
 
 	// Trigger WPML/Core lazy locale initialization before applying this plugin's fallback defaults.
 	if ( is_callable( array( $wp_locale, 'get_list_item_separator' ) ) ) {
+        /** @noinspection PhpExpressionResultUnusedInspection */
 		$wp_locale->get_list_item_separator();
 	}
 
@@ -66,11 +73,144 @@ function ai4seo_format_number_i18n( $number, int $decimals = 0 ): string {
 	return (string) number_format_i18n( $number, $decimals );
 }
 
+
+/**
+ * Return whether a coverage value represents exactly one hundred percent.
+ *
+ * @param mixed $coverage_percentage Coverage value from calculations or persisted state.
+ * @return bool Whether the value is a numeric representation of 100.
+ */
+function ai4seo_is_full_coverage_percentage( $coverage_percentage ): bool {
+	// Accept calculated numbers and persisted numeric strings without general scalar coercion.
+	return is_numeric( $coverage_percentage ) && 100.0 === (float) $coverage_percentage;
+}
+
+
+/**
+ * Compare persisted values after explicitly selecting their legacy comparison domain.
+ *
+ * WordPress options can retain numeric strings, integers, and boolean-compatible values from
+ * older form and API writes. This helper preserves those established equivalences while letting
+ * storage callers use a strict final comparison and retain array key-order independence.
+ *
+ * @param mixed $first_value First persisted value.
+ * @param mixed $second_value Second persisted value.
+ * @return bool True when both values represent the same persisted state.
+ */
+function ai4seo_are_persisted_state_values_equivalent( $first_value, $second_value ): bool {
+	// Unchanged values are overwhelmingly common and need no recursive normalization.
+	if ( $first_value === $second_value ) {
+		return true;
+	}
+
+	// PHP's boolean comparison domain converts both operands whenever either value is boolean.
+	if ( is_bool( $first_value ) || is_bool( $second_value ) ) {
+		return (bool) $first_value === (bool) $second_value;
+	}
+
+	// Preserve the narrower null domain instead of treating every falsy string as an empty value.
+	if ( null === $first_value || null === $second_value ) {
+		$non_null_value = null === $first_value ? $second_value : $first_value;
+
+		if ( null === $non_null_value ) {
+			return true;
+		}
+
+		if ( is_array( $non_null_value ) ) {
+			return array() === $non_null_value;
+		}
+
+		if ( is_string( $non_null_value ) ) {
+			return '' === $non_null_value;
+		}
+
+		if ( is_int( $non_null_value ) || is_float( $non_null_value ) ) {
+			return 0.0 === (float) $non_null_value;
+		}
+
+		return false;
+	}
+
+	// Array persistence ignores insertion order but compares each matching key recursively.
+	if ( is_array( $first_value ) || is_array( $second_value ) ) {
+		if ( ! is_array( $first_value ) || ! is_array( $second_value ) || count( $first_value ) !== count( $second_value ) ) {
+			return false;
+		}
+
+		foreach ( $first_value as $this_key => $this_value ) {
+			if ( ! array_key_exists( $this_key, $second_value )
+				|| ! ai4seo_are_persisted_state_values_equivalent( $this_value, $second_value[ $this_key ] ) ) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	// Compare integer representations without a float conversion that could collapse large IDs.
+	$first_integer  = ai4seo_normalize_persisted_integer_for_comparison( $first_value );
+	$second_integer = ai4seo_normalize_persisted_integer_for_comparison( $second_value );
+
+	if ( null !== $first_integer && null !== $second_integer ) {
+		return $first_integer === $second_integer;
+	}
+
+	// Decimal or exponent representations share a numeric domain; other scalars compare as strings.
+	if ( is_numeric( $first_value ) && is_numeric( $second_value ) ) {
+		return (float) $first_value === (float) $second_value;
+	}
+
+	if ( is_scalar( $first_value ) && is_scalar( $second_value ) ) {
+		return (string) $first_value === (string) $second_value;
+	}
+
+	// Persisted objects and resources are unsupported state and only match by identity.
+	return $first_value === $second_value;
+}
+
+
+/**
+ * Normalize an integer or integer string for an exact storage comparison.
+ *
+ * @param mixed $value Candidate integer representation.
+ * @return string|null Canonical signed integer, or null for another value domain.
+ */
+function ai4seo_normalize_persisted_integer_for_comparison( $value ): ?string {
+	// Preserve native integers without passing large IDs through a lossy float domain.
+	if ( is_int( $value ) ) {
+		return (string) $value;
+	}
+
+	// Only legacy string representations participate in integer normalization.
+	if ( ! is_string( $value ) ) {
+		return null;
+	}
+
+	$value = trim( $value );
+
+	// Reject decimal and exponent syntax before canonicalizing the sign and zero padding.
+	if ( ! preg_match( '/^[+-]?[0-9]+$/', $value ) ) {
+		return null;
+	}
+
+	$is_negative = '-' === $value[0];
+	$digits      = ltrim( $value, '+-' );
+	$digits      = ltrim( $digits, '0' );
+
+	if ( '' === $digits ) {
+		return '0';
+	}
+
+	return $is_negative ? '-' . $digits : $digits;
+}
+
+
 /**
  * Function to return the robhub api communicator
  *
  * @param bool $init_only The init only value.
  * @return Ai4Seo_RobHubApiCommunicator|null The robhub api communicator
+ * @throws RuntimeException When the communicator file or class is unavailable.
  */
 function ai4seo_robhub_api( $init_only = false ): ?Ai4Seo_RobHubApiCommunicator {
 	global $ai4seo_robhub_api;
@@ -82,7 +222,7 @@ function ai4seo_robhub_api( $init_only = false ): ?Ai4Seo_RobHubApiCommunicator 
 
 	// init the robhub api communicator if not already done.
 	if ( ! $ai4seo_robhub_api instanceof Ai4Seo_RobHubApiCommunicator ) {
-		$ai4seo_robhub_api_path = ai4seo_get_includes_api_path( 'class-robhub-api-communicator.php' );
+		$ai4seo_robhub_api_path = ai4seo_get_includes_api_path( 'class-ai4seo-robhubapicommunicator.php' );
 
 		if ( ! file_exists( $ai4seo_robhub_api_path ) ) {
 			if ( $init_only ) {
@@ -116,7 +256,6 @@ function ai4seo_robhub_api( $init_only = false ): ?Ai4Seo_RobHubApiCommunicator 
 	return $ai4seo_robhub_api;
 }
 
-// =========================================================================================== \\
 
 /**
  * Return a fully sanitized array, using custom sanitize functions for both keys and values.
@@ -163,7 +302,6 @@ function ai4seo_deep_sanitize( $data, string $sanitize_value_function_name = 'sa
 	}
 }
 
-// =========================================================================================== \\
 
 /**
  * Runs a callback while ignore_user_abort() is forced to true (unless WP-Cron already handles it).
@@ -192,14 +330,13 @@ function ai4seo_run_with_ignore_user_abort( callable $callback, array $callback_
 	}
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to prevent recursive loops
  *
- * @param string $function_name The name of the function to check
- * @param int    $max_depth The maximum depth of recursion allowed (default 1, min 1)
- * @param int    $max_calls The maximum number of calls allowed globally (default 99999, min 1)
+ * @param string $function_name The name of the function to check.
+ * @param int    $max_depth The maximum depth of recursion allowed (default 1, min 1).
+ * @param int    $max_calls The maximum number of calls allowed globally (default 99999, min 1).
  * @return bool True if the loop should be prevented, false otherwise
  */
 function ai4seo_prevent_loops( string $function_name, int $max_depth = 1, int $max_calls = 22222 ): bool {
@@ -232,6 +369,7 @@ function ai4seo_prevent_loops( string $function_name, int $max_depth = 1, int $m
 	}
 
 	// Check recursion depth.
+	// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_debug_backtrace -- The runtime recursion guard requires the active call stack.
 	$backtrace = debug_backtrace( DEBUG_BACKTRACE_IGNORE_ARGS );
 	$depth     = 0;
 
@@ -254,7 +392,6 @@ function ai4seo_prevent_loops( string $function_name, int $max_depth = 1, int $m
 	return false;
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to simulate a singleton (only one call per function per id)
@@ -266,7 +403,6 @@ function ai4seo_singleton( $id ): bool {
 	return ! ai4seo_prevent_loops( $id, 1, 1 );
 }
 
-// =========================================================================================== \\
 
 /**
  * Check whether plugin translations can be loaded without triggering WordPress early-load notices.
@@ -277,7 +413,6 @@ function ai4seo_are_translations_ready(): bool {
 	return function_exists( 'did_action' ) && did_action( 'init' ) > 0;
 }
 
-// =========================================================================================== \\
 
 /**
  * Given any text phrase that may not be suitable as a button or page label, this function will return a nice label
@@ -305,8 +440,8 @@ function ai4seo_get_nice_label( string $text, $separator = ' ' ): string {
 	return $text;
 }
 
-// =========================================================================================== \\
 
+// phpcs:disable Universal.NamingConventions.NoReservedKeywordParameterNames.stringFound -- Retain the PHP 8 named-argument contract.
 /**
  * Return weather the given string is a valid json
  *
@@ -314,6 +449,7 @@ function ai4seo_get_nice_label( string $text, $separator = ' ' ): string {
  * @return bool
  */
 function ai4seo_is_json( $string ): bool {
+	// phpcs:enable Universal.NamingConventions.NoReservedKeywordParameterNames.stringFound
 	if ( ! is_string( $string ) ) {
 		return false;
 	}
@@ -328,7 +464,6 @@ function ai4seo_is_json( $string ): bool {
 	return ( json_last_error() === JSON_ERROR_NONE );
 }
 
-// =========================================================================================== \\
 
 /**
  * Removes double sentences from the given string
@@ -347,7 +482,7 @@ function ai4seo_remove_double_sentences( $input_string ): string {
 	foreach ( $sentences as $sentence ) {
 		$trimmed_sentence = trim( $sentence );
 
-		if ( ! in_array( $trimmed_sentence, $unique_sentences ) ) {
+		if ( ! in_array( $trimmed_sentence, $unique_sentences, true ) ) {
 			$unique_sentences[] = $trimmed_sentence;
 		}
 	}
@@ -356,7 +491,6 @@ function ai4seo_remove_double_sentences( $input_string ): string {
 	return implode( ' ', $unique_sentences );
 }
 
-// =========================================================================================== \\
 
 /**
  * Truncate a string after a specified soft cap length, considering the first end of sentence
@@ -412,7 +546,6 @@ function ai4seo_truncate_sentence( string $input, int $soft_cap, int $hard_cap =
 	return $truncated_sentence;
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the public plugin name used in plugin UI copy.
@@ -423,7 +556,6 @@ function ai4seo_get_plugin_name(): string {
 	return AI4SEO_PLUGIN_NAME;
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the plugin basename
@@ -434,14 +566,13 @@ function ai4seo_get_plugin_basename(): string {
 	return sanitize_text_field( plugin_basename( AI4SEO_PLUGIN_FILE ) );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns a url leading to a point within the plugin
  *
- * @param string $sub_page The page to navigate to
- * @param array  $additional_parameter Additional parameters to add to the url
- * @param bool   $return_full_path Whether to add the full path (http://example.com/wp-admin/admin.php?page=ai-for-seo)
+ * @param string $sub_page The page to navigate to.
+ * @param array  $additional_parameter Additional parameters to add to the url.
+ * @param bool   $return_full_path Whether to add the full path (http://example.com/wp-admin/admin.php?page=ai-for-seo).
  * @return string The plugins admin sub page url
  */
 function ai4seo_get_subpage_url( string $sub_page = '', array $additional_parameter = array(), bool $return_full_path = true ): string {
@@ -489,8 +620,15 @@ function ai4seo_get_subpage_url( string $sub_page = '', array $additional_parame
 	return $page_url;
 }
 
-// =========================================================================================== \\
 
+/**
+ * Add a sanitized query argument while preserving pagination placeholders.
+ *
+ * @param string|int $key Query argument key.
+ * @param mixed      $value Query argument value.
+ * @param string     $url Base URL.
+ * @return string URL with the sanitized query argument.
+ */
 function ai4seo_add_query_arg( $key, $value, $url ): string {
 	$key   = sanitize_key( $key );
 	$value = sanitize_text_field( $value );
@@ -508,19 +646,19 @@ function ai4seo_add_query_arg( $key, $value, $url ): string {
 	return $url;
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the url to a specific post type within the AI4SEO_POST_TYPES_PLUGIN_PAGE_NAME array
  *
- * @param string $post_type The post type to navigate to
- * @param int    $current_page The current page to navigate to
- * @param array  $additional_parameter Additional parameters to add to the url
- * @param bool   $return_full_path Whether to add the full path (http://example.com/wp-admin/admin.php?page=ai-for-seo&ai4seo_subpage=post&ai4seo_post_type=post)
+ * @param string $post_type The post type to navigate to.
+ * @param int    $current_page The current page to navigate to.
+ * @param array  $additional_parameter Additional parameters to add to the url.
+ * @param bool   $return_full_path Whether to add the full path (http://example.com/wp-admin/admin.php?page=ai-for-seo&ai4seo_subpage=post&ai4seo_post_type=post).
  * @return string The url to the post type
  */
 function ai4seo_get_post_type_page_url( string $post_type, int $current_page = 1, array $additional_parameter = array(), bool $return_full_path = true ): string {
-	$additional_parameter['ai4seo_page'] = $current_page ?: '%#%'; // %#% = pagination workaround
+	// Preserve the pagination placeholder when callers do not provide a concrete page.
+	$additional_parameter['ai4seo_page'] = $current_page ? $current_page : '%#%';
 
 	return ai4seo_get_subpage_url(
 		AI4SEO_POST_TYPES_PLUGIN_PAGE_NAME,
@@ -529,8 +667,13 @@ function ai4seo_get_post_type_page_url( string $post_type, int $current_page = 1
 	);
 }
 
-// =========================================================================================== \\
 
+/**
+ * Normalize malformed ampersand entities in pagination links.
+ *
+ * @param string $pagination_links Pagination link markup.
+ * @return string|null Normalized pagination link markup, or null if replacement fails.
+ */
 function ai4seo_normalize_pagination_links( $pagination_links ) {
 	// Normalize broken ampersand entities in query strings.
 	// This:
@@ -546,7 +689,6 @@ function ai4seo_normalize_pagination_links( $pagination_links ) {
 	return $pagination_links;
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns whether the user is inside our plugin's admin pages
@@ -555,15 +697,15 @@ function ai4seo_normalize_pagination_links( $pagination_links ) {
  */
 function ai4seo_is_user_inside_our_plugin_admin_pages(): bool {
 	// check if the "page" parameter is set and if it is our plugin.
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only admin navigation parameter; no state is changed.
 	return is_admin() && isset( $_GET['page'] ) && sanitize_key( $_GET['page'] ) === AI4SEO_PLUGIN_IDENTIFIER;
 }
 
-// =========================================================================================== \\
 
 /**
  * Checks if the active page is the given page
  *
- * @param string $plugin_page The page to check
+ * @param string $plugin_page The page to check.
  * @return bool Whether the active page is the given page
  */
 function ai4seo_is_plugin_page_active( string $plugin_page = '' ): bool {
@@ -592,7 +734,6 @@ function ai4seo_is_plugin_page_active( string $plugin_page = '' ): bool {
 	return $active_plugin_page === $plugin_page;
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns whether the current AJAX action may run dashboard background tasks.
@@ -606,7 +747,9 @@ function ai4seo_is_dashboard_background_task_ajax_request(): bool {
 
 	$ajax_action = '';
 
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Routing metadata only; this helper returns true only after the global AJAX nonce gate succeeds.
 	if ( isset( $_REQUEST['action'] ) && is_scalar( $_REQUEST['action'] ) ) {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Routing metadata only; this helper returns true only after the global AJAX nonce gate succeeds.
 		$ajax_action = sanitize_key( wp_unslash( (string) $_REQUEST['action'] ) );
 	}
 
@@ -618,7 +761,6 @@ function ai4seo_is_dashboard_background_task_ajax_request(): bool {
 	return ! empty( $GLOBALS['ai4seo_ajax_nonce'] );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns whether the current AJAX action is the dashboard auto-refresh request.
@@ -632,7 +774,9 @@ function ai4seo_is_dashboard_refresh_ajax_request(): bool {
 
 	$ajax_action = '';
 
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Routing metadata only; this helper returns true only after the global AJAX nonce gate succeeds.
 	if ( isset( $_REQUEST['action'] ) && is_scalar( $_REQUEST['action'] ) ) {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Routing metadata only; this helper returns true only after the global AJAX nonce gate succeeds.
 		$ajax_action = sanitize_key( wp_unslash( (string) $_REQUEST['action'] ) );
 	}
 
@@ -644,7 +788,6 @@ function ai4seo_is_dashboard_refresh_ajax_request(): bool {
 	return ! empty( $GLOBALS['ai4seo_ajax_nonce'] );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns whether dashboard/cron-only background tasks may run in the current request.
@@ -656,7 +799,7 @@ function ai4seo_can_run_dashboard_or_cron_tasks(): bool {
 		return true;
 	}
 
-	if ( ! ai4seo_can_manage_this_plugin() ) {
+	if ( ! ai4seo_can_administer_plugin() ) {
 		return false;
 	}
 
@@ -671,7 +814,6 @@ function ai4seo_can_run_dashboard_or_cron_tasks(): bool {
 	return true;
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns whether the current request may start a posts table analysis.
@@ -691,7 +833,7 @@ function ai4seo_can_start_posts_table_analysis( bool $allow_trusted_admin_mutati
 	}
 
 	// Reuse the plugin's existing management capability check before trusting an admin mutation.
-	if ( ! ai4seo_can_manage_this_plugin() ) {
+	if ( ! ai4seo_can_administer_plugin() ) {
 		return false;
 	}
 
@@ -708,12 +850,11 @@ function ai4seo_can_start_posts_table_analysis( bool $allow_trusted_admin_mutati
 	return true;
 }
 
-// =========================================================================================== \\
 
 /**
  * Checks, if the current post type is the given post type
  *
- * @param string $post_type The post type to check
+ * @param string $post_type The post type to check.
  * @return bool Whether the current post type is the given post type
  */
 function ai4seo_is_post_type_open( string $post_type ): bool {
@@ -721,7 +862,6 @@ function ai4seo_is_post_type_open( string $post_type ): bool {
 	return $current_post_type === $post_type;
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the active page (admin url page)
@@ -739,6 +879,7 @@ function ai4seo_get_active_subpage(): string {
 	}
 
 	// workaround: amp; is added to the url when the user is redirected from stripe.
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only admin navigation parameter; no state is changed.
 	$potential_subpage = sanitize_key( $_GET['ai4seo_subpage'] ?? $_GET['amp;ai4seo_subpage'] ?? $_GET['ai4seo-tab'] ?? $_GET['amp;ai4seo-tab'] ?? '' );
 
 	if ( ! $potential_subpage ) {
@@ -748,7 +889,6 @@ function ai4seo_get_active_subpage(): string {
 	return $potential_subpage;
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the active post type page
@@ -769,10 +909,10 @@ function ai4seo_get_active_post_type_subpage(): string {
 		return '';
 	}
 
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only admin navigation parameter; no state is changed.
 	return sanitize_key( $_GET['ai4seo_post_type'] ?? ai4seo_get_default_post_type() );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the default page (dashboard)
@@ -783,7 +923,6 @@ function ai4seo_get_default_subpage(): string {
 	return 'dashboard';
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the default post type
@@ -794,156 +933,143 @@ function ai4seo_get_default_post_type(): string {
 	return 'page';
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the plugin directory path
  *
- * @param string $sub_path The sub path to append to the plugin directory path (optional)
+ * @param string $sub_path The sub path to append to the plugin directory path (optional).
  * @return string The plugin directory path
  */
 function ai4seo_get_plugin_dir_path( string $sub_path = '' ): string {
 	return plugin_dir_path( AI4SEO_PLUGIN_FILE ) . $sub_path;
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the plugins base urls
  *
- * @param string $sub_path The sub path to append to the plugins base url (optional)
+ * @param string $sub_path The sub path to append to the plugins base url (optional).
  * @return string The url to the file
  */
 function ai4seo_get_plugins_url( string $sub_path = '' ): string {
 	return plugins_url( $sub_path, AI4SEO_PLUGIN_FILE );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the path to includes/modals
  *
- * @param string $sub_path The sub path to append to the includes/modals path (optional)
+ * @param string $sub_path The sub path to append to the includes/modals path (optional).
  * @return string The path to the file
  */
 function ai4seo_get_includes_modal_schemas_path( string $sub_path = '' ): string {
 	return ai4seo_get_plugin_dir_path( "includes/modal_schemas/{$sub_path}" );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the path to includes/pages
  *
- * @param string $sub_path The sub path to append to the includes/pages path (optional)
+ * @param string $sub_path The sub path to append to the includes/pages path (optional).
  * @return string The path to the file
  */
 function ai4seo_get_includes_pages_path( string $sub_path = '' ): string {
 	return ai4seo_get_plugin_dir_path( "includes/pages/{$sub_path}" );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the path to includes/pages/content_types
  *
- * @param string $sub_path The sub path to append to the includes/pages/content_types path (optional)
+ * @param string $sub_path The sub path to append to the includes/pages/content_types path (optional).
  * @return string The path to the file
  */
 function ai4seo_get_includes_pages_content_types_path( string $sub_path = '' ): string {
 	return ai4seo_get_plugin_dir_path( "includes/pages/content_types/{$sub_path}" );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the path to includes/ajax/display
  *
- * @param string $sub_path The sub path to append to the includes/ajax/display path (optional)
+ * @param string $sub_path The sub path to append to the includes/ajax/display path (optional).
  * @return string The path to the file
  */
 function ai4seo_get_includes_ajax_display_path( string $sub_path = '' ): string {
 	return ai4seo_get_plugin_dir_path( "includes/ajax/display/{$sub_path}" );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the path to includes/ajax/process
  *
- * @param string $sub_path The sub path to append to the includes/ajax/process path (optional)
+ * @param string $sub_path The sub path to append to the includes/ajax/process path (optional).
  * @return string The path to the file
  */
 function ai4seo_get_includes_ajax_process_path( string $sub_path = '' ): string {
 	return ai4seo_get_plugin_dir_path( "includes/ajax/process/{$sub_path}" );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the path to includes/elements
  *
- * @param string $sub_path The sub path to append to the includes/elements path (optional)
+ * @param string $sub_path The sub path to append to the includes/elements path (optional).
  * @return string The path to the file
  */
 function ai4seo_get_includes_elements_path( string $sub_path = '' ): string {
 	return ai4seo_get_plugin_dir_path( "includes/elements/{$sub_path}" );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the path to includes/api
  *
- * @param string $sub_path The sub path to append to the includes/api path (optional)
+ * @param string $sub_path The sub path to append to the includes/api path (optional).
  * @return string The path to the file
  */
 function ai4seo_get_includes_api_path( string $sub_path = '' ): string {
 	return ai4seo_get_plugin_dir_path( "includes/api/{$sub_path}" );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the url to assets/images
  *
- * @param string $file_name The name of the file to get the path for
+ * @param string $file_name The name of the file to get the path for.
  * @return string The url to the file
  */
 function ai4seo_get_assets_images_url( $file_name = '' ): string {
 	return ai4seo_get_plugins_url( "assets/images/{$file_name}" );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the url to assets/css
  *
- * @param string $file_name The name of the file to get the path for
+ * @param string $file_name The name of the file to get the path for.
  * @return string The url to the file
  */
 function ai4seo_get_assets_css_path( string $file_name = '' ): string {
 	return ai4seo_get_plugins_url( "assets/css/{$file_name}" );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the url to assets/js
  *
- * @param string $file_name The name of the file to get the path for
+ * @param string $file_name The name of the file to get the path for.
  * @return string The url to the file
  */
 function ai4seo_get_assets_js_path( string $file_name ): string {
 	return ai4seo_get_plugins_url( "assets/js/{$file_name}" );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the url to the SOOZ logo
  *
- * @param string $variant The variant of the logo to get the url for
+ * @param string $variant The variant of the logo to get the url for.
  * @return string The url to the file
  */
 function ai4seo_get_sooz_logo_url( string $variant = '32x32' ): string {
@@ -976,7 +1102,6 @@ function ai4seo_get_sooz_logo_url( string $variant = '32x32' ): string {
 	}
 }
 
-// =========================================================================================== \\
 
 /**
  * This function uses wp_kses with our collection of allowed html tags and attributes
@@ -990,7 +1115,6 @@ function ai4seo_wp_kses( string $content ): string {
 	return wp_kses( $content, $allowed_html_tags_and_attributes );
 }
 
-// =========================================================================================== \\
 
 /**
  * Echoes the sanitized content using ai4seo_wp_kses.
@@ -1004,7 +1128,6 @@ function ai4seo_echo_wp_kses( string $content ): void {
 	echo wp_kses( $content, $allowed_html_tags_and_attributes );
 }
 
-// =========================================================================================== \\
 
 /**
  * This function retrieves the language code of the WordPress installation as defined in the settings
@@ -1015,7 +1138,6 @@ function ai4seo_get_wordpress_language_code(): string {
 	return get_bloginfo( 'language' );
 }
 
-// =========================================================================================== \\
 
 /**
  * This function retrieves the language of the WordPress installation as defined in the settings
@@ -1027,13 +1149,12 @@ function ai4seo_get_wordpress_language(): string {
 	return ai4seo_get_language_long_version( $wordpress_language_code );
 }
 
-// =========================================================================================== \\
 
 /**
  * This functions returns the long version of a given language short version (de_DE -> german)
  *
- * @param string $language_short_version The short version of the language
- * @param string $value_on_undefined The value to return if the language is not found
+ * @param string $language_short_version The short version of the language.
+ * @param string $value_on_undefined The value to return if the language is not found.
  * @return string The long version of the language
  */
 function ai4seo_get_language_long_version( string $language_short_version, string $value_on_undefined = AI4SEO_DEFAULT_FALLBACK_LANGUAGE ): string {
@@ -1050,7 +1171,6 @@ function ai4seo_get_language_long_version( string $language_short_version, strin
 	return AI4SEO_BASE_LANGUAGE_CODE_MAPPING[ $language_base ] ?? $value_on_undefined;
 }
 
-// =========================================================================================== \\
 
 /**
  * Check if a PHP function is usable (defined and not disabled).
@@ -1069,10 +1189,12 @@ function ai4seo_is_function_usable( string $function_name ): bool {
 		return true;
 	}
 
-	return ! in_array( $function_name, explode( ',', $disabled_functions ) );
+	// Normalize php.ini's comma-separated entries before the exact function-name comparison.
+	$disabled_functions = array_map( 'trim', explode( ',', $disabled_functions ) );
+
+	return ! in_array( $function_name, $disabled_functions, true );
 }
 
-// =========================================================================================== \\
 
 /**
  * Convert seconds into HH:MM:SS format.
@@ -1106,42 +1228,18 @@ function ai4seo_format_seconds_to_hhmmss_or_days_hhmmss( int $seconds ): string 
 	return $formatted_duration;
 }
 
-// =========================================================================================== \\
 
 /**
- * Calculate the difference in seconds between the current user timestamp and a given UTC timestamp.
+ * Calculate the difference in seconds between the current Unix timestamp and a given UTC timestamp.
  *
  * @param int $utc_timestamp The UTC timestamp to compare.
  * @return int The difference in seconds. Positive if the UTC timestamp is in the future, negative if in the past.
  */
 function ai4seo_get_time_difference_in_seconds( int $utc_timestamp ): int {
-	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
-		ai4seo_debug_message( 206072924, 'Prevented loop', true );
-		return 0;
-	}
-
-	// Get the current timestamp in WordPress timezone.
-	$timezone     = get_option( 'timezone_string' );
-	$current_time = current_time( 'timestamp' ); // Current time in WordPress timezone.
-
-	// If a valid timezone is set, convert UTC timestamp to WordPress timezone.
-	if ( $timezone ) {
-		$datetime_utc = new DateTime( "@$utc_timestamp" );
-		try {
-			$datetime_utc->setTimezone( new DateTimeZone( $timezone ) ); // Convert to WordPress timezone.
-		} catch ( Exception $e ) {
-			return $utc_timestamp - $current_time; // return the difference in seconds if timezone is invalid.
-		}
-		$utc_timestamp_local = strtotime( $datetime_utc->format( 'Y-m-d H:i:s' ) ); // Convert to timestamp.
-	} else {
-		$utc_timestamp_local = $utc_timestamp; // Default to UTC if no timezone is set.
-	}
-
-	// Calculate and return the difference in seconds.
-	return $utc_timestamp_local - $current_time;
+	// Unix timestamps represent absolute instants, so direct subtraction remains timezone-invariant.
+	return $utc_timestamp - time();
 }
 
-// =========================================================================================== \\
 
 /**
  * Function returns the users formatted time, based on a unix timestamp
@@ -1229,8 +1327,9 @@ function ai4seo_format_unix_timestamp( int $unix_timestamp, string $date_format 
 				if ( $now_datetime_object->format( 'Y-m-d' ) === $this_datetime_object->format( 'Y-m-d' ) ) {
 					$final_format = sanitize_text_field( $time_format );
 				}
-			} catch ( Exception $e ) {
-				// silently ignore and fall back to normal formatting.
+			} catch ( Exception $exception ) {
+				// Invalid timezone/date combinations fall through to the full date-formatting path below.
+				unset( $exception );
 			}
 		}
 
@@ -1246,7 +1345,6 @@ function ai4seo_format_unix_timestamp( int $unix_timestamp, string $date_format 
 	return $datetime_object->format( $final_format );
 }
 
-// =========================================================================================== \\
 
 /**
  * Formats a recent execution as elapsed time and older executions as an absolute timestamp.
@@ -1323,7 +1421,6 @@ function ai4seo_get_last_execution_time_text( int $execution_timestamp ): string
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Validate a database DATETIME value against the MySQL-supported range and exact format.
@@ -1391,7 +1488,6 @@ function ai4seo_gmdate( string $format, int $unix_timestamp = 0 ): string {
 	}
 }
 
-// =========================================================================================== \\
 
 /**
  * Resolve a DateTimeZone based on plugin/WordPress settings or a given timezone string.
@@ -1449,13 +1545,12 @@ function ai4seo_get_timezone( string $timezone = 'auto' ): DateTimeZone {
 	}
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to convert datetime-local format to unix timestamp
  *
- * @param string $datetime_local The datetime-local string (YYYY-MM-DDTHH:MM)
- * @param string $timezone The timezone to use (auto, default: timezone_string)
+ * @param string $datetime_local The datetime-local string (YYYY-MM-DDTHH:MM).
+ * @param string $timezone The timezone to use (auto, default: timezone_string).
  * @return int The unix timestamp
  */
 function ai4seo_convert_datetime_local_to_timestamp( string $datetime_local, string $timezone = 'auto' ): int {
@@ -1484,7 +1579,6 @@ function ai4seo_convert_datetime_local_to_timestamp( string $datetime_local, str
 	}
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to deactivate AI for SEO
@@ -1511,7 +1605,6 @@ function ai4seo_deactivate_plugin(): bool {
 	return true;
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to return the clients ip
@@ -1519,34 +1612,64 @@ function ai4seo_deactivate_plugin(): bool {
  * @return string The clients ip
  */
 function ai4seo_get_client_ip(): string {
-	if ( isset( $_SERVER['HTTP_CLIENT_IP'] ) ) {
-		$client_ip = sanitize_text_field( wp_unslash( $_SERVER['HTTP_CLIENT_IP'] ) );
+	$remote_address = isset( $_SERVER['REMOTE_ADDR'] )
+		? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) )
+		: '';
 
-		if ( ai4seo_is_valid_ip( $client_ip ) ) {
-			return $client_ip;
+	if ( ! ai4seo_is_valid_ip( $remote_address ) ) {
+		return '';
+	}
+
+	/**
+	 * Filters the exact proxy IP addresses whose forwarding headers may be trusted.
+	 *
+	 * @param array $trusted_proxy_ips Trusted IPv4 or IPv6 addresses.
+	 */
+	$trusted_proxy_ips = apply_filters( 'ai4seo_trusted_proxy_ips', array() );
+	$trusted_proxy_ips = is_array( $trusted_proxy_ips )
+		? array_values(
+			array_unique(
+				array_filter(
+					array_map(
+						static function ( $trusted_proxy_ip ): string {
+							return is_string( $trusted_proxy_ip ) ? trim( $trusted_proxy_ip ) : '';
+						},
+						$trusted_proxy_ips
+					),
+					'ai4seo_is_valid_ip'
+				)
+			)
+		)
+		: array();
+
+	// Forwarding headers are client-controlled unless the immediate peer is explicitly trusted.
+	if ( ! in_array( $remote_address, $trusted_proxy_ips, true )
+		|| ! isset( $_SERVER['HTTP_X_FORWARDED_FOR'] )
+	) {
+		return $remote_address;
+	}
+
+	$forwarded_addresses = explode(
+		',',
+		sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_FORWARDED_FOR'] ) )
+	);
+
+	// Walk from the trusted side and stop at the first address outside the configured proxy chain.
+	for ( $address_index = count( $forwarded_addresses ) - 1; $address_index >= 0; --$address_index ) {
+		$forwarded_address = trim( $forwarded_addresses[ $address_index ] );
+
+		if ( ! ai4seo_is_valid_ip( $forwarded_address ) ) {
+			return $remote_address;
+		}
+
+		if ( ! in_array( $forwarded_address, $trusted_proxy_ips, true ) ) {
+			return $forwarded_address;
 		}
 	}
 
-	if ( isset( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) {
-		$client_ip = sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_FORWARDED_FOR'] ) );
-
-		if ( ai4seo_is_valid_ip( $client_ip ) ) {
-			return $client_ip;
-		}
-	}
-
-	if ( isset( $_SERVER['REMOTE_ADDR'] ) ) {
-		$client_ip = sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) );
-
-		if ( ai4seo_is_valid_ip( $client_ip ) ) {
-			return $client_ip;
-		}
-	}
-
-	return '';
+	return $remote_address;
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to return the clients user agent
@@ -1557,7 +1680,6 @@ function ai4seo_get_client_user_agent(): string {
 	return isset( $_SERVER['HTTP_USER_AGENT'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) ) : '';
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to return the webservers ip
@@ -1581,20 +1703,241 @@ function ai4seo_get_server_ip(): string {
 	return '';
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to check if the given string is a valid ip address
  *
- * @param string $ip The ip to check
+ * @param string $ip The ip to check.
  * @return bool Whether the given string is a valid ip address
  */
 function ai4seo_is_valid_ip( string $ip ): bool {
 	return filter_var( $ip, FILTER_VALIDATE_IP ) !== false;
 }
 
-// =========================================================================================== \\
 
+/**
+ * Validate a decoded serialized value without traversing an unbounded reference graph.
+ *
+ * @param mixed $value           Decoded value to inspect.
+ * @param int   $depth           Current traversal depth.
+ * @param int   $remaining_nodes Remaining value nodes permitted during traversal.
+ * @return bool Whether the decoded value contains only safe scalar and array values.
+ */
+function ai4seo_is_safe_unserialized_value( $value, int $depth, int &$remaining_nodes ): bool {
+	// Cyclic references and oversized structures must fail closed before exhausting the request.
+	if ( 32 < $depth || 0 >= $remaining_nodes ) {
+		return false;
+	}
+
+	--$remaining_nodes;
+
+	// Classes remain incomplete when decoding is restricted, but they are still object values.
+	if ( is_object( $value ) || is_resource( $value ) ) {
+		return false;
+	}
+
+	if ( ! is_array( $value ) ) {
+		return true;
+	}
+
+	foreach ( $value as $nested_value ) {
+		if ( ! ai4seo_is_safe_unserialized_value( $nested_value, $depth + 1, $remaining_nodes ) ) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+/**
+ * Detect serialized enum tokens without matching enum-like text inside scalar strings.
+ *
+ * PHP can invoke an autoloader for enum tokens even when unserialize() disallows classes.
+ * Serialized strings therefore need to be skipped according to their declared byte length.
+ *
+ * @param string $serialized_value Serialized value to inspect.
+ * @return bool Whether the serialized grammar contains an enum token.
+ */
+function ai4seo_serialized_value_contains_enum_token( string $serialized_value ): bool {
+	$serialized_length = strlen( $serialized_value );
+	$offset            = 0;
+
+	while ( $offset < $serialized_length ) {
+		// Value tokens begin at the root or after another serialized value or container boundary.
+		$is_token_boundary = 0 === $offset
+			|| in_array( $serialized_value[ $offset - 1 ], array( ';', '{', '}' ), true );
+
+		if ( ! $is_token_boundary ) {
+			++$offset;
+			continue;
+		}
+
+		// Skip standard scalar strings so their bytes cannot resemble executable grammar.
+		if ( 's' === $serialized_value[ $offset ]
+			&& preg_match( '/\Gs:([0-9]+):"/', $serialized_value, $string_header, 0, $offset ) ) {
+			$string_byte_count = (int) $string_header[1];
+			$string_start      = $offset + strlen( $string_header[0] );
+			$remaining_bytes   = $serialized_length - $string_start;
+
+			if ( 2 <= $remaining_bytes && $string_byte_count <= $remaining_bytes - 2 ) {
+				$string_end = $string_start + $string_byte_count;
+
+				if ( '";' !== substr( $serialized_value, $string_end, 2 ) ) {
+					++$offset;
+					continue;
+				}
+
+				$offset = $string_end + 2;
+				continue;
+			}
+		}
+
+		// Require a complete length-delimited enum token before rejecting the value.
+		if ( 'E' === $serialized_value[ $offset ]
+			&& preg_match( '/\GE:([0-9]+):"/', $serialized_value, $enum_header, 0, $offset ) ) {
+			$enum_byte_count = (int) $enum_header[1];
+			$enum_start      = $offset + strlen( $enum_header[0] );
+			$remaining_bytes = $serialized_length - $enum_start;
+
+			if ( 2 <= $remaining_bytes && $enum_byte_count <= $remaining_bytes - 2 ) {
+				$enum_end = $enum_start + $enum_byte_count;
+
+				if ( '";' === substr( $serialized_value, $enum_end, 2 ) ) {
+					return true;
+				}
+			}
+		}
+
+		++$offset;
+	}
+
+	return false;
+}
+
+/**
+ * Identify an exact legacy Serializable custom-object envelope.
+ *
+ * WordPress does not recognize the C token in is_serialized(), so it must be rejected separately.
+ *
+ * @param string $serialized_value Potential legacy serialized custom object.
+ * @return bool Whether the full value matches the legacy custom-object grammar.
+ */
+function ai4seo_is_legacy_serialized_custom_object( string $serialized_value ): bool {
+	$serialized_length = strlen( $serialized_value );
+
+	if ( 11 > $serialized_length || 'C:' !== substr( $serialized_value, 0, 2 ) ) {
+		return false;
+	}
+
+	// Read the declared class-name byte count and require its opening delimiter.
+	$offset                   = 2;
+	$class_length_digit_count = strspn( $serialized_value, '0123456789', $offset );
+
+	if ( 0 === $class_length_digit_count ) {
+		return false;
+	}
+
+	$class_byte_count = (int) substr( $serialized_value, $offset, $class_length_digit_count );
+	$offset          += $class_length_digit_count;
+
+	if ( ':"' !== substr( $serialized_value, $offset, 2 ) ) {
+		return false;
+	}
+
+	$class_start = $offset + 2;
+
+	if ( $class_byte_count > $serialized_length - $class_start ) {
+		return false;
+	}
+
+	$class_end = $class_start + $class_byte_count;
+
+	if ( '":' !== substr( $serialized_value, $class_end, 2 ) ) {
+		return false;
+	}
+
+	// Read the declared opaque-payload byte count and require its opening delimiter.
+	$offset                     = $class_end + 2;
+	$payload_length_digit_count = strspn( $serialized_value, '0123456789', $offset );
+
+	if ( 0 === $payload_length_digit_count ) {
+		return false;
+	}
+
+	$payload_byte_count = (int) substr( $serialized_value, $offset, $payload_length_digit_count );
+	$offset            += $payload_length_digit_count;
+
+	if ( ':{' !== substr( $serialized_value, $offset, 2 ) ) {
+		return false;
+	}
+
+	$payload_start = $offset + 2;
+
+	if ( $payload_byte_count > $serialized_length - $payload_start ) {
+		return false;
+	}
+
+	$payload_end = $payload_start + $payload_byte_count;
+
+	return $payload_end + 1 === $serialized_length
+		&& '}' === $serialized_value[ $payload_end ];
+}
+
+/**
+ * Safely decode one serialization layer without instantiating PHP objects.
+ *
+ * @param mixed $value Potentially serialized value.
+ * @return mixed Decoded value or the original value when it is not recognized as serialized.
+ *               False for serialized false, object-bearing data, or decoder failure.
+ */
+function ai4seo_safe_maybe_unserialize( $value ) {
+	// Values already decoded by WordPress should retain their original type and identity.
+	if ( ! is_string( $value ) ) {
+		return $value;
+	}
+
+	// Match WordPress's serialized-value handling without changing ordinary string output.
+	$serialized_value = trim( $value );
+
+	// WordPress omits legacy custom-object tokens from its serialized-value recognition.
+	if ( ai4seo_is_legacy_serialized_custom_object( $serialized_value ) ) {
+		return false;
+	}
+
+	if ( ! is_serialized( $serialized_value ) ) {
+		return $value;
+	}
+
+	// Enum tokens must be blocked before PHP has an opportunity to invoke their autoloader.
+	if ( ai4seo_serialized_value_contains_enum_token( $serialized_value ) ) {
+		return false;
+	}
+
+	try {
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize,WordPress.PHP.NoSilencedErrors.Discouraged -- Class instantiation is disabled, and malformed external data must fail closed without a warning.
+		$decoded_value = @unserialize(
+			$serialized_value,
+			array(
+				'allowed_classes' => false,
+				'max_depth'       => 32,
+			)
+		);
+	} catch ( Throwable $exception ) {
+		// Decoder exceptions follow the same false contract as object-bearing serialized data.
+		return false;
+	}
+
+	// Validate every decoded node while bounding recursive or adversarial reference structures.
+	$remaining_nodes = 10000;
+
+	if ( ! ai4seo_is_safe_unserialized_value( $decoded_value, 0, $remaining_nodes ) ) {
+		return false;
+	}
+
+	return $decoded_value;
+}
+
+// phpcs:disable Universal.NamingConventions.NoReservedKeywordParameterNames.arrayFound -- Retain the PHP 8 named-argument contract.
 /**
  * Function to get the checksum of an array
  *
@@ -1602,10 +1945,11 @@ function ai4seo_is_valid_ip( string $ip ): bool {
  * @return int The crc32 checksum of the array
  */
 function ai4seo_get_array_checksum( $array ): int {
+	// phpcs:enable Universal.NamingConventions.NoReservedKeywordParameterNames.arrayFound
+	// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize -- Preserve the established checksum bytes; the value is never unserialized here.
 	return crc32( serialize( $array ) );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns whether the user is inside the 'installed plugins' (plugins.php) admin page
@@ -1622,19 +1966,28 @@ function ai4seo_is_user_inside_installed_plugins_page(): bool {
 	return strpos( $request_uri, 'plugins.php' ) !== false;
 }
 
-// =========================================================================================== \\
 
+/**
+ * Add the plugin parameter prefix to an input identifier.
+ *
+ * @param string $input_id Input identifier.
+ * @return string Prefixed input name.
+ */
 function ai4seo_get_prefixed_input_name( $input_id ): string {
 	return AI4SEO_POST_PARAMETER_PREFIX . $input_id;
 }
 
-// =========================================================================================== \\
 
+/**
+ * Remove the plugin parameter prefix from an input identifier.
+ *
+ * @param string $input_id Input identifier.
+ * @return string Unprefixed input name.
+ */
 function ai4seo_get_unprefixed_input_name( $input_id ): string {
 	return str_replace( AI4SEO_POST_PARAMETER_PREFIX, '', $input_id );
 }
 
-// =========================================================================================== \\
 
 /**
  * Determine if a URL references a locally hosted file.
@@ -1677,7 +2030,6 @@ function ai4seo_is_local_file( string $url ): bool {
 	return ! empty( $normalized_site_host ) && $normalized_site_host === $normalized_url_host;
 }
 
-// =========================================================================================== \\
 
 /**
  * Convert a local URL into an absolute filesystem path when possible.
@@ -1715,7 +2067,6 @@ function ai4seo_get_local_path_from_url( string $url ): ?string {
 	return null;
 }
 
-// =========================================================================================== \\
 
 /**
  * Retrieve the MIME type of a locally stored file.
@@ -1731,6 +2082,7 @@ function ai4seo_get_local_mime_type( string $path ): ?string {
 	$normalized_path = wp_normalize_path( $path );
 
 	if ( ai4seo_is_function_usable( 'mime_content_type' ) ) {
+		// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- Malformed or unsupported local files are an expected probe failure handled by the fallback detector.
 		$mime_type = @mime_content_type( $normalized_path );
 
 		if ( ! empty( $mime_type ) ) {
@@ -1743,9 +2095,6 @@ function ai4seo_get_local_mime_type( string $path ): ?string {
 
 		if ( $file_info ) {
 			$mime_type = finfo_file( $file_info, $normalized_path );
-			if ( ai4seo_is_function_usable( 'finfo_close' ) ) {
-				finfo_close( $file_info );
-			}
 
 			if ( ! empty( $mime_type ) ) {
 				return ai4seo_normalize_mime_type_string( $mime_type );
@@ -1764,7 +2113,6 @@ function ai4seo_get_local_mime_type( string $path ): ?string {
 	return null;
 }
 
-// =========================================================================================== \\
 
 /**
  * Attempt to retrieve a MIME type from remote headers using WordPress HTTP helpers.
@@ -1777,15 +2125,16 @@ function ai4seo_get_remote_mime_type( string $url ): ?string {
 		return null;
 	}
 
-	$request_arguments = array(
+	// Keep both header probes inside WordPress's TLS and SSRF validation boundary.
+	$tls_verification_error = null;
+	$request_arguments      = array(
 		'timeout'     => 5,
 		'redirection' => 3,
 		'user-agent'  => 'AI4SEO/' . AI4SEO_PLUGIN_VERSION_NUMBER,
-		'sslverify'   => false,
 	);
 
-	if ( function_exists( 'wp_remote_head' ) ) {
-		$response = wp_remote_head( $url, $request_arguments );
+	if ( function_exists( 'wp_safe_remote_head' ) ) {
+		$response = wp_safe_remote_head( $url, $request_arguments );
 
 		if ( ! is_wp_error( $response ) ) {
 			$mime_type = wp_remote_retrieve_header( $response, 'content-type' );
@@ -1795,14 +2144,20 @@ function ai4seo_get_remote_mime_type( string $url ): ?string {
 			if ( ! empty( $mime_type ) ) {
 				return $mime_type;
 			}
+		} elseif ( ai4seo_is_tls_verification_wp_error( $response ) ) {
+			$tls_verification_error = ai4seo_get_remote_tls_verification_wp_error( $url, $response );
 		}
 	}
 
-	if ( function_exists( 'wp_remote_get' ) ) {
-		$request_arguments['method']  = 'GET';
-		$request_arguments['headers'] = array( 'Range' => 'bytes=0-1023' );
+	// Fall back to a small ranged GET because some remote providers do not support HEAD requests.
+	if ( function_exists( 'wp_safe_remote_get' ) ) {
+		$request_arguments['method']              = 'GET';
+		$request_arguments['headers']             = array( 'Range' => 'bytes=0-1023' );
+		$request_arguments['limit_response_size'] = 1024;
 
-		$response = wp_remote_get( $url, $request_arguments );
+		$response = wp_safe_remote_get( $url, $request_arguments );
+		// Report certificate remediation only when the final transport probe also failed TLS verification.
+		$tls_verification_error = null;
 
 		if ( ! is_wp_error( $response ) ) {
 			$mime_type = wp_remote_retrieve_header( $response, 'content-type' );
@@ -1812,13 +2167,25 @@ function ai4seo_get_remote_mime_type( string $url ): ?string {
 			if ( ! empty( $mime_type ) ) {
 				return $mime_type;
 			}
+		} elseif ( ai4seo_is_tls_verification_wp_error( $response ) ) {
+			$tls_verification_error = ai4seo_get_remote_tls_verification_wp_error( $url, $response );
 		}
+	}
+
+	if ( $tls_verification_error ) {
+		$error_data = $tls_verification_error->get_error_data();
+		$host       = is_array( $error_data ) ? ( $error_data['host'] ?? '' ) : '';
+		$host_label = '' !== $host ? $host : 'unknown';
+
+		ai4seo_debug_message(
+			592866137,
+			$tls_verification_error->get_error_message() . ' Host: ' . $host_label
+		);
 	}
 
 	return null;
 }
 
-// =========================================================================================== \\
 
 /**
  * Clean and normalize a MIME type string extracted from headers or file metadata.
@@ -1840,7 +2207,39 @@ function ai4seo_normalize_mime_type_string( ?string $mime_type ): ?string {
 	return '' !== $mime_type ? $mime_type : null;
 }
 
-// =========================================================================================== \\
+
+/**
+ * Convert an image signature detector format to its normalized MIME type.
+ *
+ * @param string $detected_image_format Format or MIME type returned by the image signature detector.
+ * @return string Normalized MIME type, or an empty string when the format is unknown.
+ */
+function ai4seo_get_mime_type_from_detected_image_format( string $detected_image_format ): string {
+	// Normalize once so both MIME values and short signature names remain case-insensitive.
+	$detected_image_format = strtolower( $detected_image_format );
+
+	// Preserve MIME values returned by getimagesizefromstring() while normalizing optional parameters.
+	if ( 0 === strpos( $detected_image_format, 'image/' ) ) {
+		return ai4seo_normalize_mime_type_string( $detected_image_format ) ?? '';
+	}
+
+	// Map the stable short names returned by the plugin's magic-byte checks.
+	$image_mime_types = array(
+		'jpg'  => 'image/jpeg',
+		'jpeg' => 'image/jpeg',
+		'png'  => 'image/png',
+		'gif'  => 'image/gif',
+		'webp' => 'image/webp',
+		'avif' => 'image/avif',
+		'heif' => 'image/heif',
+		'bmp'  => 'image/bmp',
+		'tiff' => 'image/tiff',
+		'ico'  => 'image/x-icon',
+	);
+
+	return $image_mime_types[ $detected_image_format ] ?? '';
+}
+
 
 /**
  * Get the MIME type of file from a given URL.
@@ -1873,7 +2272,6 @@ function ai4seo_get_mime_type_from_url( string $url ): ?string {
 	return ai4seo_get_remote_mime_type( $url );
 }
 
-// =========================================================================================== \\
 
 /**
  * Retrieves a formatted backtrace debug message.
@@ -1882,6 +2280,7 @@ function ai4seo_get_mime_type_from_url( string $url ): ?string {
  * @return string The formatted backtrace message.
  */
 function ai4seo_get_backtrace_debug_message( string $separator = '<br />' ): string {
+	// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_debug_backtrace -- This opt-in diagnostic helper explicitly formats the active call stack.
 	$backtrace_array     = debug_backtrace( DEBUG_BACKTRACE_IGNORE_ARGS );
 	$formatted_backtrace = array();
 
@@ -1922,7 +2321,6 @@ function ai4seo_get_backtrace_debug_message( string $separator = '<br />' ): str
 	return implode( $separator, $formatted_backtrace );
 }
 
-// =========================================================================================== \\
 
 /**
  * Checks if debug output is visible to the current request context.
@@ -1942,10 +2340,9 @@ function ai4seo_can_display_debug_output_messages(): bool {
 		return false;
 	}
 
-	return ai4seo_can_manage_this_plugin();
+	return ai4seo_can_administer_plugin();
 }
 
-// =========================================================================================== \\
 
 /**
  * Writes a debug message to the uploads log file.
@@ -1990,16 +2387,13 @@ function ai4seo_append_debug_message_to_file( string $message ): bool {
 		return false;
 	}
 
-	$result = file_put_contents( $log_file_path, $log_entry, FILE_APPEND | LOCK_EX );
+	// A partial append must follow the same false contract as a failed write.
+	// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Atomic append with LOCK_EX has no WP_Filesystem equivalent; expected write failures follow this helper's false contract.
+	$written_bytes = @file_put_contents( $log_file_path, $log_entry, FILE_APPEND | LOCK_EX );
 
-	if ( false === $result ) {
-		return false;
-	}
-
-	return true;
+	return strlen( $log_entry ) === $written_bytes;
 }
 
-// =========================================================================================== \\
 
 /**
  * Stores debug messages in the WordPress options table.
@@ -2034,7 +2428,6 @@ function ai4seo_store_debug_message_in_database( int $code, string $message, str
 	return ai4seo_update_option( AI4SEO_DEBUG_MESSAGES_OPTION_NAME, $existing_log_entries, false, false );
 }
 
-// =========================================================================================== \\
 
 /**
  * Collects debug messages for admin notice output.
@@ -2062,7 +2455,6 @@ function ai4seo_collect_debug_notice_message( string $message ): bool {
 	return true;
 }
 
-// =========================================================================================== \\
 
 /**
  * Renders collected debug notice messages once in the admin footer.
@@ -2092,7 +2484,6 @@ function ai4seo_render_debug_notice_messages(): void {
 	$ai4seo_debug_notice_messages = array();
 }
 
-// =========================================================================================== \\
 
 /**
  * Outputs a formatted debug message using the selected debug output mode.
@@ -2137,8 +2528,9 @@ function ai4seo_debug_message( int $code, string $message, bool $add_traceback =
 
 	if ( $add_traceback ) {
 		$backtrace_separator = ( in_array( $debug_output_mode, array( 'print_r', 'notice', 'database' ), true ) ) ? '<br />' : ' > ';
+		$backtrace           = ai4seo_get_backtrace_debug_message( $backtrace_separator );
 
-		if ( $backtrace = ai4seo_get_backtrace_debug_message( $backtrace_separator ) ) {
+		if ( $backtrace ) {
 			$combined_message .= ', Backtrace:' . $backtrace_separator . $backtrace;
 		}
 	}
@@ -2147,8 +2539,8 @@ function ai4seo_debug_message( int $code, string $message, bool $add_traceback =
 
 	switch ( $debug_output_mode ) {
 		case 'error_log':
-			error_log( $combined_message );
-			return true;
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- The administrator explicitly selected PHP's error-log debug destination.
+			return error_log( $combined_message );
 		case 'file':
 			return ai4seo_append_debug_message_to_file( $combined_message );
 		case 'database':
@@ -2163,7 +2555,6 @@ function ai4seo_debug_message( int $code, string $message, bool $add_traceback =
 	}
 }
 
-// =========================================================================================== \\
 
 /**
  * Convert any variable into a readable single-line string.
@@ -2183,6 +2574,7 @@ function ai4seo_stringify( $value ): string {
 			if ( is_array( $this_value ) || is_object( $this_value ) ) {
 				$entries[] = '[' . $key . '] => ' . ai4seo_stringify( $this_value );
 			} else {
+				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_var_export -- Preserve the established diagnostic representation of scalar values.
 				$entries[] = '[' . $key . '] => ' . var_export( $this_value, true );
 			}
 		}
@@ -2201,6 +2593,7 @@ function ai4seo_stringify( $value ): string {
 			if ( is_array( $this_value ) || is_object( $this_value ) ) {
 				$entries[] = '[' . $property_name . '] => ' . ai4seo_stringify( $this_value );
 			} else {
+				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_var_export -- Preserve the established diagnostic representation of scalar properties.
 				$entries[] = '[' . $property_name . '] => ' . var_export( $this_value, true );
 			}
 		}
@@ -2210,180 +2603,31 @@ function ai4seo_stringify( $value ): string {
 		return $output;
 	}
 
+	// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_var_export -- Preserve the established diagnostic representation of scalar values.
 	return var_export( $value, true );
 }
 
-// =========================================================================================== \\
-
-function ai4seo_get_base64_from_image_file( $image_url ): array {
-	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
-		ai4seo_debug_message( 697474987, 'Prevented loop', true );
-		return array(
-			'success' => false,
-			'message' => 'Infinite loop detected',
-			'code'    => 91234725,
-		);
-	}
-
-	// Keep the local/base64 path within the same media source-size envelope as the URL-based API path.
-	$max_source_size      = AI4SEO_MAX_BASE64_ATTACHMENT_SOURCE_SIZE_BYTES;
-	$same_site_local_path = ai4seo_get_same_site_local_file_path_from_url( $image_url );
-
-	// Same-site media can be measured before loading the binary into PHP memory.
-	if ( $same_site_local_path && ai4seo_is_file_larger_than( $same_site_local_path, $max_source_size ) ) {
-		return ai4seo_get_attachment_source_too_large_response( ai4seo_get_file_size( $same_site_local_path ) );
-	}
-
-	// Remote media with Content-Length can be rejected before the body request.
-	if ( ! $same_site_local_path ) {
-		$remote_content_length = ai4seo_get_remote_content_length( $image_url );
-
-		if ( $remote_content_length > $max_source_size ) {
-			return ai4seo_get_attachment_source_too_large_response( $remote_content_length );
-		}
-	}
-
-	// Use bounded WP HTTP requests and local reads for fetching media contents.
-	try {
-		foreach ( array( 'local_only', 'remote_only', 'safe_remote_only' ) as $fetch_mode ) {
-			$image_body = ai4seo_get_remote_body( $image_url, $fetch_mode, $max_source_size );
-
-			if ( is_wp_error( $image_body ) ) {
-				// Convert the internal capped-fetch marker into the same structured API-style failure used below.
-				if ( $image_body->get_error_code() === 'ai4seo_fetch_too_large' ) {
-					return ai4seo_get_attachment_source_too_large_response();
-				}
-
-				continue;
-			}
-
-			if ( ! $image_body ) {
-				continue;
-			}
-
-			// Keep a final size guard in case the active WP HTTP transport does not honor limit_response_size.
-			if ( strlen( $image_body ) > $max_source_size ) {
-				return ai4seo_get_attachment_source_too_large_response( strlen( $image_body ) );
-			}
-
-			// Verify that the content is a valid image.
-			$is_probably_image = ai4seo_is_probably_image_content( $image_body );
-
-			if ( ! empty( $is_probably_image['is_probably_image'] ) ) {
-				break;
-			}
-		}
-	} catch ( Exception $e ) {
-		return array(
-			'success' => false,
-			'message' => 'Media URL not accessible: ' . $e->getMessage(),
-			'code'    => 91324725,
-		);
-	}
-
-	if ( is_wp_error( $image_body ) ) {
-		$remote_get_response_error = $image_body->get_error_message();
-
-		return array(
-			'success' => false,
-			'message' => 'Media URL not accessible: ' . $remote_get_response_error,
-			'code'    => 101324725,
-		);
-	}
-
-	if ( ! $image_body ) {
-		return array(
-			'success' => false,
-			'message' => 'Media content not accessible',
-			'code'    => 111324725,
-		);
-	}
-
-	if ( ! isset( $is_probably_image['is_probably_image'] ) || ! $is_probably_image['is_probably_image'] ) {
-		return array(
-			'success' => false,
-			'message' => 'The fetched content is not a valid image',
-			'code'    => 581927126,
-		);
-	}
-
-	// Normalize the signature detector output so the encoder can report whether GD changed the format.
-	$detected_image_format = strtolower( (string) ( $is_probably_image['detected_format'] ?? '' ) );
-	$image_mime_types       = array(
-		'jpg'   => 'image/jpeg',
-		'jpeg'  => 'image/jpeg',
-		'png'   => 'image/png',
-		'gif'   => 'image/gif',
-		'webp'  => 'image/webp',
-		'avif'  => 'image/avif',
-		'heif'  => 'image/heif',
-		'bmp'   => 'image/bmp',
-		'tiff'  => 'image/tiff',
-		'ico'   => 'image/x-icon',
-	);
-
-	if ( strpos( $detected_image_format, 'image/' ) === 0 ) {
-		$source_mime_type = ai4seo_normalize_mime_type_string( $detected_image_format ) ?? '';
-	} else {
-		$source_mime_type = $image_mime_types[ $detected_image_format ] ?? '';
-	}
-
-	// Encode the attachment while collecting the actual post-conversion MIME for the data URI.
-	$encoded_mime_type = $source_mime_type;
-
-	try {
-		$attachment_base64 = ai4seo_smart_image_base64_encode(
-			$image_body,
-			$source_mime_type,
-			$encoded_mime_type
-		);
-	} catch ( Exception $e ) {
-		return array(
-			'success' => false,
-			'message' => 'Media content could not be base64 encoded: ' . $e->getMessage(),
-			'code'    => 131324725,
-		);
-	}
-
-	if ( ! $attachment_base64 ) {
-		return array(
-			'success' => false,
-			'message' => 'Media content could not be base64 encoded',
-			'code'    => 141324725,
-		);
-	}
-
-	return array(
-		'success'   => true,
-		'data'      => $attachment_base64,
-		'mime_type' => $encoded_mime_type,
-	);
-}
-
-// =========================================================================================== \\
 
 /**
- * Build a structured oversized media response for local/base64 attachment processing.
+ * Return only sanitized array keys for diagnostics that must not expose values.
  *
- * @param int $content_length The known source size in bytes.
- * @return array
+ * @param array $debug_array Array whose shape should be summarized.
+ * @return string Comma-separated key list or "none" when empty.
  */
-function ai4seo_get_attachment_source_too_large_response( int $content_length = 0 ): array {
-	// Mirror the RobHub oversized-fetch error so the existing failed-attachment handling can persist this state.
-	$message = 'Content too large to fetch';
+function ai4seo_get_debug_array_key_summary( array $debug_array ): string {
+	$sanitized_keys = array();
 
-	if ( $content_length > 0 ) {
-		$message .= ' (Content-Length: ' . $content_length . ' bytes)';
+	// Preserve numeric positions while normalizing named keys to their diagnostic-safe representation.
+	foreach ( array_keys( $debug_array ) as $key ) {
+		$sanitized_keys[] = is_int( $key ) ? '#' . $key : sanitize_key( (string) $key );
 	}
 
-	return array(
-		'success' => false,
-		'message' => $message,
-		'code'    => 71214326,
-	);
+	// Remove names that become empty after sanitization so the summary never emits blank entries.
+	$sanitized_keys = array_values( array_filter( $sanitized_keys ) );
+
+	return $sanitized_keys ? implode( ', ', $sanitized_keys ) : 'none';
 }
 
-// =========================================================================================== \\
 
 /**
  * Return the internal capped-fetch error used before an oversized source becomes a structured generation failure.
@@ -2395,7 +2639,68 @@ function ai4seo_get_attachment_source_too_large_wp_error(): WP_Error {
 	return new WP_Error( 'ai4seo_fetch_too_large', 'Content too large to fetch' );
 }
 
-// =========================================================================================== \\
+
+/**
+ * Determine whether an HTTP error represents failed TLS certificate verification.
+ *
+ * @param WP_Error $error The WordPress HTTP error.
+ * @return bool
+ */
+function ai4seo_is_tls_verification_wp_error( WP_Error $error ): bool {
+	$error_parts = array_merge( $error->get_error_codes(), $error->get_error_messages() );
+	$error_text  = strtolower( implode( ' ', array_map( 'strval', $error_parts ) ) );
+	$indicators  = array(
+		'curl error 51',
+		'curl error 60',
+		'certificate has expired',
+		'certificate is not yet valid',
+		'certificate revoked',
+		'certificate verify failed',
+		'certificate verification failed',
+		'did not match expected cn',
+		'does not match target host name',
+		'hostname mismatch',
+		'no alternative certificate subject name',
+		'ssl certificate problem',
+		'unable to get local issuer certificate',
+		'unable to verify the first certificate',
+		'unable to verify leaf signature',
+		'peer certificate cannot be authenticated',
+		'self signed certificate',
+		'tls certificate',
+	);
+
+	foreach ( $indicators as $indicator ) {
+		if ( false !== strpos( $error_text, $indicator ) ) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+
+/**
+ * Build an actionable error without exposing the remote path or transport details.
+ *
+ * @param string   $url          The remote URL that could not be verified.
+ * @param WP_Error $source_error The original WordPress HTTP error.
+ * @return WP_Error
+ */
+function ai4seo_get_remote_tls_verification_wp_error( string $url, WP_Error $source_error ): WP_Error {
+	$host = wp_parse_url( $url, PHP_URL_HOST );
+	$host = is_string( $host ) ? strtolower( sanitize_text_field( $host ) ) : '';
+
+	return new WP_Error(
+		'ai4seo_tls_verification_failed',
+		'Remote media TLS certificate verification failed. Fix the remote certificate chain or configure a trusted CA certificate; do not disable TLS verification.',
+		array(
+			'host'              => $host,
+			'source_error_code' => sanitize_key( (string) $source_error->get_error_code() ),
+		)
+	);
+}
+
 
 /**
  * Resolve a same-site media URL to a local filesystem path when possible.
@@ -2444,7 +2749,6 @@ function ai4seo_get_same_site_local_file_path_from_url( string $url ): string {
 	return $real_local_path;
 }
 
-// =========================================================================================== \\
 
 /**
  * Read a local file size as an integer.
@@ -2467,7 +2771,6 @@ function ai4seo_get_file_size( string $path ): int {
 	return (int) $file_size;
 }
 
-// =========================================================================================== \\
 
 /**
  * Check whether a local file is larger than a byte limit.
@@ -2483,7 +2786,6 @@ function ai4seo_is_file_larger_than( string $path, int $max_size ): bool {
 	return ( $file_size > 0 && $file_size > $max_size );
 }
 
-// =========================================================================================== \\
 
 /**
  * Read a remote Content-Length header without downloading the body.
@@ -2498,7 +2800,6 @@ function ai4seo_get_remote_content_length( string $url ): int {
 		array(
 			'timeout'     => 10,
 			'redirection' => 5,
-			'sslverify'   => false,
 		)
 	);
 
@@ -2520,7 +2821,6 @@ function ai4seo_get_remote_content_length( string $url ): int {
 	return (int) $content_length;
 }
 
-// =========================================================================================== \\
 
 /**
  * Determine whether given binary content is probably an image.
@@ -2544,17 +2844,9 @@ function ai4seo_is_probably_image_content( string $binary_content, string $conte
 		);
 	}
 
-	// Quick header hint (if you have it).
-	if ( '' !== $content_type ) {
-		$content_type_normalized = strtolower( trim( explode( ';', $content_type )[0] ) );
-
-		if ( strpos( $content_type_normalized, 'image/' ) === 0 ) {
-			// Still validate signature below. Some CDNs return image/* for error placeholders.
-		}
-	}
-
 	// 1) Verify with getimagesizefromstring (if available).
 	if ( function_exists( 'getimagesizefromstring' ) ) {
+		// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- Arbitrary response bodies are expected to fail this best-effort image probe.
 		$image_size = @getimagesizefromstring( $binary_content );
 
 		if ( $image_size ) {
@@ -2655,7 +2947,6 @@ function ai4seo_is_probably_image_content( string $binary_content, string $conte
 
 		if ( $finfo ) {
 			$mime = finfo_buffer( $finfo, $binary_content );
-			finfo_close( $finfo );
 
 			if ( is_string( $mime ) && strpos( strtolower( $mime ), 'image/' ) === 0 ) {
 				return array(
@@ -2687,17 +2978,11 @@ function ai4seo_is_probably_image_content( string $binary_content, string $conte
 }
 
 
-// =========================================================================================== \\
-
 /**
- * Fetch remote file contents with fallback strategies:
- * 1. wp_safe_remote_get (default)
- * 2. wp_safe_remote_get with 'sslverify' => false
- * 3. Local file access (if URL is local)
- * 4. download_url() fallback
+ * Fetch file contents through a verified remote request or contained local fallback.
  *
- * @param string $url The full URL of the media to fetch
- * @param string $attempt_type (Optional) Type of attempts to make ('all' by default)
+ * @param string $url The full URL of the media to fetch.
+ * @param string $attempt_type (Optional) Fetch mode: all, remote_only, local_only, or download_only.
  * @param int    $max_response_size (Optional) Maximum bytes to retrieve before returning an error.
  * @return string|WP_Error The file contents on success, or WP_Error on failure
  */
@@ -2707,7 +2992,9 @@ function ai4seo_get_remote_body( string $url, string $attempt_type = 'all', int 
 		return '';
 	}
 
-	// Attempt 1: Standard remote fetch.
+	$tls_verification_error = null;
+
+	// Use WordPress's SSRF-safe client so remote media retains normal TLS verification.
 	if ( 'remote_only' === $attempt_type || 'all' === $attempt_type ) {
 		$remote_get_arguments = array(
 			'timeout'     => 15,
@@ -2730,37 +3017,12 @@ function ai4seo_get_remote_body( string $url, string $attempt_type = 'all', int 
 			}
 
 			return $response_body;
+		} elseif ( ai4seo_is_tls_verification_wp_error( $response ) ) {
+			$tls_verification_error = ai4seo_get_remote_tls_verification_wp_error( $url, $response );
 		}
 	}
 
-	// Attempt 2: Retry with sslverify disabled (less secure).
-	if ( 'safe_remote_only' === $attempt_type || 'all' === $attempt_type ) {
-		$remote_get_arguments = array(
-			'timeout'     => 15,
-			'redirection' => 5,
-			'decompress'  => true,
-			'sslverify'   => false,
-		);
-
-		// Keep the SSL-disabled fallback bounded the same way as the standard remote fetch.
-		if ( $max_response_size > 0 ) {
-			$remote_get_arguments['limit_response_size'] = $max_response_size + 1;
-		}
-
-		$response = wp_safe_remote_get( $url, $remote_get_arguments );
-
-		if ( ! is_wp_error( $response ) ) {
-			$response_body = wp_remote_retrieve_body( $response );
-
-			if ( $max_response_size > 0 && strlen( $response_body ) > $max_response_size ) {
-				return ai4seo_get_attachment_source_too_large_wp_error();
-			}
-
-			return $response_body;
-		}
-	}
-
-	// Attempt 3: Try to resolve as a local file if URL is local.
+	// Resolve same-site URLs only through paths contained by the local media roots.
 	if ( 'local_only' === $attempt_type || 'all' === $attempt_type ) {
 		$local_path = ai4seo_get_same_site_local_file_path_from_url( $url );
 
@@ -2770,7 +3032,7 @@ function ai4seo_get_remote_body( string $url, string $attempt_type = 'all', int 
 				return ai4seo_get_attachment_source_too_large_wp_error();
 			}
 
-			$contents = ai4seo_file_get_contents( $local_path );
+			$contents = ai4seo_file_get_contents( $local_path, null, $max_response_size );
 
 			if ( false !== $contents ) {
 				// Keep the same final guard here as the remote fetches in case the file changes after filesize().
@@ -2783,7 +3045,7 @@ function ai4seo_get_remote_body( string $url, string $attempt_type = 'all', int 
 		}
 	}
 
-	// Attempt 4: Use download_url.
+	// Use a verified temporary download only when the caller did not request an in-memory response cap.
 	if ( $max_response_size <= 0 && ( 'download_only' === $attempt_type || 'all' === $attempt_type ) ) {
 		$temp_file = download_url( $url );
 
@@ -2795,15 +3057,21 @@ function ai4seo_get_remote_body( string $url, string $attempt_type = 'all', int 
 			if ( false !== $contents ) {
 				return $contents;
 			}
+		} elseif ( ai4seo_is_tls_verification_wp_error( $temp_file ) ) {
+			$tls_verification_error = ai4seo_get_remote_tls_verification_wp_error( $url, $temp_file );
 		}
+	}
+
+	if ( $tls_verification_error ) {
+		return $tls_verification_error;
 	}
 
 	// All attempts failed.
 	return new WP_Error( 'ai4seo_fetch_failed', 'Could not fetch media contents.' );
 }
 
-// =========================================================================================== \\
 
+// phpcs:disable Universal.NamingConventions.NoReservedKeywordParameterNames.stringFound -- Mirror the native mb_strlen() named-argument contract.
 /**
  * Safely measure the length of a string regardless of mbstring availability.
  *
@@ -2812,27 +3080,30 @@ function ai4seo_get_remote_body( string $url, string $attempt_type = 'all', int 
  * @return int             Length of the string.
  */
 function ai4seo_mb_strlen( string $string, string $encoding = 'UTF-8' ): int {
+	// phpcs:enable Universal.NamingConventions.NoReservedKeywordParameterNames.stringFound
 	if ( function_exists( 'mb_strlen' ) ) {
 		try {
 			return $encoding ? mb_strlen( $string, $encoding ) : mb_strlen( $string );
-		} catch ( Throwable $e ) {
-			// fall back when mbstring throws (e.g. invalid encoding).
+		} catch ( Throwable $exception ) {
+			// Invalid mbstring encodings fall through to the iconv-compatible path below.
+			unset( $exception );
 		}
 	}
 
 	if ( function_exists( 'iconv_strlen' ) ) {
 		try {
 			return $encoding ? iconv_strlen( $string, $encoding ) : iconv_strlen( $string );
-		} catch ( Throwable $e ) {
-			// continue to basic strlen fallback.
+		} catch ( Throwable $exception ) {
+			// Invalid iconv encodings fall through to the established byte-length fallback.
+			unset( $exception );
 		}
 	}
 
 	return strlen( $string );
 }
 
-// =========================================================================================== \\
 
+// phpcs:disable Universal.NamingConventions.NoReservedKeywordParameterNames.stringFound -- Mirror the native mb_substr() named-argument contract.
 /**
  * Safely extract a substring regardless of mbstring availability.
  *
@@ -2843,19 +3114,22 @@ function ai4seo_mb_strlen( string $string, string $encoding = 'UTF-8' ): int {
  * @return string               Extracted substring.
  */
 function ai4seo_mb_substr( string $string, int $start, ?int $length = null, ?string $encoding = 'UTF-8' ): string {
+	// phpcs:enable Universal.NamingConventions.NoReservedKeywordParameterNames.stringFound
 	if ( function_exists( 'mb_substr' ) ) {
 		try {
 			return $encoding ? mb_substr( $string, $start, $length, $encoding ) : mb_substr( $string, $start, $length );
-		} catch ( Throwable $e ) {
-			// fall back when mbstring throws (e.g. invalid encoding).
+		} catch ( Throwable $exception ) {
+			// Invalid mbstring encodings fall through to the iconv-compatible path below.
+			unset( $exception );
 		}
 	}
 
 	if ( function_exists( 'iconv_substr' ) ) {
 		try {
 			return $encoding ? iconv_substr( $string, $start, $length, $encoding ) : iconv_substr( $string, $start, $length );
-		} catch ( Throwable $e ) {
-			// continue to basic substr fallback.
+		} catch ( Throwable $exception ) {
+			// Invalid iconv encodings fall through to the established byte-oriented fallback.
+			unset( $exception );
 		}
 	}
 
@@ -2866,7 +3140,6 @@ function ai4seo_mb_substr( string $string, int $start, ?int $length = null, ?str
 	return substr( $string, $start, $length );
 }
 
-// =========================================================================================== \\
 
 /**
  * Safely locate substring position without requiring mbstring.
@@ -2881,26 +3154,32 @@ function ai4seo_mb_strpos( string $haystack, string $needle, int $offset = 0, ?s
 	if ( function_exists( 'mb_strpos' ) ) {
 		try {
 			return $encoding ? mb_strpos( $haystack, $needle, $offset, $encoding ) : mb_strpos( $haystack, $needle, $offset );
-		} catch ( Throwable $e ) {
-			// fall back when mbstring throws (e.g. invalid encoding).
+		} catch ( Throwable $exception ) {
+			// Invalid mbstring encodings fall through to the established byte-oriented search.
+			unset( $exception );
 		}
 	}
 
 	return strpos( $haystack, $needle, $offset );
 }
 
-// =========================================================================================== \\
 
 /**
  * Wrapper for file_get_contents() that gracefully falls back to the WP HTTP API or stream access.
  *
- * @param string   $path    Remote URL or local path.
- * @param resource $context Optional stream context (only used when native function available).
+ * @param string   $path           Remote URL or local path.
+ * @param resource $context        Optional stream context (only used when native function available).
+ * @param int      $max_read_bytes Optional local read cap; one extra byte is returned for overflow detection.
  * @return string|false     File contents on success, false on failure.
  */
-function ai4seo_file_get_contents( string $path, $context = null ) {
-	$parsed_url = wp_parse_url( $path );
-	$scheme     = $parsed_url['scheme'] ?? '';
+function ai4seo_file_get_contents( string $path, $context = null, int $max_read_bytes = 0 ) {
+	// Treat Windows drive paths as local because URL parsing otherwise interprets the drive letter as a scheme.
+	$is_windows_absolute_path = strlen( $path ) >= 3
+		&& ctype_alpha( $path[0] )
+		&& ':' === $path[1]
+		&& in_array( $path[2], array( '\\', '/' ), true );
+	$parsed_url               = wp_parse_url( $path );
+	$scheme                   = $is_windows_absolute_path ? '' : ( $parsed_url['scheme'] ?? '' );
 
 	// Remote URLs: use WP HTTP API.
 	if ( in_array( $scheme, array( 'http', 'https' ), true ) ) {
@@ -2939,35 +3218,41 @@ function ai4seo_file_get_contents( string $path, $context = null ) {
 		WP_Filesystem();
 	}
 
-	if ( $wp_filesystem ) {
+	if ( $wp_filesystem && $max_read_bytes <= 0 ) {
 		$contents = $wp_filesystem->get_contents( $local_path );
 		if ( false !== $contents ) {
 			return $contents;
 		}
 	}
 
-	// Fallback: direct file_get_contents (only if you want to keep it).
+	// Retain native local stream access only as a fallback after WP_Filesystem fails.
 	if ( ai4seo_is_function_usable( 'file_get_contents' ) ) {
 		try {
 			// Fallback for environments where WP_Filesystem is unavailable or fails.
 			// WP_Filesystem is used as the primary method above.
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_get_contents
-			$contents = $context
-				? @file_get_contents( $local_path, false, $context )
-				: @file_get_contents( $local_path );
+			if ( $max_read_bytes > 0 ) {
+				// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- A bounded native read prevents WP_Filesystem from allocating an oversized local file.
+				$contents = @file_get_contents( $local_path, false, $context, 0, $max_read_bytes + 1 );
+			} elseif ( $context ) {
+				// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- This is a local-only fallback after WP_Filesystem; expected stream failures retain the false contract.
+				$contents = @file_get_contents( $local_path, false, $context );
+			} else {
+				// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- This is a local-only fallback after WP_Filesystem; expected stream failures retain the false contract.
+				$contents = @file_get_contents( $local_path );
+			}
 
-			if ( false !== $contents ) {
+			if ( is_string( $contents ) ) {
 				return $contents;
 			}
-		} catch ( Throwable $e ) {
-			// continue.
+		} catch ( Throwable $exception ) {
+			// Stream failures retain this wrapper's false return contract after other readers have failed.
+			unset( $exception );
 		}
 	}
 
 	return false;
 }
 
-// =========================================================================================== \\
 
 /**
  * Safely call set_time_limit() when available.
@@ -2986,488 +3271,6 @@ function ai4seo_safe_set_time_limit( int $seconds ): bool {
 	} catch ( Throwable $e ) {
 		return false;
 	}
-}
-
-// =========================================================================================== \\
-
-/**
- * Lightweight alternative to get_option() using direct $wpdb access.
- *
- * This function:
- * - Reads the option directly from the options table.
- * - Returns the provided default if the option does not exist or a DB error occurs.
- * - Unserializes the stored value using maybe_unserialize().
- *
- * @param string $option_name Name of the option to retrieve.
- * @param mixed  $default     Optional. Default value to return if the option does not exist.
- *                            Default false.
- * @param bool   $use_direct_database_call Optional. Whether to bypass get_option() and query the database directly.
- *
- * @return mixed The option value if found, otherwise the default.
- */
-function ai4seo_get_option( string $option_name, $default = false, bool $use_direct_database_call = true ) {
-	global $wpdb;
-
-	if ( ai4seo_prevent_loops( __FUNCTION__, 2 ) ) {
-		ai4seo_debug_message( 663145060, 'Prevented loop', true );
-		return '';
-	}
-
-	// If the caller explicitly wants to use get_option() instead of direct DB access, delegate to it.
-	if ( ! $use_direct_database_call ) {
-		return get_option( $option_name, $default );
-	}
-
-	if ( ! isset( $wpdb ) || ! $wpdb ) {
-		return $default;
-	}
-
-	$option_name = trim( $option_name );
-
-	if ( '' === $option_name ) {
-		return $default;
-	}
-
-	try {
-		// Directly query the options table for this specific option.
-		$option_value_serialized = $wpdb->get_var(
-			$wpdb->prepare(
-				"SELECT option_value
-             FROM {$wpdb->options}
-             WHERE option_name = %s
-             LIMIT 1",
-				$option_name
-			)
-		);
-
-		if ( $wpdb->last_error ) {
-			ai4seo_debug_message( 984321672, 'Database error: ' . $wpdb->last_error, true );
-			return $default;
-		}
-	} catch ( Exception $exception ) {
-		// In case of DB error, fall back to the default.
-		return $default;
-	}
-
-	// If no row was found, return default.
-	if ( null === $option_value_serialized ) {
-		return $default;
-	}
-
-	// Unserialize if needed and return.
-	return maybe_unserialize( $option_value_serialized );
-}
-
-// =========================================================================================== \\
-
-/**
- * Refreshes WordPress' targeted option cache entries after direct option table writes.
- *
- * @param string           $option_name Option name.
- * @param mixed            $option_value Option value.
- * @param bool             $option_exists Whether the option exists after the write.
- * @param string|bool|null $autoload Autoload value for the option.
- * @return void
- */
-function ai4seo_refresh_option_cache( string $option_name, $option_value = null, bool $option_exists = true, $autoload = null ): void {
-	// Track repaired cache states for this request so repeated writes to the same option do not repeatedly touch large cache buckets.
-	static $alloptions_cache_states = array();
-	static $individual_cache_states = array();
-	static $notoptions_cache_states = array();
-
-	$option_name = trim( $option_name );
-
-	if ( '' === $option_name || ! function_exists( 'wp_cache_get' ) ) {
-		return;
-	}
-
-	// Use WordPress' current autoload values when available so our cache layout matches core behavior.
-	$autoload_values = array( 'yes', 'on', 'auto-on', 'auto' );
-	if ( function_exists( 'wp_autoload_values_to_autoload' ) ) {
-		$autoload_values = wp_autoload_values_to_autoload();
-	}
-
-	// Hash only for request-local deduplication; the actual cache value remains the serialized WordPress option value.
-	$is_autoloaded                   = ( true === $autoload || in_array( (string) $autoload, $autoload_values, true ) );
-	$cached_option_value             = maybe_serialize( $option_value );
-	$cached_option_value_hash_source = is_string( $cached_option_value ) ? $cached_option_value : serialize( $cached_option_value );
-	$cached_option_value_hash        = strlen( $cached_option_value_hash_source ) . ':' . md5( $cached_option_value_hash_source );
-
-	// Repair alloptions only when the option belongs there or when a stale entry must be removed.
-	// This avoids rewriting the full alloptions payload for frequent non-autoload status updates on large sites.
-	$desired_alloptions_cache_state = ( $option_exists && $is_autoloaded ) ? 'autoloaded:' . $cached_option_value_hash : 'not-autoloaded';
-
-	if ( ( $alloptions_cache_states[ $option_name ] ?? null ) !== $desired_alloptions_cache_state ) {
-		$alloptions = wp_cache_get( 'alloptions', 'options' );
-
-		if ( is_array( $alloptions ) ) {
-			$did_update_alloptions = false;
-
-			if ( $option_exists && $is_autoloaded ) {
-				if ( ! isset( $alloptions[ $option_name ] ) || $alloptions[ $option_name ] !== $cached_option_value ) {
-					$alloptions[ $option_name ] = $cached_option_value;
-					$did_update_alloptions      = true;
-				}
-			} elseif ( isset( $alloptions[ $option_name ] ) ) {
-				unset( $alloptions[ $option_name ] );
-				$did_update_alloptions = true;
-			}
-
-			if ( $did_update_alloptions ) {
-				wp_cache_set( 'alloptions', $alloptions, 'options' );
-			}
-		}
-
-		$alloptions_cache_states[ $option_name ] = $desired_alloptions_cache_state;
-	}
-
-	// Keep the individual option cache in the same shape WordPress core expects.
-	// Autoloaded options live in alloptions, non-autoloaded options live under their own option key.
-	if ( $option_exists && $is_autoloaded ) {
-		if ( ( $individual_cache_states[ $option_name ] ?? null ) !== 'deleted' ) {
-			wp_cache_delete( $option_name, 'options' );
-			$individual_cache_states[ $option_name ] = 'deleted';
-		}
-	} elseif ( $option_exists ) {
-		$desired_individual_cache_state = 'value:' . $cached_option_value_hash;
-
-		if ( ( $individual_cache_states[ $option_name ] ?? null ) !== $desired_individual_cache_state ) {
-			wp_cache_set( $option_name, $cached_option_value, 'options' );
-			$individual_cache_states[ $option_name ] = $desired_individual_cache_state;
-		}
-	} elseif ( ( $individual_cache_states[ $option_name ] ?? null ) !== 'deleted' ) {
-			wp_cache_delete( $option_name, 'options' );
-			$individual_cache_states[ $option_name ] = 'deleted';
-	}
-
-	// Keep notoptions aligned so a previously missing option starts resolving immediately after insert/update,
-	// and a deleted option does not trigger repeated database lookups.
-	$desired_notoptions_cache_state = $option_exists ? 'exists' : 'missing';
-
-	if ( ( $notoptions_cache_states[ $option_name ] ?? null ) === $desired_notoptions_cache_state ) {
-		return;
-	}
-
-	$notoptions            = wp_cache_get( 'notoptions', 'options' );
-	$did_update_notoptions = false;
-
-	if ( $option_exists ) {
-		if ( is_array( $notoptions ) && isset( $notoptions[ $option_name ] ) ) {
-			unset( $notoptions[ $option_name ] );
-			$did_update_notoptions = true;
-		}
-	} else {
-		if ( ! is_array( $notoptions ) ) {
-			$notoptions            = array();
-			$did_update_notoptions = true;
-		}
-
-		if ( ! isset( $notoptions[ $option_name ] ) ) {
-			$notoptions[ $option_name ] = true;
-			$did_update_notoptions      = true;
-		}
-	}
-
-	if ( $did_update_notoptions ) {
-		wp_cache_set( 'notoptions', $notoptions, 'options' );
-	}
-
-	$notoptions_cache_states[ $option_name ] = $desired_notoptions_cache_state;
-}
-
-// =========================================================================================== \\
-
-/**
- * Update or insert an option using direct $wpdb access.
- *
- * This function behaves similar to update_option(), but bypasses the core
- * update_option() internals and writes directly to the options table.
- *
- * - Inserts the option if it does not exist.
- * - Updates the option if it exists and the value has changed.
- * - Returns false if the value is unchanged or on failure.
- * - Synchronizes the options cache so get_option() sees the new value.
- *
- * @param string           $option_name   Name of the option to update.
- * @param mixed            $option_value  Value to store. Will be maybe_serialize()'d.
- * @param string|bool|null $autoload Optional. Whether to load the option when WordPress starts up.
- *                                   Accepts 'yes', 'no', true, false, or null.
- *                                   Null keeps existing autoload or defaults to 'yes' on insert.
- * @param bool             $use_direct_database_call Optional. Whether to bypass update_option() and query the database directly.
- *
- * @return bool True if the option value was changed or added, false otherwise.
- */
-function ai4seo_update_option( string $option_name, $option_value, $autoload = false, bool $use_direct_database_call = true ): bool {
-	global $wpdb;
-
-	if ( ai4seo_prevent_loops( __FUNCTION__, 2 ) ) {
-		ai4seo_debug_message( 635985897, 'Prevented loop', true );
-		return false;
-	}
-
-	// If the caller explicitly wants to use update_option() instead of direct DB access, delegate to it.
-	if ( ! $use_direct_database_call ) {
-		// Capture the previous membership before WordPress mutates status options so reconciliation can use a delta.
-		$old_value = get_option( $option_name, null );
-		$result = update_option( $option_name, $option_value, $autoload );
-
-		if ( $result ) {
-			ai4seo_maybe_bump_content_type_list_cache_version( $option_name );
-
-			// The tracker loads after this helper but is available whenever runtime option mutations occur.
-			if ( function_exists( 'ai4seo_track_generation_status_summary_option_change' ) ) {
-				ai4seo_track_generation_status_summary_option_change( $option_name, $old_value, $option_value );
-			}
-		}
-
-		return $result;
-	}
-
-	if ( ! isset( $wpdb ) || ! $wpdb ) {
-		return false;
-	}
-
-	$option_name = trim( $option_name );
-
-	if ( '' === $option_name ) {
-		return false;
-	}
-
-	// Use ai4seo_get_option() with a distinct default so we can detect non-existent options.
-	$old_value = ai4seo_get_option( $option_name, null, $use_direct_database_call );
-
-	// Normalize new vs old for comparison using serialization, matching core semantics.
-	$serialized_new = maybe_serialize( $option_value );
-	$serialized_old = ( null === $old_value ) ? null : maybe_serialize( $old_value );
-
-	// If option exists and the value is identical, do nothing (same as update_option()).
-	if ( null !== $old_value && $serialized_new === $serialized_old ) {
-		$existing_autoload = null;
-
-		// The database already contains the right value, but the object cache may still be stale.
-		// Read autoload so the cache repair writes the value to the same cache bucket WordPress would use.
-		try {
-			$existing_autoload = $wpdb->get_var(
-				$wpdb->prepare(
-					"SELECT autoload
-                     FROM {$wpdb->options}
-                     WHERE option_name = %s
-                     LIMIT 1",
-					$option_name
-				)
-			);
-		} catch ( Throwable $e ) {
-			$existing_autoload = null;
-		}
-
-		// Refresh cache even for no-op updates; this is the self-healing path for outdated persistent object-cache drop-ins.
-		ai4seo_refresh_option_cache( $option_name, $option_value, true, $existing_autoload );
-		ai4seo_maybe_reset_generation_status_summary_request_cache( $option_name );
-		return true;
-	}
-
-	// Read the current row so we can preserve or inspect autoload and existence.
-	try {
-		// ai4seo_debug_message(984321671, "Existing value: " . ai4seo_stringify($old_value) . ", New value: " . ai4seo_stringify($option_value), true);.
-		$existing_row = $wpdb->get_row(
-			$wpdb->prepare(
-				"SELECT option_id, option_value, autoload
-                 FROM {$wpdb->options}
-                 WHERE option_name = %s
-                 LIMIT 1",
-				$option_name
-			),
-			ARRAY_A
-		);
-
-		if ( $wpdb->last_error ) {
-			ai4seo_debug_message( 984321673, 'Database error: ' . $wpdb->last_error, true );
-			return false;
-		}
-	} catch ( Throwable $e ) {
-		return false;
-	}
-
-	$is_insert = ( null === $existing_row );
-
-	// Resolve autoload value.
-	if ( null === $autoload ) {
-		if ( false === $is_insert && isset( $existing_row['autoload'] ) && '' !== $existing_row['autoload'] ) {
-			$autoload = $existing_row['autoload'];
-		} else {
-			// Default autoload behavior in WordPress is 'yes' for new options.
-			$autoload = 'yes';
-		}
-	} else {
-		// Normalize autoload to 'yes' / 'no'.
-		if ( 'no' === $autoload || false === $autoload || ( is_string( $autoload ) && strtolower( $autoload ) === 'no' ) ) {
-			$autoload = 'no';
-		} else {
-			$autoload = 'yes';
-		}
-	}
-
-	// Perform insert or update via $wpdb.
-	try {
-		if ( true === $is_insert ) {
-			$result = $wpdb->insert(
-				$wpdb->options,
-				array(
-					'option_name'  => $option_name,
-					'option_value' => $serialized_new,
-					'autoload'     => $autoload,
-				),
-				array(
-					'%s',
-					'%s',
-					'%s',
-				)
-			);
-
-			if ( false === $result ) {
-				return false;
-			}
-
-			if ( $wpdb->last_error ) {
-				ai4seo_debug_message( 984321674, 'Database error: ' . $wpdb->last_error, true );
-				return false;
-			}
-		} else {
-			$result = $wpdb->update(
-				$wpdb->options,
-				array(
-					'option_value' => $serialized_new,
-					'autoload'     => $autoload,
-				),
-				array(
-					'option_name' => $option_name,
-				),
-				array(
-					'%s',
-					'%s',
-				),
-				array(
-					'%s',
-				)
-			);
-
-			// $result can be 0 if nothing changed on DB-level, but we already filtered that above.
-			if ( false === $result ) {
-				return true;
-			}
-
-			if ( $wpdb->last_error ) {
-				ai4seo_debug_message( 984321675, 'Database error: ' . $wpdb->last_error, true );
-				return false;
-			}
-		}
-
-		// Synchronize targeted option caches after the direct SQL write so get_option() sees the new value immediately.
-		ai4seo_refresh_option_cache( $option_name, $option_value, true, $autoload );
-		ai4seo_maybe_reset_generation_status_summary_request_cache( $option_name );
-		ai4seo_maybe_bump_content_type_list_cache_version( $option_name );
-
-		// Record only successful source-option mutations; no-op cache repairs returned before this point.
-		if ( function_exists( 'ai4seo_track_generation_status_summary_option_change' ) ) {
-			ai4seo_track_generation_status_summary_option_change( $option_name, $old_value, $option_value );
-		}
-	} catch ( Throwable $e ) {
-		return false;
-	}
-
-	return true;
-}
-
-// =========================================================================================== \\
-
-/**
- * Delete an option using direct $wpdb access.
- *
- * This function:
- * - Deletes the option row directly from the options table.
- * - Returns true when at least one row was removed, false otherwise.
- * - Wraps all $wpdb operations in a try/catch block.
- * - Synchronizes the options cache so get_option() and friends stay in sync.
- *
- * No hooks or actions are triggered.
- *
- * @param string $option_name Name of the option to delete.
- * @param bool   $use_direct_database_call Optional. Whether to bypass delete_option() and query the database directly.
- *
- * @return bool True if the option was deleted, false on failure or if it did not exist.
- */
-function ai4seo_delete_option( string $option_name, bool $use_direct_database_call = true ): bool {
-	global $wpdb;
-
-	if ( ai4seo_prevent_loops( __FUNCTION__, 2 ) ) {
-		ai4seo_debug_message( 980160314, 'Prevented loop', true );
-		return false;
-	}
-
-	if ( ! $use_direct_database_call ) {
-		// Capture source-option membership before deletion so the shared tracker can reconcile removed IDs.
-		$old_value = get_option( $option_name, null );
-		$result = delete_option( $option_name );
-
-		if ( $result ) {
-			ai4seo_maybe_bump_content_type_list_cache_version( $option_name );
-
-			// Deletions use the same request-level reconciliation path as ordinary option updates.
-			if ( function_exists( 'ai4seo_track_generation_status_summary_option_change' ) ) {
-				ai4seo_track_generation_status_summary_option_change( $option_name, $old_value, array() );
-			}
-		}
-
-		return $result;
-	}
-
-	if ( ! isset( $wpdb ) || ! $wpdb ) {
-		return false;
-	}
-
-	$option_name = trim( $option_name );
-
-	if ( '' === $option_name ) {
-		return false;
-	}
-
-	// Read before direct SQL deletion because this writer intentionally bypasses WordPress option hooks.
-	$old_value = ai4seo_get_option( $option_name, null, true );
-
-	try {
-		// Delete the option row directly from the options table.
-		$result = $wpdb->query(
-			$wpdb->prepare(
-				"DELETE FROM {$wpdb->options} WHERE option_name = %s",
-				$option_name
-			)
-		);
-
-		if ( $wpdb->last_error ) {
-			ai4seo_debug_message( 984321676, 'Database error: ' . $wpdb->last_error, true );
-			return false;
-		}
-	} catch ( Exception $exception ) {
-		// On DB error, indicate failure.
-		return false;
-	}
-
-	// Remove targeted cache entries even if the DB row was already gone, because stale cache can outlive direct deletes.
-	ai4seo_refresh_option_cache( $option_name, null, false, false );
-	ai4seo_maybe_reset_generation_status_summary_request_cache( $option_name );
-	ai4seo_maybe_bump_content_type_list_cache_version( $option_name );
-
-	// Track only an actual row removal; cache-only cleanup does not change authoritative membership.
-	if ( 0 < (int) $result && function_exists( 'ai4seo_track_generation_status_summary_option_change' ) ) {
-		ai4seo_track_generation_status_summary_option_change( $option_name, $old_value, array() );
-	}
-
-	// If query failed or no rows were affected, return true.
-	if ( false === $result || 0 === (int) $result ) {
-		return true;
-	}
-
-	return true;
 }
 
 

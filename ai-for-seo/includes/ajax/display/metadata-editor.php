@@ -2,6 +2,7 @@
 /**
  * Displays the metadata editor. Called via AJAX.
  *
+ * @package AI_For_SEO
  * @since 1.0
  */
 
@@ -9,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! ai4seo_can_manage_this_plugin() ) {
+if ( ! ai4seo_can_use_plugin_content() ) {
 	return;
 }
 
@@ -63,8 +64,18 @@ $ai4seo_next_post_id = ai4seo_get_next_post_id_from_ordered_post_ids( $ai4seo_po
 // Read post- or page-title and post custom fields.
 $ai4seo_this_post_title = get_the_title( $ai4seo_post_id );
 
-// read all metadata values for this post.
-$ai4seo_this_metadata_values = ai4seo_read_available_metadata_by_post_ids( array( $ai4seo_post_id ) );
+// Read all metadata values authoritatively; blank controls must never stand in for a storage failure.
+$ai4seo_metadata_read_succeeded = false;
+$ai4seo_this_metadata_values    = ai4seo_read_available_metadata_by_post_ids(
+	array( $ai4seo_post_id ),
+	true,
+	$ai4seo_metadata_read_succeeded
+);
+
+if ( ! $ai4seo_metadata_read_succeeded ) {
+	ai4seo_send_ajax_error( esc_html__( 'Metadata could not be loaded. Please refresh the page and try again.', 'ai-for-seo' ), 2208262601 );
+	return;
+}
 
 if ( is_array( $ai4seo_this_metadata_values ) ) {
 	$ai4seo_this_metadata_values = $ai4seo_this_metadata_values[ $ai4seo_post_id ] ?? array();
@@ -78,6 +89,7 @@ $ai4seo_live_yoast_metadata             = array();
 
 // Unslash the nested snapshot as one unit; recognized fields are sanitized individually below.
 if ( isset( $_REQUEST['live_yoast_metadata'] ) && is_array( $_REQUEST['live_yoast_metadata'] ) ) {
+	// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Allowlisted scalar fields are sanitized individually below before use.
 	$ai4seo_live_yoast_metadata = wp_unslash( $_REQUEST['live_yoast_metadata'] );
 }
 
@@ -91,11 +103,11 @@ foreach ( $ai4seo_yoast_sync_metadata_identifiers as $ai4seo_live_yoast_metadata
 	}
 
 	// Use the same field sanitizer as persisted editor values before allowing the snapshot into rendered form controls.
-	$ai4seo_live_yoast_metadata_value = ai4seo_sanitize_editor_field_value(
+	$ai4seo_live_yoast_metadata_value                                      = ai4seo_sanitize_editor_field_value(
 		$ai4seo_live_yoast_metadata[ $ai4seo_live_yoast_metadata_identifier ]
 	);
 	$ai4seo_this_metadata_values[ $ai4seo_live_yoast_metadata_identifier ] = ai4seo_normalize_editor_input_value( $ai4seo_live_yoast_metadata_value );
-	$ai4seo_live_yoast_metadata_identifiers[] = $ai4seo_live_yoast_metadata_identifier;
+	$ai4seo_live_yoast_metadata_identifiers[]                              = $ai4seo_live_yoast_metadata_identifier;
 }
 
 // Source hints compare the active editor values with SOOZ and third-party snapshots before rendering labels.
@@ -120,7 +132,8 @@ $ai4seo_metadata_suffixes = ai4seo_get_setting( AI4SEO_SETTING_METADATA_SUFFIXES
 // Prepare variables for active meta tags.
 $ai4seo_active_meta_tags = ai4seo_get_active_meta_tags();
 
-$ai4seo_settings_url                 = ai4seo_get_subpage_url( 'settings' );
+$ai4seo_can_administer_plugin        = ai4seo_can_administer_plugin();
+$ai4seo_settings_url                 = $ai4seo_can_administer_plugin ? ai4seo_get_subpage_url( 'settings' ) : '';
 $ai4seo_metadata_custom_instructions = ai4seo_read_custom_instructions_postmeta( $ai4seo_post_id, AI4SEO_POST_META_METADATA_CUSTOM_INSTRUCTIONS_META_KEY );
 $ai4seo_this_post                    = get_post( $ai4seo_post_id );
 $ai4seo_this_post_type_object        = $ai4seo_this_post ? get_post_type_object( $ai4seo_this_post->post_type ) : null;
@@ -145,7 +158,9 @@ if ( ! $ai4seo_active_meta_tags ) {
 	ai4seo_echo_wp_kses( ai4seo_get_modal_headline_tag( __( 'Metadata Editor', 'ai-for-seo' ) ) );
 	ai4seo_echo_wp_kses(
 		ai4seo_get_editor_no_active_fields_notice_tag(
-			__( 'No meta tags are active. Please activate at least one meta tag in the plugin settings to manage metadata.', 'ai-for-seo' ),
+			$ai4seo_can_administer_plugin
+				? __( 'No meta tags are active. Please activate at least one meta tag in the plugin settings to manage metadata.', 'ai-for-seo' )
+				: __( 'No meta tags are active. A site administrator must activate at least one meta tag before metadata can be managed.', 'ai-for-seo' ),
 			$ai4seo_settings_url
 		)
 	);
@@ -487,12 +502,19 @@ echo '<div'
 
 		// friendly reminder: $ai4seo_skipped_meta_tags.
 		if ( $ai4seo_skipped_meta_tags ) {
+			if ( $ai4seo_can_administer_plugin ) {
+				/* translators: 1: Comma-separated list of meta tags. 2: URL to plugin settings. */
+				$ai4seo_inactive_fields_notice = __( '<strong>Note:</strong> The following meta tags are currently inactive and not shown in this editor: %1$s. You can activate them in the <a href="%2$s" target="_blank">plugin settings</a>.', 'ai-for-seo' );
+			} else {
+				/* translators: %1$s: Comma-separated list of meta tags. */
+				$ai4seo_inactive_fields_notice = __( '<strong>Note:</strong> The following meta tags are currently inactive and not shown in this editor: %1$s. A site administrator can activate them in the plugin settings.', 'ai-for-seo' );
+			}
+
 			ai4seo_echo_wp_kses(
 				ai4seo_get_editor_inactive_fields_notice_tag(
 					$ai4seo_skipped_meta_tags,
 					AI4SEO_METADATA_DETAILS,
-					/* translators: 1: Comma-separated list of meta tags. 2: URL to plugin settings. */
-					__( '<strong>Note:</strong> The following meta tags are currently inactive and not shown in this editor: %1$s. You can activate them in the <a href="%2$s" target="_blank">plugin settings</a>.', 'ai-for-seo' ),
+					$ai4seo_inactive_fields_notice,
 					$ai4seo_settings_url
 				)
 			);

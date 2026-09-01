@@ -22,7 +22,7 @@ function ai4seo_register_bulk_generation_queue_bulk_actions() {
 		return;
 	}
 
-	if ( ! ai4seo_can_manage_this_plugin() ) {
+	if ( ! ai4seo_can_use_plugin_content() ) {
 		return;
 	}
 
@@ -60,7 +60,6 @@ function ai4seo_register_bulk_generation_queue_bulk_actions() {
 	}
 }
 
-// =========================================================================================== \\
 /**
  * Returns the bulk queue context for the current native WordPress list screen.
  *
@@ -83,7 +82,6 @@ function ai4seo_get_native_bulk_generation_queue_context_from_current_screen(): 
 	return AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA;
 }
 
-// =========================================================================================== \\
 
 /**
  * Adds SEO Autopilot queue actions to a native WordPress bulk actions list.
@@ -102,7 +100,6 @@ function ai4seo_add_native_bulk_generation_queue_bulk_actions( array $bulk_actio
 	return $bulk_actions;
 }
 
-// =========================================================================================== \\
 
 /**
  * Handles native WordPress metadata queue bulk actions.
@@ -121,7 +118,6 @@ function ai4seo_handle_native_metadata_bulk_generation_queue_action( $redirect_t
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Handles native WordPress attachment attribute queue bulk actions.
@@ -140,7 +136,6 @@ function ai4seo_handle_native_attachment_attributes_bulk_generation_queue_action
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Handles a native WordPress queue bulk action through the shared processor.
@@ -157,7 +152,7 @@ function ai4seo_handle_native_bulk_generation_queue_action( $redirect_to, $doact
 	$bulk_generation_queue_action = sanitize_key( $doaction );
 	$post_ids                     = array_values( array_unique( array_filter( array_map( 'absint', (array) $post_ids ) ) ) );
 
-	if ( ! ai4seo_can_manage_this_plugin() ) {
+	if ( ! ai4seo_can_use_plugin_content() ) {
 		return $redirect_to;
 	}
 
@@ -216,7 +211,6 @@ function ai4seo_handle_native_bulk_generation_queue_action( $redirect_to, $doact
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Removes old bulk queue result arguments from a redirect URL.
@@ -249,7 +243,6 @@ function ai4seo_remove_bulk_generation_queue_bulk_action_query_args( string $url
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Shows the result notice after a native WordPress queue bulk action.
@@ -257,14 +250,18 @@ function ai4seo_remove_bulk_generation_queue_bulk_action_query_args( string $url
  * @return void
  */
 function ai4seo_show_bulk_generation_queue_bulk_action_admin_notice() {
-	if ( ! ai4seo_can_manage_this_plugin() ) {
+	if ( ! ai4seo_can_use_plugin_content() ) {
 		return;
 	}
 
+	// WordPress verifies the native bulk nonce before invoking the registered handler.
+	// This callback only renders sanitized redirect results and does not mutate state.
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Capability-gated read-only result notice.
 	if ( ! isset( $_GET['ai4seo_bulk_generation_queue_action'] ) ) {
 		return;
 	}
 
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Capability-gated read-only result notice.
 	$bulk_generation_queue_action = sanitize_key( wp_unslash( $_GET['ai4seo_bulk_generation_queue_action'] ) );
 
 	if ( ! ai4seo_is_bulk_generation_queue_action( $bulk_generation_queue_action ) ) {
@@ -272,22 +269,35 @@ function ai4seo_show_bulk_generation_queue_bulk_action_admin_notice() {
 	}
 
 	$bulk_generation_queue_action_label = ai4seo_get_bulk_generation_queue_action_label( $bulk_generation_queue_action, true );
-	$selected_entries                   = absint( wp_unslash( $_GET['ai4seo_bulk_generation_queue_selected'] ?? 0 ) );
-	$changed_entries                    = absint( wp_unslash( $_GET['ai4seo_bulk_generation_queue_changed'] ?? 0 ) );
-	$not_applicable_entries             = absint( wp_unslash( $_GET['ai4seo_bulk_generation_queue_not_applicable'] ?? 0 ) );
-	$skipped_entries                    = absint( wp_unslash( $_GET['ai4seo_bulk_generation_queue_skipped'] ?? 0 ) );
-	$generated_data_deleted_entries     = absint( wp_unslash( $_GET['ai4seo_bulk_generation_queue_generated_data_deleted'] ?? 0 ) );
-	$active_metadata_deleted_entries    = absint( wp_unslash( $_GET['ai4seo_bulk_generation_queue_active_metadata_deleted'] ?? 0 ) );
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Capability-gated read-only result notice.
+	$selected_entries = absint( wp_unslash( $_GET['ai4seo_bulk_generation_queue_selected'] ?? 0 ) );
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Capability-gated read-only result notice.
+	$changed_entries = absint( wp_unslash( $_GET['ai4seo_bulk_generation_queue_changed'] ?? 0 ) );
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Capability-gated read-only result notice.
+	$not_applicable_entries = absint( wp_unslash( $_GET['ai4seo_bulk_generation_queue_not_applicable'] ?? 0 ) );
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Capability-gated read-only result notice.
+	$skipped_entries = absint( wp_unslash( $_GET['ai4seo_bulk_generation_queue_skipped'] ?? 0 ) );
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Capability-gated read-only result notice.
+	$generated_data_deleted_entries = absint( wp_unslash( $_GET['ai4seo_bulk_generation_queue_generated_data_deleted'] ?? 0 ) );
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Capability-gated read-only result notice.
+	$active_metadata_deleted_entries = absint( wp_unslash( $_GET['ai4seo_bulk_generation_queue_active_metadata_deleted'] ?? 0 ) );
 	// Modal-only native fallbacks are warning notices because no selected entry has been changed server-side.
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Capability-gated read-only result notice.
 	$is_modal_required_fallback = ! empty( $_GET['ai4seo_bulk_generation_queue_modal_required'] );
 
 	// Related-image bulk notices read source-scan and discovered-image counts from native redirect arguments.
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Capability-gated read-only result notice.
 	$related_source_entries_scanned = absint( wp_unslash( $_GET['ai4seo_bulk_generation_queue_related_source_entries_scanned'] ?? 0 ) );
-	$related_images_found           = absint( wp_unslash( $_GET['ai4seo_bulk_generation_queue_related_images_found'] ?? 0 ) );
-	$related_images_changed         = absint( wp_unslash( $_GET['ai4seo_bulk_generation_queue_related_images_changed'] ?? 0 ) );
-	$related_images_skipped         = absint( wp_unslash( $_GET['ai4seo_bulk_generation_queue_related_images_skipped'] ?? 0 ) );
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Capability-gated read-only result notice.
+	$related_images_found = absint( wp_unslash( $_GET['ai4seo_bulk_generation_queue_related_images_found'] ?? 0 ) );
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Capability-gated read-only result notice.
+	$related_images_changed = absint( wp_unslash( $_GET['ai4seo_bulk_generation_queue_related_images_changed'] ?? 0 ) );
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Capability-gated read-only result notice.
+	$related_images_skipped = absint( wp_unslash( $_GET['ai4seo_bulk_generation_queue_related_images_skipped'] ?? 0 ) );
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Capability-gated read-only result notice.
 	$related_sources_without_images = absint( wp_unslash( $_GET['ai4seo_bulk_generation_queue_related_sources_without_images'] ?? 0 ) );
-	$related_partial_scans          = absint( wp_unslash( $_GET['ai4seo_bulk_generation_queue_related_partial_scans'] ?? 0 ) );
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Capability-gated read-only result notice.
+	$related_partial_scans = absint( wp_unslash( $_GET['ai4seo_bulk_generation_queue_related_partial_scans'] ?? 0 ) );
 
 	// Notice severity follows the actually affected target rows, which are attachments for related-image actions.
 	$is_remove_generated_data_action           = ( AI4SEO_BULK_GENERATION_QUEUE_ACTION_REMOVE_GENERATED_DATA === $bulk_generation_queue_action );
@@ -437,5 +447,3 @@ function ai4seo_show_bulk_generation_queue_bulk_action_admin_notice() {
 	}
 	echo '</p></div>';
 }
-
-// =========================================================================================== \\

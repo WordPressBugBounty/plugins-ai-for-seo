@@ -11,9 +11,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! ai4seo_can_manage_this_plugin() ) {
+if ( ! ai4seo_can_use_plugin_content() ) {
 	return;
 }
+
+$ai4seo_can_administer_plugin = ai4seo_can_administer_plugin();
 
 // Keep completion state available across the page include scope and helper functions because the menu frame includes this file inside its own scope.
 $GLOBALS['ai4seo_debug_operation_completion_page'] = array();
@@ -277,6 +279,13 @@ function ai4seo_run_active_metadata_migration_v235_debug_operation(): void {
  * @return array<string, mixed> Execution result.
  */
 function ai4seo_execute_debug_operation( string $operation, array $request ): array {
+	if ( ! ai4seo_can_administer_plugin() ) {
+		return array(
+			'success' => false,
+			'message' => __( 'You are not allowed to run debug operations.', 'ai-for-seo' ),
+		);
+	}
+
 	$debug_operations = ai4seo_get_debug_operations();
 
 	// Reject unknown operation keys before any operation-specific input is read.
@@ -325,7 +334,12 @@ function ai4seo_execute_debug_operation( string $operation, array $request ): ar
 
 			$ai4seo_condensed_post_content_from_database = ai4seo_get_condensed_post_content_from_database( $ai4seo_debug_post_id, true );
 			ai4seo_add_post_context( $ai4seo_debug_post_id, $ai4seo_condensed_post_content_from_database );
-			ai4seo_debug_message( 658418123, 'FINAL WITH CONTEXT >' . ai4seo_stringify( htmlspecialchars( $ai4seo_condensed_post_content_from_database ) ) );
+			ai4seo_debug_message(
+				658418123,
+				'FINAL WITH CONTEXT >' . ai4seo_stringify(
+					htmlspecialchars( $ai4seo_condensed_post_content_from_database, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML401, 'UTF-8' )
+				)
+			);
 			break;
 
 		case 'debug_combined_post_content':
@@ -339,7 +353,12 @@ function ai4seo_execute_debug_operation( string $operation, array $request ): ar
 			}
 
 			$ai4seo_get_combined_post_content = ai4seo_get_combined_post_content( $ai4seo_debug_post_id, '', true, true );
-			ai4seo_debug_message( 402011426, ai4seo_stringify( htmlspecialchars( $ai4seo_get_combined_post_content ) ) );
+			ai4seo_debug_message(
+				402011426,
+				ai4seo_stringify(
+					htmlspecialchars( $ai4seo_get_combined_post_content, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML401, 'UTF-8' )
+				)
+			);
 			break;
 
 		case 'debug_posts_table_analysis':
@@ -423,7 +442,7 @@ function ai4seo_handle_debug_operation_request(): void {
 	}
 
 	// Fail closed before dispatching because all operations can trigger support-only debug paths.
-	if ( ! ai4seo_can_manage_this_plugin() ) {
+	if ( ! ai4seo_can_administer_plugin() ) {
 		wp_die( esc_html__( 'You are not allowed to run debug operations.', 'ai-for-seo' ), esc_html__( 'Debug operation rejected', 'ai-for-seo' ), array( 'response' => 403 ) );
 	}
 
@@ -479,7 +498,9 @@ function ai4seo_handle_debug_operation_request(): void {
 }
 
 // Handle submitted debug operations before the Help page content markup is rendered.
-ai4seo_handle_debug_operation_request();
+if ( $ai4seo_can_administer_plugin ) {
+	ai4seo_handle_debug_operation_request();
+}
 
 // Copy handler-written completion state back into this include scope so the renderer below can show the local completion view.
 $ai4seo_debug_operation_completion_page = isset( $GLOBALS['ai4seo_debug_operation_completion_page'] ) && is_array( $GLOBALS['ai4seo_debug_operation_completion_page'] )
@@ -553,6 +574,10 @@ $ai4seo_help_sections = array(
 	),
 );
 
+if ( ! $ai4seo_can_administer_plugin ) {
+	unset( $ai4seo_help_sections['troubleshooting'] );
+}
+
 // Accept only known Help section keys from the request; hashes are not sent to PHP during a refresh.
 $ai4seo_requested_help_section = 'getting-started';
 
@@ -562,18 +587,18 @@ if ( isset( $_GET['ai4seo_help_section'] ) && ! is_array( $_GET['ai4seo_help_sec
 $ai4seo_active_help_section = isset( $ai4seo_help_sections[ $ai4seo_requested_help_section ] ) ? $ai4seo_requested_help_section : 'getting-started';
 
 // Precompute link and class state once so navigation tiles and content containers cannot drift apart.
-foreach ( $ai4seo_help_sections as $this_ai4seo_help_section_key => $this_ai4seo_help_section ) {
+foreach ( $ai4seo_help_sections as $ai4seo_this_help_section_key => $ai4seo_this_help_section ) {
 	// Build the same canonical URL used by JavaScript so the selected tile survives a browser refresh.
-	$ai4seo_help_section_url = ai4seo_get_subpage_url( 'help', array( 'ai4seo_help_section' => $this_ai4seo_help_section_key ) ) . '#' . $this_ai4seo_help_section['anchor_id'];
+	$ai4seo_help_section_url = ai4seo_get_subpage_url( 'help', array( 'ai4seo_help_section' => $ai4seo_this_help_section_key ) ) . '#' . $ai4seo_this_help_section['anchor_id'];
 
 	// Store active-state derivatives with the section data so navigation and content markup use one source.
-	$is_this_ai4seo_help_section_active = ( $ai4seo_active_help_section === $this_ai4seo_help_section_key );
+	$ai4seo_is_this_help_section_active = ( $ai4seo_active_help_section === $ai4seo_this_help_section_key );
 
 	// Attach render-ready state to each section while keeping the original section identifiers intact.
-	$ai4seo_help_sections[ $this_ai4seo_help_section_key ]['url']              = $ai4seo_help_section_url;
-	$ai4seo_help_sections[ $this_ai4seo_help_section_key ]['is_active']        = $is_this_ai4seo_help_section_active;
-	$ai4seo_help_sections[ $this_ai4seo_help_section_key ]['navigation_class'] = 'ai4seo-help-preview-selection ai4seo-help-navigation-link' . ( $is_this_ai4seo_help_section_active ? ' ai4seo-active-help-preview-selection' : '' );
-	$ai4seo_help_sections[ $this_ai4seo_help_section_key ]['content_class']    = $is_this_ai4seo_help_section_active ? 'ai4seo-help-content' : 'ai4seo-display-none ai4seo-help-content';
+	$ai4seo_help_sections[ $ai4seo_this_help_section_key ]['url']              = $ai4seo_help_section_url;
+	$ai4seo_help_sections[ $ai4seo_this_help_section_key ]['is_active']        = $ai4seo_is_this_help_section_active;
+	$ai4seo_help_sections[ $ai4seo_this_help_section_key ]['navigation_class'] = 'ai4seo-help-preview-selection ai4seo-help-navigation-link' . ( $ai4seo_is_this_help_section_active ? ' ai4seo-active-help-preview-selection' : '' );
+	$ai4seo_help_sections[ $ai4seo_this_help_section_key ]['content_class']    = $ai4seo_is_this_help_section_active ? 'ai4seo-help-content' : 'ai4seo-display-none ai4seo-help-content';
 }
 
 
@@ -718,11 +743,13 @@ echo "<div class='ai4seo-help-selection-container'>";
 		echo "<span class='ai4seo-help-language-note'>" . esc_html__( '(All Languages)', 'ai-for-seo' ) . '</span><br>';
 	echo '</div></a>';
 
-	// Troubleshooting keeps advanced tools directly refreshable without flashing the default section first.
-	echo "<a href='" . esc_url( $ai4seo_help_sections['troubleshooting']['url'] ) . "'" . ( $ai4seo_help_sections['troubleshooting']['is_active'] ? " aria-current='page'" : '' ) . "><div class='" . esc_attr( $ai4seo_help_sections['troubleshooting']['navigation_class'] ) . "' data-ai4seo-help-target='" . esc_attr( $ai4seo_help_sections['troubleshooting']['target_id'] ) . "'>";
-		ai4seo_echo_wp_kses( ai4seo_get_dashicon_tag( 'hammer', '', true ) );
-		echo '<span>' . esc_html__( 'Troubleshooting', 'ai-for-seo' ) . '</span>';
-	echo '</div></a>';
+if ( $ai4seo_can_administer_plugin ) {
+		// Troubleshooting contains site-wide reset and diagnostic controls.
+		echo "<a href='" . esc_url( $ai4seo_help_sections['troubleshooting']['url'] ) . "'" . ( $ai4seo_help_sections['troubleshooting']['is_active'] ? " aria-current='page'" : '' ) . "><div class='" . esc_attr( $ai4seo_help_sections['troubleshooting']['navigation_class'] ) . "' data-ai4seo-help-target='" . esc_attr( $ai4seo_help_sections['troubleshooting']['target_id'] ) . "'>";
+			ai4seo_echo_wp_kses( ai4seo_get_dashicon_tag( 'hammer', '', true ) );
+			echo '<span>' . esc_html__( 'Troubleshooting', 'ai-for-seo' ) . '</span>';
+		echo '</div></a>';
+}
 
 	// Useful links share the same navigation data contract as the other local Help sections.
 	echo "<a href='" . esc_url( $ai4seo_help_sections['links']['url'] ) . "'" . ( $ai4seo_help_sections['links']['is_active'] ? " aria-current='page'" : '' ) . "><div class='" . esc_attr( $ai4seo_help_sections['links']['navigation_class'] ) . "' data-ai4seo-help-target='" . esc_attr( $ai4seo_help_sections['links']['target_id'] ) . "'>";
@@ -1446,10 +1473,11 @@ foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_
 
 		// lost key content.
 		$ai4seo_this_accordion_content = sprintf(
-			/* translators: %1$s plugin name, %2$s lost license data text in bold */
-			__( 'Go to *%1$s* > Account, click %2$s, then follow the on-screen steps.', 'ai-for-seo' ),
+			/* translators: %1$s plugin name, %2$s lost license data text in bold, %3$s contact link. */
+			__( 'First check the inbox and spam folder for the exact email used during Stripe checkout. Credentials are sent there automatically after a purchase or secure password rotation. Then go to *%1$s* > Account and click %2$s. If the message is unavailable, <a href="%3$s" target="_blank" rel="noopener">contact support</a> with the Stripe invoice or checkout details.', 'ai-for-seo' ),
 			esc_html( AI4SEO_PLUGIN_NAME ),
 			'<strong>' . esc_html__( 'Lost your license data?', 'ai-for-seo' ) . '</strong>',
+			esc_url( AI4SEO_OFFICIAL_CONTACT_URL )
 		);
 		ai4seo_echo_wp_kses(
 			ai4seo_get_accordion_element(
@@ -1664,6 +1692,7 @@ foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_
 		echo '</div>';
 
 
+		if ( $ai4seo_can_administer_plugin ) {
 		// ___________________________________________________________________________________________ \\
 		// === TROUBLESHOOTING ====================================================================== \\
 		// ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
@@ -2099,6 +2128,7 @@ foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_
 
 
 					echo '</div>';
+		}
 
 
 					// === USEFUL LINKS ========================================================================== \\

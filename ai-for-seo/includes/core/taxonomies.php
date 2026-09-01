@@ -1,4 +1,10 @@
 <?php
+/**
+ * Handles taxonomy and term discovery.
+ *
+ * @package AI_For_SEO
+ */
+
 // Keep extracted core modules inaccessible when WordPress has not loaded the plugin environment.
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;

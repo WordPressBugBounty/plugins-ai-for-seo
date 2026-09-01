@@ -68,7 +68,6 @@ function ai4seo_init_frontend_injections() {
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Extracts supported metadata tags from buffered head HTML.
@@ -109,7 +108,7 @@ function ai4seo_get_meta_tags_from_html( string $head_html ): array {
 	$head_html = preg_replace( '/>(#AI4SEO#LBRN#|#AI4SEO#LBN#|\s)+</', ">\n<", $head_html );
 
 	// Analyze each normalized line independently to avoid one tag consuming a neighboring match.
-	$head_tags = explode( "\n", $head_html );
+	$head_tags       = explode( "\n", $head_html );
 	$found_meta_tags = array();
 
 	foreach ( $head_tags as $head_tag ) {
@@ -166,8 +165,8 @@ function ai4seo_get_meta_tags_from_html( string $head_html ): array {
 	return $found_meta_tags;
 }
 
-// =========================================================================================== \\
 
+// phpcs:disable Universal.NamingConventions.NoReservedKeywordParameterNames.stringFound -- Preserve PHP 8 named callers.
 /**
  * Restores line breaks protected while buffered head HTML is split into tags.
  *
@@ -175,11 +174,11 @@ function ai4seo_get_meta_tags_from_html( string $head_html ): array {
  * @return string The string with its original line breaks restored.
  */
 function ai4seo_remove_header_line_break_placeholders( string $string ): string {
+	// phpcs:enable Universal.NamingConventions.NoReservedKeywordParameterNames.stringFound
 	// Restore Windows and Unix markers separately so the original newline form is preserved.
 	return str_replace( array( '#AI4SEO#LBRN#', '#AI4SEO#LBN#' ), array( "\r\n", "\n" ), $string );
 }
 
-// =========================================================================================== \\
 
 /**
  * Modify and add plugin metadata tags to the HTML head.
@@ -216,8 +215,8 @@ function ai4seo_inject_our_meta_tags_into_the_html_head( string $full_html_buffe
 		return $full_html_buffer; // stop function if meta tag output is disabled.
 	}
 
-	// read settings AI4SEO_SETTING_VISIBLE_META_TAGS.
-	$active_meta_tags = ai4seo_get_active_meta_tags();
+	// Normalize active identifiers before exact frontend-output comparisons.
+	$active_meta_tags = ai4seo_normalize_metadata_identifier_list( ai4seo_get_active_meta_tags() );
 
 	if ( ! $active_meta_tags ) {
 		return $full_html_buffer;
@@ -272,7 +271,7 @@ function ai4seo_inject_our_meta_tags_into_the_html_head( string $full_html_buffe
 		$this_our_metadata                = $our_metadata[ $this_metadata_identifier ] ?? '';
 
 		// exclude this meta tag if not active.
-		if ( ! in_array( $this_metadata_identifier, $active_meta_tags ) ) {
+		if ( ! in_array( $this_metadata_identifier, $active_meta_tags, true ) ) {
 			$this_our_metadata                         = '';
 			$our_metadata[ $this_metadata_identifier ] = '';
 		}
@@ -500,8 +499,8 @@ function ai4seo_inject_our_meta_tags_into_the_html_head( string $full_html_buffe
 	return $full_html_buffer;
 }
 
-// =========================================================================================== \\
 
+// phpcs:disable Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- Preserve the render_block callback contract.
 /**
  * Inject image attributes into an individual Gutenberg block render.
  *
@@ -510,6 +509,7 @@ function ai4seo_inject_our_meta_tags_into_the_html_head( string $full_html_buffe
  * @return string Rendered block HTML with eligible image attributes injected.
  */
 function ai4seo_inject_image_attributes_for_gutenberg( $content, $block ) {
+	// phpcs:enable Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed
 	// Prevent duplicate processing when more than one render path invokes this callback.
 	if ( ! ai4seo_singleton( __FUNCTION__ ) ) {
 		return $content;
@@ -528,7 +528,6 @@ function ai4seo_inject_image_attributes_for_gutenberg( $content, $block ) {
 	return ai4seo_inject_image_attributes_into_html( $content );
 }
 
-// =========================================================================================== \\
 
 /**
  * Inject stored image attributes into rendered image tags when the matching settings are enabled.
@@ -640,7 +639,6 @@ function ai4seo_inject_image_attributes_into_html( $content ) {
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Get the attachment title attribute value selected by the render-level setting.
@@ -686,7 +684,6 @@ function ai4seo_get_title_attribute_value( int $attachment_id, string $setting_v
 	return $value;
 }
 
-// =========================================================================================== \\
 
 /**
  * Get an attachment ID from an image source URL.
@@ -751,8 +748,8 @@ function ai4seo_get_attachment_id_from_src( string $img_src ) {
 	return $attachment_id ? $attachment_id : false;
 }
 
-// =========================================================================================== \\
 
+// phpcs:disable Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- Preserve the WordPress image-filter contract.
 /**
  * Fill a missing alt attribute for WordPress-generated attachment image markup.
  *
@@ -762,6 +759,7 @@ function ai4seo_get_attachment_id_from_src( string $img_src ) {
  * @return array Filtered image attributes.
  */
 function ai4seo_filter_wp_image_attrs( $attr, $attachment, $size ) {
+	// phpcs:enable Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed
 	// Prevent duplicate processing when several image rendering paths invoke this callback.
 	if ( ! ai4seo_singleton( __FUNCTION__ ) ) {
 		return $attr;
@@ -778,5 +776,3 @@ function ai4seo_filter_wp_image_attrs( $attr, $attachment, $size ) {
 	}
 	return $attr;
 }
-
-// =========================================================================================== \\

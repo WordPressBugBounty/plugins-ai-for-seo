@@ -19,8 +19,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return WP_Error|array|null Error on failure, response data on metadata success, or null on no-op.
  */
 function ai4seo_process_save_anything_metadata_editor_values( array &$upcoming_save_anything_updates ) {
-	// Preserve the category's existing silent no-op behavior for users without plugin-management rights.
-	if ( ! ai4seo_can_manage_this_plugin() ) {
+	// Preserve the category's silent no-op behavior outside the configured content boundary.
+	if ( ! ai4seo_can_use_plugin_content() ) {
 		return null;
 	}
 
@@ -134,8 +134,8 @@ function ai4seo_process_save_anything_metadata_editor_values( array &$upcoming_s
 		);
 	}
 
-	// Save entry-level instructions only after all metadata values pass validation to avoid partial form updates.
-	if ( $ai4seo_custom_instructions_were_submitted ) {
+	// Instruction-only saves do not affect generation ownership or derived state.
+	if ( ! $ai4seo_new_metadata ) {
 		$ai4seo_custom_instructions_saved = ai4seo_save_custom_instructions_postmeta(
 			$ai4seo_this_post_id,
 			AI4SEO_POST_META_METADATA_CUSTOM_INSTRUCTIONS_META_KEY,
@@ -149,25 +149,84 @@ function ai4seo_process_save_anything_metadata_editor_values( array &$upcoming_s
 				esc_html__( 'Failed to update custom instructions. Please try again.', 'ai-for-seo' )
 			);
 		}
-	}
 
-	// Stop after an instruction-only save so metadata coverage and generation status remain unchanged.
-	if ( ! $ai4seo_new_metadata ) {
 		return null;
 	}
 
-	// Persist the complete validated metadata collection through the existing active-metadata mechanism.
-	$ai4seo_metadata_update_details   = array();
-	$ai4seo_metadata_update_succeeded = ai4seo_update_active_metadata( $ai4seo_this_post_id, $ai4seo_new_metadata, true, $ai4seo_metadata_update_details );
+	// Keep queue reservation, primary persistence, coverage publication, and ownership verification under one fence.
+	$ai4seo_metadata_update_details       = array();
+	$ai4seo_metadata_update_succeeded     = false;
+	$ai4seo_fenced_save_details           = array();
+	$ai4seo_custom_instructions_saved     = ! $ai4seo_custom_instructions_were_submitted;
+	$ai4seo_submitted_custom_instructions = $ai4seo_custom_instructions_were_submitted
+		? $upcoming_save_anything_updates['metadata_editor_custom_instructions']
+		: '';
 
-	// Refresh derived state whenever SOOZ persistence succeeded, including partial third-party synchronization.
-	if ( ! empty( $ai4seo_metadata_update_details['active_metadata_succeeded'] ) ) {
-		ai4seo_refresh_one_posts_metadata_coverage_status( $ai4seo_this_post_id );
-		ai4seo_remove_post_ids_from_all_generation_status_options( $ai4seo_this_post_id );
+	ai4seo_save_manual_editor_values_with_generation_fence(
+		$ai4seo_this_post_id,
+		AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA,
+		static function () use (
+			$ai4seo_this_post_id,
+			$ai4seo_new_metadata,
+			$ai4seo_custom_instructions_were_submitted,
+			$ai4seo_submitted_custom_instructions,
+			&$ai4seo_metadata_update_succeeded,
+			&$ai4seo_metadata_update_details,
+			&$ai4seo_custom_instructions_saved
+		): bool {
+			if ( $ai4seo_custom_instructions_were_submitted ) {
+				$ai4seo_custom_instructions_saved = ai4seo_save_custom_instructions_postmeta(
+					$ai4seo_this_post_id,
+					AI4SEO_POST_META_METADATA_CUSTOM_INSTRUCTIONS_META_KEY,
+					$ai4seo_submitted_custom_instructions
+				);
+
+				if ( ! $ai4seo_custom_instructions_saved ) {
+					$ai4seo_metadata_update_details['commit_state'] = 'not_committed';
+					return false;
+				}
+			}
+
+			$ai4seo_metadata_update_succeeded = ai4seo_update_active_metadata(
+				$ai4seo_this_post_id,
+				$ai4seo_new_metadata,
+				true,
+				$ai4seo_metadata_update_details
+			);
+
+			// A third-party warning is not a SOOZ persistence failure and must still commit coverage.
+			return ! empty( $ai4seo_metadata_update_details['active_metadata_succeeded'] );
+		},
+		$ai4seo_fenced_save_details,
+		$ai4seo_metadata_update_details
+	);
+
+	if ( empty( $ai4seo_fenced_save_details['reservation_succeeded'] ) ) {
+		return new WP_Error(
+			7111221026,
+			esc_html__( 'Metadata is currently being generated or could not be reserved for editing. Please wait a moment and try again.', 'ai-for-seo' )
+		);
+	}
+
+	if ( $ai4seo_custom_instructions_were_submitted && ! $ai4seo_custom_instructions_saved ) {
+		return new WP_Error(
+			6111221025,
+			esc_html__( 'Failed to update custom instructions. Please try again.', 'ai-for-seo' )
+		);
+	}
+
+	// Once primary values persisted, any coverage, ownership, or release ambiguity must fail closed.
+	if ( ! empty( $ai4seo_fenced_save_details['persistence_succeeded'] )
+		&& ( empty( $ai4seo_fenced_save_details['coverage_succeeded'] ) || empty( $ai4seo_fenced_save_details['release_succeeded'] ) )
+	) {
+		return new WP_Error(
+			7111221025,
+			esc_html__( 'Metadata was saved and reserved from generation, but its coverage state could not be secured. Please refresh the page and try again.', 'ai-for-seo' )
+		);
 	}
 
 	// A partial third-party result is still a successful editor save because SOOZ owns the submitted values.
-	$ai4seo_third_party_sync_failed = ! $ai4seo_metadata_update_succeeded
+	$ai4seo_third_party_sync_failed  = ! $ai4seo_metadata_update_succeeded
 		&& ! empty( $ai4seo_metadata_update_details['active_metadata_succeeded'] )
 		&& empty( $ai4seo_metadata_update_details['third_party_sync_succeeded'] );
 	$ai4seo_failed_third_party_syncs = $ai4seo_metadata_update_details['failed_third_party_syncs'] ?? array();
@@ -253,16 +312,16 @@ function ai4seo_process_save_anything_metadata_editor_values( array &$upcoming_s
 	}
 
 	// Read back successful AIOSEO fields from its canonical table so retained editors cannot restore stale state.
-	$ai4seo_aioseo_metadata                  = array();
-	$ai4seo_aioseo_sync_metadata_identifiers = ai4seo_get_third_party_seo_plugin_sync_metadata_identifiers(
+	$ai4seo_aioseo_metadata                    = array();
+	$ai4seo_aioseo_sync_metadata_identifiers   = ai4seo_get_third_party_seo_plugin_sync_metadata_identifiers(
 		AI4SEO_THIRD_PARTY_PLUGIN_ALL_IN_ONE_SEO
 	);
 	$ai4seo_failed_aioseo_metadata_identifiers = $ai4seo_failed_third_party_syncs[ AI4SEO_THIRD_PARTY_PLUGIN_ALL_IN_ONE_SEO ] ?? array();
-	$ai4seo_persisted_aioseo_metadata           = array();
+	$ai4seo_persisted_aioseo_metadata          = array();
 
 	if ( $ai4seo_aioseo_sync_metadata_identifiers ) {
 		$ai4seo_aioseo_metadata_by_post_ids = ai4seo_read_all_in_one_seo_metadata_by_post_ids( array( $ai4seo_this_post_id ) );
-		$ai4seo_persisted_aioseo_metadata    = $ai4seo_aioseo_metadata_by_post_ids[ $ai4seo_this_post_id ] ?? array();
+		$ai4seo_persisted_aioseo_metadata   = $ai4seo_aioseo_metadata_by_post_ids[ $ai4seo_this_post_id ] ?? array();
 	}
 
 	// Omit failed fields so the browser never presents an unsaved SOOZ value as synchronized AIOSEO state.
@@ -280,10 +339,10 @@ function ai4seo_process_save_anything_metadata_editor_values( array &$upcoming_s
 
 	return array(
 		'metadata_editor' => array(
-			'post_id'                 => $ai4seo_this_post_id,
-			'metadata'                => $ai4seo_new_metadata,
-			'yoast_metadata'          => $ai4seo_yoast_metadata,
-			'aioseo_metadata'         => $ai4seo_aioseo_metadata,
+			'post_id'                  => $ai4seo_this_post_id,
+			'metadata'                 => $ai4seo_new_metadata,
+			'yoast_metadata'           => $ai4seo_yoast_metadata,
+			'aioseo_metadata'          => $ai4seo_aioseo_metadata,
 			'third_party_sync_warning' => $ai4seo_third_party_sync_warning,
 		),
 	);

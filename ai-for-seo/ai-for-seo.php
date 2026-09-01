@@ -3,7 +3,7 @@
  * Plugin Name: SOOZ - AI for SEO
  * Plugin URI: https://sooz.ai
  * Description: One-Click SEO solution. *SOOZ - AI for SEO* helps your website to rank higher in Web Search results.
- * Version: 2.5.0
+ * Version: 2.5.1
  * Author: spacecodes
  * Author URI: https://spa.ce.codes
  * Text Domain: ai-for-seo
@@ -40,6 +40,12 @@ require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/initialization.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/rights.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/plans.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/helpers.php';
+
+// Typed database-query helpers load before modules that issue direct SQL.
+require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/database.php';
+
+// WordPress option primitives depend on generic helpers and must load before option-using modules.
+require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/wordpress-options.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/semaphores.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/posts.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/taxonomies.php';
@@ -47,6 +53,9 @@ require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/output.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/third-party-seo-plugins.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/external-plugins.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/multilingual-plugins.php';
+
+// Placeholder resolution loads after its helper dependencies and before every runtime consumer.
+require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/text-placeholders.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/cron-jobs.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/generation-status-analysis.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/metadata.php';
@@ -61,7 +70,6 @@ require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/attachments-media.php';
 // Frontend injection callbacks depend on attachment helpers and load before bootstrap registers their hooks.
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/frontend-injections.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/post-meta.php';
-require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/wordpress-options.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/settings.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/ajax.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/bulk-generation.php';

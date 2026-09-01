@@ -1,4 +1,10 @@
 <?php
+/**
+ * Provides plan and subscription helpers.
+ *
+ * @package AI_For_SEO
+ */
+
 // Keep extracted core modules inaccessible when WordPress has not loaded the plugin environment.
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -7,6 +13,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 // region PLANS ============================================================================== \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
+/**
+ * Return the available subscription plans and their credit allowances.
+ *
+ * @return array Available plans keyed by plan identifier.
+ */
 function ai4seo_get_available_plans(): array {
 	return array(
 		'free' => array(
@@ -28,7 +39,6 @@ function ai4seo_get_available_plans(): array {
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Normalize plan identifiers and textual plan names to the stored plan keys.
@@ -56,7 +66,6 @@ function ai4seo_normalize_plan_identifier( $plan ): string {
 	return $plan_aliases[ $plan ] ?? '';
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to retrieve the given plans amount of credits
@@ -71,7 +80,6 @@ function ai4seo_get_plan_credits( $plan ): int {
 	return $available_plans[ $plan ]['credits'] ?? $available_plans['free']['credits'];
 }
 
-// =========================================================================================== \\
 
 /**
  * Return the name of the given plan
@@ -86,7 +94,6 @@ function ai4seo_get_plan_name( $plan ): string {
 	return $available_plans[ $plan ]['name'] ?? $available_plans['free']['name'];
 }
 
-// =========================================================================================== \\
 
 /**
  * Return the current custom instruction character limit.
@@ -102,7 +109,6 @@ function ai4seo_get_custom_instructions_length_limit(): int {
 	return AI4SEO_CUSTOM_INSTRUCTIONS_FREE_LENGTH_LIMIT;
 }
 
-// =========================================================================================== \\
 
 /**
  * Return a plan badge, optionally forced into the clickable upgrade state.
@@ -123,6 +129,8 @@ function ai4seo_get_plan_badge( $plan, bool $force_upgrade = false ): string {
 	$css_class                   = 'ai4seo-plan-badge';
 	$user_has_at_least_this_plan = ai4seo_user_has_at_least_plan( $plan );
 	$show_upgrade_state          = $force_upgrade || ! $user_has_at_least_this_plan;
+	$can_administer_plugin       = ai4seo_can_administer_plugin();
+	$is_interactive_upgrade      = $show_upgrade_state && $can_administer_plugin;
 	$onclick                     = '';
 
 	// Keep the existing per-plan label and color mapping centralized in this helper.
@@ -165,14 +173,14 @@ function ai4seo_get_plan_badge( $plan, bool $force_upgrade = false ): string {
 	// Forced or insufficient-plan badges are buttons because they must open the credits/subscription modal.
 	if ( ! $show_upgrade_state ) {
 		$alt_text = esc_html__( 'You can use this feature with your current plan', 'ai-for-seo' );
-	} else {
+	} elseif ( $can_administer_plugin ) {
 		$badge_label .= ' - ' . esc_html__( 'Upgrade now', 'ai-for-seo' );
 		$css_class   .= ' ai4seo-clickable';
 		$onclick      = 'ai4seo_open_get_more_credits_modal();';
 	}
 
-	// Use the same content for span and button variants so existing CSS keeps both states aligned.
-	if ( ! $show_upgrade_state ) {
+	// Lower roles see the plan requirement as passive status text without a purchase trigger.
+	if ( ! $is_interactive_upgrade ) {
 		$output = "<span class='" . esc_attr( $css_class ) . "' title='" . esc_attr( $alt_text ) . "'>";
 	} else {
 		$output = "<button type='button' class='" . esc_attr( $css_class ) . "' title='" . esc_attr( $alt_text ) . "' onclick='" . esc_attr( $onclick ) . "'>";
@@ -182,7 +190,7 @@ function ai4seo_get_plan_badge( $plan, bool $force_upgrade = false ): string {
 		$output .= esc_html( $badge_label );
 
 	// Close the element type selected above without duplicating the badge body.
-	if ( ! $show_upgrade_state ) {
+	if ( ! $is_interactive_upgrade ) {
 		$output .= '</span>';
 	} else {
 		$output .= '</button>';
@@ -191,7 +199,6 @@ function ai4seo_get_plan_badge( $plan, bool $force_upgrade = false ): string {
 	return $output;
 }
 
-// =========================================================================================== \\
 
 /**
  * Return an inline subscription upgrade prompt with a pricing button.
@@ -276,18 +283,23 @@ function ai4seo_get_subscription_upgrade_prompt_tag( string $plan, string $promp
 			break;
 	}
 
-	// Reuse the same direct pricing URL and click tracking used by subscription CTAs elsewhere.
-	$ai4seo_api_username        = ai4seo_robhub_api()->get_api_username();
-	$ai4seo_purchase_plan_url   = ai4seo_get_purchase_plan_url( $ai4seo_api_username );
-	$ai4seo_wrapper_css_class   = trim( $wrapper_css_class );
-	$ai4seo_upgrade_button_html = ai4seo_get_a_tag_icon_button_tag(
-		$ai4seo_purchase_plan_url,
-		'',
-		'_blank',
+	$ai4seo_wrapper_css_class = trim( $wrapper_css_class );
+
+	// Lower roles receive only the plan requirement; do not resolve account identifiers or pricing URLs.
+	if ( ! ai4seo_can_administer_plugin() ) {
+		if ( '' !== $ai4seo_wrapper_css_class ) {
+			return "<span class='" . esc_attr( $ai4seo_wrapper_css_class ) . "'>" . $ai4seo_upgrade_text . '</span>';
+		}
+
+		return $ai4seo_upgrade_text;
+	}
+
+	// Resolve the external destination only after the administrator explicitly clicks this CTA.
+	$ai4seo_upgrade_button_html = ai4seo_get_icon_button_tag(
 		'crown',
 		esc_html_x( 'Upgrade now', 'subscription upgrade prompt button', 'ai-for-seo' ),
 		'ai4seo-primary-button ai4seo-small-button',
-		'ai4seo_track_subscription_pricing_visit();'
+		'ai4seo_init_subscription_pricing(this);'
 	);
 
 	$ai4seo_upgrade_prompt_html = $ai4seo_upgrade_text . ' ' . $ai4seo_upgrade_button_html;

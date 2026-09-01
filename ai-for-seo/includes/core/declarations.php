@@ -1,4 +1,10 @@
 <?php
+/**
+ * Defines plugin constants, defaults, and static registries.
+ *
+ * @package AI_For_SEO
+ */
+
 // Keep extracted core modules inaccessible when WordPress has not loaded the plugin environment.
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -8,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 // Centralize plugin identity and asset-cache declarations consumed throughout bootstrap.
-const AI4SEO_PLUGIN_VERSION_NUMBER              = '2.5.0';
+const AI4SEO_PLUGIN_VERSION_NUMBER              = '2.5.1';
 const AI4SEO_PLUGIN_NAME                        = 'SOOZ - AI for SEO';
 const AI4SEO_SHORT_PLUGIN_NAME                  = 'SOOZ';
 const AI4SEO_PLUGIN_DESCRIPTION                 = 'One-Click SEO solution. *SOOZ - AI for SEO* helps your website to rank higher in Web Search results.';
@@ -22,7 +28,7 @@ const AI4SEO_TOS_VERSION_TIMESTAMP              = 1767426000;
 const AI4SEO_TOO_SHORT_CONTENT_LENGTH           = 100;
 const AI4SEO_MAX_TOTAL_CONTENT_SIZE             = 5000;
 // Keep manual and automated soft selection aligned to the same maximum delivery dimensions.
-const AI4SEO_ATTACHMENT_GENERATION_MAX_IMAGE_DIMENSION    = 2048;
+const AI4SEO_ATTACHMENT_GENERATION_MAX_IMAGE_DIMENSION = 2048;
 // Keep conversion logic and coverage tied to the same bounded model-input policy.
 const AI4SEO_ATTACHMENT_GENERATION_TARGET_IMAGE_SIZE_BYTES = 100000;
 const AI4SEO_ATTACHMENT_GENERATION_DERIVATIVE_QUALITY      = 75;
@@ -43,28 +49,41 @@ const AI4SEO_ROBHUB_ENVIRONMENTAL_VARIABLES_OPTION_NAME   = '_ai4seo_robhub_envi
 const AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME          = '_ai4seo_environmental_variables';
 const AI4SEO_GENERATION_STATUS_SUMMARY_OPTION_NAME        = '_ai4seo_generation_status_summary';
 const AI4SEO_GENERATION_STATUS_SUMMARY_TOTALS_OPTION_NAME = '_ai4seo_generation_status_summary_totals';
+const AI4SEO_DISABLED_QUEUE_INSPECTION_STATE_OPTION_NAME  = 'ai4seo_disabled_queue_inspection_state';
+const AI4SEO_AUTO_RETRY_FAILED_REQUIRED_OPTION_NAME       = '_ai4seo_auto_retry_failed_required';
 const AI4SEO_CONTENT_TYPE_LIST_CACHE_VERSION_OPTION_NAME  = '_ai4seo_content_type_list_cache_version';
 const AI4SEO_POSTS_TO_BE_ANALYZED_OPTION_NAME             = '_ai4seo_posts_to_be_analyzed';
 const AI4SEO_NOTIFICATIONS_OPTION_NAME                    = '_ai4seo_notifications';
-const AI4SEO_DEBUG_MESSAGES_OPTION_NAME                   = 'ai4seo_debug_messages';
-const AI4SEO_SETTINGS_OPTION_NAME                         = 'ai4seo_settings';
-const AI4SEO_POST_META_GENERATED_DATA_META_KEY            = 'ai4seo_generated_data';
-const AI4SEO_POST_META_ACTIVE_METADATA_META_KEY           = 'ai4seo_active_metadata';
-const AI4SEO_POST_META_POST_CONTENT_SUMMARY_META_KEY      = 'ai4seo_content_summary';
-const AI4SEO_POST_META_RELATED_POST_ID_META_KEY           = 'ai4seo_related_post_id';
+
+// Authenticated provenance prevents API metadata from selecting the richer trusted-local HTML policy.
+const AI4SEO_NOTIFICATION_MESSAGE_SOURCE_FIELD           = 'message_source';
+const AI4SEO_NOTIFICATION_MESSAGE_SOURCE_SIGNATURE_FIELD = 'message_source_signature';
+const AI4SEO_NOTIFICATION_MESSAGE_SOURCE_LOCAL           = 'local';
+const AI4SEO_NOTIFICATION_MESSAGE_SOURCE_REMOTE          = 'remote';
+
+// Bound repair and mutation retries so persistent concurrency cannot monopolize a request.
+const AI4SEO_NOTIFICATION_CAS_MAX_ATTEMPTS = 3;
+
+// Keep general option and post-meta identifiers separate from notification provenance policy.
+const AI4SEO_DEBUG_MESSAGES_OPTION_NAME              = 'ai4seo_debug_messages';
+const AI4SEO_SETTINGS_OPTION_NAME                    = 'ai4seo_settings';
+const AI4SEO_POST_META_GENERATED_DATA_META_KEY       = 'ai4seo_generated_data';
+const AI4SEO_POST_META_ACTIVE_METADATA_META_KEY      = 'ai4seo_active_metadata';
+const AI4SEO_POST_META_POST_CONTENT_SUMMARY_META_KEY = 'ai4seo_content_summary';
+const AI4SEO_POST_META_RELATED_POST_ID_META_KEY      = 'ai4seo_related_post_id';
 
 // Entry-level custom instructions are stored separately from generated data and active metadata.
 const AI4SEO_POST_META_METADATA_CUSTOM_INSTRUCTIONS_META_KEY              = 'ai4seo_metadata_custom_instructions';
 const AI4SEO_POST_META_ATTACHMENT_ATTRIBUTES_CUSTOM_INSTRUCTIONS_META_KEY = 'ai4seo_attachment_attributes_custom_instructions';
 
-const AI4SEO_STYLES_HANDLE                                 = 'ai-for-seo-styles';
-const AI4SEO_SCRIPTS_HANDLE                                = 'ai-for-seo-scripts';
-const AI4SEO_INJECTION_SCRIPTS_HANDLE                      = 'ai-for-seo-injection-scripts';
-const AI4SEO_STYLES_FILE_NAME                              = 'ai-for-seo-styles-' . AI4SEO_PLUGIN_VERSION_NUMBER . '.css';
-const AI4SEO_SCRIPTS_FILE_NAME                             = 'ai-for-seo-scripts-' . AI4SEO_PLUGIN_VERSION_NUMBER . '.js';
-const AI4SEO_INJECTION_SCRIPTS_FILE_NAME                   = 'ai-for-seo-alt-text-injection-' . AI4SEO_PLUGIN_VERSION_NUMBER . '.js';
+const AI4SEO_STYLES_HANDLE               = 'ai-for-seo-styles';
+const AI4SEO_SCRIPTS_HANDLE              = 'ai-for-seo-scripts';
+const AI4SEO_INJECTION_SCRIPTS_HANDLE    = 'ai-for-seo-injection-scripts';
+const AI4SEO_STYLES_FILE_NAME            = 'ai-for-seo-styles-' . AI4SEO_PLUGIN_VERSION_NUMBER . '.css';
+const AI4SEO_SCRIPTS_FILE_NAME           = 'ai-for-seo-scripts-' . AI4SEO_PLUGIN_VERSION_NUMBER . '.js';
+const AI4SEO_INJECTION_SCRIPTS_FILE_NAME = 'ai-for-seo-alt-text-injection-' . AI4SEO_PLUGIN_VERSION_NUMBER . '.js';
 // Keep PHP context validation and the localized JavaScript dispatcher on one stable vocabulary.
-const AI4SEO_PRIMARY_ASSET_CONTEXTS                        = array(
+const AI4SEO_PRIMARY_ASSET_CONTEXTS                     = array(
 	'plugin-ui',
 	'frontend-metadata-editor',
 	'content-list',
@@ -73,19 +92,25 @@ const AI4SEO_PRIMARY_ASSET_CONTEXTS                        = array(
 	'plugin-deactivation',
 	'tos-gate',
 );
-const AI4SEO_VERY_LOW_CREDITS_THRESHOLD                    = 10;
-const AI4SEO_LOW_CREDITS_THRESHOLD                         = 40;
-const AI4SEO_CUSTOM_PLAN_DISCOUNT                          = 30; // in percent.
-const AI4SEO_DAILY_FREE_CREDITS_AMOUNT                     = 5;
-const AI4SEO_MONEY_BACK_GUARANTEE_DAYS                     = 14;
-const AI4SEO_MAX_LATEST_ACTIVITY_LOGS                      = 10;
-const AI4SEO_BLUE_GET_MORE_CREDITS_BUTTON_THRESHOLD        = 100;
-const AI4SEO_GIVING_FEEDBACK_CREDITS                       = 100;
-const AI4SEO_GIVING_FEEDBACK_DISCOUNT                      = 10; // in percent.
-const AI4SEO_NEXTGEN_GALLERY_POST_TYPE                     = 'ai4seo_ngg';
-const AI4SEO_MAX_DISPLAYABLE_ALREADY_READ_NOTIFICATIONS    = 2;
-const AI4SEO_ANALYZE_PERFORMANCE_INTERVAL                  = 7200; // 2h
-const AI4SEO_GLOBAL_NONCE_IDENTIFIER                       = 'ai4seo_ajax_nonce';
+const AI4SEO_VERY_LOW_CREDITS_THRESHOLD                 = 10;
+const AI4SEO_LOW_CREDITS_THRESHOLD                      = 40;
+const AI4SEO_CUSTOM_PLAN_DISCOUNT                       = 30; // in percent.
+const AI4SEO_DAILY_FREE_CREDITS_AMOUNT                  = 5;
+const AI4SEO_MONEY_BACK_GUARANTEE_DAYS                  = 14;
+const AI4SEO_MAX_LATEST_ACTIVITY_LOGS                   = 10;
+const AI4SEO_BLUE_GET_MORE_CREDITS_BUTTON_THRESHOLD     = 100;
+const AI4SEO_GIVING_FEEDBACK_CREDITS                    = 100;
+const AI4SEO_GIVING_FEEDBACK_DISCOUNT                   = 10; // in percent.
+const AI4SEO_NEXTGEN_GALLERY_POST_TYPE                  = 'ai4seo_ngg';
+const AI4SEO_MAX_DISPLAYABLE_ALREADY_READ_NOTIFICATIONS = 2;
+const AI4SEO_ANALYZE_PERFORMANCE_INTERVAL               = 7200; // 2h
+const AI4SEO_GLOBAL_NONCE_IDENTIFIER                    = 'ai4seo_ajax_nonce';
+// These values form the single-use checkout-return handshake shared by URL generation and validation.
+const AI4SEO_PURCHASE_RETURN_QUERY_PARAMETER               = 'ai4seo-just-purchased';
+const AI4SEO_PURCHASE_RETURN_TOKEN_QUERY_PARAMETER         = 'ai4seo_purchase_return_token';
+const AI4SEO_PURCHASE_RETURN_TOKEN_OPTION_PREFIX           = 'ai4seo_purchase_return_token_';
+const AI4SEO_PURCHASE_RETURN_TOKEN_EXPIRY_CRON_HOOK        = 'ai4seo_expire_purchase_return_token';
+const AI4SEO_PURCHASE_RETURN_TOKEN_TTL_SECONDS             = 604800; // 7 days.
 const AI4SEO_PAYG_CREDITS_THRESHOLD                        = 100;
 const AI4SEO_ALLOWED_PAYG_STATUS                           = array( 'idle', 'budget-limit-reached', 'processing', 'payment-pending', 'payment-received', 'payment-failed', 'payment-method-failed', 'error' );
 const AI4SEO_SEMAPHORE_MAX_WAIT_SECONDS                    = 5; // 5 seconds
@@ -191,15 +216,26 @@ const AI4SEO_FOCUS_KEYPHRASE_RECOMMENDED_MAX_LENGTH  = 30;
 const AI4SEO_METADATA_KEYWORDS_RECOMMENDED_MIN_ITEMS = 5;
 const AI4SEO_METADATA_KEYWORDS_RECOMMENDED_MAX_ITEMS = 10;
 
-// =========================================================================================== \\
 
 /**
- * function to return the change log of the plugin
+ * Return the plugin change log.
  *
  * @return array[] the change log of the plugin
  */
 function ai4seo_get_change_log(): array {
 	return array(
+		array(
+			'date'      => 'August 26th, 2026',
+			'version'   => '2.5.1',
+			'important' => false,
+			'updates'   => array(
+				'Added direct SOOZ metadata-editor controls for Elementor and the WordPress Block Editor, with more reliable initialization for dynamically loaded editor fields.',
+				'Added AVIF support for media attribute generation, including automatic preparation of compatible image data.',
+				'Improved media attribute saving and coverage tracking so valid existing image text stays intact and complete entries are recognized reliably.',
+				'Improved role-based access so permitted editors can use SOOZ only for content they are allowed to edit.',
+				'Bug Fixes & Maintenance: Fixed 5 minor bugs, implemented 1 performance improvement, and addressed 2 security issues.',
+			),
+		),
 		array(
 			'date'      => 'August 17th, 2026',
 			'version'   => '2.5.0',
@@ -432,6 +468,7 @@ function ai4seo_get_credits_packs(): array {
 		),
 	);
 
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only feature-preview flag; no state is changed.
 	if ( isset( $_GET['ai4seo_show_all_credits_packs'] ) ) {
 		$credits_packs += array(
 			'price_1SjAj1HNyvfVK0r9TkVWQsJE' => array(
@@ -459,7 +496,7 @@ function ai4seo_get_credits_packs(): array {
 }
 
 /**
- * function to get the SVG icons used in the plugin
+ * Return the SVG icons used in the plugin.
  *
  * @return string[] associative array with icon names as keys and SVG strings as values
  */
@@ -687,7 +724,11 @@ const AI4SEO_THIRD_PARTY_PLUGIN_WPML = 'wpml';
 // attachments / images plugins.
 const AI4SEO_THIRD_PARTY_PLUGIN_NEXTGEN_GALLERY = 'nextgen-gallery';
 
-// details for the third party seo plugins.
+/**
+ * Return integration details for supported third-party SEO plugins.
+ *
+ * @return array Third-party SEO plugin details keyed by plugin identifier.
+ */
 function ai4seo_get_third_party_seo_plugin_details(): array {
 	return array(
 		AI4SEO_THIRD_PARTY_PLUGIN_YOAST_SEO         => array(
@@ -822,6 +863,11 @@ function ai4seo_get_third_party_seo_plugin_details(): array {
 	);
 }
 
+/**
+ * Return the currency codes supported by plugin billing controls.
+ *
+ * @return array Supported ISO currency codes.
+ */
 function ai4seo_get_allowed_currencies(): array {
 	return array(
 		'AED',
@@ -1046,13 +1092,13 @@ const AI4SEO_EDITOR_VIEW_MODES        = array(
 );
 
 // Prompt sliders are saved settings that the RobHub API reads as staged generation guidance.
-const AI4SEO_SETTING_METADATA_EXISTING_VALUES_REFERENCE_STRENGTH     = 'metadata_existing_values_reference_strength';
-const AI4SEO_SETTING_METADATA_FOCUS_KEYPHRASE_INFLUENCE              = 'metadata_focus_keyphrase_influence';
-const AI4SEO_SETTING_METADATA_SEO_KEYWORD_INTENSITY                  = 'metadata_seo_keyword_intensity';
-const AI4SEO_SETTING_METADATA_COMMERCIAL_TONE                        = 'metadata_commercial_tone';
-const AI4SEO_SETTING_METADATA_SOCIAL_VARIATION                       = 'metadata_social_variation';
-const AI4SEO_SETTING_METADATA_WEBSITE_BRAND_CONTEXT_INFLUENCE        = 'metadata_website_brand_context_influence';
-const AI4SEO_SETTING_METADATA_TONE_VARIANT                           = 'metadata_tone_variant';
+const AI4SEO_SETTING_METADATA_EXISTING_VALUES_REFERENCE_STRENGTH = 'metadata_existing_values_reference_strength';
+const AI4SEO_SETTING_METADATA_FOCUS_KEYPHRASE_INFLUENCE          = 'metadata_focus_keyphrase_influence';
+const AI4SEO_SETTING_METADATA_SEO_KEYWORD_INTENSITY              = 'metadata_seo_keyword_intensity';
+const AI4SEO_SETTING_METADATA_COMMERCIAL_TONE                    = 'metadata_commercial_tone';
+const AI4SEO_SETTING_METADATA_SOCIAL_VARIATION                   = 'metadata_social_variation';
+const AI4SEO_SETTING_METADATA_WEBSITE_BRAND_CONTEXT_INFLUENCE    = 'metadata_website_brand_context_influence';
+const AI4SEO_SETTING_METADATA_TONE_VARIANT                       = 'metadata_tone_variant';
 
 // Generation-length controls are separate saved sliders so each output field can resolve its own request contract.
 const AI4SEO_SETTING_METADATA_META_TITLE_GENERATION_LENGTH           = 'metadata_meta_title_generation_length';
@@ -1160,16 +1206,16 @@ const AI4SEO_PROMPT_SLIDER_SETTING_STAGE_COUNTS = array(
 	AI4SEO_SETTING_ATTACHMENT_ATTRIBUTES_FILE_NAME_INFLUENCE => 5,
 	AI4SEO_SETTING_METADATA_EXISTING_VALUES_REFERENCE_STRENGTH => 5,
 	AI4SEO_SETTING_ATTACHMENT_ATTRIBUTES_EXISTING_VALUES_REFERENCE_STRENGTH => 5,
-	AI4SEO_SETTING_METADATA_FOCUS_KEYPHRASE_INFLUENCE => 5,
-	AI4SEO_SETTING_METADATA_SEO_KEYWORD_INTENSITY     => 5,
+	AI4SEO_SETTING_METADATA_FOCUS_KEYPHRASE_INFLUENCE    => 5,
+	AI4SEO_SETTING_METADATA_SEO_KEYWORD_INTENSITY        => 5,
 	AI4SEO_SETTING_ATTACHMENT_ATTRIBUTES_SEO_KEYWORD_INTENSITY => 5,
-	AI4SEO_SETTING_METADATA_COMMERCIAL_TONE           => 5,
-	AI4SEO_SETTING_METADATA_SOCIAL_VARIATION          => 5,
+	AI4SEO_SETTING_METADATA_COMMERCIAL_TONE              => 5,
+	AI4SEO_SETTING_METADATA_SOCIAL_VARIATION             => 5,
 	AI4SEO_SETTING_ATTACHMENT_ATTRIBUTES_RECOGNIZABLE_ENTITY_INCLUSION => 5,
 	AI4SEO_SETTING_METADATA_WEBSITE_BRAND_CONTEXT_INFLUENCE => 5,
 	AI4SEO_SETTING_ATTACHMENT_ATTRIBUTES_WEBSITE_BRAND_CONTEXT_INFLUENCE => 5,
-	AI4SEO_SETTING_METADATA_TONE_VARIANT              => 5,
-	AI4SEO_SETTING_ATTACHMENT_ATTRIBUTES_TONE_VARIANT => 5,
+	AI4SEO_SETTING_METADATA_TONE_VARIANT                 => 5,
+	AI4SEO_SETTING_ATTACHMENT_ATTRIBUTES_TONE_VARIANT    => 5,
 	AI4SEO_SETTING_METADATA_META_TITLE_GENERATION_LENGTH => 5,
 	AI4SEO_SETTING_METADATA_META_DESCRIPTION_GENERATION_LENGTH => 5,
 	AI4SEO_SETTING_METADATA_FACEBOOK_TITLE_GENERATION_LENGTH => 5,
@@ -1663,8 +1709,11 @@ const AI4SEO_METADATA_FALLBACK_MAPPING = array(
 	'twitter-description'  => AI4SEO_SETTING_METADATA_FALLBACK_TWITTER_DESCRIPTION,
 );
 
-$ai4seo_settings                 = AI4SEO_DEFAULT_SETTINGS;
-$ai4seo_are_settings_initialized = false;
+$ai4seo_settings                          = AI4SEO_DEFAULT_SETTINGS;
+$ai4seo_are_settings_initialized          = false;
+$ai4seo_settings_request_cache_scope      = '';
+$ai4seo_settings_request_cache_by_site    = array();
+$ai4seo_settings_scopes_being_initialized = array();
 
 $ai4seo_fallback_allowed_user_roles  = array( 'administrator' => 'Administrator' );
 $ai4seo_forbidden_allowed_user_roles = array( 'subscriber', 'customer' );
@@ -1737,6 +1786,8 @@ const AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_LAST_POST_ID           
 const AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_STATE                       = 'posts_table_analysis_state';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_START_TIME                  = 'posts_table_analysis_start_time';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_LAST_CORE_RUN_TIME          = 'posts_table_analysis_last_core_run_time';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_GENERATION_STATUS_SUMMARY_REBUILD_STATE          = 'generation_status_summary_rebuild_state';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_AUTO_RETRY_FAILED_REQUIRED                       = 'auto_retry_failed_required';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STATE             = 'active_metadata_migration_v235_state';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STARTED_TIME      = 'active_metadata_migration_v235_started_time';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_LAST_RUN_TIME     = 'active_metadata_migration_v235_last_run_time';
@@ -1782,6 +1833,8 @@ const AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES = array(
 	AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_STATE => 'idle',
 	AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_START_TIME => 0,
 	AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_LAST_CORE_RUN_TIME => 0,
+	AI4SEO_ENVIRONMENTAL_VARIABLE_GENERATION_STATUS_SUMMARY_REBUILD_STATE => 'idle',
+	AI4SEO_ENVIRONMENTAL_VARIABLE_AUTO_RETRY_FAILED_REQUIRED => false,
 	AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STATE => 'completed',
 	AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STARTED_TIME => 0,
 	AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_LAST_RUN_TIME => 0,
@@ -1801,9 +1854,11 @@ $ai4seo_environmental_variables_are_loaded = false; // cache variable.
 
 $ai4seo_persistent_does_user_need_to_accept_tos_toc_and_pp = null; // cache variable
 // Debug cache-busting remains request-wide; update refreshes are scoped later to authorized plugin admin pages.
+// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only cache-busting flag; no state is changed.
 $ai4seo_scripts_version_number = isset( $_GET['ai4seo_debug_uncached_assets'] ) && sanitize_text_field( wp_unslash( $_GET['ai4seo_debug_uncached_assets'] ) )
 	? time()
 	: AI4SEO_PLUGIN_VERSION_NUMBER;
+
 $ai4seo_user_has_at_least_plan                         = array(); // cache variable to store if user has at least a specific plan.
 $ai4seo_user_has_active_generation_length_subscription = array(); // Request cache for expiry-aware length-stage entitlement.
 
@@ -1959,14 +2014,6 @@ add_action(
 					'api-identifier'         => 'image_description',
 					'flat-credits-cost'      => 1,
 				),
-			// "file-name" => array(
-			// "name" => esc_html__("File Name", "ai-for-seo"),
-			// "mime-type-restrictions" => array(),
-			// "input-type" => "textfield",
-			// "hint" => __("The AI will generate a file name for your image based on its content. A descriptive file name can improve SEO and help search engines understand the image. Review the file name to ensure it accurately reflects the image.", "ai-for-seo"),
-			// "api-identifier" => "image_file_name",
-			// "flat-credits-cost" => 2,
-			// ),
 			)
 		);
 
@@ -1990,6 +2037,35 @@ add_action(
 	7
 );
 
+/**
+ * Return the narrow HTML policy for API-provided notification messages.
+ *
+ * @return array Allowed remote-message tags mapped to their permitted attributes.
+ */
+function ai4seo_get_remote_notification_allowed_html_tags_and_attributes(): array {
+	// Keep API-controlled markup isolated so future changes to the rich local allowlist cannot widen this policy.
+	static $ai4seo_remote_notification_allowed_html_tags_and_attributes = array(
+		'a'      => array(
+			'href' => array(),
+		),
+		'p'      => array(),
+		'br'     => array(),
+		'strong' => array(),
+		'em'     => array(),
+		'ul'     => array(),
+		'ol'     => array(),
+		'li'     => array(),
+	);
+
+	return $ai4seo_remote_notification_allowed_html_tags_and_attributes;
+}
+
+
+/**
+ * Return the HTML tags and attributes allowed in plugin output.
+ *
+ * @return array Allowed tags mapped to their permitted attributes.
+ */
 function ai4seo_get_allowed_html_tags_and_attributes(): array {
 	static $ai4seo_allowed_html_tags_and_attributes = array(
 		'div'      => array(
@@ -2184,9 +2260,9 @@ function ai4seo_get_allowed_html_tags_and_attributes(): array {
 			'aria-pressed'                    => array(),
 		),
 		'span'     => array(
-			'id'             => array(),
-			'class'          => array(),
-			'style'          => array(),
+			'id'                                        => array(),
+			'class'                                     => array(),
+			'style'                                     => array(),
 			'data-trigger'                              => array(),
 			'data-time-left'                            => array(),
 			'data-post-type'                            => array(),
@@ -2232,10 +2308,10 @@ function ai4seo_get_allowed_html_tags_and_attributes(): array {
 			'aria-label'     => array(),
 		),
 		'i'        => array(
-			'onclick'    => array(),
-			'class'      => array(),
-			'id'         => array(),
-			'style'      => array(),
+			'onclick'     => array(),
+			'class'       => array(),
+			'id'          => array(),
+			'style'       => array(),
 			'aria-hidden' => array(),
 		),
 		'select'   => array(
@@ -2348,11 +2424,13 @@ function ai4seo_get_allowed_html_tags_and_attributes(): array {
 }
 
 
-$ai4seo_cached_active_plugins_and_themes = array();
-$ai4seo_cached_supported_post_types      = array();
-$ai4seo_checked_supported_post_types     = array();
-$ai4seo_allowed_image_mime_types         = array( 'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif' );
-$ai4seo_allowed_image_file_type_names    = array( 'jpg', 'jpeg', 'png', 'gif', 'webp', 'avif' );
+$ai4seo_cached_active_plugins_and_themes                = array();
+$ai4seo_active_plugins_and_themes_request_cache_scope   = '';
+$ai4seo_active_plugins_and_themes_request_cache_by_site = array();
+$ai4seo_cached_supported_post_types                     = array();
+$ai4seo_checked_supported_post_types                    = array();
+$ai4seo_allowed_image_mime_types                        = array( 'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif' );
+$ai4seo_allowed_image_file_type_names                   = array( 'jpg', 'jpeg', 'png', 'gif', 'webp', 'avif' );
 
 /**
  * Returns allowed attachment mime types.
@@ -2363,7 +2441,6 @@ function ai4seo_get_allowed_attachment_mime_types(): array {
 	return array( 'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif' );
 }
 
-// =========================================================================================== \\
 
 // Define the constants for full and base language code mappings.
 const AI4SEO_FULL_LANGUAGE_CODE_MAPPING = array(
@@ -2446,13 +2523,38 @@ const AI4SEO_ALLOWED_AJAX_FUNCTIONS = array(
 	'ai4seo_retry_all_failed_metadata',
 	'ai4seo_disable_payg',
 	'ai4seo_init_purchase',
-	'ai4seo_track_subscription_pricing_visit',
+	'ai4seo_init_subscription_pricing',
 	'ai4seo_import_nextgen_gallery_images',
 	'ai4seo_export_settings',
 	'ai4seo_show_import_settings_preview',
 	'ai4seo_import_settings',
 	'ai4seo_restore_default_settings',
-	'ai4seo_request_lost_licence_data',
+	'ai4seo_refresh_dashboard_statistics',
+	'ai4seo_refresh_robhub_account',
+	'ai4seo_submit_feedback',
+);
+
+// AJAX actions that change or expose site-wide account, configuration, or operational state.
+const AI4SEO_ADMINISTRATIVE_AJAX_FUNCTIONS = array(
+	'ai4seo_show_get_more_credits_modal',
+	'ai4seo_reject_tos',
+	'ai4seo_accept_tos',
+	'ai4seo_show_terms_of_service',
+	'ai4seo_dismiss_notification',
+	'ai4seo_reset_plugin_data',
+	'ai4seo_clear_debug_message_log',
+	'ai4seo_stop_bulk_generation',
+	'ai4seo_clear_bulk_generation_queue',
+	'ai4seo_retry_all_failed_attachment_attributes',
+	'ai4seo_retry_all_failed_metadata',
+	'ai4seo_disable_payg',
+	'ai4seo_init_purchase',
+	'ai4seo_init_subscription_pricing',
+	'ai4seo_import_nextgen_gallery_images',
+	'ai4seo_export_settings',
+	'ai4seo_show_import_settings_preview',
+	'ai4seo_import_settings',
+	'ai4seo_restore_default_settings',
 	'ai4seo_refresh_dashboard_statistics',
 	'ai4seo_refresh_robhub_account',
 	'ai4seo_submit_feedback',

@@ -42,7 +42,6 @@ function ai4seo_get_supported_metadata_custom_instructions_post_types(): array {
 	return array_values( $metadata_post_types );
 }
 
-// =========================================================================================== \\
 
 /**
  * Normalize a custom instruction value and cap it to the current account limit.
@@ -76,7 +75,6 @@ function ai4seo_normalize_custom_instructions_value( $value, ?int $length_limit 
 	return $value;
 }
 
-// =========================================================================================== \\
 
 /**
  * Normalize custom instruction setting values before validation or persistence.
@@ -125,7 +123,6 @@ function ai4seo_normalize_custom_instructions_setting_value( string $setting_nam
 	return $setting_value;
 }
 
-// =========================================================================================== \\
 
 /**
  * Validate custom instruction setting values.
@@ -168,7 +165,6 @@ function ai4seo_validate_custom_instructions_setting_value( string $setting_name
 	return false;
 }
 
-// =========================================================================================== \\
 
 /**
  * Return textarea HTML for a custom instruction input.
@@ -205,7 +201,6 @@ function ai4seo_get_custom_instructions_textarea_tag(
 		. '>' . esc_textarea( $input_value ) . '</textarea>';
 }
 
-// =========================================================================================== \\
 
 /**
  * Return character counter HTML for a custom instruction textarea.
@@ -252,7 +247,6 @@ function ai4seo_get_custom_instructions_character_counter_tag( string $input_id 
 	return $html;
 }
 
-// =========================================================================================== \\
 
 /**
  * Return examples and limit support text for a custom instruction context.
@@ -454,7 +448,6 @@ function ai4seo_get_custom_instructions_examples_tooltip_tag( string $context, s
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Return a complete form item for a custom instruction textarea.
@@ -508,7 +501,7 @@ function ai4seo_get_custom_instructions_form_item_tag(
 	}
 
 	// Reuse the shared textarea and counter helpers so settings pages and AJAX editors stay in sync.
-	$html  = '<div class="' . esc_attr( $form_item_css_classes ) . '">';
+	$html = '<div class="' . esc_attr( $form_item_css_classes ) . '">';
 
 	if ( $show_description_in_tooltip ) {
 		$html .= '<span class="ai4seo-label-with-tooltip">';
@@ -561,7 +554,6 @@ function ai4seo_get_custom_instructions_form_item_tag(
 	return $html;
 }
 
-// =========================================================================================== \\
 
 /**
  * Return a settings-page form item for a custom instruction setting.
@@ -603,7 +595,6 @@ function ai4seo_get_custom_instructions_setting_form_item_tag(
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Save custom instructions to a postmeta entry.
@@ -626,7 +617,6 @@ function ai4seo_save_custom_instructions_postmeta( int $post_id, string $meta_ke
 	return in_array( $post_id, $result['saved_post_ids'], true );
 }
 
-// =========================================================================================== \\
 
 /**
  * Save one custom-instruction value to several postmeta entries.
@@ -686,7 +676,6 @@ function ai4seo_save_custom_instructions_postmeta_for_post_ids( array $post_ids,
 	return $result;
 }
 
-// =========================================================================================== \\
 
 /**
  * Read normalized custom instructions from postmeta.
@@ -706,7 +695,6 @@ function ai4seo_read_custom_instructions_postmeta( int $post_id, string $meta_ke
 	return ai4seo_normalize_custom_instructions_value( get_post_meta( $post_id, $meta_key, true ) );
 }
 
-// =========================================================================================== \\
 
 /**
  * Read the optional entry-level custom instructions submitted with a manual generation request.
@@ -714,20 +702,22 @@ function ai4seo_read_custom_instructions_postmeta( int $post_id, string $meta_ke
  * @return mixed|null Raw request value, or null when the field was not submitted.
  */
 function ai4seo_get_generation_entry_custom_instructions_request_value() {
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- AJAX callers verify the nonce first.
 	if ( ! array_key_exists( 'ai4seo_entry_custom_instructions', $_REQUEST ) ) {
 		return null;
 	}
 
 	// Unexpected arrays are treated like empty text so manual generation does not persist or submit mixed data.
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- AJAX callers verify the nonce first.
 	if ( is_array( $_REQUEST['ai4seo_entry_custom_instructions'] ) ) {
 		return '';
 	}
 
 	// Keep null distinct from an intentionally empty textarea so Generate can omit saved entry-level instructions.
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- AJAX callers verify the nonce first.
 	return sanitize_textarea_field( wp_unslash( $_REQUEST['ai4seo_entry_custom_instructions'] ) );
 }
 
-// =========================================================================================== \\
 
 /**
  * Resolve entry-level generation instructions from the request override or saved postmeta.
@@ -747,7 +737,6 @@ function ai4seo_get_generation_entry_custom_instructions( int $post_id, string $
 	return ai4seo_read_custom_instructions_postmeta( $post_id, $meta_key );
 }
 
-// =========================================================================================== \\
 
 /**
  * Collect custom instructions for a generation request.

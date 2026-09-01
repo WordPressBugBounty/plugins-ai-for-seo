@@ -19,7 +19,6 @@ function ai4seo_get_prohibit_plugin_token_transient_name( string $token ): strin
 	return 'ai4seo_prohibit_plugin_token_' . hash( 'sha256', $token );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the current request URL for matching a prohibit token to its intended target.
@@ -49,7 +48,6 @@ function ai4seo_get_current_prohibit_plugin_request_url(): string {
 	return esc_url_raw( $scheme . '://' . $host . $request_uri, array( 'http', 'https' ) );
 }
 
-// =========================================================================================== \\
 
 /**
  * Normalizes a URL for comparing the current request with the token's target URL.
@@ -75,7 +73,6 @@ function ai4seo_normalize_prohibit_plugin_target_url( string $url ): string {
 	return esc_url_raw( $normalized_url, array( 'http', 'https' ) );
 }
 
-// =========================================================================================== \\
 
 /**
  * Checks whether the current request matches the target URL stored for a prohibit token.
@@ -95,7 +92,6 @@ function ai4seo_current_request_matches_prohibit_plugin_target( string $target_u
 	return '' !== $current_url && $current_url === $target_url;
 }
 
-// =========================================================================================== \\
 
 /**
  * Checks and consumes the early plugin prohibition token for the current request.

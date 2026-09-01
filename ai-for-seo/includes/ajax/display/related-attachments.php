@@ -2,6 +2,7 @@
 /**
  * Displays related media attachments for a post. Called via AJAX.
  *
+ * @package AI_For_SEO
  * @since 2.3.8
  */
 
@@ -9,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! ai4seo_can_manage_this_plugin() ) {
+if ( ! ai4seo_can_use_plugin_content() ) {
 	return;
 }
 
@@ -22,7 +23,6 @@ if ( wp_verify_nonce( $GLOBALS['ai4seo_ajax_nonce'] ?? '', AI4SEO_GLOBAL_NONCE_I
 
 // ___________________________________________________________________________________________ \\
 // === PREPARE =============================================================================== \\
-// =========================================================================================== \\
 
 // The modal is scoped to one source post; all other filter parameters are optional table state.
 $ai4seo_post_id = absint( wp_unslash( $_REQUEST['post_id'] ?? 0 ) );
@@ -115,7 +115,6 @@ if ( ! isset( $_REQUEST['ai4seo_page'] ) ) {
 
 // ___________________________________________________________________________________________ \\
 // === OUTPUT ================================================================================ \\
-// =========================================================================================== \\
 
 // Use the same modal header structure as the existing AJAX editors for consistent framing.
 ai4seo_echo_wp_kses( ai4seo_get_modal_headline_tag( __( 'Related Media', 'ai-for-seo' ) ) );

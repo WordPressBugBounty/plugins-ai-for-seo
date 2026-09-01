@@ -19,9 +19,17 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return WP_Error|null Error on failure, null on success or no-op.
  */
 function ai4seo_process_save_anything_environmental_variables( array &$upcoming_save_anything_updates ) {
-	// Preserve the category's existing silent no-op behavior for users without plugin-management rights.
-	if ( ! ai4seo_can_manage_this_plugin() ) {
+	// Leave payloads without internal state fields to their owning save processors.
+	if ( ! array_intersect( array_keys( $upcoming_save_anything_updates ), array_keys( AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES ) ) ) {
 		return null;
+	}
+
+	// Protect direct processor callers in addition to the central mixed-payload preflight.
+	if ( ! ai4seo_can_administer_plugin() ) {
+		return new WP_Error(
+			11420725,
+			esc_html__( 'Action blocked due to security reasons. Please refresh this page and try again.', 'ai-for-seo' )
+		);
 	}
 
 	// Maintain both old/new history for side effects and a direct new-value map for the bulk writer.
@@ -104,7 +112,21 @@ function ai4seo_process_save_anything_environmental_variables( array &$upcoming_
 	foreach ( $ai4seo_analysis_trigger_environmental_variables as $ai4seo_this_environmental_variable_key ) {
 		// The recent-change map prevents refreshes for submitted values that were equal to stored state.
 		if ( isset( $ai4seo_recent_environmental_variable_changes[ $ai4seo_this_environmental_variable_key ] ) ) {
-			ai4seo_force_posts_table_analysis_refresh_after_admin_mutation();
+			$ai4seo_posts_table_analysis_was_refreshed = ai4seo_force_posts_table_analysis_refresh_after_admin_mutation();
+
+			if ( ! $ai4seo_posts_table_analysis_was_refreshed ) {
+				$ai4seo_rebuild_was_scheduled = ai4seo_schedule_generation_status_summary_rebuild();
+
+				if ( ! $ai4seo_rebuild_was_scheduled ) {
+					ai4seo_debug_message( 89120826, 'Could not durably schedule generation-status reconciliation after saving an analysis-sensitive environmental variable.', true );
+				}
+
+				return new WP_Error(
+					89120826,
+					esc_html__( 'The environmental variables were saved, but their generation-status statistics could not be reconciled. A background repair was requested. Please refresh the page and try again.', 'ai-for-seo' )
+				);
+			}
+
 			break;
 		}
 	}

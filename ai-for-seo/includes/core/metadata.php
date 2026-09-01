@@ -1,4 +1,10 @@
 <?php
+/**
+ * Handles metadata generation, validation, storage, and synchronization.
+ *
+ * @package AI_For_SEO
+ */
+
 // Keep extracted core modules inaccessible when WordPress has not loaded the plugin environment.
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -42,8 +48,6 @@ function ai4seo_get_metadata_editor_preview_affixes( int $post_id, array $affixe
 	return $resolved_affixes;
 }
 
-// phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Project section separator.
-// =========================================================================================== \\
 
 /**
  * Build constant post and site data used by the client-side metadata previews.
@@ -158,7 +162,6 @@ function ai4seo_get_generation_status_summary_entry( string $option_name ): arra
 	return $generation_status_summary[ $option_name ];
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to get all missing posts by post type by using the generation status summary-cache
@@ -172,7 +175,6 @@ function ai4seo_get_num_missing_posts_by_post_type(): array {
 	return array_merge( $num_missing_metadata_by_post_type, $num_missing_attachment_attributes );
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to get all fully covered posts by post type by using the generation status summary-cache
@@ -186,7 +188,6 @@ function ai4seo_get_num_fully_covered_posts_by_post_type(): array {
 	return array_merge( $num_fully_covered_metadata_by_post_type, $num_fully_covered_attachment_attributes );
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to get all generated posts by post type by using the generation status summary-cache
@@ -200,7 +201,6 @@ function ai4seo_get_num_generated_posts_by_post_type(): array {
 	return array_merge( $num_generated_metadata_by_post_type, $num_generated_attachment_attributes );
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to get all fully covered OR generated posts by post type by using the generation status summary-cache, depending on, if we care fully covered entries
@@ -215,7 +215,6 @@ function ai4seo_get_num_finished_posts_by_post_type(): array {
 }
 
 
-// =========================================================================================== \\
 
 /**
  * Function to get all failed posts by post type by using the generation status summary-cache
@@ -229,7 +228,6 @@ function ai4seo_get_num_failed_posts_by_post_type(): array {
 	return array_merge( $num_failed_metadata_by_post_type, $num_failed_attachment_attributes );
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to get all pending posts by post type by using the generation status summary-cache
@@ -243,7 +241,6 @@ function ai4seo_get_num_pending_posts_by_post_type(): array {
 	return array_merge( $num_pending_metadata_by_post_type, $num_pending_attachment_attributes );
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to get all processing posts by post type by using the generation status summary-cache
@@ -257,7 +254,6 @@ function ai4seo_get_num_processing_posts_by_post_type(): array {
 	return array_merge( $num_processing_metadata_by_post_type, $num_processing_attachment_attributes );
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to get the summary (amount of posts) of a specific options and post type
@@ -285,7 +281,6 @@ function ai4seo_get_num_generation_status_and_post_types_posts( string $option_n
 	return (int) $generation_status_summary[ $option_name ][ $post_type ];
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the legacy active metadata postmeta key for a post and metadata identifier.
@@ -298,7 +293,6 @@ function ai4seo_generate_legacy_postmeta_key_by_metadata_identifier( $post_id, $
 	return '_ai4seo_' . $post_id . '_' . $metadata_identifier;
 }
 
-// =========================================================================================== \\
 
 /**
  * Gets the metadata identifier from a legacy active metadata postmeta key.
@@ -317,7 +311,6 @@ function ai4seo_get_legacy_metadata_identifier_by_postmeta_key( string $metadata
 	return $matches[2];
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns LIKE patterns for indexed legacy active metadata key lookups.
@@ -337,7 +330,33 @@ function ai4seo_get_legacy_active_metadata_postmeta_key_like_patterns(): array {
 	return $legacy_active_metadata_postmeta_key_like_patterns;
 }
 
-// =========================================================================================== \\
+
+/**
+ * Returns typed query bindings for the fixed legacy active-metadata key patterns.
+ *
+ * @return array Typed database-query bindings, or an empty array if the pattern registry is invalid.
+ */
+function ai4seo_get_legacy_active_metadata_database_query_bindings(): array {
+	// Reuse the canonical escaped patterns so migration reads and deletes cannot diverge by operation.
+	$patterns = ai4seo_get_legacy_active_metadata_postmeta_key_like_patterns();
+
+	if ( 10 !== count( $patterns ) ) {
+		return array();
+	}
+
+	$query_bindings = array(
+		'postmeta_table'    => ai4seo_database_identifier_binding( 'table.postmeta' ),
+		'legacy_key_regexp' => ai4seo_database_scalar_binding( '%s', '^_ai4seo_[0-9]+_.+$' ),
+	);
+
+	// Derive the numbered binding keys from the canonical pattern order instead of maintaining a duplicate list.
+	foreach ( $patterns as $pattern_index => $pattern ) {
+		$query_bindings[ 'legacy_pattern_' . $pattern_index ] = ai4seo_database_scalar_binding( '%s', $pattern );
+	}
+
+	return $query_bindings;
+}
+
 
 /**
  * Returns SQL conditions and parameters for indexed legacy active metadata key lookups.
@@ -363,18 +382,19 @@ function ai4seo_get_legacy_active_metadata_postmeta_key_like_conditions(): array
 	return array( $legacy_active_metadata_postmeta_key_like_conditions, $legacy_active_metadata_postmeta_key_like_patterns );
 }
 
-// =========================================================================================== \\
 
 /**
  * Checks whether any legacy active metadata rows still exist.
  *
+ * @param bool|null $read_succeeded Receives whether the candidate read completed successfully.
  * @return bool
  */
-function ai4seo_has_legacy_active_metadata_rows(): bool {
-	return ! empty( ai4seo_read_legacy_active_metadata_migration_v235_candidate_post_ids( 1 ) );
+function ai4seo_has_legacy_active_metadata_rows( ?bool &$read_succeeded = null ): bool {
+	$post_ids = ai4seo_read_legacy_active_metadata_migration_v235_candidate_post_ids( 1, $read_succeeded );
+
+	return $read_succeeded && ! empty( $post_ids );
 }
 
-// =========================================================================================== \\
 
 /**
  * Normalizes and filters active metadata values for JSON storage or active-tag reads.
@@ -423,16 +443,18 @@ function ai4seo_prepare_active_metadata_values( array $active_metadata_values, b
 	return $prepared_active_metadata_values;
 }
 
-// =========================================================================================== \\
 
 /**
  * Decodes an active metadata JSON postmeta value.
  *
- * @param string $active_metadata_json_string The JSON string.
- * @param bool   $active_meta_tags_only Whether only currently active tags should be returned.
+ * @param string    $active_metadata_json_string The JSON string.
+ * @param bool      $active_meta_tags_only Whether only currently active tags should be returned.
+ * @param bool|null $decoding_succeeded Receives whether a valid JSON collection was decoded.
  * @return array
  */
-function ai4seo_decode_active_metadata_json_string( string $active_metadata_json_string, bool $active_meta_tags_only = false ): array {
+function ai4seo_decode_active_metadata_json_string( string $active_metadata_json_string, bool $active_meta_tags_only = false, ?bool &$decoding_succeeded = null ): array {
+	$decoding_succeeded = false;
+
 	if ( ! $active_metadata_json_string ) {
 		return array();
 	}
@@ -443,10 +465,10 @@ function ai4seo_decode_active_metadata_json_string( string $active_metadata_json
 		return array();
 	}
 
+	$decoding_succeeded = true;
 	return ai4seo_prepare_active_metadata_values( $active_metadata, $active_meta_tags_only );
 }
 
-// =========================================================================================== \\
 
 /**
  * Reads active metadata from the v235 JSON postmeta entry for a single post.
@@ -465,21 +487,23 @@ function ai4seo_read_active_metadata_from_post_meta( int $post_id, bool $active_
 	return ai4seo_decode_active_metadata_json_string( $active_metadata_json_string, $active_meta_tags_only );
 }
 
-// =========================================================================================== \\
 
 /**
  * Reads active metadata from the v235 JSON postmeta entry for multiple posts.
  *
- * @param array $post_ids The post ids.
- * @param bool  $active_meta_tags_only Whether only currently active tags should be returned.
+ * @param array     $post_ids The post ids.
+ * @param bool      $active_meta_tags_only Whether only currently active tags should be returned.
+ * @param bool|null $read_succeeded Receives whether every query and stored JSON decode succeeded.
  * @return array
  */
-function ai4seo_read_active_metadata_by_post_ids( array $post_ids, bool $active_meta_tags_only = true ): array {
+function ai4seo_read_active_metadata_by_post_ids( array $post_ids, bool $active_meta_tags_only = true, ?bool &$read_succeeded = null ): array {
 	global $wpdb;
 
-	$post_ids = array_filter( array_map( 'absint', $post_ids ) );
+	$read_succeeded = false;
+	$post_ids       = array_values( array_filter( array_map( 'absint', $post_ids ) ) );
 
 	if ( ! $post_ids ) {
+		$read_succeeded = true;
 		return array();
 	}
 
@@ -492,18 +516,29 @@ function ai4seo_read_active_metadata_by_post_ids( array $post_ids, bool $active_
 			continue;
 		}
 
-		$this_post_ids_placeholders = implode( ',', array_fill( 0, count( $this_post_ids_chunk ), '%d' ) );
-
-		$this_rows = $wpdb->get_results(
-			$wpdb->prepare(
-				"SELECT meta_id, post_id, meta_value FROM {$wpdb->postmeta} WHERE meta_key = %s AND post_id IN ({$this_post_ids_placeholders}) ORDER BY meta_id ASC",
-				...array_merge( array( AI4SEO_POST_META_ACTIVE_METADATA_META_KEY ), $this_post_ids_chunk )
-			),
-			ARRAY_A
+		$this_query = ai4seo_prepare_database_query(
+			'SELECT meta_id, post_id, meta_value FROM {{postmeta_table}} WHERE meta_key = {{meta_key}} AND post_id IN ({{post_ids}}) ORDER BY meta_id ASC',
+			array(
+				'postmeta_table' => ai4seo_database_identifier_binding( 'table.postmeta' ),
+				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- This is an equality lookup for one fixed plugin key, bounded by a chunked post-ID list and ordered by the primary meta ID.
+				'meta_key'       => ai4seo_database_scalar_binding( '%s', AI4SEO_POST_META_ACTIVE_METADATA_META_KEY ),
+				'post_ids'       => ai4seo_database_list_binding( '%d', array_values( $this_post_ids_chunk ) ),
+			)
 		);
+
+		if ( false === $this_query ) {
+			return array();
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler prepares this bounded current-state batch read; metadata rows can change between requests and ordering selects the canonical first row.
+		$this_rows = $wpdb->get_results( $this_query, ARRAY_A );
 
 		if ( $wpdb->last_error ) {
 			ai4seo_debug_message( 984321696, 'Database error: ' . $wpdb->last_error, true );
+			return array();
+		}
+
+		if ( ! is_array( $this_rows ) ) {
 			return array();
 		}
 
@@ -512,146 +547,667 @@ function ai4seo_read_active_metadata_by_post_ids( array $post_ids, bool $active_
 		}
 
 		foreach ( $this_rows as $this_row ) {
-			$this_post_id = absint( $this_row['post_id'] );
+			if ( ! is_array( $this_row )
+				|| ! array_key_exists( 'post_id', $this_row )
+				|| ! array_key_exists( 'meta_value', $this_row )
+				|| ! is_string( $this_row['meta_value'] ) ) {
+				return array();
+			}
+
+			$this_post_id = ai4seo_normalize_database_id( $this_row['post_id'] );
+
+			if ( false === $this_post_id || ! in_array( $this_post_id, $post_ids, true ) ) {
+				return array();
+			}
 
 			if ( array_key_exists( $this_post_id, $active_metadata_by_post_ids ) ) {
 				continue;
 			}
 
-			$active_metadata_by_post_ids[ $this_post_id ] = ai4seo_decode_active_metadata_json_string( strval( $this_row['meta_value'] ), $active_meta_tags_only );
+			$this_decoding_succeeded = false;
+			$this_active_metadata    = ai4seo_decode_active_metadata_json_string( $this_row['meta_value'], $active_meta_tags_only, $this_decoding_succeeded );
+
+			if ( ! $this_decoding_succeeded ) {
+				return array();
+			}
+
+			$active_metadata_by_post_ids[ $this_post_id ] = $this_active_metadata;
 		}
 	}
 
+	$read_succeeded = true;
 	return $active_metadata_by_post_ids;
 }
 
-// =========================================================================================== \\
+
+/**
+ * Strictly decodes one active-metadata postmeta value without normalizing malformed storage.
+ *
+ * @param string     $raw_value Exact persisted JSON bytes.
+ * @param array|null $active_metadata Receives canonical active metadata on success.
+ * @return bool Whether the stored collection exactly satisfies the active-metadata schema.
+ */
+function ai4seo_decode_active_metadata_postmeta_value_authoritatively( string $raw_value, ?array &$active_metadata = null ): bool {
+	$active_metadata = array();
+	$decoded_value   = json_decode( $raw_value, true );
+
+	if ( JSON_ERROR_NONE !== json_last_error() || ! is_array( $decoded_value ) ) {
+		return false;
+	}
+
+	$prepared_value = ai4seo_prepare_active_metadata_values( $decoded_value, false );
+
+	// Reject unknown keys, structured/scalar-coerced values, and values storage normalization would alter.
+	if ( count( $decoded_value ) !== count( $prepared_value ) ) {
+		return false;
+	}
+
+	foreach ( $decoded_value as $metadata_identifier => $metadata_value ) {
+		if ( ! is_string( $metadata_identifier )
+			|| ! is_string( $metadata_value )
+			|| ! array_key_exists( $metadata_identifier, $prepared_value )
+			|| ! hash_equals( $metadata_value, $prepared_value[ $metadata_identifier ] )
+		) {
+			return false;
+		}
+	}
+
+	$active_metadata = $prepared_value;
+	return true;
+}
+
+
+/**
+ * Reads one exact active-metadata row directly from authoritative postmeta storage.
+ *
+ * Missing storage is a successful empty snapshot. Duplicate rows, malformed JSON, and database
+ * failures fail closed so a merge can never be based on an arbitrary or cached predecessor.
+ *
+ * @param int       $post_id Post ID.
+ * @param bool|null $read_succeeded Receives whether exact storage and decoding were authoritative.
+ * @return array{exists: bool, meta_id: int, raw_value: string, active_metadata: array}
+ */
+function ai4seo_read_authoritative_active_metadata_postmeta_snapshot(
+	int $post_id,
+	?bool &$read_succeeded = null
+): array {
+	global $wpdb;
+
+	$post_id        = absint( $post_id );
+	$read_succeeded = false;
+	$empty_snapshot = array(
+		'exists'          => false,
+		'meta_id'         => 0,
+		'raw_value'       => '',
+		'active_metadata' => array(),
+	);
+
+	if ( $post_id <= 0 ) {
+		return $empty_snapshot;
+	}
+
+	$query = ai4seo_prepare_database_query(
+		'SELECT `meta_id`, `meta_key`, `meta_value`
+		FROM {{postmeta_table}}
+		WHERE `post_id` = {{post_id}}
+		AND BINARY `meta_key` = BINARY {{meta_key}}
+		ORDER BY `meta_id` ASC
+		LIMIT {{row_limit}}',
+		array(
+			'postmeta_table' => ai4seo_database_identifier_binding( 'table.postmeta' ),
+			'post_id'        => ai4seo_database_scalar_binding( '%d', $post_id ),
+			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Exact post ownership and LIMIT 2 bound this duplicate-owner check.
+			'meta_key'       => ai4seo_database_scalar_binding( '%s', AI4SEO_POST_META_ACTIVE_METADATA_META_KEY ),
+			'row_limit'      => ai4seo_database_scalar_binding( '%d', 2 ),
+		)
+	);
+
+	if ( false === $query ) {
+		return $empty_snapshot;
+	}
+
+	$wpdb->last_error = '';
+
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed compiler owns this bounded exact-row read, which intentionally bypasses possibly stale postmeta caches.
+	$rows = $wpdb->get_results( $query, ARRAY_A );
+
+	if ( $wpdb->last_error ) {
+		ai4seo_debug_message( 984321737, 'Database error during authoritative active metadata read: ' . $wpdb->last_error, true );
+		return $empty_snapshot;
+	}
+
+	if ( ! is_array( $rows ) || count( $rows ) > 1 ) {
+		return $empty_snapshot;
+	}
+
+	if ( ! $rows ) {
+		$read_succeeded = true;
+		return $empty_snapshot;
+	}
+
+	$row             = reset( $rows );
+	$meta_id         = is_array( $row ) ? ai4seo_normalize_database_id( $row['meta_id'] ?? null ) : false;
+	$active_metadata = array();
+
+	if ( ! is_array( $row )
+		|| false === $meta_id
+		|| ! array_key_exists( 'meta_key', $row )
+		|| ! is_string( $row['meta_key'] )
+		|| ! hash_equals( AI4SEO_POST_META_ACTIVE_METADATA_META_KEY, $row['meta_key'] )
+		|| ! array_key_exists( 'meta_value', $row )
+		|| ! is_string( $row['meta_value'] )
+		|| ! ai4seo_decode_active_metadata_postmeta_value_authoritatively( $row['meta_value'], $active_metadata )
+	) {
+		return $empty_snapshot;
+	}
+
+	$read_succeeded = true;
+
+	return array(
+		'exists'          => true,
+		'meta_id'         => $meta_id,
+		'raw_value'       => $row['meta_value'],
+		'active_metadata' => $active_metadata,
+	);
+}
+
+
+/**
+ * Returns the bounded advisory-lock name for one site's active-metadata snapshot owner.
+ *
+ * @param int $post_id Post ID.
+ * @return string Site/post/key-scoped lock name, or an empty string for invalid input.
+ */
+function ai4seo_get_active_metadata_postmeta_lock_name( int $post_id ): string {
+	global $wpdb;
+
+	$post_id        = absint( $post_id );
+	$postmeta_table = isset( $wpdb->postmeta ) ? (string) $wpdb->postmeta : '';
+
+	if ( $post_id <= 0 || '' === $postmeta_table ) {
+		return '';
+	}
+
+	$database_name = defined( 'DB_NAME' ) ? (string) DB_NAME : '';
+	$scope         = $database_name . '|' . $postmeta_table . '|' . absint( get_current_blog_id() ) . '|' . $post_id . '|' . AI4SEO_POST_META_ACTIVE_METADATA_META_KEY;
+
+	// MySQL and MariaDB limit advisory-lock names to 64 bytes; this hash isolates site, post, and key ownership.
+	return 'ai4seo_active_' . substr( hash( 'sha256', $scope ), 0, 50 );
+}
+
+
+/**
+ * Reads whether one stable active-metadata row still contains exact operation-owned bytes.
+ *
+ * @param int    $post_id Post ID.
+ * @param int    $meta_id Active-metadata row ID.
+ * @param string $expected_raw_value Exact raw value owned by the operation.
+ * @return bool|null True for an exact match, false for missing/replaced ownership, null on read failure.
+ */
+function ai4seo_active_metadata_postmeta_row_matches_exact_value(
+	int $post_id,
+	int $meta_id,
+	string $expected_raw_value
+): ?bool {
+	global $wpdb;
+
+	$post_id = absint( $post_id );
+	$meta_id = absint( $meta_id );
+
+	if ( $post_id <= 0 || $meta_id <= 0 ) {
+		return null;
+	}
+
+	$query = ai4seo_prepare_database_query(
+		'SELECT `meta_value`
+		FROM {{postmeta_table}}
+		WHERE `meta_id` = {{meta_id}}
+		AND `post_id` = {{post_id}}
+		AND BINARY `meta_key` = BINARY {{meta_key}}
+		LIMIT {{row_limit}}',
+		array(
+			'postmeta_table' => ai4seo_database_identifier_binding( 'table.postmeta' ),
+			'meta_id'        => ai4seo_database_scalar_binding( '%d', $meta_id ),
+			'post_id'        => ai4seo_database_scalar_binding( '%d', $post_id ),
+			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- The primary key and post ID bound this ownership check to one row.
+			'meta_key'       => ai4seo_database_scalar_binding( '%s', AI4SEO_POST_META_ACTIVE_METADATA_META_KEY ),
+			'row_limit'      => ai4seo_database_scalar_binding( '%d', 1 ),
+		)
+	);
+
+	if ( false === $query ) {
+		return null;
+	}
+
+	$wpdb->last_error = '';
+
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed compiler prepares a stable primary-key ownership read that must bypass postmeta caches.
+	$current_raw_value = $wpdb->get_var( $query );
+
+	if ( $wpdb->last_error ) {
+		return null;
+	}
+
+	if ( null === $current_raw_value ) {
+		return false;
+	}
+
+	return is_string( $current_raw_value ) && hash_equals( $expected_raw_value, $current_raw_value );
+}
+
+
+/**
+ * Deletes only the exact active-metadata row created by the current failed add attempt.
+ *
+ * @param int    $post_id Post ID.
+ * @param int    $meta_id Active-metadata row ID returned by the owned add.
+ * @param string $expected_raw_value Exact raw value inserted by the owned add.
+ * @return bool Whether the owned row is now absent or replaced without deleting a foreign owner.
+ */
+function ai4seo_delete_owned_active_metadata_postmeta_row(
+	int $post_id,
+	int $meta_id,
+	string $expected_raw_value
+): bool {
+	global $wpdb;
+
+	$post_id = absint( $post_id );
+	$meta_id = absint( $meta_id );
+
+	if ( $post_id <= 0 || $meta_id <= 0 ) {
+		return false;
+	}
+
+	// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Mirrors the authoritative WordPress core metadata filter.
+	$check = apply_filters( 'delete_post_metadata', null, $post_id, AI4SEO_POST_META_ACTIVE_METADATA_META_KEY, $expected_raw_value, false );
+
+	if ( null !== $check ) {
+		$row_still_matches = ai4seo_active_metadata_postmeta_row_matches_exact_value( $post_id, $meta_id, $expected_raw_value );
+
+		return null !== $row_still_matches && ! $row_still_matches;
+	}
+
+	$query = ai4seo_prepare_database_query(
+		'DELETE FROM {{postmeta_table}}
+		WHERE `meta_id` = {{meta_id}}
+		AND `post_id` = {{post_id}}
+		AND BINARY `meta_key` = BINARY {{meta_key}}
+		AND BINARY `meta_value` = BINARY {{meta_value}}
+		LIMIT {{row_limit}}',
+		array(
+			'postmeta_table' => ai4seo_database_identifier_binding( 'table.postmeta' ),
+			'meta_id'        => ai4seo_database_scalar_binding( '%d', $meta_id ),
+			'post_id'        => ai4seo_database_scalar_binding( '%d', $post_id ),
+			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- The primary key bounds this exact owned-row compensation.
+			'meta_key'       => ai4seo_database_scalar_binding( '%s', AI4SEO_POST_META_ACTIVE_METADATA_META_KEY ),
+			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- Stable primary-key and exact-byte ownership bound this compensation to one row.
+			'meta_value'     => ai4seo_database_scalar_binding( '%s', $expected_raw_value ),
+			'row_limit'      => ai4seo_database_scalar_binding( '%d', 1 ),
+		)
+	);
+
+	if ( false === $query ) {
+		return false;
+	}
+
+	$meta_ids = array( (string) $meta_id );
+
+	// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Mirrors the authoritative WordPress core metadata action.
+	do_action( 'delete_post_meta', $meta_ids, $post_id, AI4SEO_POST_META_ACTIVE_METADATA_META_KEY, $expected_raw_value );
+	// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Mirrors the authoritative WordPress core legacy metadata action.
+	do_action( 'delete_postmeta', $meta_ids );
+
+	$wpdb->last_error = '';
+
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Exact row identity and operation-owned bytes bound this compensation; metadata hooks and cache invalidation are repaired around it.
+	$delete_result = $wpdb->query( $query );
+
+	if ( false === $delete_result || $wpdb->last_error || (int) $delete_result > 1 ) {
+		return false;
+	}
+
+	if ( 0 === (int) $delete_result ) {
+		$row_still_matches = ai4seo_active_metadata_postmeta_row_matches_exact_value( $post_id, $meta_id, $expected_raw_value );
+
+		return null !== $row_still_matches && ! $row_still_matches;
+	}
+
+	wp_cache_delete( $post_id, 'post_meta' );
+	// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Mirrors the authoritative WordPress core metadata action.
+	do_action( 'deleted_post_meta', $meta_ids, $post_id, AI4SEO_POST_META_ACTIVE_METADATA_META_KEY, $expected_raw_value );
+	// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Mirrors the authoritative WordPress core legacy metadata action.
+	do_action( 'deleted_postmeta', $meta_ids );
+
+	return true;
+}
+
 
 /**
  * Saves active metadata to the v235 JSON postmeta entry.
  *
- * @param int   $post_id The post id.
- * @param array $active_metadata The active metadata values.
- * @param bool  $existing_active_metadata_wins Whether existing JSON values should win over provided values.
+ * @param int        $post_id The post id.
+ * @param array      $active_metadata The active metadata values.
+ * @param bool       $existing_active_metadata_wins Whether existing JSON values should win over provided values.
+ * @param array|null $operation_details Receives commit_state and active_metadata_changed.
+ * @param array      $only_if_empty_metadata_identifiers Fields that may replace only a missing or empty stored value.
+ * @param array      $only_if_missing_metadata_identifiers Fields that may replace only a missing stored key.
  * @return bool
  */
-function ai4seo_save_active_metadata_to_postmeta( int $post_id, array $active_metadata, bool $existing_active_metadata_wins = false ): bool {
+function ai4seo_save_active_metadata_to_postmeta(
+	int $post_id,
+	array $active_metadata,
+	bool $existing_active_metadata_wins = false,
+	?array &$operation_details = null,
+	array $only_if_empty_metadata_identifiers = array(),
+	array $only_if_missing_metadata_identifiers = array()
+): bool {
 	global $wpdb;
 
-	$post_id = absint( $post_id );
+	$operation_details = array(
+		'commit_state'            => 'not_committed',
+		'active_metadata_changed' => false,
+	);
+	$post_id           = absint( $post_id );
 
-	if ( $post_id <= 0 || ! get_post( $post_id ) ) {
+	if ( $post_id <= 0 || ! defined( 'AI4SEO_METADATA_DETAILS' ) || ! get_post( $post_id ) ) {
 		return false;
 	}
 
-	$active_metadata = ai4seo_prepare_active_metadata_values( $active_metadata, false );
+	// Match update_post_meta() by applying revision writes to their parent post.
+	$revision_parent_post_id = wp_is_post_revision( $post_id );
 
-	for ( $i = 0; $i < 3; $i++ ) {
-		$current_active_metadata_json_string = get_post_meta( $post_id, AI4SEO_POST_META_ACTIVE_METADATA_META_KEY, true );
+	if ( $revision_parent_post_id ) {
+		$post_id = absint( $revision_parent_post_id );
+	}
 
-		if ( ! is_string( $current_active_metadata_json_string ) ) {
-			$current_active_metadata_json_string = '';
+	$active_metadata                 = ai4seo_prepare_active_metadata_values( $active_metadata, false );
+	$recognized_metadata_identifiers = array_keys( AI4SEO_METADATA_DETAILS );
+	$normalize_metadata_identifiers  = static function ( array $metadata_identifiers ) use ( $recognized_metadata_identifiers ): array {
+		$normalized_metadata_identifiers = array();
+
+		foreach ( $metadata_identifiers as $metadata_identifier ) {
+			if ( ! is_string( $metadata_identifier ) ) {
+				continue;
+			}
+
+			$metadata_identifier = sanitize_key( $metadata_identifier );
+
+			if ( in_array( $metadata_identifier, $recognized_metadata_identifiers, true ) ) {
+				$normalized_metadata_identifiers[] = $metadata_identifier;
+			}
 		}
 
-		$current_active_metadata = ai4seo_decode_active_metadata_json_string( $current_active_metadata_json_string, false );
+		return array_values( array_unique( $normalized_metadata_identifiers ) );
+	};
 
-		if ( $existing_active_metadata_wins ) {
-			$merged_active_metadata = $active_metadata;
+	$only_if_empty_metadata_identifiers   = $normalize_metadata_identifiers( $only_if_empty_metadata_identifiers );
+	$only_if_missing_metadata_identifiers = $normalize_metadata_identifiers( $only_if_missing_metadata_identifiers );
+	$lock_name                            = ai4seo_get_active_metadata_postmeta_lock_name( $post_id );
 
-			foreach ( $current_active_metadata as $this_metadata_identifier => $this_metadata_value ) {
-				$merged_active_metadata[ $this_metadata_identifier ] = $this_metadata_value;
-			}
-		} else {
-			$merged_active_metadata = $current_active_metadata;
+	if ( '' === $lock_name ) {
+		return false;
+	}
 
-			foreach ( $active_metadata as $this_metadata_identifier => $this_metadata_value ) {
-				$merged_active_metadata[ $this_metadata_identifier ] = $this_metadata_value;
-			}
-		}
-
-		$merged_active_metadata      = ai4seo_prepare_active_metadata_values( $merged_active_metadata, false );
-		$active_metadata_json_string = wp_json_encode( $merged_active_metadata, JSON_UNESCAPED_UNICODE );
-
-		if ( ! is_string( $active_metadata_json_string ) ) {
+	try {
+		if ( ai4seo_is_database_advisory_lock_owned_by_current_connection( $lock_name )
+			|| ! ai4seo_acquire_database_advisory_lock( $lock_name )
+		) {
 			return false;
 		}
+	} catch ( Throwable $throwable ) {
+		ai4seo_debug_message( 984321740, 'Could not acquire the active-metadata postmeta advisory lock: ' . $throwable->getMessage(), true );
+		return false;
+	}
 
-		if ( $current_active_metadata_json_string === $active_metadata_json_string ) {
-			return true;
+	$save_succeeded              = false;
+	$write_was_attempted         = false;
+	$write_may_have_committed    = false;
+	$authoritative_value_changed = false;
+	$lock_released               = false;
+
+	try {
+		for ( $write_attempt = 0; $write_attempt < 3; ++$write_attempt ) {
+			$read_succeeded = false;
+			$snapshot       = ai4seo_read_authoritative_active_metadata_postmeta_snapshot( $post_id, $read_succeeded );
+
+			if ( ! $read_succeeded ) {
+				break;
+			}
+
+			$merged_active_metadata = $snapshot['active_metadata'];
+
+			foreach ( $active_metadata as $metadata_identifier => $metadata_value ) {
+				$stored_key_exists = array_key_exists( $metadata_identifier, $snapshot['active_metadata'] );
+
+				if ( $stored_key_exists
+					&& ( $existing_active_metadata_wins
+						|| in_array( $metadata_identifier, $only_if_missing_metadata_identifiers, true ) )
+				) {
+					continue;
+				}
+
+				if ( $stored_key_exists
+					&& in_array( $metadata_identifier, $only_if_empty_metadata_identifiers, true )
+					&& '' !== $snapshot['active_metadata'][ $metadata_identifier ]
+				) {
+					continue;
+				}
+
+				$merged_active_metadata[ $metadata_identifier ] = $metadata_value;
+			}
+
+			$merged_active_metadata = ai4seo_prepare_active_metadata_values( $merged_active_metadata, false );
+			$desired_raw_value      = wp_json_encode( $merged_active_metadata, JSON_UNESCAPED_UNICODE );
+			$verified_encoding      = array();
+
+			if ( ! is_string( $desired_raw_value )
+				|| ! ai4seo_decode_active_metadata_postmeta_value_authoritatively( $desired_raw_value, $verified_encoding )
+				|| $merged_active_metadata !== $verified_encoding
+			) {
+				break;
+			}
+
+			if ( ! empty( $snapshot['exists'] ) && hash_equals( $snapshot['raw_value'], $desired_raw_value ) ) {
+				$authoritative_value_changed = $write_was_attempted;
+				$save_succeeded              = true;
+				break;
+			}
+
+			$captured_added_meta_ids = array();
+			$capture_added_meta_id   = static function ( int $meta_id, int $object_id, string $meta_key, $meta_value ) use ( $post_id, $desired_raw_value, &$captured_added_meta_ids ): void {
+				if ( $post_id === $object_id
+					&& AI4SEO_POST_META_ACTIVE_METADATA_META_KEY === $meta_key
+					&& is_string( $meta_value )
+					&& hash_equals( $desired_raw_value, $meta_value )
+				) {
+					$captured_added_meta_ids[] = $meta_id;
+				}
+			};
+
+			add_action( 'added_post_meta', $capture_added_meta_id, PHP_INT_MAX, 4 );
+
+			$write_was_attempted      = true;
+			$previous_suppress_errors = $wpdb->suppress_errors( true );
+			$wpdb->last_error         = '';
+			$write_result             = false;
+			$database_error           = '';
+
+			try {
+				if ( ! empty( $snapshot['exists'] ) ) {
+					$write_result = update_post_meta(
+						$post_id,
+						AI4SEO_POST_META_ACTIVE_METADATA_META_KEY,
+						wp_slash( $desired_raw_value ),
+						$snapshot['raw_value']
+					);
+				} else {
+					$write_result = add_post_meta(
+						$post_id,
+						AI4SEO_POST_META_ACTIVE_METADATA_META_KEY,
+						wp_slash( $desired_raw_value ),
+						true
+					);
+				}
+
+				$database_error = (string) $wpdb->last_error;
+			} catch ( Throwable $throwable ) {
+				$database_error = $throwable->getMessage();
+			} finally {
+				$wpdb->suppress_errors( $previous_suppress_errors );
+				remove_action( 'added_post_meta', $capture_added_meta_id, PHP_INT_MAX );
+			}
+
+			$owned_added_meta_id = 0;
+
+			if ( is_int( $write_result )
+				&& $write_result > 0
+				&& in_array( $write_result, $captured_added_meta_ids, true )
+			) {
+				$owned_added_meta_id = $write_result;
+			}
+
+			$verification_succeeded = false;
+			$verified_snapshot      = ai4seo_read_authoritative_active_metadata_postmeta_snapshot( $post_id, $verification_succeeded );
+
+			if ( $verification_succeeded
+				&& ! empty( $verified_snapshot['exists'] )
+				&& hash_equals( $desired_raw_value, $verified_snapshot['raw_value'] )
+			) {
+				$authoritative_value_changed = true;
+				$save_succeeded              = true;
+				break;
+			}
+
+			$verified_state_changed = $verification_succeeded
+				&& ( ! empty( $snapshot['exists'] ) !== ! empty( $verified_snapshot['exists'] )
+					|| ( ! empty( $snapshot['exists'] )
+						&& ! empty( $verified_snapshot['exists'] )
+						&& ! hash_equals( $snapshot['raw_value'], $verified_snapshot['raw_value'] ) ) );
+
+			if ( false !== $write_result || ! $verification_succeeded || $verified_state_changed ) {
+				$write_may_have_committed = true;
+			}
+
+			if ( $owned_added_meta_id > 0 ) {
+				// Even exact compensation cannot prove a hook or foreign writer made no durable sibling change.
+				$write_may_have_committed = true;
+				$compensation_succeeded   = false;
+
+				try {
+					$compensation_succeeded = ai4seo_delete_owned_active_metadata_postmeta_row(
+						$post_id,
+						$owned_added_meta_id,
+						$desired_raw_value
+					);
+				} catch ( Throwable $throwable ) {
+					ai4seo_debug_message( 984321738, 'Active-metadata postmeta compensation could not be verified: ' . $throwable->getMessage(), true );
+				}
+
+				if ( ! $compensation_succeeded ) {
+					break;
+				}
+
+				// Retry from the authoritative foreign or missing snapshot after removing only this add.
+				continue;
+			}
+
+			if ( '' !== $database_error ) {
+				ai4seo_debug_message( 984321702, 'Active-metadata postmeta write could not be verified: ' . $database_error, true );
+				break;
+			}
+
+			if ( ! $verification_succeeded ) {
+				break;
+			}
+		}
+	} catch ( Throwable $throwable ) {
+		$write_may_have_committed = $write_may_have_committed || $write_was_attempted;
+		ai4seo_debug_message( 984321741, 'Active-metadata postmeta persistence could not be verified: ' . $throwable->getMessage(), true );
+	} finally {
+		try {
+			$lock_released = ai4seo_release_database_advisory_lock( $lock_name );
+		} catch ( Throwable $throwable ) {
+			ai4seo_debug_message( 984321739, 'Could not release the active-metadata postmeta advisory lock: ' . $throwable->getMessage(), true );
+		}
+	}
+
+	if ( ! $lock_released ) {
+		ai4seo_debug_message( 984321739, 'Could not release the active-metadata postmeta advisory lock.', true );
+
+		if ( $save_succeeded || $write_may_have_committed ) {
+			$operation_details['commit_state'] = 'possibly_committed';
 		}
 
-		$previous_suppress = $wpdb->suppress_errors( true );
-		$wpdb->last_error  = '';
+		$operation_details['active_metadata_changed'] = $authoritative_value_changed;
+		return false;
+	}
 
-		$result = update_post_meta(
-			$post_id,
-			AI4SEO_POST_META_ACTIVE_METADATA_META_KEY,
-			wp_slash( $active_metadata_json_string ),
-			$current_active_metadata_json_string
-		);
+	if ( $save_succeeded ) {
+		$operation_details['commit_state']            = 'committed';
+		$operation_details['active_metadata_changed'] = $authoritative_value_changed;
+		return true;
+	}
 
-		$had_error = ! empty( $wpdb->last_error );
-		$wpdb->suppress_errors( $previous_suppress );
-
-		if ( $had_error ) {
-			ai4seo_debug_message( 984321702, 'Database error during active metadata update_post_meta: ' . $wpdb->last_error, true );
-			return false;
-		}
-
-		if ( false !== $result ) {
-			return true;
-		}
-
-		wp_cache_delete( $post_id, 'post_meta' );
-		$latest_active_metadata_json_string = get_post_meta( $post_id, AI4SEO_POST_META_ACTIVE_METADATA_META_KEY, true );
-
-		if ( $latest_active_metadata_json_string === $active_metadata_json_string ) {
-			return true;
-		}
+	if ( $write_may_have_committed ) {
+		$operation_details['commit_state'] = 'possibly_committed';
 	}
 
 	return false;
 }
 
-// =========================================================================================== \\
 
 /**
  * Reads candidate post ids with legacy active metadata rows for the v235 migration.
  *
- * @param int $limit The maximum amount of candidate post ids.
+ * @param int       $limit The maximum amount of candidate post ids.
+ * @param bool|null $read_succeeded Receives whether query preparation and execution succeeded.
  * @return array
  */
-function ai4seo_read_legacy_active_metadata_migration_v235_candidate_post_ids( int $limit ): array {
+function ai4seo_read_legacy_active_metadata_migration_v235_candidate_post_ids( int $limit, ?bool &$read_succeeded = null ): array {
 	global $wpdb;
 
-	$limit = absint( $limit );
+	$read_succeeded = false;
+	$limit          = absint( $limit );
 
 	if ( $limit <= 0 ) {
+		$read_succeeded = true;
 		return array();
 	}
 
-	$legacy_active_metadata_like_patterns = ai4seo_get_legacy_active_metadata_postmeta_key_like_patterns();
+	// Pair the fixed legacy-key bindings with only the caller-controlled batch limit.
+	$query_bindings = ai4seo_get_legacy_active_metadata_database_query_bindings();
 
-	$legacy_active_metadata_post_ids = $wpdb->get_col(
-		$wpdb->prepare(
-			"SELECT DISTINCT post_id
-            FROM {$wpdb->postmeta}
-            WHERE (
-                meta_key LIKE %s OR
-                meta_key LIKE %s OR
-                meta_key LIKE %s OR
-                meta_key LIKE %s OR
-                meta_key LIKE %s OR
-                meta_key LIKE %s OR
-                meta_key LIKE %s OR
-                meta_key LIKE %s OR
-                meta_key LIKE %s OR
-                meta_key LIKE %s
-            )
-            LIMIT %d",
-			...array_merge( $legacy_active_metadata_like_patterns, array( $limit ) )
+	if ( ! $query_bindings ) {
+		return array();
+	}
+
+	$query_bindings['limit'] = ai4seo_database_scalar_binding( '%d', $limit );
+	$query                   = ai4seo_prepare_database_query(
+		'SELECT DISTINCT post_id
+		FROM {{postmeta_table}}
+		WHERE (
+			meta_key LIKE {{legacy_pattern_0}} OR
+			meta_key LIKE {{legacy_pattern_1}} OR
+			meta_key LIKE {{legacy_pattern_2}} OR
+			meta_key LIKE {{legacy_pattern_3}} OR
+			meta_key LIKE {{legacy_pattern_4}} OR
+			meta_key LIKE {{legacy_pattern_5}} OR
+			meta_key LIKE {{legacy_pattern_6}} OR
+			meta_key LIKE {{legacy_pattern_7}} OR
+			meta_key LIKE {{legacy_pattern_8}} OR
+			meta_key LIKE {{legacy_pattern_9}}
 		)
+		AND BINARY meta_key REGEXP BINARY {{legacy_key_regexp}}
+		LIMIT {{limit}}',
+		$query_bindings
 	);
+
+	if ( false === $query ) {
+		return array();
+	}
+
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler prepares this one-shot migration candidate read; persisted legacy rows must be observed immediately before migration.
+	$legacy_active_metadata_post_ids = $wpdb->get_col( $query );
 
 	if ( $wpdb->last_error ) {
 		ai4seo_debug_message( 984321697, 'Database error: ' . $wpdb->last_error, true );
@@ -662,31 +1218,57 @@ function ai4seo_read_legacy_active_metadata_migration_v235_candidate_post_ids( i
 		return array();
 	}
 
-	return array_values( array_filter( array_map( 'absint', $legacy_active_metadata_post_ids ) ) );
+	$normalized_post_id_lookup = array();
+
+	foreach ( $legacy_active_metadata_post_ids as $legacy_active_metadata_post_id ) {
+		if ( is_int( $legacy_active_metadata_post_id ) ) {
+			$normalized_post_id = $legacy_active_metadata_post_id;
+		} elseif ( is_string( $legacy_active_metadata_post_id ) && 1 === preg_match( '/^(0|[1-9][0-9]*)$/', $legacy_active_metadata_post_id ) ) {
+			$normalized_post_id = (int) $legacy_active_metadata_post_id;
+
+			if ( (string) $normalized_post_id !== $legacy_active_metadata_post_id ) {
+				return array();
+			}
+		} else {
+			return array();
+		}
+
+		if ( $normalized_post_id < 0 ) {
+			return array();
+		}
+
+		// Retain orphan owner zero so the migration deletes it without attempting to migrate metadata.
+		$normalized_post_id_lookup[ $normalized_post_id ] = $normalized_post_id;
+	}
+
+	$read_succeeded = true;
+
+	return array_values( $normalized_post_id_lookup );
 }
 
-// =========================================================================================== \\
 
 /**
  * Reads recognized legacy active metadata rows for specific post ids.
  *
- * @param array $post_ids The post ids.
+ * @param array     $post_ids The post ids.
+ * @param bool|null $read_succeeded Receives whether every required query completed successfully.
  * @return array
  */
-function ai4seo_read_legacy_active_metadata_by_post_ids( array $post_ids ): array {
+function ai4seo_read_legacy_active_metadata_by_post_ids( array $post_ids, ?bool &$read_succeeded = null ): array {
 	global $wpdb;
+
+	$read_succeeded = false;
 
 	if ( ! defined( 'AI4SEO_METADATA_DETAILS' ) ) {
 		return array();
 	}
 
-	$post_ids = array_filter( array_map( 'absint', $post_ids ) );
+	$post_ids = array_values( array_filter( array_map( 'absint', $post_ids ) ) );
 
 	if ( ! $post_ids ) {
+		$read_succeeded = true;
 		return array();
 	}
-
-	$legacy_active_metadata_like_patterns = ai4seo_get_legacy_active_metadata_postmeta_key_like_patterns();
 
 	$legacy_active_metadata_by_post_ids = array();
 	$database_chunk_size                = ai4seo_get_database_chunk_size();
@@ -697,33 +1279,48 @@ function ai4seo_read_legacy_active_metadata_by_post_ids( array $post_ids ): arra
 			continue;
 		}
 
-		$this_post_ids_placeholders = implode( ',', array_fill( 0, count( $this_post_ids_chunk ), '%d' ) );
+		// Rebuild bindings per chunk so the post-ID list cannot leak into the next migration query.
+		$this_query_bindings = ai4seo_get_legacy_active_metadata_database_query_bindings();
 
-		$this_rows = $wpdb->get_results(
-			$wpdb->prepare(
-				"SELECT meta_id, post_id, meta_key, meta_value
-                FROM {$wpdb->postmeta}
-                WHERE (
-                    meta_key LIKE %s OR
-                    meta_key LIKE %s OR
-                    meta_key LIKE %s OR
-                    meta_key LIKE %s OR
-                    meta_key LIKE %s OR
-                    meta_key LIKE %s OR
-                    meta_key LIKE %s OR
-                    meta_key LIKE %s OR
-                    meta_key LIKE %s OR
-                    meta_key LIKE %s
-                )
-                AND post_id IN ({$this_post_ids_placeholders})
-                ORDER BY meta_id ASC",
-				...array_merge( $legacy_active_metadata_like_patterns, $this_post_ids_chunk )
-			),
-			ARRAY_A
+		if ( ! $this_query_bindings ) {
+			return array();
+		}
+
+		$this_query_bindings['post_ids'] = ai4seo_database_list_binding( '%d', array_values( $this_post_ids_chunk ) );
+		$this_query                      = ai4seo_prepare_database_query(
+			'SELECT meta_id, post_id, meta_key, meta_value
+			FROM {{postmeta_table}}
+			WHERE (
+				meta_key LIKE {{legacy_pattern_0}} OR
+				meta_key LIKE {{legacy_pattern_1}} OR
+				meta_key LIKE {{legacy_pattern_2}} OR
+				meta_key LIKE {{legacy_pattern_3}} OR
+				meta_key LIKE {{legacy_pattern_4}} OR
+				meta_key LIKE {{legacy_pattern_5}} OR
+				meta_key LIKE {{legacy_pattern_6}} OR
+				meta_key LIKE {{legacy_pattern_7}} OR
+				meta_key LIKE {{legacy_pattern_8}} OR
+				meta_key LIKE {{legacy_pattern_9}}
+			)
+			AND BINARY meta_key REGEXP BINARY {{legacy_key_regexp}}
+			AND post_id IN ({{post_ids}})
+			ORDER BY meta_id ASC',
+			$this_query_bindings
 		);
+
+		if ( false === $this_query ) {
+			return array();
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler prepares this bounded one-shot migration read; ascending row order preserves the established last-recognized-value precedence.
+		$this_rows = $wpdb->get_results( $this_query, ARRAY_A );
 
 		if ( $wpdb->last_error ) {
 			ai4seo_debug_message( 984321698, 'Database error: ' . $wpdb->last_error, true );
+			return array();
+		}
+
+		if ( ! is_array( $this_rows ) ) {
 			return array();
 		}
 
@@ -732,8 +1329,22 @@ function ai4seo_read_legacy_active_metadata_by_post_ids( array $post_ids ): arra
 		}
 
 		foreach ( $this_rows as $this_row ) {
-			$this_post_id             = absint( $this_row['post_id'] );
-			$this_metadata_identifier = ai4seo_get_legacy_metadata_identifier_by_postmeta_key( strval( $this_row['meta_key'] ) );
+			if ( ! is_array( $this_row )
+				|| ! array_key_exists( 'post_id', $this_row )
+				|| ! isset( $this_row['meta_key'] )
+				|| ! is_string( $this_row['meta_key'] )
+				|| ! array_key_exists( 'meta_value', $this_row )
+				|| ! is_string( $this_row['meta_value'] ) ) {
+				return array();
+			}
+
+			$this_post_id = ai4seo_normalize_database_id( $this_row['post_id'] );
+
+			if ( false === $this_post_id || ! in_array( $this_post_id, $post_ids, true ) ) {
+				return array();
+			}
+
+			$this_metadata_identifier = ai4seo_get_legacy_metadata_identifier_by_postmeta_key( $this_row['meta_key'] );
 
 			if ( ! $this_metadata_identifier ) {
 				continue;
@@ -743,7 +1354,7 @@ function ai4seo_read_legacy_active_metadata_by_post_ids( array $post_ids ): arra
 				continue;
 			}
 
-			$legacy_active_metadata_by_post_ids[ $this_post_id ][ $this_metadata_identifier ] = strval( $this_row['meta_value'] );
+			$legacy_active_metadata_by_post_ids[ $this_post_id ][ $this_metadata_identifier ] = $this_row['meta_value'];
 		}
 	}
 
@@ -751,10 +1362,11 @@ function ai4seo_read_legacy_active_metadata_by_post_ids( array $post_ids ): arra
 		$legacy_active_metadata_by_post_ids[ $this_post_id ] = ai4seo_prepare_active_metadata_values( $this_legacy_active_metadata, false );
 	}
 
+	$read_succeeded = true;
+
 	return $legacy_active_metadata_by_post_ids;
 }
 
-// =========================================================================================== \\
 
 /**
  * Deletes legacy active metadata rows for specific post ids.
@@ -781,87 +1393,298 @@ function ai4seo_delete_legacy_active_metadata_for_post_ids( array $post_ids ): b
 		return true;
 	}
 
-	$legacy_active_metadata_like_patterns = ai4seo_get_legacy_active_metadata_postmeta_key_like_patterns();
-
+	// Share one immutable legacy-pattern binding set across the bounded post-ID delete chunks.
 	$database_chunk_size = ai4seo_get_database_chunk_size();
 	$post_ids_chunks     = array_chunk( $post_ids, $database_chunk_size );
+	$query_bindings      = ai4seo_get_legacy_active_metadata_database_query_bindings();
+
+	if ( ! $query_bindings ) {
+		return false;
+	}
 
 	foreach ( $post_ids_chunks as $this_post_ids_chunk ) {
 		if ( ! $this_post_ids_chunk ) {
 			continue;
 		}
 
-		$this_post_ids_placeholders = implode( ',', array_fill( 0, count( $this_post_ids_chunk ), '%d' ) );
-
-		$wpdb->query(
-			$wpdb->prepare(
-				"DELETE FROM {$wpdb->postmeta}
-                WHERE (
-                    meta_key LIKE %s OR
-                    meta_key LIKE %s OR
-                    meta_key LIKE %s OR
-                    meta_key LIKE %s OR
-                    meta_key LIKE %s OR
-                    meta_key LIKE %s OR
-                    meta_key LIKE %s OR
-                    meta_key LIKE %s OR
-                    meta_key LIKE %s OR
-                    meta_key LIKE %s
-                )
-                AND post_id IN ({$this_post_ids_placeholders})",
-				...array_merge( $legacy_active_metadata_like_patterns, $this_post_ids_chunk )
+		$this_query_bindings             = $query_bindings;
+		$this_query_bindings['post_ids'] = ai4seo_database_list_binding( '%d', $this_post_ids_chunk );
+		$delete_query                    = ai4seo_prepare_database_query(
+			'DELETE FROM {{postmeta_table}}
+			WHERE (
+				meta_key LIKE {{legacy_pattern_0}} OR
+				meta_key LIKE {{legacy_pattern_1}} OR
+				meta_key LIKE {{legacy_pattern_2}} OR
+				meta_key LIKE {{legacy_pattern_3}} OR
+				meta_key LIKE {{legacy_pattern_4}} OR
+				meta_key LIKE {{legacy_pattern_5}} OR
+				meta_key LIKE {{legacy_pattern_6}} OR
+				meta_key LIKE {{legacy_pattern_7}} OR
+				meta_key LIKE {{legacy_pattern_8}} OR
+				meta_key LIKE {{legacy_pattern_9}}
 			)
+			AND BINARY meta_key REGEXP BINARY {{legacy_key_regexp}}
+			AND post_id IN ({{post_ids}})',
+			$this_query_bindings
 		);
 
-		if ( $wpdb->last_error ) {
+		if ( false === $delete_query ) {
+			return false;
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler prepared the fixed legacy patterns and normalized post IDs; requested caches are cleared after success.
+		$delete_result = $wpdb->query( $delete_query );
+
+		if ( false === $delete_result || $wpdb->last_error ) {
 			ai4seo_debug_message( 984321699, 'Database error: ' . $wpdb->last_error, true );
 			return false;
 		}
+
+		// Clear every requested post to cover stale negative caches and select/delete races.
+		ai4seo_invalidate_postmeta_caches( $this_post_ids_chunk );
 	}
 
 	return true;
 }
 
-// =========================================================================================== \\
 
 /**
  * Deletes all legacy active metadata rows.
+ *
+ * The operation snapshots its highest matching meta ID, then advances monotonically through that
+ * bounded primary-key range. This includes orphaned post_id=0 rows while cache invalidation remains
+ * limited to positive WordPress object owners. Rows inserted outside the snapshot remain for a later
+ * cleanup, preventing concurrent replenishment from extending this request indefinitely. A final
+ * bounded existence read reports those survivors so callers cannot mistake a partial cleanup for
+ * completion.
  *
  * @return bool
  */
 function ai4seo_delete_all_legacy_active_metadata(): bool {
 	global $wpdb;
 
-	$legacy_active_metadata_like_patterns = ai4seo_get_legacy_active_metadata_postmeta_key_like_patterns();
+	// Establish the fixed pattern bindings and finite page size before taking the operation snapshot.
+	$query_bindings      = ai4seo_get_legacy_active_metadata_database_query_bindings();
+	$database_chunk_size = ai4seo_get_database_chunk_size();
 
-	$wpdb->query(
-		$wpdb->prepare(
-			"DELETE FROM {$wpdb->postmeta}
-            WHERE (
-                meta_key LIKE %s OR
-                meta_key LIKE %s OR
-                meta_key LIKE %s OR
-                meta_key LIKE %s OR
-                meta_key LIKE %s OR
-                meta_key LIKE %s OR
-                meta_key LIKE %s OR
-                meta_key LIKE %s OR
-                meta_key LIKE %s OR
-                meta_key LIKE %s
-            )",
-			$legacy_active_metadata_like_patterns
+	if ( ! $query_bindings || $database_chunk_size <= 0 ) {
+		return false;
+	}
+
+	$high_water_query = ai4seo_prepare_database_query(
+		'SELECT MAX(meta_id)
+		FROM {{postmeta_table}}
+		WHERE (
+			meta_key LIKE {{legacy_pattern_0}} OR
+			meta_key LIKE {{legacy_pattern_1}} OR
+			meta_key LIKE {{legacy_pattern_2}} OR
+			meta_key LIKE {{legacy_pattern_3}} OR
+			meta_key LIKE {{legacy_pattern_4}} OR
+			meta_key LIKE {{legacy_pattern_5}} OR
+			meta_key LIKE {{legacy_pattern_6}} OR
+			meta_key LIKE {{legacy_pattern_7}} OR
+			meta_key LIKE {{legacy_pattern_8}} OR
+			meta_key LIKE {{legacy_pattern_9}}
 		)
+		AND BINARY meta_key REGEXP BINARY {{legacy_key_regexp}}',
+		$query_bindings
 	);
+
+	if ( false === $high_water_query ) {
+		return false;
+	}
+
+	// Snapshot a finite operation-start boundary before resolving exact cache owners page by page.
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler prepared this current-state high-water read for a finite one-shot cleanup.
+	$high_water_meta_id = $wpdb->get_var( $high_water_query );
 
 	if ( $wpdb->last_error ) {
 		ai4seo_debug_message( 984321700, 'Database error: ' . $wpdb->last_error, true );
 		return false;
 	}
 
-	return true;
+	if ( null === $high_water_meta_id ) {
+		$high_water_meta_id = 0;
+	} else {
+		$high_water_meta_id = ai4seo_normalize_database_id( $high_water_meta_id );
+
+		if ( false === $high_water_meta_id ) {
+			return false;
+		}
+	}
+
+	$meta_id_cursor = 0;
+
+	while ( $meta_id_cursor < $high_water_meta_id ) {
+		$this_page_bindings                       = $query_bindings;
+		$this_page_bindings['meta_id_cursor']     = ai4seo_database_scalar_binding( '%d', $meta_id_cursor );
+		$this_page_bindings['high_water_meta_id'] = ai4seo_database_scalar_binding( '%d', $high_water_meta_id );
+		$this_page_bindings['query_limit']        = ai4seo_database_scalar_binding( '%d', $database_chunk_size );
+		$affected_rows_query                      = ai4seo_prepare_database_query(
+			'SELECT meta_id, post_id
+			FROM {{postmeta_table}}
+			WHERE (
+				meta_key LIKE {{legacy_pattern_0}} OR
+				meta_key LIKE {{legacy_pattern_1}} OR
+				meta_key LIKE {{legacy_pattern_2}} OR
+				meta_key LIKE {{legacy_pattern_3}} OR
+				meta_key LIKE {{legacy_pattern_4}} OR
+				meta_key LIKE {{legacy_pattern_5}} OR
+				meta_key LIKE {{legacy_pattern_6}} OR
+				meta_key LIKE {{legacy_pattern_7}} OR
+				meta_key LIKE {{legacy_pattern_8}} OR
+				meta_key LIKE {{legacy_pattern_9}}
+			)
+			AND BINARY meta_key REGEXP BINARY {{legacy_key_regexp}}
+			AND meta_id > {{meta_id_cursor}}
+			AND meta_id <= {{high_water_meta_id}}
+			ORDER BY meta_id ASC
+			LIMIT {{query_limit}}',
+			$this_page_bindings
+		);
+
+		if ( false === $affected_rows_query ) {
+			return false;
+		}
+
+		// Read one current-state primary-key page so exact rows and positive cache owners remain paired.
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler prepared this monotonic bounded row page for exact deletion and cache invalidation.
+		$affected_rows = $wpdb->get_results( $affected_rows_query, ARRAY_A );
+
+		if ( $wpdb->last_error || ! is_array( $affected_rows ) ) {
+			ai4seo_debug_message( 984321700, 'Database error: ' . $wpdb->last_error, true );
+			return false;
+		}
+
+		if ( ! $affected_rows ) {
+			break;
+		}
+
+		$affected_meta_ids       = array();
+		$affected_post_id_lookup = array();
+
+		foreach ( $affected_rows as $affected_row ) {
+			$this_meta_id = ai4seo_normalize_database_id( $affected_row['meta_id'] ?? null );
+
+			if ( false === $this_meta_id ) {
+				return false;
+			}
+
+			if ( $this_meta_id <= $meta_id_cursor || $this_meta_id > $high_water_meta_id ) {
+				return false;
+			}
+
+			$affected_meta_ids[] = $this_meta_id;
+
+			$this_post_id = isset( $affected_row['post_id'] ) ? (int) $affected_row['post_id'] : -1;
+
+			if ( $this_post_id < 0 ) {
+				return false;
+			}
+
+			if ( $this_post_id > 0 ) {
+				$affected_post_id_lookup[ $this_post_id ] = $this_post_id;
+			}
+		}
+
+		$next_meta_id_cursor = (int) end( $affected_meta_ids );
+
+		if ( $next_meta_id_cursor <= $meta_id_cursor ) {
+			return false;
+		}
+
+		$this_delete_bindings             = $query_bindings;
+		$this_delete_bindings['meta_ids'] = ai4seo_database_list_binding( '%d', $affected_meta_ids );
+		$delete_query                     = ai4seo_prepare_database_query(
+			'DELETE FROM {{postmeta_table}}
+			WHERE (
+				meta_key LIKE {{legacy_pattern_0}} OR
+				meta_key LIKE {{legacy_pattern_1}} OR
+				meta_key LIKE {{legacy_pattern_2}} OR
+				meta_key LIKE {{legacy_pattern_3}} OR
+				meta_key LIKE {{legacy_pattern_4}} OR
+				meta_key LIKE {{legacy_pattern_5}} OR
+				meta_key LIKE {{legacy_pattern_6}} OR
+				meta_key LIKE {{legacy_pattern_7}} OR
+				meta_key LIKE {{legacy_pattern_8}} OR
+				meta_key LIKE {{legacy_pattern_9}}
+			)
+			AND BINARY meta_key REGEXP BINARY {{legacy_key_regexp}}
+			AND meta_id IN ({{meta_ids}})',
+			$this_delete_bindings
+		);
+
+		if ( false === $delete_query ) {
+			return false;
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler prepared fixed legacy patterns and exact observed primary keys; positive owner caches are invalidated below.
+		$delete_result = $wpdb->query( $delete_query );
+
+		if ( false === $delete_result || $wpdb->last_error ) {
+			ai4seo_debug_message( 984321700, 'Database error: ' . $wpdb->last_error, true );
+			return false;
+		}
+
+		// A zero-row race still owns these observed positive cache keys and must not stop cursor progress.
+		ai4seo_invalidate_postmeta_caches( array_values( $affected_post_id_lookup ) );
+		$meta_id_cursor = $next_meta_id_cursor;
+	}
+
+	$remaining_row_query = ai4seo_prepare_database_query(
+		'SELECT 1 AS legacy_active_metadata_row, post_id
+		FROM {{postmeta_table}}
+		WHERE (
+			meta_key LIKE {{legacy_pattern_0}} OR
+			meta_key LIKE {{legacy_pattern_1}} OR
+			meta_key LIKE {{legacy_pattern_2}} OR
+			meta_key LIKE {{legacy_pattern_3}} OR
+			meta_key LIKE {{legacy_pattern_4}} OR
+			meta_key LIKE {{legacy_pattern_5}} OR
+			meta_key LIKE {{legacy_pattern_6}} OR
+			meta_key LIKE {{legacy_pattern_7}} OR
+			meta_key LIKE {{legacy_pattern_8}} OR
+			meta_key LIKE {{legacy_pattern_9}}
+		)
+		AND BINARY meta_key REGEXP BINARY {{legacy_key_regexp}}
+		LIMIT 1',
+		$query_bindings
+	);
+
+	if ( false === $remaining_row_query ) {
+		return false;
+	}
+
+	// Verify completion without materializing surviving rows or extending the operation snapshot.
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler prepared the ten fixed legacy patterns; this bounded current-state read determines whether the finite cleanup fully completed.
+	$remaining_legacy_active_metadata_row = $wpdb->get_row( $remaining_row_query, ARRAY_A );
+
+	if ( $wpdb->last_error ) {
+		ai4seo_debug_message( 984321700, 'Database error: ' . $wpdb->last_error, true );
+		return false;
+	}
+
+	if ( null === $remaining_legacy_active_metadata_row ) {
+		return true;
+	}
+
+	if ( ! is_array( $remaining_legacy_active_metadata_row ) || ! array_key_exists( 'post_id', $remaining_legacy_active_metadata_row ) ) {
+		return false;
+	}
+
+	$remaining_post_id = (int) $remaining_legacy_active_metadata_row['post_id'];
+
+	if ( $remaining_post_id < 0 ) {
+		return false;
+	}
+
+	if ( $remaining_post_id > 0 ) {
+		ai4seo_invalidate_postmeta_caches( array( $remaining_post_id ) );
+	}
+
+	return false;
 }
 
-// =========================================================================================== \\
 
 /**
  * Runs one v235 active metadata migration batch.
@@ -869,31 +1692,42 @@ function ai4seo_delete_all_legacy_active_metadata(): bool {
  * @return bool True when migration is completed, false when more work may remain.
  */
 function ai4seo_run_active_metadata_migration_v235_batch(): bool {
-	global $wpdb;
+	$candidate_read_succeeded = false;
+	$post_ids                 = ai4seo_read_legacy_active_metadata_migration_v235_candidate_post_ids(
+		AI4SEO_ACTIVE_METADATA_MIGRATION_V235_BATCH_SIZE,
+		$candidate_read_succeeded
+	);
 
-	$post_ids = ai4seo_read_legacy_active_metadata_migration_v235_candidate_post_ids( AI4SEO_ACTIVE_METADATA_MIGRATION_V235_BATCH_SIZE );
-
-	if ( ! $post_ids ) {
-		if ( $wpdb->last_error ) {
-			return false;
-		}
-
-		return true;
-	}
-
-	$legacy_active_metadata_by_post_ids = ai4seo_read_legacy_active_metadata_by_post_ids( $post_ids );
-
-	if ( $wpdb->last_error ) {
+	if ( ! $candidate_read_succeeded ) {
 		return false;
 	}
 
-	$overall_success = true;
+	if ( ! $post_ids ) {
+		return true;
+	}
+
+	$legacy_read_succeeded              = false;
+	$legacy_active_metadata_by_post_ids = ai4seo_read_legacy_active_metadata_by_post_ids( $post_ids, $legacy_read_succeeded );
+
+	if ( ! $legacy_read_succeeded ) {
+		return false;
+	}
+
+	$overall_success       = true;
+	$processed_entry_count = 0;
 
 	foreach ( $post_ids as $this_post_id ) {
 		$this_legacy_active_metadata = $legacy_active_metadata_by_post_ids[ $this_post_id ] ?? array();
 
-		if ( ! get_post( $this_post_id ) ) {
-			$overall_success = ai4seo_delete_legacy_active_metadata_for_post_ids( array( $this_post_id ) ) && $overall_success;
+		if ( $this_post_id <= 0 || ! get_post( $this_post_id ) ) {
+			$this_success = ai4seo_delete_legacy_active_metadata_for_post_ids( array( $this_post_id ) );
+
+			if ( $this_success ) {
+				++$processed_entry_count;
+			} else {
+				$overall_success = false;
+			}
+
 			continue;
 		}
 
@@ -908,37 +1742,52 @@ function ai4seo_run_active_metadata_migration_v235_batch(): bool {
 			$this_success = ai4seo_delete_legacy_active_metadata_for_post_ids( array( $this_post_id ) );
 		}
 
-		if ( ! $this_success ) {
+		if ( $this_success ) {
+			++$processed_entry_count;
+		} else {
 			$overall_success = false;
 		}
 	}
 
-	$active_metadata_migration_v235_processed_entries  = (int) ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_PROCESSED_ENTRIES, false );
-	$active_metadata_migration_v235_processed_entries += count( $post_ids );
-	ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_PROCESSED_ENTRIES, $active_metadata_migration_v235_processed_entries, false );
+	if ( $processed_entry_count > 0 ) {
+		$progress_updated = ai4seo_mutate_environmental_variable_value(
+			AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_PROCESSED_ENTRIES,
+			static function ( $current_processed_entry_count ) use ( $processed_entry_count ): int {
+				return max( 0, (int) $current_processed_entry_count ) + $processed_entry_count;
+			},
+			false
+		);
+
+		if ( ! $progress_updated ) {
+			$overall_success = false;
+		}
+	}
 
 	if ( ! $overall_success ) {
 		return false;
 	}
 
-	$has_remaining_legacy_active_metadata_rows = ai4seo_has_legacy_active_metadata_rows();
+	$remaining_read_succeeded                  = false;
+	$has_remaining_legacy_active_metadata_rows = ai4seo_has_legacy_active_metadata_rows( $remaining_read_succeeded );
 
-	if ( $wpdb->last_error ) {
+	if ( ! $remaining_read_succeeded ) {
 		return false;
 	}
 
 	return ! $has_remaining_legacy_active_metadata_rows;
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to read the post meta from specific posts by the given post ids
  *
- * @param array $post_ids of post ids (all int).
+ * @param array     $post_ids of post ids (all int).
+ * @param bool|null $read_succeeded Receives whether every own-metadata read succeeded.
  * @return array
  */
-function ai4seo_read_our_plugins_metadata_by_post_ids( array $post_ids ): array {
+function ai4seo_read_our_plugins_metadata_by_post_ids( array $post_ids, ?bool &$read_succeeded = null ): array {
+	$read_succeeded = false;
+
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 610785731, 'Prevented loop', true );
 		return array();
@@ -947,6 +1796,7 @@ function ai4seo_read_our_plugins_metadata_by_post_ids( array $post_ids ): array 
 	$active_meta_tags = ai4seo_get_active_meta_tags();
 
 	if ( ! $active_meta_tags ) {
+		$read_succeeded = true;
 		return array();
 	}
 
@@ -959,14 +1809,21 @@ function ai4seo_read_our_plugins_metadata_by_post_ids( array $post_ids ): array 
 
 	// bail early on empty.
 	if ( empty( $post_ids ) ) {
+		$read_succeeded = true;
 		return array();
 	}
 
 	// sanitize IDs.
-	$post_ids          = array_map( 'absint', $post_ids );
-	$reordered_results = ai4seo_read_active_metadata_by_post_ids( $post_ids, true );
+	$post_ids                       = array_map( 'absint', $post_ids );
+	$active_metadata_read_succeeded = false;
+	$reordered_results              = ai4seo_read_active_metadata_by_post_ids( $post_ids, true, $active_metadata_read_succeeded );
+
+	if ( ! $active_metadata_read_succeeded ) {
+		return array();
+	}
 
 	if ( ai4seo_is_active_metadata_migration_v235_completed() ) {
+		$read_succeeded = true;
 		return $reordered_results;
 	}
 
@@ -984,10 +1841,19 @@ function ai4seo_read_our_plugins_metadata_by_post_ids( array $post_ids ): array 
 	}
 
 	if ( ! $post_ids_requiring_legacy_fallback ) {
+		$read_succeeded = true;
 		return $reordered_results;
 	}
 
-	$legacy_active_metadata_by_post_ids = ai4seo_read_legacy_active_metadata_by_post_ids( array_values( array_unique( $post_ids_requiring_legacy_fallback ) ) );
+	$legacy_metadata_read_succeeded     = false;
+	$legacy_active_metadata_by_post_ids = ai4seo_read_legacy_active_metadata_by_post_ids(
+		array_values( array_unique( $post_ids_requiring_legacy_fallback ) ),
+		$legacy_metadata_read_succeeded
+	);
+
+	if ( ! $legacy_metadata_read_succeeded ) {
+		return array();
+	}
 
 	foreach ( $legacy_active_metadata_by_post_ids as $this_post_id => $this_legacy_active_metadata ) {
 		foreach ( $active_meta_tags as $this_active_meta_tag ) {
@@ -1003,20 +1869,23 @@ function ai4seo_read_our_plugins_metadata_by_post_ids( array $post_ids ): array 
 		}
 	}
 
+	$read_succeeded = true;
 	return $reordered_results;
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to read the post's metadata for a specific third party plugin from specific posts by the given post ids
  *
- * @param mixed $third_party_plugin_name The third party plugin name value.
- * @param array $post_ids of post ids (all int).
+ * @param mixed     $third_party_plugin_name The third party plugin name value.
+ * @param array     $post_ids of post ids (all int).
+ * @param bool|null $read_succeeded Receives whether every provider-metadata read succeeded.
  * @return array the metadata by post-ids, using metadata-identifier keys
  */
-function ai4seo_read_third_party_seo_plugin_metadata_by_post_ids( $third_party_plugin_name, array $post_ids ): array {
+function ai4seo_read_third_party_seo_plugin_metadata_by_post_ids( $third_party_plugin_name, array $post_ids, ?bool &$read_succeeded = null ): array {
 	global $wpdb;
+
+	$read_succeeded = false;
 
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 915529372, 'Prevented loop', true );
@@ -1024,26 +1893,27 @@ function ai4seo_read_third_party_seo_plugin_metadata_by_post_ids( $third_party_p
 	}
 
 	// cast all post ids to int with absint and filter out non-numeric entries.
-	$post_ids = array_filter( array_map( 'absint', $post_ids ) );
+	$post_ids = array_values( array_filter( array_map( 'absint', $post_ids ) ) );
 
 	// Make sure that all parameters are not empty.
 	if ( empty( $post_ids ) ) {
+		$read_succeeded = true;
 		return array();
 	}
 
 	// workaround for Slim SEO.
 	if ( AI4SEO_THIRD_PARTY_PLUGIN_SLIM_SEO === $third_party_plugin_name ) {
-		return ai4seo_read_slim_seo_metadata_by_post_ids( $post_ids );
+		return ai4seo_read_slim_seo_metadata_by_post_ids( $post_ids, $read_succeeded );
 	}
 
 	// workaround for Squirrly SEO.
 	if ( AI4SEO_THIRD_PARTY_PLUGIN_SQUIRRLY_SEO === $third_party_plugin_name ) {
-		return ai4seo_read_squirrly_seo_metadata_by_post_ids( $post_ids );
+		return ai4seo_read_squirrly_seo_metadata_by_post_ids( $post_ids, $read_succeeded );
 	}
 
 	// workaround for All in One SEO.
 	if ( AI4SEO_THIRD_PARTY_PLUGIN_ALL_IN_ONE_SEO === $third_party_plugin_name ) {
-		return ai4seo_read_all_in_one_seo_metadata_by_post_ids( $post_ids );
+		return ai4seo_read_all_in_one_seo_metadata_by_post_ids( $post_ids, $read_succeeded );
 	}
 
 	$third_party_seo_plugin_details = ai4seo_get_third_party_seo_plugin_details();
@@ -1052,11 +1922,11 @@ function ai4seo_read_third_party_seo_plugin_metadata_by_post_ids( $third_party_p
 	$metadata_postmeta_keys = $third_party_seo_plugin_details[ $third_party_plugin_name ]['generation-field-postmeta-keys'] ?? array();
 
 	if ( ! $metadata_postmeta_keys ) {
+		$read_succeeded = true;
 		return array();
 	}
 
-	$metadata_postmeta_keys              = ai4seo_deep_sanitize( $metadata_postmeta_keys );
-	$metadata_postmeta_keys_placeholders = implode( ',', array_fill( 0, count( $metadata_postmeta_keys ), '%s' ) );
+	$metadata_postmeta_keys = ai4seo_deep_sanitize( $metadata_postmeta_keys );
 
 	$database_chunk_size = ai4seo_get_database_chunk_size();
 	$post_ids_chunks     = array_chunk( $post_ids, $database_chunk_size );
@@ -1070,20 +1940,30 @@ function ai4seo_read_third_party_seo_plugin_metadata_by_post_ids( $third_party_p
 			continue;
 		}
 
-		$this_post_ids_placeholders = implode( ',', array_fill( 0, count( $this_post_ids_chunk ), '%d' ) );
-
-		// read directly from database by searching for entries in the postmeta table.
-		$query_results = $wpdb->get_results(
-			$wpdb->prepare(
-				"SELECT * FROM {$wpdb->postmeta} WHERE meta_key IN ({$metadata_postmeta_keys_placeholders}) AND post_id IN ({$this_post_ids_placeholders})",
-				...array_values( array_merge( $metadata_postmeta_keys, $this_post_ids_chunk ) )
-			),
-			ARRAY_A
+		$this_query = ai4seo_prepare_database_query(
+			'SELECT * FROM {{postmeta_table}} WHERE meta_key IN ({{meta_keys}}) AND post_id IN ({{post_ids}})',
+			array(
+				'postmeta_table' => ai4seo_database_identifier_binding( 'table.postmeta' ),
+				'meta_keys'      => ai4seo_database_list_binding( '%s', array_values( $metadata_postmeta_keys ) ),
+				'post_ids'       => ai4seo_database_list_binding( '%d', array_values( $this_post_ids_chunk ) ),
+			)
 		);
+
+		if ( false === $this_query ) {
+			return array();
+		}
+
+		// Read provider metadata as one current-state batch because third-party plugins can update these rows independently of AI for SEO.
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler prepares the bounded batch; AI for SEO owns no cache for independently mutable provider metadata.
+		$query_results = $wpdb->get_results( $this_query, ARRAY_A );
 
 		// on error.
 		if ( $wpdb->last_error ) {
 			ai4seo_debug_message( 984321657, 'Database error: ' . $wpdb->last_error, true );
+			return array();
+		}
+
+		if ( ! is_array( $query_results ) ) {
 			return array();
 		}
 
@@ -1092,31 +1972,107 @@ function ai4seo_read_third_party_seo_plugin_metadata_by_post_ids( $third_party_p
 		}
 
 		foreach ( $query_results as $query_result ) {
-			$this_post_id = $query_result['post_id'];
+			if ( ! is_array( $query_result )
+				|| ! array_key_exists( 'post_id', $query_result )
+				|| ! isset( $query_result['meta_key'] )
+				|| ! is_string( $query_result['meta_key'] )
+				|| ! array_key_exists( 'meta_value', $query_result )
+				|| ! is_string( $query_result['meta_value'] ) ) {
+				return array();
+			}
+
+			$this_post_id = ai4seo_normalize_database_id( $query_result['post_id'] );
+
+			if ( false === $this_post_id || ! in_array( $this_post_id, $post_ids, true ) ) {
+				return array();
+			}
 
 			// find metadata identifier.
-			$this_metadata_identifier = array_search( $query_result['meta_key'], $metadata_postmeta_keys );
+			$this_metadata_identifier = array_search( $query_result['meta_key'], $metadata_postmeta_keys, true );
 
-			if ( ! $this_metadata_identifier ) {
+			if ( false === $this_metadata_identifier ) {
 				continue;
 			}
 
-			$third_party_seo_plugins_metadata[ $this_post_id ][ $this_metadata_identifier ] = strval( $query_result['meta_value'] );
+			$third_party_seo_plugins_metadata[ $this_post_id ][ $this_metadata_identifier ] = $query_result['meta_value'];
 		}
 	}
 
+	$read_succeeded = true;
 	return $third_party_seo_plugins_metadata;
 }
 
-// =========================================================================================== \\
+/**
+ * Decode a compound SEO collection through its supported serialization layers.
+ *
+ * @param mixed     $stored_value      Raw or WordPress-decoded metadata.
+ * @param bool|null $decoding_failed   Optional. Receives whether structured or unsafe data failed closed.
+ * @param bool|null $collection_decoded Optional. Receives whether a valid array collection was decoded.
+ * @return array Decoded safe values, or an empty array for missing, unsafe, or malformed data.
+ */
+function ai4seo_decode_compound_seo_values(
+	$stored_value,
+	?bool &$decoding_failed = null,
+	?bool &$collection_decoded = null
+): array {
+	$decoding_failed           = false;
+	$collection_decoded        = false;
+	$serialized_layer_detected = is_string( $stored_value )
+		&& ( is_serialized( trim( $stored_value ) ) || ai4seo_is_legacy_serialized_custom_object( trim( $stored_value ) ) );
+
+	// Decode the standard storage layer when the value came directly from the database.
+	$decoded_values = ai4seo_safe_maybe_unserialize( $stored_value );
+
+	// Supported legacy formats can wrap the same collection in one additional serialization layer.
+	if ( is_string( $decoded_values ) ) {
+		$serialized_layer_detected = $serialized_layer_detected
+			|| is_serialized( trim( $decoded_values ) )
+			|| ai4seo_is_legacy_serialized_custom_object( trim( $decoded_values ) );
+		$decoded_values            = ai4seo_safe_maybe_unserialize( $decoded_values );
+	}
+
+	if ( ! is_array( $decoded_values ) ) {
+		// Plain scalar values retain the established empty-collection fallback; recognized structured data fails explicitly.
+		$decoding_failed = $serialized_layer_detected || is_object( $decoded_values ) || is_resource( $decoded_values );
+		return array();
+	}
+
+	// Validate arrays that WordPress or another caller may already have decoded before reaching this boundary.
+	$remaining_nodes = 10000;
+
+	if ( ! ai4seo_is_safe_unserialized_value( $decoded_values, 0, $remaining_nodes ) ) {
+		$decoding_failed = true;
+		return array();
+	}
+
+	$collection_decoded = true;
+
+	return $decoded_values;
+}
+
+/**
+ * Decode Slim SEO's compound metadata without allowing objects.
+ *
+ * @param mixed     $stored_value Raw or WordPress-decoded Slim SEO metadata.
+ * @param bool|null $decoding_failed Optional. Receives whether structured or unsafe data failed closed.
+ * @param bool|null $collection_decoded Optional. Receives whether a valid array collection was decoded.
+ * @return array Decoded metadata, or an empty array for missing, unsafe, or malformed data.
+ */
+function ai4seo_decode_slim_seo_values( $stored_value, ?bool &$decoding_failed = null, ?bool &$collection_decoded = null ): array {
+	return ai4seo_decode_compound_seo_values( $stored_value, $decoding_failed, $collection_decoded );
+}
+
 
 /**
  * Function to read the post's metadata for the Slim SEO plugin from specific posts by the given post ids
  *
- * @param array $post_ids of post ids (all int).
+ * @param array     $post_ids of post ids (all int).
+ * @param bool|null $read_succeeded Receives whether every query and provider collection decode succeeded.
  * @return array the metadata by post-ids, using metadata-identifier keys
  */
-function ai4seo_read_slim_seo_metadata_by_post_ids( array $post_ids ): array {
+function ai4seo_read_slim_seo_metadata_by_post_ids( array $post_ids, ?bool &$read_succeeded = null ): array {
+	$read_succeeded = false;
+
 	// check postmeta "slim_seo". It's serialized with keys "title" and "description", nothing else.
 	$metadata_identifier_mapping = array(
 		'meta-title'       => 'title',
@@ -1127,11 +2083,17 @@ function ai4seo_read_slim_seo_metadata_by_post_ids( array $post_ids ): array {
 	global $wpdb;
 
 	// make sure all post ids are absolute integers.
-	$post_ids = array_map( 'absint', $post_ids );
+	$post_ids = array_values( array_map( 'absint', $post_ids ) );
+
+	if ( ! $post_ids ) {
+		$read_succeeded = true;
+		return array();
+	}
 
 	// reorder results, to make post_id the 2d key, then the meta_keys the 1d key and meta_value the value
 	// also skip entries with empty meta_value.
 	$third_party_plugins_metadata = array();
+	$malformed_row_encountered    = false;
 
 	$database_chunk_size = ai4seo_get_database_chunk_size();
 	$post_ids_chunks     = array_chunk( $post_ids, $database_chunk_size );
@@ -1141,19 +2103,30 @@ function ai4seo_read_slim_seo_metadata_by_post_ids( array $post_ids ): array {
 			continue;
 		}
 
-		$this_post_ids_placeholders = implode( ',', array_fill( 0, count( $this_post_ids_chunk ), '%d' ) );
-
-		$this_rows = $wpdb->get_results(
-			$wpdb->prepare(
-				"SELECT * FROM {$wpdb->postmeta} WHERE meta_key = %s AND post_id IN ({$this_post_ids_placeholders})",
-				...array_merge( array( 'slim_seo' ), $this_post_ids_chunk )
-			),
-			ARRAY_A
+		$this_query = ai4seo_prepare_database_query(
+			'SELECT * FROM {{postmeta_table}} WHERE meta_key = {{meta_key}} AND post_id IN ({{post_ids}})',
+			array(
+				'postmeta_table' => ai4seo_database_identifier_binding( 'table.postmeta' ),
+				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- This is an equality lookup for Slim SEO's fixed key, bounded by the configured chunked post-ID list.
+				'meta_key'       => ai4seo_database_scalar_binding( '%s', 'slim_seo' ),
+				'post_ids'       => ai4seo_database_list_binding( '%d', array_values( $this_post_ids_chunk ) ),
+			)
 		);
+
+		if ( false === $this_query ) {
+			return array();
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler prepares this bounded raw-storage batch; bypassing WordPress metadata caching prevents eager unserialization at the safety boundary.
+		$this_rows = $wpdb->get_results( $this_query, ARRAY_A );
 
 		// on error.
 		if ( $wpdb->last_error ) {
 			ai4seo_debug_message( 984321658, 'Database error: ' . $wpdb->last_error, true );
+			return array();
+		}
+
+		if ( ! is_array( $this_rows ) ) {
 			return array();
 		}
 
@@ -1162,8 +2135,31 @@ function ai4seo_read_slim_seo_metadata_by_post_ids( array $post_ids ): array {
 		}
 
 		foreach ( $this_rows as $this_row ) {
-			$this_post_id  = (int) $this_row['post_id'];
-			$this_metadata = maybe_unserialize( $this_row['meta_value'] );
+			if ( ! is_array( $this_row )
+				|| ! array_key_exists( 'post_id', $this_row )
+				|| ! array_key_exists( 'meta_value', $this_row )
+				|| ! is_string( $this_row['meta_value'] ) ) {
+				$malformed_row_encountered = true;
+				continue;
+			}
+
+			// Direct SQL bypasses WordPress's postmeta decoder, so decode the compound Slim SEO row safely here.
+			$this_post_id = ai4seo_normalize_database_id( $this_row['post_id'] );
+
+			if ( false === $this_post_id || ! in_array( $this_post_id, $post_ids, true ) ) {
+				$malformed_row_encountered = true;
+				continue;
+			}
+
+			$this_decoding_failed    = false;
+			$this_collection_decoded = false;
+			$this_metadata           = ai4seo_decode_slim_seo_values( $this_row['meta_value'], $this_decoding_failed, $this_collection_decoded );
+
+			if ( $this_decoding_failed
+				|| ( ! $this_collection_decoded && '' !== trim( $this_row['meta_value'] ) ) ) {
+				$malformed_row_encountered = true;
+				continue;
+			}
 
 			if ( ! $this_metadata ) {
 				continue;
@@ -1175,10 +2171,10 @@ function ai4seo_read_slim_seo_metadata_by_post_ids( array $post_ids ): array {
 		}
 	}
 
+	$read_succeeded = ! $malformed_row_encountered;
 	return $third_party_plugins_metadata;
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the shared mapping between SOOZ identifiers and Squirrly's serialized SEO keys.
@@ -1198,92 +2194,267 @@ function ai4seo_get_squirrly_seo_metadata_identifier_mapping(): array {
 	);
 }
 
-// =========================================================================================== \\
+/**
+ * Decode Squirrly's version-dependent serialized SEO collection without allowing objects.
+ *
+ * @param mixed     $stored_value    Raw value read from Squirrly's custom table.
+ * @param bool|null $decoding_failed Optional. Receives whether non-empty malformed data failed closed.
+ * @return array Decoded SEO values, or an empty array for missing, unsafe, or malformed data.
+ */
+function ai4seo_decode_squirrly_seo_values( $stored_value, ?bool &$decoding_failed = null ): array {
+	$collection_decoded = false;
+	$decoded_values     = ai4seo_decode_compound_seo_values( $stored_value, $decoding_failed, $collection_decoded );
+
+	// NULL and blank provider columns are valid empty state; other scalars must never be overwritten as if missing.
+	if (
+		! $decoding_failed
+		&& ! $collection_decoded
+		&& null !== $stored_value
+		&& ( ! is_string( $stored_value ) || '' !== trim( $stored_value ) )
+	) {
+		$decoding_failed = true;
+	}
+
+	return $decoded_values;
+}
+
 
 /**
- * Function to read the post's metadata for the Squirrly SEO plugin from specific posts by the given post ids
+ * Reads indexed Squirrly URL-hash candidates from an authoritative requested-post snapshot.
  *
- * @param array $post_ids of post ids (all int).
- * @return array the metadata by post-ids, using metadata-identifier keys
+ * Squirrly historically hashes ordinary posts as md5(ID) and custom post types as
+ * md5(post_type . ID). Both candidates are retained so provider-version classification
+ * drift cannot turn an existing canonical row into a false absence.
+ *
+ * @param array     $post_ids Normalized requested post IDs.
+ * @param bool|null $read_succeeded Receives whether every requested-post query and row validation succeeded.
+ * @return array<string,array<int,bool>> Candidate hashes mapped to their expected post IDs.
  */
-function ai4seo_read_squirrly_seo_metadata_by_post_ids( array $post_ids ): array {
-	// Check the prefixed qss table's serialized seo column for search, keyword, Open Graph, and Twitter values.
-	$metadata_identifier_mapping = ai4seo_get_squirrly_seo_metadata_identifier_mapping();
-
-	// read column "seo" in table "wp_qss".
+function ai4seo_read_squirrly_url_hash_candidates_by_post_ids( array $post_ids, ?bool &$read_succeeded = null ): array {
 	global $wpdb;
 
-	// Initialize the values array.
-	$all_squirrly_values = array();
+	$read_succeeded      = false;
+	$requested_id_lookup = array_fill_keys( $post_ids, true );
 
-	// Ensure post IDs are properly escaped and form the pattern for LIKE queries.
-	$patterns = array_map(
-		function ( $post_id ) {
-			$post_id = intval( $post_id );
-			return '%s:2:"ID";i:' . esc_sql( $post_id ) . ';%';
-		},
-		$post_ids
-	);
+	if ( ! $requested_id_lookup ) {
+		$read_succeeded = true;
+		return array();
+	}
 
-	// Chunk pattern values to avoid oversized OR ... LIKE clauses.
-	$database_chunk_size = ai4seo_get_database_chunk_size();
-	$pattern_chunks      = array_chunk( $patterns, $database_chunk_size );
+	$post_types_by_post_id = array();
 
-	foreach ( $pattern_chunks as $this_pattern_chunk ) {
-		// Implode all patterns to use them in one SQL query chunk with multiple LIKE clauses.
-		$like_clauses = implode( ' OR post LIKE ', array_fill( 0, count( $this_pattern_chunk ), '%s' ) );
+	foreach ( array_chunk( array_keys( $requested_id_lookup ), ai4seo_get_database_chunk_size() ) as $this_post_id_chunk ) {
+		$post_snapshot_query = ai4seo_prepare_database_query(
+			'SELECT ID, post_type FROM {{posts_table}} WHERE ID IN ({{post_ids}})',
+			array(
+				'posts_table' => ai4seo_database_identifier_binding( 'table.posts' ),
+				'post_ids'    => ai4seo_database_list_binding( '%d', array_values( $this_post_id_chunk ) ),
+			)
+		);
 
-		// Prepare the query to get SEO data for this chunk.
-		$query = "
-            SELECT post, seo
-            FROM {$wpdb->prefix}qss
-            WHERE post LIKE " . $like_clauses;
+		if ( false === $post_snapshot_query ) {
+			return array();
+		}
 
-		// Execute the query
-		// Safe: $query contains generated LIKE placeholders only; all pattern values are prepared here.
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$results = $wpdb->get_results( $wpdb->prepare( $query, ...$this_pattern_chunk ), OBJECT );
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler prepares this primary-key-bounded authoritative post-type snapshot; independently mutable provider hashes must be derived from current rows.
+		$post_rows = $wpdb->get_results( $post_snapshot_query, ARRAY_A );
 
-		if ( $wpdb->last_error ) {
+		if ( $wpdb->last_error || ! is_array( $post_rows ) ) {
 			ai4seo_debug_message( 984321682, 'Database error: ' . $wpdb->last_error, true );
 			return array();
 		}
 
-		if ( ! $results ) {
-			continue;
-		}
-
-		// Loop through the results and map them to the post IDs.
-		foreach ( $results as $result ) {
-			$post_id = false;
-
-			// Check if the post data contains a serialized "ID" field.
-			if ( preg_match( '/s:2:"ID";i:(\d+);/', $result->post, $matches ) ) {
-				$post_id = intval( $matches[1] );
+		foreach ( $post_rows as $post_row ) {
+			if ( ! is_array( $post_row )
+				|| 2 !== count( $post_row )
+				|| ! array_key_exists( 'ID', $post_row )
+				|| ! array_key_exists( 'post_type', $post_row )
+			) {
+				return array();
 			}
 
-			if ( $post_id ) {
-				// Deserialize the SEO value without allowing malformed nested data to instantiate PHP objects.
-				$this_posts_current_squirrly_values = maybe_unserialize( $result->seo );
-				if ( is_string( $this_posts_current_squirrly_values ) && is_serialized( $this_posts_current_squirrly_values ) ) {
-					$this_posts_current_squirrly_values = unserialize(
-						$this_posts_current_squirrly_values,
-						array( 'allowed_classes' => false )
-					);
-				}
+			$post_id   = ai4seo_normalize_database_id( $post_row['ID'] );
+			$post_type = $post_row['post_type'];
 
-				// Store the result for the post ID.
-				if ( is_array( $this_posts_current_squirrly_values ) && ! empty( $this_posts_current_squirrly_values ) ) {
-					$all_squirrly_values[ $post_id ] = $this_posts_current_squirrly_values;
-				} else {
-					$all_squirrly_values[ $post_id ] = array();
-				}
+			if ( false === $post_id
+				|| ! isset( $requested_id_lookup[ $post_id ] )
+				|| isset( $post_types_by_post_id[ $post_id ] )
+				|| ! is_string( $post_type )
+				|| '' === $post_type
+				|| sanitize_key( $post_type ) !== $post_type
+			) {
+				return array();
 			}
+
+			$post_types_by_post_id[ $post_id ] = $post_type;
 		}
 	}
 
-	// reorder results, to make post_id the 2d key, then the meta_keys the 1d key and meta_value the value
-	// also skip entries with empty meta_value.
+	$url_hash_candidates = array();
+
+	foreach ( $post_types_by_post_id as $post_id => $post_type ) {
+		$this_post_hashes = array_unique(
+			array(
+				md5( (string) $post_id ),
+				md5( $post_type . (string) $post_id ),
+			)
+		);
+
+		foreach ( $this_post_hashes as $this_post_hash ) {
+			$url_hash_candidates[ $this_post_hash ][ $post_id ] = true;
+		}
+	}
+
+	// A candidate collision leaves SQL identity ambiguous even if one serialized row currently appears authoritative.
+	foreach ( $url_hash_candidates as $expected_post_ids ) {
+		if ( 1 !== count( $expected_post_ids ) ) {
+			return array();
+		}
+	}
+
+	$read_succeeded = true;
+	return $url_hash_candidates;
+}
+
+
+/**
+ * Function to read the post's metadata for the Squirrly SEO plugin from specific posts by the given post ids
+ *
+ * @param array     $post_ids of post ids (all int).
+ * @param bool|null $read_succeeded Receives whether every query and matched provider collection decode succeeded.
+ * @return array the metadata by post-ids, using metadata-identifier keys
+ */
+function ai4seo_read_squirrly_seo_metadata_by_post_ids( array $post_ids, ?bool &$read_succeeded = null ): array {
+	$read_succeeded = false;
+
+	// Check the prefixed qss table's serialized seo column for search, keyword, Open Graph, and Twitter values.
+	$metadata_identifier_mapping = ai4seo_get_squirrly_seo_metadata_identifier_mapping();
+
+	// Build a stable, deduplicated request set while retaining the established invalid-ID skip behavior.
+	$normalized_post_ids = array();
+	$requested_id_lookup = array();
+
+	foreach ( $post_ids as $post_id ) {
+		$normalized_post_id = ai4seo_normalize_database_id( $post_id );
+
+		if ( false === $normalized_post_id || isset( $requested_id_lookup[ $normalized_post_id ] ) ) {
+			continue;
+		}
+
+		$requested_id_lookup[ $normalized_post_id ] = true;
+		$normalized_post_ids[]                      = $normalized_post_id;
+	}
+
+	if ( ! $normalized_post_ids ) {
+		$read_succeeded = true;
+		return array();
+	}
+
+	$url_hash_read_succeeded = false;
+	$url_hash_candidates     = ai4seo_read_squirrly_url_hash_candidates_by_post_ids( $normalized_post_ids, $url_hash_read_succeeded );
+
+	if ( ! $url_hash_read_succeeded ) {
+		return array();
+	}
+
+	// An authoritatively missing WordPress post is valid absence, not permission to scan orphan provider state.
+	if ( ! $url_hash_candidates ) {
+		$read_succeeded = true;
+		return array();
+	}
+
+	$current_blog_id = ai4seo_normalize_database_id( get_current_blog_id() );
+
+	if ( false === $current_blog_id ) {
+		return array();
+	}
+
+	global $wpdb;
+
+	$all_squirrly_values       = array();
+	$matched_post_id_lookup    = array();
+	$maximum_hash_bindings     = ai4seo_get_database_placeholder_budget() - 1;
+	$url_hash_query_chunk_size = min( ai4seo_get_database_chunk_size() * 2, $maximum_hash_bindings );
+
+	if ( $url_hash_query_chunk_size <= 0 ) {
+		return array();
+	}
+
+	foreach ( array_chunk( array_keys( $url_hash_candidates ), $url_hash_query_chunk_size ) as $this_url_hash_chunk ) {
+		$query = ai4seo_prepare_database_query(
+			'SELECT blog_id, url_hash, post, seo
+			FROM {{squirrly_table}}
+			WHERE blog_id = {{blog_id}}
+			AND url_hash IN ({{url_hashes}})',
+			array(
+				'squirrly_table' => ai4seo_database_identifier_binding( 'table.squirrly' ),
+				'blog_id'        => ai4seo_database_scalar_binding( '%d', $current_blog_id ),
+				'url_hashes'     => ai4seo_database_list_binding( '%s', array_values( $this_url_hash_chunk ) ),
+			)
+		);
+
+		if ( false === $query ) {
+			return array();
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler prepares one bounded lookup through Squirrly's canonical blog/hash index; provider rows remain uncached because Squirrly can update them independently.
+		$results = $wpdb->get_results( $query, ARRAY_A );
+
+		if ( $wpdb->last_error || ! is_array( $results ) ) {
+			ai4seo_debug_message( 984321682, 'Database error: ' . $wpdb->last_error, true );
+			return array();
+		}
+
+		foreach ( $results as $result ) {
+			if ( ! is_array( $result )
+				|| 4 !== count( $result )
+				|| ! array_key_exists( 'blog_id', $result )
+				|| ! array_key_exists( 'url_hash', $result )
+				|| ! array_key_exists( 'post', $result )
+				|| ! array_key_exists( 'seo', $result )
+			) {
+				return array();
+			}
+
+			$result_blog_id = ai4seo_normalize_database_id( $result['blog_id'] );
+			$url_hash       = $result['url_hash'];
+			$post_raw       = $result['post'];
+
+			if ( $current_blog_id !== $result_blog_id
+				|| ! is_string( $url_hash )
+				|| 1 !== preg_match( '/^[a-f0-9]{32}$/', $url_hash )
+				|| ! isset( $url_hash_candidates[ $url_hash ] )
+				|| ! is_string( $post_raw )
+			) {
+				return array();
+			}
+
+			$squirrly_post_values = ai4seo_safe_maybe_unserialize( $post_raw );
+			$post_id              = is_array( $squirrly_post_values )
+				? ai4seo_normalize_database_id( $squirrly_post_values['ID'] ?? null )
+				: false;
+
+			if ( false === $post_id
+				|| ! isset( $requested_id_lookup[ $post_id ] )
+				|| ! isset( $url_hash_candidates[ $url_hash ][ $post_id ] )
+				|| isset( $matched_post_id_lookup[ $post_id ] )
+			) {
+				return array();
+			}
+
+			$this_decoding_failed = false;
+			$this_metadata        = ai4seo_decode_squirrly_seo_values( $result['seo'], $this_decoding_failed );
+
+			if ( $this_decoding_failed ) {
+				return array();
+			}
+
+			$matched_post_id_lookup[ $post_id ] = true;
+			$all_squirrly_values[ $post_id ]    = $this_metadata;
+		}
+	}
+
+	// Reorder results, making post ID the outer key and SOOZ's metadata identifiers the inner keys.
 	$third_party_seo_plugins_metadata = array();
 
 	foreach ( $all_squirrly_values as $post_id => $this_metadata ) {
@@ -1292,10 +2463,10 @@ function ai4seo_read_squirrly_seo_metadata_by_post_ids( array $post_ids ): array
 		}
 	}
 
+	$read_succeeded = true;
 	return $third_party_seo_plugins_metadata;
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the shared mapping between SOOZ identifiers and AIOSEO table columns.
@@ -1313,19 +2484,66 @@ function ai4seo_get_all_in_one_seo_metadata_identifier_mapping(): array {
 	);
 }
 
-// =========================================================================================== \\
+
+/**
+ * Returns one static AIOSEO column query from the closed metadata-column allowlist.
+ *
+ * @param string $operation   Either read, update-value, or update-null.
+ * @param string $column_name Allowlisted AIOSEO metadata column.
+ * @return string Static named-token query template, or an empty string when unsupported.
+ */
+function ai4seo_get_all_in_one_seo_metadata_query_template( string $operation, string $column_name ): string {
+	// Keep every column literal so the shared read/write mapping never becomes a dynamic SQL identifier.
+	static $query_templates = array(
+		'read'         => array(
+			'title'               => 'SELECT title AS metadata_value FROM {{aioseo_table}} WHERE post_id = {{post_id}}',
+			'description'         => 'SELECT description AS metadata_value FROM {{aioseo_table}} WHERE post_id = {{post_id}}',
+			'og_title'            => 'SELECT og_title AS metadata_value FROM {{aioseo_table}} WHERE post_id = {{post_id}}',
+			'og_description'      => 'SELECT og_description AS metadata_value FROM {{aioseo_table}} WHERE post_id = {{post_id}}',
+			'twitter_title'       => 'SELECT twitter_title AS metadata_value FROM {{aioseo_table}} WHERE post_id = {{post_id}}',
+			'twitter_description' => 'SELECT twitter_description AS metadata_value FROM {{aioseo_table}} WHERE post_id = {{post_id}}',
+		),
+		'update-value' => array(
+			'title'               => 'UPDATE {{aioseo_table}} SET title = {{metadata_value}} WHERE post_id = {{post_id}} AND BINARY title = BINARY {{previous_metadata_value}} LIMIT {{row_limit}}',
+			'description'         => 'UPDATE {{aioseo_table}} SET description = {{metadata_value}} WHERE post_id = {{post_id}} AND BINARY description = BINARY {{previous_metadata_value}} LIMIT {{row_limit}}',
+			'og_title'            => 'UPDATE {{aioseo_table}} SET og_title = {{metadata_value}} WHERE post_id = {{post_id}} AND BINARY og_title = BINARY {{previous_metadata_value}} LIMIT {{row_limit}}',
+			'og_description'      => 'UPDATE {{aioseo_table}} SET og_description = {{metadata_value}} WHERE post_id = {{post_id}} AND BINARY og_description = BINARY {{previous_metadata_value}} LIMIT {{row_limit}}',
+			'twitter_title'       => 'UPDATE {{aioseo_table}} SET twitter_title = {{metadata_value}} WHERE post_id = {{post_id}} AND BINARY twitter_title = BINARY {{previous_metadata_value}} LIMIT {{row_limit}}',
+			'twitter_description' => 'UPDATE {{aioseo_table}} SET twitter_description = {{metadata_value}} WHERE post_id = {{post_id}} AND BINARY twitter_description = BINARY {{previous_metadata_value}} LIMIT {{row_limit}}',
+		),
+		'update-null'  => array(
+			'title'               => 'UPDATE {{aioseo_table}} SET title = {{metadata_value}} WHERE post_id = {{post_id}} AND title IS NULL LIMIT {{row_limit}}',
+			'description'         => 'UPDATE {{aioseo_table}} SET description = {{metadata_value}} WHERE post_id = {{post_id}} AND description IS NULL LIMIT {{row_limit}}',
+			'og_title'            => 'UPDATE {{aioseo_table}} SET og_title = {{metadata_value}} WHERE post_id = {{post_id}} AND og_title IS NULL LIMIT {{row_limit}}',
+			'og_description'      => 'UPDATE {{aioseo_table}} SET og_description = {{metadata_value}} WHERE post_id = {{post_id}} AND og_description IS NULL LIMIT {{row_limit}}',
+			'twitter_title'       => 'UPDATE {{aioseo_table}} SET twitter_title = {{metadata_value}} WHERE post_id = {{post_id}} AND twitter_title IS NULL LIMIT {{row_limit}}',
+			'twitter_description' => 'UPDATE {{aioseo_table}} SET twitter_description = {{metadata_value}} WHERE post_id = {{post_id}} AND twitter_description IS NULL LIMIT {{row_limit}}',
+		),
+	);
+
+	return $query_templates[ $operation ][ $column_name ] ?? '';
+}
+
 
 /**
  * Reads AIOSEO metadata for the requested posts from its canonical table.
  *
- * @param array $post_ids Post IDs.
+ * @param array     $post_ids Post IDs.
+ * @param bool|null $read_succeeded Receives whether every provider-table read succeeded.
  * @return array Metadata by post ID, using SOOZ metadata identifiers.
  */
-function ai4seo_read_all_in_one_seo_metadata_by_post_ids( array $post_ids ): array {
+function ai4seo_read_all_in_one_seo_metadata_by_post_ids( array $post_ids, ?bool &$read_succeeded = null ): array {
+	$read_succeeded = false;
+
 	// Reuse the write-path allowlist so table reads and writes cannot drift to different columns.
 	$metadata_identifier_mapping = ai4seo_get_all_in_one_seo_metadata_identifier_mapping();
 
-	$post_ids = ai4seo_deep_sanitize( $post_ids, 'absint' );
+	$post_ids = array_values( array_unique( array_filter( ai4seo_deep_sanitize( $post_ids, 'absint' ) ) ) );
+
+	if ( ! $post_ids ) {
+		$read_succeeded = true;
+		return array();
+	}
 
 	// Read mapped fields directly from AIOSEO's canonical table.
 	global $wpdb;
@@ -1341,19 +2559,30 @@ function ai4seo_read_all_in_one_seo_metadata_by_post_ids( array $post_ids ): arr
 			continue;
 		}
 
-		$this_post_ids_placeholders = implode( ',', array_fill( 0, count( $this_post_ids_chunk ), '%d' ) );
-
-		$this_rows = $wpdb->get_results(
-			$wpdb->prepare(
-				"SELECT * FROM {$wpdb->prefix}aioseo_posts WHERE post_id IN ({$this_post_ids_placeholders})",
-				$this_post_ids_chunk
-			),
-			ARRAY_A
+		$this_query = ai4seo_prepare_database_query(
+			'SELECT post_id, title, description, og_title, og_description, twitter_title, twitter_description
+			FROM {{aioseo_table}}
+			WHERE post_id IN ({{post_ids}})',
+			array(
+				'aioseo_table' => ai4seo_database_identifier_binding( 'table.aioseo_posts' ),
+				'post_ids'     => ai4seo_database_list_binding( '%d', array_values( $this_post_ids_chunk ) ),
+			)
 		);
+
+		if ( false === $this_query ) {
+			return array();
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler prepares this bounded current-state provider read; AI for SEO owns no cache for AIOSEO's independently mutable table.
+		$this_rows = $wpdb->get_results( $this_query, ARRAY_A );
 
 		// on error.
 		if ( $wpdb->last_error ) {
 			ai4seo_debug_message( 984321660, 'Database error: ' . $wpdb->last_error, true );
+			return array();
+		}
+
+		if ( ! is_array( $this_rows ) ) {
 			return array();
 		}
 
@@ -1362,18 +2591,30 @@ function ai4seo_read_all_in_one_seo_metadata_by_post_ids( array $post_ids ): arr
 		}
 
 		foreach ( $this_rows as $this_row ) {
-			$this_post_id = (int) $this_row['post_id'];
+			if ( ! is_array( $this_row ) || ! array_key_exists( 'post_id', $this_row ) ) {
+				return array();
+			}
+
+			$this_post_id = ai4seo_normalize_database_id( $this_row['post_id'] );
+
+			if ( false === $this_post_id || ! in_array( $this_post_id, $post_ids, true ) ) {
+				return array();
+			}
 
 			foreach ( $metadata_identifier_mapping as $this_metadata_identifier => $this_aioseo_key ) {
-				$third_party_seo_plugins_metadata[ $this_post_id ][ $this_metadata_identifier ] = $this_row[ $this_aioseo_key ] ?? '';
+				if ( ! array_key_exists( $this_aioseo_key, $this_row ) ) {
+					return array();
+				}
+
+				$third_party_seo_plugins_metadata[ $this_post_id ][ $this_metadata_identifier ] = $this_row[ $this_aioseo_key ];
 			}
 		}
 	}
 
+	$read_succeeded = true;
 	return $third_party_seo_plugins_metadata;
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the number of metadata fields
@@ -1384,10 +2625,21 @@ function ai4seo_get_num_metadata_fields(): int {
 	return defined( 'AI4SEO_METADATA_DETAILS' ) ? count( AI4SEO_METADATA_DETAILS ) : 0;
 }
 
-// =========================================================================================== \\
 
-function ai4seo_read_available_metadata( int $post_id, bool $consider_third_party_seo_plugin_metadata = true ): array {
-	$available_metadata_by_post_ids = ai4seo_read_available_metadata_by_post_ids( array( $post_id ), $consider_third_party_seo_plugin_metadata );
+/**
+ * Read all available metadata for one post.
+ *
+ * @param int       $post_id Post ID.
+ * @param bool      $consider_third_party_seo_plugin_metadata Whether third-party SEO metadata should be considered.
+ * @param bool|null $read_succeeded Receives whether every metadata-source read succeeded.
+ * @return array Available metadata keyed by metadata identifier.
+ */
+function ai4seo_read_available_metadata( int $post_id, bool $consider_third_party_seo_plugin_metadata = true, ?bool &$read_succeeded = null ): array {
+	$available_metadata_by_post_ids = ai4seo_read_available_metadata_by_post_ids(
+		array( $post_id ),
+		$consider_third_party_seo_plugin_metadata,
+		$read_succeeded
+	);
 
 	if ( ! isset( $available_metadata_by_post_ids[ $post_id ] ) ) {
 		return array();
@@ -1396,16 +2648,18 @@ function ai4seo_read_available_metadata( int $post_id, bool $consider_third_part
 	return $available_metadata_by_post_ids[ $post_id ];
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to read all the available metadata, regardless of the source, for a specific post by the given post id
  *
- * @param array $post_ids of post ids.
- * @param bool  $consider_third_party_seo_plugin_metadata if true, the own plugin's metadata will be preferred.
+ * @param array     $post_ids of post ids.
+ * @param bool      $consider_third_party_seo_plugin_metadata if true, the own plugin's metadata will be preferred.
+ * @param bool|null $read_succeeded Receives whether every metadata-source read succeeded.
  * @return array the post meta coverage by post ids
  */
-function ai4seo_read_available_metadata_by_post_ids( array $post_ids, bool $consider_third_party_seo_plugin_metadata = true ): array {
+function ai4seo_read_available_metadata_by_post_ids( array $post_ids, bool $consider_third_party_seo_plugin_metadata = true, ?bool &$read_succeeded = null ): array {
+	$read_succeeded = false;
+
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 615102829, 'Prevented loop', true );
 		return array();
@@ -1413,6 +2667,7 @@ function ai4seo_read_available_metadata_by_post_ids( array $post_ids, bool $cons
 
 	// make sure post_ids is not empty.
 	if ( empty( $post_ids ) ) {
+		$read_succeeded = true;
 		return array();
 	}
 
@@ -1431,7 +2686,12 @@ function ai4seo_read_available_metadata_by_post_ids( array $post_ids, bool $cons
 	$available_metadata = array();
 
 	// 1. read our own plugin's metadata
-	$our_plugins_metadata_by_post_ids = ai4seo_read_our_plugins_metadata_by_post_ids( $post_ids );
+	$our_metadata_read_succeeded      = false;
+	$our_plugins_metadata_by_post_ids = ai4seo_read_our_plugins_metadata_by_post_ids( $post_ids, $our_metadata_read_succeeded );
+
+	if ( ! $our_metadata_read_succeeded ) {
+		return array();
+	}
 
 	foreach ( $post_ids as $this_key => $this_post_id ) {
 		$this_posts_got_missing_metadata = false;
@@ -1453,21 +2713,32 @@ function ai4seo_read_available_metadata_by_post_ids( array $post_ids, bool $cons
 
 	// should we consider third party seo plugins?
 	if ( ! $consider_third_party_seo_plugin_metadata ) {
+		$read_succeeded = true;
 		return $available_metadata;
 	}
 
 	// all posts are filled with our own metadata? return the metadata here.
 	if ( count( $post_ids ) === 0 ) {
+		$read_succeeded = true;
 		return $available_metadata;
 	}
 
-	// if not, we...
+	// Fill remaining gaps from active third-party SEO plugins.
 
 	// 2. check third party seo plugins
 	$active_third_party_seo_plugin_details = ai4seo_get_active_third_party_seo_plugin_details();
 
 	foreach ( $active_third_party_seo_plugin_details as $this_third_party_seo_plugin_identifier => $this_third_party_seo_plugin_details ) {
-		$this_third_plugins_plugins_metadata_by_post_ids = ai4seo_read_third_party_seo_plugin_metadata_by_post_ids( $this_third_party_seo_plugin_identifier, $post_ids );
+		$this_provider_read_succeeded                    = false;
+		$this_third_plugins_plugins_metadata_by_post_ids = ai4seo_read_third_party_seo_plugin_metadata_by_post_ids(
+			$this_third_party_seo_plugin_identifier,
+			$post_ids,
+			$this_provider_read_succeeded
+		);
+
+		if ( ! $this_provider_read_succeeded ) {
+			return array();
+		}
 
 		if ( ! $this_third_plugins_plugins_metadata_by_post_ids ) {
 			continue;
@@ -1498,22 +2769,26 @@ function ai4seo_read_available_metadata_by_post_ids( array $post_ids, bool $cons
 
 		// all posts are filled with our own metadata? return the metadata here.
 		if ( count( $post_ids ) === 0 ) {
+			$read_succeeded = true;
 			return $available_metadata;
 		}
 	}
 
+	$read_succeeded = true;
 	return $available_metadata;
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to return the amount of active metadata per post id
  *
- * @param array $post_ids of post ids.
+ * @param array     $post_ids of post ids.
+ * @param bool|null $read_succeeded Receives whether every metadata-source read succeeded.
  * @return array the amount of active metadata by post ids
  */
-function ai4seo_read_num_available_metadata_by_post_ids( array $post_ids ): array {
+function ai4seo_read_num_available_metadata_by_post_ids( array $post_ids, ?bool &$read_succeeded = null ): array {
+	$read_succeeded = false;
+
 	if ( ai4seo_prevent_loops( __FUNCTION__, 1, 99999 ) ) {
 		ai4seo_debug_message( 561144878, 'Prevented loop', true );
 		return array();
@@ -1531,9 +2806,15 @@ function ai4seo_read_num_available_metadata_by_post_ids( array $post_ids ): arra
 		$overwrite_metadata = array();
 	}
 
-	$available_metadata = ai4seo_read_available_metadata_by_post_ids( $post_ids );
+	$available_metadata_read_succeeded = false;
+	$available_metadata                = ai4seo_read_available_metadata_by_post_ids( $post_ids, true, $available_metadata_read_succeeded );
+
+	if ( ! $available_metadata_read_succeeded ) {
+		return array();
+	}
 
 	if ( ! $available_metadata ) {
+		$read_succeeded = true;
 		return array();
 	}
 
@@ -1571,19 +2852,22 @@ function ai4seo_read_num_available_metadata_by_post_ids( array $post_ids ): arra
 		}
 	}
 
+	$read_succeeded = true;
 	return $num_available_metadata_by_post_ids;
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to return the percentage of active metadata per post id
  *
- * @param array $post_ids of post ids.
- * @param int   $round_precision the precision to round the percentage to.
+ * @param array     $post_ids of post ids.
+ * @param int       $round_precision the precision to round the percentage to.
+ * @param bool|null $read_succeeded Receives whether every metadata-source read succeeded.
  * @return array the amount of active metadata by post ids
  */
-function ai4seo_read_percentage_of_available_metadata_by_post_ids( array $post_ids, int $round_precision = 0 ): array {
+function ai4seo_read_percentage_of_available_metadata_by_post_ids( array $post_ids, int $round_precision = 0, ?bool &$read_succeeded = null ): array {
+	$read_succeeded = false;
+
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 343030419, 'Prevented loop', true );
 		return array();
@@ -1599,12 +2883,18 @@ function ai4seo_read_percentage_of_available_metadata_by_post_ids( array $post_i
 			$percentage_of_active_metadata_by_post_ids[ $this_post_id ] = 100;
 		}
 
+		$read_succeeded = true;
 		return $percentage_of_active_metadata_by_post_ids;
 	}
 
 	// first read how many metadata values are available per post id,
 	// then compare it with the total amount of active meta tags.
-	$num_available_metadata_by_post_ids = ai4seo_read_num_available_metadata_by_post_ids( $post_ids );
+	$num_metadata_read_succeeded        = false;
+	$num_available_metadata_by_post_ids = ai4seo_read_num_available_metadata_by_post_ids( $post_ids, $num_metadata_read_succeeded );
+
+	if ( ! $num_metadata_read_succeeded ) {
+		return array();
+	}
 
 	$num_active_meta_tags = count( $active_meta_tags );
 
@@ -1615,43 +2905,389 @@ function ai4seo_read_percentage_of_available_metadata_by_post_ids( array $post_i
 		$percentage_of_active_metadata_by_post_ids[ $this_post_id ] = min( 100, max( 0, $percentage_of_active_metadata_by_post_ids[ $this_post_id ] ) );
 	}
 
+	$read_succeeded = true;
 	return $percentage_of_active_metadata_by_post_ids;
 }
 
-// =========================================================================================== \\
+
+/**
+ * Persists one manual editor value set while owning the exact durable Processing claim.
+ *
+ * The shared transition fence is held only while claiming, renewing, or completing ownership. The
+ * durable Processing lease remains visible to reset and stale-recovery paths while primary storage
+ * runs. A proven clean primary failure restores the exact prior Pending and Force memberships. Once
+ * primary storage commits or becomes ambiguous, cleanup never restores stale queue intent and schedules
+ * durable summary repair if exact ownership, coverage, or release cannot be verified.
+ *
+ * @param int        $post_id Post ID being saved manually.
+ * @param string     $context Metadata or attachment-attributes queue context.
+ * @param callable   $persistence_callback Callback that persists primary manual values.
+ * @param array|null $operation_details Receives reservation, persistence, coverage, rollback, and release outcomes.
+ * @param array|null $persistence_details Optional structured callback outcome with a commit_state key.
+ * @return bool True only when persistence, exact derived state, and lock release all succeeded.
+ */
+function ai4seo_save_manual_editor_values_with_generation_fence(
+	int $post_id,
+	string $context,
+	callable $persistence_callback,
+	?array &$operation_details = null,
+	?array &$persistence_details = null
+): bool {
+	$post_id                            = absint( $post_id );
+	$context                            = sanitize_key( $context );
+	$has_structured_persistence_details = func_num_args() >= 5;
+
+	$persistence_details = array(
+		'commit_state' => $has_structured_persistence_details ? 'possibly_committed' : 'not_committed',
+	);
+
+	$operation_details = array(
+		'reservation_succeeded'             => false,
+		'ownership_verified_before_storage' => false,
+		'persistence_succeeded'             => false,
+		'persistence_commit_state'          => $persistence_details['commit_state'],
+		'ownership_verified_after_storage'  => false,
+		'coverage_succeeded'                => false,
+		'rollback_attempted'                => false,
+		'rollback_succeeded'                => true,
+		'release_succeeded'                 => false,
+		'summary_rebuild_scheduled'         => false,
+	);
+
+	if ( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA === $context ) {
+		$pending_option_name    = AI4SEO_PENDING_METADATA_POST_IDS_OPTION_NAME;
+		$processing_option_name = AI4SEO_PROCESSING_METADATA_POST_IDS_OPTION_NAME;
+		$force_option_name      = AI4SEO_FORCE_OVERWRITE_METADATA_POST_IDS_OPTION_NAME;
+	} elseif ( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES === $context ) {
+		$pending_option_name    = AI4SEO_PENDING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME;
+		$processing_option_name = AI4SEO_PROCESSING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME;
+		$force_option_name      = AI4SEO_FORCE_OVERWRITE_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME;
+	} else {
+		return false;
+	}
+
+	if ( $post_id <= 0 ) {
+		return false;
+	}
+
+	$processing_claimed     = false;
+	$is_force_overwrite     = false;
+	$processing_claim_token = '';
+	$pending_was_present    = false;
+	$force_was_present      = false;
+	$claim_checked          = ai4seo_claim_post_id_for_direct_processing(
+		$pending_option_name,
+		$processing_option_name,
+		$post_id,
+		$processing_claimed,
+		$force_option_name,
+		$is_force_overwrite,
+		$processing_claim_token,
+		$pending_was_present,
+		$force_was_present
+	);
+
+	if ( ! $processing_claimed || '' === $processing_claim_token ) {
+		return false;
+	}
+
+	$verify_processing_claim  = static function () use ( $context, $post_id, $processing_claim_token ): bool {
+		try {
+			return ai4seo_renew_bulk_generation_processing_claim( $context, $post_id, $processing_claim_token );
+		} catch ( Throwable $throwable ) {
+			ai4seo_debug_message( 418620947, 'Could not verify durable manual-editor generation ownership: ' . $throwable->getMessage(), true );
+			return false;
+		}
+	};
+	$release_processing_claim = static function ( bool $restore_pending, bool $restore_force, bool $discard_prior_queue_intent = false ) use ( $context, $post_id, $processing_claim_token ): bool {
+		try {
+			return ai4seo_release_bulk_generation_processing_claim(
+				$context,
+				$post_id,
+				$processing_claim_token,
+				$restore_pending,
+				$restore_force,
+				$discard_prior_queue_intent
+			);
+		} catch ( Throwable $throwable ) {
+			ai4seo_debug_message( 418620948, 'Could not release durable manual-editor generation ownership: ' . $throwable->getMessage(), true );
+			return false;
+		}
+	};
+	$schedule_summary_rebuild = static function (): bool {
+		try {
+			return ai4seo_schedule_generation_status_summary_rebuild();
+		} catch ( Throwable $throwable ) {
+			ai4seo_debug_message( 418620950, 'Could not schedule manual-editor generation-summary repair: ' . $throwable->getMessage(), true );
+			return false;
+		}
+	};
+	$discard_processing_claim = static function () use ( &$operation_details, $release_processing_claim, $schedule_summary_rebuild ): bool {
+		// Persist reconciliation before deleting the last exact pointer to a committed or ambiguous primary write.
+		$operation_details['summary_rebuild_scheduled'] = $schedule_summary_rebuild();
+
+		if ( ! $operation_details['summary_rebuild_scheduled'] ) {
+			return false;
+		}
+
+		return $release_processing_claim( false, false, true );
+	};
+
+	if ( ! $claim_checked ) {
+		// The claim API can report a failed final renewal after durably publishing exact-token ownership.
+		$operation_details['rollback_attempted'] = true;
+		$operation_details['rollback_succeeded'] = $release_processing_claim( $pending_was_present, $force_was_present );
+		$operation_details['release_succeeded']  = $operation_details['rollback_succeeded'];
+
+		if ( ! $operation_details['rollback_succeeded'] ) {
+			$operation_details['summary_rebuild_scheduled'] = $schedule_summary_rebuild();
+		}
+
+		ai4seo_debug_message( 867234101, 'A durable manual-editor generation claim survived a failed claim check and required exact-token compensation.', true );
+		return false;
+	}
+
+	$operation_details['ownership_verified_before_storage'] = $verify_processing_claim();
+	$operation_details['reservation_succeeded']             = $operation_details['ownership_verified_before_storage'];
+
+	if ( ! $operation_details['reservation_succeeded'] ) {
+		$operation_details['rollback_attempted'] = true;
+		$operation_details['rollback_succeeded'] = $release_processing_claim( $pending_was_present, $force_was_present );
+		$operation_details['release_succeeded']  = $operation_details['rollback_succeeded'];
+
+		if ( ! $operation_details['rollback_succeeded'] ) {
+			$operation_details['summary_rebuild_scheduled'] = $schedule_summary_rebuild();
+		}
+	} else {
+		try {
+			$operation_details['persistence_succeeded'] = (bool) call_user_func( $persistence_callback );
+		} catch ( Throwable $throwable ) {
+			ai4seo_debug_message( 418620945, 'Manual editor persistence failed while generation ownership was held: ' . $throwable->getMessage(), true );
+		}
+
+		if ( $operation_details['persistence_succeeded'] ) {
+			$operation_details['persistence_commit_state'] = 'committed';
+		} elseif ( $has_structured_persistence_details
+			&& isset( $persistence_details['commit_state'] )
+			&& is_string( $persistence_details['commit_state'] )
+			&& in_array( $persistence_details['commit_state'], array( 'not_committed', 'committed', 'possibly_committed' ), true )
+		) {
+			$operation_details['persistence_commit_state'] = $persistence_details['commit_state'];
+		} elseif ( $has_structured_persistence_details ) {
+			$operation_details['persistence_commit_state'] = 'possibly_committed';
+		} else {
+			$operation_details['persistence_commit_state'] = 'not_committed';
+		}
+
+		$operation_details['ownership_verified_after_storage'] = $verify_processing_claim();
+
+		if ( ! $operation_details['persistence_succeeded'] ) {
+			if ( 'not_committed' === $operation_details['persistence_commit_state'] ) {
+				$operation_details['rollback_attempted'] = true;
+				$operation_details['rollback_succeeded'] = $release_processing_claim( $pending_was_present, $force_was_present );
+				$operation_details['release_succeeded']  = $operation_details['rollback_succeeded'];
+
+				if ( ! $operation_details['rollback_succeeded'] ) {
+					$operation_details['summary_rebuild_scheduled'] = $schedule_summary_rebuild();
+				}
+			} else {
+				// Committed or ambiguous primary state must never be made claimable by restoring stale intent.
+				$operation_details['release_succeeded'] = $discard_processing_claim();
+			}
+		} else {
+			$coverage_transition     = false;
+			$coverage_read_succeeded = false;
+
+			try {
+				if ( $operation_details['ownership_verified_after_storage']
+					&& AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA === $context
+				) {
+					// Classify the stored post once so covered content and untracked drafts remain exclusive paths.
+					$post = get_post( $post_id );
+
+					if ( $post instanceof WP_Post && in_array( $post->post_status, array( 'draft', 'auto-draft' ), true ) ) {
+						if ( ai4seo_is_metadata_editor_enabled_for_post_type( $post->post_type ) ) {
+							// Drafts have no coverage destination, so clear every registered queue state plus coverage memberships.
+							$draft_queue_option_names   = ai4seo_get_bulk_generation_queue_options_by_context( $context );
+							$draft_removal_option_names = array(
+								$draft_queue_option_names['missing'],
+								AI4SEO_FULLY_COVERED_METADATA_POST_IDS_OPTION_NAME,
+								AI4SEO_GENERATED_METADATA_POST_IDS_OPTION_NAME,
+							);
+							unset( $draft_queue_option_names['missing'], $draft_queue_option_names['processing'] );
+							$draft_removal_option_names = array_merge( $draft_removal_option_names, array_values( $draft_queue_option_names ) );
+
+							// Commit the absence-only result through the exact owner's durable terminal transition.
+							$operation_details['coverage_succeeded'] = ai4seo_apply_owned_bulk_generation_result_transition(
+								$post_id,
+								array(),
+								$processing_claim_token,
+								$draft_removal_option_names
+							);
+							$operation_details['release_succeeded']  = $operation_details['coverage_succeeded'];
+						}
+					} elseif ( $post instanceof WP_Post && ai4seo_is_post_a_valid_content_post( $post_id, $post ) ) {
+						$coverage_transition = ai4seo_build_metadata_coverage_post_id_option_transition(
+							$post_id,
+							true,
+							true,
+							$coverage_read_succeeded
+						);
+					}
+				} elseif ( $operation_details['ownership_verified_after_storage']
+					&& AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES === $context
+					&& ai4seo_is_post_a_valid_attachment( $post_id )
+				) {
+					$coverage_transition = ai4seo_build_attachment_attributes_coverage_post_id_option_transition(
+						$post_id,
+						true,
+						true,
+						$coverage_read_succeeded
+					);
+				}
+
+				if ( $coverage_read_succeeded && is_array( $coverage_transition ) && ! empty( $coverage_transition['additions'] ) ) {
+					$operation_details['coverage_succeeded'] = ai4seo_apply_owned_bulk_generation_result_transition(
+						$post_id,
+						array_keys( $coverage_transition['additions'] ),
+						$processing_claim_token,
+						array_keys( $coverage_transition['removals'] )
+					);
+					$operation_details['release_succeeded']  = $operation_details['coverage_succeeded'];
+				}
+			} catch ( Throwable $throwable ) {
+				ai4seo_debug_message( 418620949, 'Could not commit manual-editor coverage under durable generation ownership: ' . $throwable->getMessage(), true );
+			}
+
+			if ( ! $operation_details['coverage_succeeded'] ) {
+				// Primary storage is authoritative now; only exact-token cleanup is safe, never queue restoration.
+				$operation_details['release_succeeded'] = $discard_processing_claim();
+			}
+
+			if ( ( ! $operation_details['coverage_succeeded'] || ! $operation_details['release_succeeded'] )
+				&& ! $operation_details['summary_rebuild_scheduled']
+			) {
+				$operation_details['summary_rebuild_scheduled'] = $schedule_summary_rebuild();
+			}
+		}
+	}
+
+	if ( $operation_details['rollback_attempted'] && ! $operation_details['rollback_succeeded'] ) {
+		ai4seo_debug_message( 418620946, 'Could not restore the exact generation queue state after a failed manual editor save.', true );
+	}
+
+	return $operation_details['reservation_succeeded']
+		&& $operation_details['persistence_succeeded']
+		&& $operation_details['coverage_succeeded']
+		&& $operation_details['release_succeeded'];
+}
+
+
+/**
+ * Builds the exact metadata coverage transition for one valid content post.
+ *
+ * @param int       $post_id Post ID whose current persisted metadata is authoritative.
+ * @param bool      $clear_failed_generation_status Whether Failed must be absent after success.
+ * @param bool      $clear_claimable_generation_status Whether Pending and Force must also be absent.
+ * @param bool|null $read_succeeded Receives whether coverage and generated-data reads were authoritative.
+ * @return array{additions: array, removals: array}|array{} Normalized transition maps, or empty on read failure.
+ */
+function ai4seo_build_metadata_coverage_post_id_option_transition(
+	int $post_id,
+	bool $clear_failed_generation_status = false,
+	bool $clear_claimable_generation_status = false,
+	?bool &$read_succeeded = null
+): array {
+	$read_succeeded = false;
+
+	$coverage_option_names         = array(
+		AI4SEO_MISSING_METADATA_POST_IDS_OPTION_NAME,
+		AI4SEO_FULLY_COVERED_METADATA_POST_IDS_OPTION_NAME,
+		AI4SEO_GENERATED_METADATA_POST_IDS_OPTION_NAME,
+	);
+	$coverage_read_succeeded       = false;
+	$generated_data_read_succeeded = false;
+	$is_fully_covered              = ai4seo_read_is_posts_metadata_fully_covered( $post_id, $coverage_read_succeeded );
+	$has_generated_data            = ai4seo_post_has_generated_data( $post_id, $generated_data_read_succeeded );
+
+	if ( ! $coverage_read_succeeded || ! $generated_data_read_succeeded ) {
+		return array();
+	}
+
+	$has_generated_data   = $is_fully_covered && $has_generated_data;
+	$destination_option   = $is_fully_covered
+		? AI4SEO_FULLY_COVERED_METADATA_POST_IDS_OPTION_NAME
+		: AI4SEO_MISSING_METADATA_POST_IDS_OPTION_NAME;
+	$transition_additions = array( $destination_option => array( $post_id ) );
+	$transition_removals  = array();
+
+	if ( $has_generated_data ) {
+		$transition_additions[ AI4SEO_GENERATED_METADATA_POST_IDS_OPTION_NAME ] = array( $post_id );
+	}
+
+	foreach ( $coverage_option_names as $coverage_option_name ) {
+		if ( ! isset( $transition_additions[ $coverage_option_name ] ) ) {
+			$transition_removals[ $coverage_option_name ] = array( $post_id );
+		}
+	}
+
+	if ( $clear_failed_generation_status ) {
+		$transition_removals[ AI4SEO_FAILED_METADATA_POST_IDS_OPTION_NAME ] = array( $post_id );
+	}
+
+	if ( $clear_claimable_generation_status ) {
+		$transition_removals[ AI4SEO_PENDING_METADATA_POST_IDS_OPTION_NAME ]         = array( $post_id );
+		$transition_removals[ AI4SEO_FORCE_OVERWRITE_METADATA_POST_IDS_OPTION_NAME ] = array( $post_id );
+	}
+
+	$read_succeeded = true;
+	return array(
+		'additions' => $transition_additions,
+		'removals'  => $transition_removals,
+	);
+}
+
 
 /**
  * Refreshes the metadata coverage for the given post by putting the post id into the corresponding option
  *
  * @param int          $post_id The post id to refresh the metadata coverage for.
  * @param WP_Post|null $post The post object to refresh the metadata coverage for.
- * @return void
+ * @param bool         $clear_failed_generation_status Whether a successful manual save also clears Failed.
+ * @return bool True only when the complete requested coverage state was verified.
  */
-function ai4seo_refresh_one_posts_metadata_coverage_status( int $post_id, $post = null ) {
-	if ( ! is_numeric( $post_id ) ) {
-		return;
+function ai4seo_refresh_one_posts_metadata_coverage_status(
+	int $post_id,
+	$post = null,
+	bool $clear_failed_generation_status = false
+): bool {
+	if ( $post_id <= 0 ) {
+		return false;
 	}
 
 	// remove post id if it's not a valid post.
 	if ( ! ai4seo_is_post_a_valid_content_post( $post_id, $post ) ) {
-		ai4seo_remove_post_ids_from_all_options( $post_id );
-		return;
+		return ai4seo_remove_post_ids_from_all_options( $post_id );
 	}
 
-	// consider which option to put the post id into.
-	if ( ai4seo_read_is_posts_metadata_fully_covered( $post_id ) ) {
-		ai4seo_add_post_ids_to_option( AI4SEO_FULLY_COVERED_METADATA_POST_IDS_OPTION_NAME, $post_id );
+	$coverage_read_succeeded = false;
+	$coverage_transition     = ai4seo_build_metadata_coverage_post_id_option_transition(
+		$post_id,
+		$clear_failed_generation_status,
+		false,
+		$coverage_read_succeeded
+	);
 
-		// check if the post has generated data.
-		if ( ai4seo_post_has_generated_data( $post_id ) ) {
-			ai4seo_add_post_ids_to_option( AI4SEO_GENERATED_METADATA_POST_IDS_OPTION_NAME, $post_id );
-		}
-	} else {
-		ai4seo_add_post_ids_to_option( AI4SEO_MISSING_METADATA_POST_IDS_OPTION_NAME, $post_id );
+	if ( ! $coverage_read_succeeded ) {
+		return false;
 	}
+
+	return ai4seo_apply_post_id_option_transition(
+		$coverage_transition['additions'],
+		$coverage_transition['removals']
+	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to check if this post is a valid content post to be considered by our plugin
@@ -1679,56 +3315,69 @@ function ai4seo_is_post_a_valid_content_post( int $post_id, ?WP_Post $post = nul
 	$supported_post_types = ai4seo_get_supported_post_types();
 
 	// check if the post is supported.
-	if ( ! in_array( $post->post_type, $supported_post_types ) ) {
+	if ( ! in_array( $post->post_type, $supported_post_types, true ) ) {
 		return false;
 	}
 
 	// check post status.
-	if ( ! in_array( $post->post_status, array( 'publish', 'future', 'private', 'pending' ) ) ) {
+	if ( ! in_array( $post->post_status, array( 'publish', 'future', 'private', 'pending' ), true ) ) {
 		return false;
 	}
 
 	return true;
 }
 
-// =========================================================================================== \\
 
 /**
  * Checks if the metadata for a given post is fully covered
  *
- * @param int $post_id The post id to check the metadata coverage for.
+ * @param int       $post_id The post id to check the metadata coverage for.
+ * @param bool|null $read_succeeded Receives whether the authoritative metadata reads succeeded.
  * @return bool Whether the metadata for a given post is fully covered
  */
-function ai4seo_read_is_posts_metadata_fully_covered( int $post_id ): bool {
-	$percentage_of_active_metadata_by_post_ids = ai4seo_read_percentage_of_available_metadata_by_post_ids( array( $post_id ) );
+function ai4seo_read_is_posts_metadata_fully_covered( int $post_id, ?bool &$read_succeeded = null ): bool {
+	$read_succeeded                            = false;
+	$percentage_of_active_metadata_by_post_ids = ai4seo_read_percentage_of_available_metadata_by_post_ids(
+		array( $post_id ),
+		0,
+		$read_succeeded
+	);
 
-	return ( ( $percentage_of_active_metadata_by_post_ids[ $post_id ] ?? 0 ) == 100 );
+	if ( ! $read_succeeded ) {
+		return false;
+	}
+
+	// Reuse the shared numeric boundary so persisted strings and calculated values agree.
+	return ai4seo_is_full_coverage_percentage( $percentage_of_active_metadata_by_post_ids[ $post_id ] ?? 0 );
 }
 
-// =========================================================================================== \\
 
 /**
  * Removes all post ids for all or a specific post type and generation status. It's recommended to run
  *
- * @param string $post_type The post type to remove the post ids for
- * @param string $generation_status_option_name The generation status option name to remove the post ids for
- * @return void
+ * @param string $post_type The post type to remove the post ids for.
+ * @param string $generation_status_option_name The generation status option name to remove the post ids for.
+ * @return bool True only when every matching post ID was verified absent from the status option.
  */
-function ai4seo_remove_all_post_ids_by_post_type_and_generation_status( string $post_type, string $generation_status_option_name ) {
+function ai4seo_remove_all_post_ids_by_post_type_and_generation_status( string $post_type, string $generation_status_option_name ): bool {
 	global $wpdb;
 
-	$post_type = sanitize_text_field( $post_type );
+	$post_type                     = sanitize_text_field( $post_type );
+	$generation_status_option_name = sanitize_key( $generation_status_option_name );
 
-	// read all ids from $generation_status_option_name and check which of them are of the given post_type.
-	$post_ids = ai4seo_get_post_ids_from_option( $generation_status_option_name );
+	// The public convenience reader collapses database failures to an empty collection; this destructive path must not.
+	$generation_status_snapshot = ai4seo_get_raw_option_snapshot( $generation_status_option_name );
 
-	// no failed posts? skip here.
-	if ( ! $post_ids ) {
-		return;
+	if ( null === $generation_status_snapshot ) {
+		return false;
 	}
 
-	// make sure all post ids are absolute integers.
-	$post_ids = array_map( 'absint', $post_ids );
+	$post_ids = ai4seo_normalize_option_post_id_collection( $generation_status_snapshot['value'] );
+
+	// A verified missing or empty option already satisfies the requested removal.
+	if ( ! $post_ids ) {
+		return true;
+	}
 
 	$possible_post_ids_of_post_type = array();
 	$database_chunk_size            = ai4seo_get_database_chunk_size();
@@ -1739,20 +3388,28 @@ function ai4seo_remove_all_post_ids_by_post_type_and_generation_status( string $
 			continue;
 		}
 
-		$this_post_ids_placeholders = implode( ',', array_fill( 0, count( $this_post_ids_chunk ), '%d' ) );
-
-		// nail down the post_type.
-		$this_possible_post_ids_of_post_type = $wpdb->get_col(
-			$wpdb->prepare(
-				"SELECT ID FROM {$wpdb->posts} WHERE post_type = %s AND ID IN ({$this_post_ids_placeholders})",
-				...array_merge( array( $post_type ), $this_post_ids_chunk )
+		$this_query = ai4seo_prepare_database_query(
+			'SELECT ID FROM {{posts_table}} WHERE post_type = {{post_type}} AND ID IN ({{post_ids}})',
+			array(
+				'posts_table' => ai4seo_database_identifier_binding( 'table.posts' ),
+				'post_type'   => ai4seo_database_scalar_binding( '%s', $post_type ),
+				'post_ids'    => ai4seo_database_list_binding( '%d', array_values( $this_post_ids_chunk ) ),
 			)
 		);
 
+		if ( false === $this_query ) {
+			return false;
+		}
+
+		// Nail down the post type against current rows immediately before mutating the generation-status option.
+		$wpdb->last_error = '';
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler prepares the bounded list; freshness is required for this one-shot option mutation decision.
+		$this_possible_post_ids_of_post_type = $wpdb->get_col( $this_query );
+
 		// on error.
-		if ( $wpdb->last_error ) {
+		if ( $wpdb->last_error || ! is_array( $this_possible_post_ids_of_post_type ) ) {
 			ai4seo_debug_message( 984321661, 'Database error: ' . $wpdb->last_error, true );
-			return;
+			return false;
 		}
 
 		if ( empty( $this_possible_post_ids_of_post_type ) ) {
@@ -1763,14 +3420,16 @@ function ai4seo_remove_all_post_ids_by_post_type_and_generation_status( string $
 	}
 
 	if ( ! $possible_post_ids_of_post_type ) {
-		return;
+		return true;
 	}
 
 	// remove all post_ids of the given post_type from $generation_status_option_name.
-	ai4seo_remove_post_ids_from_option( $generation_status_option_name, $possible_post_ids_of_post_type );
+	return ai4seo_remove_post_ids_from_options(
+		array( $generation_status_option_name ),
+		ai4seo_normalize_option_post_id_collection( $possible_post_ids_of_post_type )
+	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Decodes a generated-data postmeta value.
@@ -1793,11 +3452,11 @@ function ai4seo_decode_generated_data_postmeta_value( $generated_data_raw ): arr
 		return array();
 	}
 
-	// Current generated data is JSON; the legacy cache migration may still surface serialized data.
+	// Prefer canonical JSON while retaining the legacy serialized fallback for persisted generated-data rows.
 	$generated_data = json_decode( $generated_data_raw, true );
 
 	if ( ! is_array( $generated_data ) ) {
-		$generated_data = maybe_unserialize( $generated_data_raw );
+		$generated_data = ai4seo_safe_maybe_unserialize( $generated_data_raw );
 	}
 
 	if ( ! is_array( $generated_data ) ) {
@@ -1807,7 +3466,6 @@ function ai4seo_decode_generated_data_postmeta_value( $generated_data_raw ): arr
 	return ai4seo_deep_sanitize( $generated_data );
 }
 
-// =========================================================================================== \\
 
 /**
  * Prepares a generated-data field value for storage and exact editor comparisons.
@@ -1824,7 +3482,6 @@ function ai4seo_prepare_generated_data_field_value( string $generated_data_ident
 	return ai4seo_trim_string_to_length( $generated_data_value, $max_length );
 }
 
-// =========================================================================================== \\
 
 /**
  * Prepares generated data for editor usage while keeping provenance timestamps separate.
@@ -1862,6 +3519,11 @@ function ai4seo_prepare_generated_data_details( array $generated_data ): array {
 			$this_generated_data_value
 		);
 
+		// Empty historical fields have no generated content and must not retain provenance.
+		if ( '' === $this_generated_data_value ) {
+			continue;
+		}
+
 		$prepared_generated_data[ $this_generated_data_identifier ] = $this_generated_data_value;
 
 		// Legacy snapshots use one timestamp; retain it as the fallback until a field is generated again.
@@ -1879,7 +3541,6 @@ function ai4seo_prepare_generated_data_details( array $generated_data ): array {
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Reads generated data details for a given post, if they exist.
@@ -1903,7 +3564,6 @@ function ai4seo_read_generated_data_details_from_post_meta( int $post_id ): arra
 	return ai4seo_prepare_generated_data_details( $generated_data );
 }
 
-// =========================================================================================== \\
 
 /**
  * Reads the generated field values for a given post, if they exist.
@@ -1918,16 +3578,252 @@ function ai4seo_read_generated_data_from_post_meta( int $post_id ): array {
 	return $generated_data_details['generated_data'] ?? array();
 }
 
-// =========================================================================================== \\
+
+/**
+ * Builds one canonical generated-data snapshot from an authoritative current state and new fields.
+ *
+ * @param array     $current_details Current strict generated-data details.
+ * @param array     $generated_data Newly generated field values.
+ * @param bool      $update_generated_at Whether updated nonempty fields receive provenance timestamps.
+ * @param int       $generation_timestamp Timestamp already fixed for every contention retry.
+ * @param array     $unresolved_fields Requested fields omitted from a partial response.
+ * @param bool|null $build_succeeded Receives whether every supplied generated field was supported.
+ * @return array{generated_data: array, generated_at: int, generated_at_by_field: array}
+ */
+function ai4seo_build_generated_data_details_for_save(
+	array $current_details,
+	array $generated_data,
+	bool $update_generated_at,
+	int $generation_timestamp,
+	array $unresolved_fields,
+	?bool &$build_succeeded = null
+): array {
+	$build_succeeded           = false;
+	$supported_fields          = ai4seo_get_supported_generated_data_field_identifiers();
+	$legacy_alias_destinations = array(
+		'social-media-title'       => array(
+			'facebook-title',
+			'twitter-title',
+		),
+		'social-media-description' => array(
+			'facebook-description',
+			'twitter-description',
+		),
+	);
+	$current_generated_data    = is_array( $current_details['generated_data'] ?? null )
+		? $current_details['generated_data']
+		: array();
+	$generated_at              = absint( $current_details['generated_at'] ?? 0 );
+	$generated_at_by_field     = is_array( $current_details['generated_at_by_field'] ?? null )
+		? $current_details['generated_at_by_field']
+		: array();
+	$raw_input_by_identifier   = array();
+	$prepared_input            = array();
+
+	foreach ( $generated_data as $generated_data_identifier => $generated_data_value ) {
+		if ( ! is_string( $generated_data_identifier ) && ! is_int( $generated_data_identifier ) ) {
+			return array();
+		}
+
+		$generated_data_identifier = sanitize_key( (string) $generated_data_identifier );
+
+		if ( '' === $generated_data_identifier ) {
+			return array();
+		}
+
+		if ( 'generated_at' === $generated_data_identifier || 'generated_at_by_field' === $generated_data_identifier ) {
+			continue;
+		}
+
+		if ( ! in_array( $generated_data_identifier, $supported_fields, true )
+			&& ! array_key_exists( $generated_data_identifier, $legacy_alias_destinations )
+		) {
+			return array();
+		}
+
+		if ( array_key_exists( $generated_data_identifier, $raw_input_by_identifier ) ) {
+			return array();
+		}
+
+		$raw_input_by_identifier[ $generated_data_identifier ] = $generated_data_value;
+	}
+
+	// Canonical request keys always win over a historical shared-social alias in the same response.
+	foreach ( $supported_fields as $supported_field ) {
+		if ( ! array_key_exists( $supported_field, $raw_input_by_identifier ) ) {
+			continue;
+		}
+
+		$generated_data_value = $raw_input_by_identifier[ $supported_field ];
+
+		if ( ! is_string( $generated_data_value ) && ! is_scalar( $generated_data_value ) ) {
+			return array();
+		}
+
+		$prepared_input[ $supported_field ] = ai4seo_prepare_generated_data_field_value( $supported_field, $generated_data_value );
+	}
+
+	foreach ( $legacy_alias_destinations as $legacy_alias => $canonical_destinations ) {
+		if ( ! array_key_exists( $legacy_alias, $raw_input_by_identifier ) ) {
+			continue;
+		}
+
+		$generated_data_value = $raw_input_by_identifier[ $legacy_alias ];
+
+		if ( ! is_string( $generated_data_value ) && ! is_scalar( $generated_data_value ) ) {
+			return array();
+		}
+
+		foreach ( $canonical_destinations as $canonical_destination ) {
+			if ( array_key_exists( $canonical_destination, $raw_input_by_identifier ) ) {
+				continue;
+			}
+
+			$prepared_input[ $canonical_destination ] = ai4seo_prepare_generated_data_field_value( $canonical_destination, $generated_data_value );
+		}
+	}
+
+	// Omitted requested fields keep their live values, but lose stale generated provenance and eligibility markers.
+	foreach ( $unresolved_fields as $unresolved_field ) {
+		if ( ! is_string( $unresolved_field ) && ! is_int( $unresolved_field ) ) {
+			continue;
+		}
+
+		$unresolved_field = sanitize_key( (string) $unresolved_field );
+		$fields_to_remove = $legacy_alias_destinations[ $unresolved_field ] ?? array( $unresolved_field );
+
+		foreach ( $fields_to_remove as $field_to_remove ) {
+			if ( ! in_array( $field_to_remove, $supported_fields, true ) ) {
+				continue;
+			}
+
+			unset( $current_generated_data[ $field_to_remove ], $generated_at_by_field[ $field_to_remove ] );
+		}
+	}
+
+	$is_nonempty_field_updated = false;
+
+	foreach ( $prepared_input as $generated_data_identifier => $generated_data_value ) {
+		// Empty API fields remove stale generated ownership but never create or stamp new ownership.
+		if ( '' === $generated_data_value ) {
+			unset( $current_generated_data[ $generated_data_identifier ], $generated_at_by_field[ $generated_data_identifier ] );
+			continue;
+		}
+
+		$current_generated_data[ $generated_data_identifier ] = $generated_data_value;
+		$is_nonempty_field_updated                            = true;
+
+		if ( $update_generated_at ) {
+			$generated_at_by_field[ $generated_data_identifier ] = $generation_timestamp;
+		}
+	}
+
+	foreach ( $generated_at_by_field as $generated_data_identifier => $field_timestamp ) {
+		if ( ! array_key_exists( $generated_data_identifier, $current_generated_data ) ) {
+			unset( $generated_at_by_field[ $generated_data_identifier ] );
+		}
+	}
+
+	if ( $update_generated_at && $is_nonempty_field_updated ) {
+		$generated_at = $generation_timestamp;
+	}
+
+	$build_succeeded = true;
+
+	return array(
+		'generated_data'        => $current_generated_data,
+		'generated_at'          => $generated_at,
+		'generated_at_by_field' => $generated_at_by_field,
+	);
+}
+
+
+/**
+ * Compares generated-data details without depending on associative insertion order.
+ *
+ * @param array $first_details First generated-data details.
+ * @param array $second_details Second generated-data details.
+ * @return bool Whether field values and provenance are identical.
+ */
+function ai4seo_generated_data_details_are_identical( array $first_details, array $second_details ): bool {
+	$first_generated_data      = $first_details['generated_data'] ?? null;
+	$second_generated_data     = $second_details['generated_data'] ?? null;
+	$first_generated_at        = $first_details['generated_at'] ?? null;
+	$second_generated_at       = $second_details['generated_at'] ?? null;
+	$first_generated_by_field  = $first_details['generated_at_by_field'] ?? null;
+	$second_generated_by_field = $second_details['generated_at_by_field'] ?? null;
+
+	if ( ! is_array( $first_generated_data )
+		|| ! is_array( $second_generated_data )
+		|| ! is_int( $first_generated_at )
+		|| ! is_int( $second_generated_at )
+		|| ! is_array( $first_generated_by_field )
+		|| ! is_array( $second_generated_by_field )
+	) {
+		return false;
+	}
+
+	ksort( $first_generated_data );
+	ksort( $second_generated_data );
+	ksort( $first_generated_by_field );
+	ksort( $second_generated_by_field );
+
+	return $first_generated_data === $second_generated_data
+		&& $first_generated_at === $second_generated_at
+		&& $first_generated_by_field === $second_generated_by_field;
+}
+
+
+/**
+ * Encodes canonical generated-data details into the flat persisted snapshot shape.
+ *
+ * @param array $generated_data_details Canonical generated-data details.
+ * @return string|false Encoded JSON, or false when encoding/strict validation fails.
+ */
+function ai4seo_encode_generated_data_details_for_postmeta( array $generated_data_details ) {
+	$generated_data        = $generated_data_details['generated_data'] ?? null;
+	$generated_at          = $generated_data_details['generated_at'] ?? null;
+	$generated_at_by_field = $generated_data_details['generated_at_by_field'] ?? null;
+
+	if ( ! is_array( $generated_data ) || ! is_int( $generated_at ) || ! is_array( $generated_at_by_field ) ) {
+		return false;
+	}
+
+	if ( $generated_at > 0 ) {
+		$generated_data['generated_at'] = $generated_at;
+	}
+
+	if ( $generated_at_by_field ) {
+		$generated_data['generated_at_by_field'] = $generated_at_by_field;
+	}
+
+	$generated_data_json = wp_json_encode( $generated_data, JSON_UNESCAPED_UNICODE );
+
+	if ( ! is_string( $generated_data_json ) ) {
+		return false;
+	}
+
+	$verified_details = array();
+
+	if ( ! ai4seo_decode_generated_data_postmeta_value_authoritatively( $generated_data_json, $verified_details )
+		|| ! ai4seo_generated_data_details_are_identical( $generated_data_details, $verified_details )
+	) {
+		return false;
+	}
+
+	return $generated_data_json;
+}
+
 
 /**
  * Function to save the generated data for a given post.
  *
- * @param int   $post_id The post id.
- * @param array $generated_data The generated data.
- * @param bool  $update_generated_at Whether to update the field and top-level generated_at timestamps.
- * @param int   $generated_at The generated-at timestamp to store. Uses the current time when empty.
- * @param array $unresolved_fields Requested field identifiers omitted from a partial response.
+ * @param int        $post_id The post id.
+ * @param array      $generated_data The generated data.
+ * @param bool       $update_generated_at Whether to update the field and top-level generated_at timestamps.
+ * @param int        $generated_at The generated-at timestamp to store. Uses the current time when empty.
+ * @param array      $unresolved_fields Requested field identifiers omitted from a partial response.
+ * @param array|null $operation_details Receives commit_state: not_committed, committed, or possibly_committed.
  * @return bool
  */
 function ai4seo_save_generated_data_to_postmeta(
@@ -1935,82 +3831,188 @@ function ai4seo_save_generated_data_to_postmeta(
 	array $generated_data,
 	bool $update_generated_at = true,
 	int $generated_at = 0,
-	array $unresolved_fields = array()
+	array $unresolved_fields = array(),
+	?array &$operation_details = null
 ): bool {
-	// Merge into the existing flat snapshot while removing stale provenance for explicitly unresolved fields.
-	$generated_data_details = ai4seo_read_generated_data_details_from_post_meta( $post_id );
-	$old_generated_data     = $generated_data_details['generated_data'] ?? array();
-	$old_generated_at       = absint( $generated_data_details['generated_at'] ?? 0 );
-	$generated_at_by_field  = $generated_data_details['generated_at_by_field'] ?? array();
-	$generation_timestamp   = $update_generated_at ? ( $generated_at > 0 ? absint( $generated_at ) : time() ) : 0;
-	$is_field_value_updated = false;
+	global $wpdb;
 
-	if ( ! $old_generated_data ) {
-		$old_generated_data = array();
-	}
-
-	// Omitted requested fields keep their live values, but must lose stale generated provenance so they remain eligible later.
-	foreach ( $unresolved_fields as $this_unresolved_field ) {
-		$this_unresolved_field = sanitize_key( $this_unresolved_field );
-
-		if ( $this_unresolved_field && 'generated_at' !== $this_unresolved_field ) {
-			unset( $old_generated_data[ $this_unresolved_field ] );
-			unset( $generated_at_by_field[ $this_unresolved_field ] );
-		}
-	}
-
-	foreach ( $generated_data as $this_generated_data_identifier => $this_generated_data_value ) {
-		$this_generated_data_identifier = sanitize_key( $this_generated_data_identifier );
-
-		// generated_at is managed as entry metadata, never as a generated field value.
-		if (
-			! $this_generated_data_identifier ||
-			'generated_at' === $this_generated_data_identifier ||
-			'generated_at_by_field' === $this_generated_data_identifier
-		) {
-			continue;
-		}
-
-		if ( ! is_string( $this_generated_data_value ) && ! is_scalar( $this_generated_data_value ) ) {
-			continue;
-		}
-
-		// Field values are prepared through the shared generated-data path used by exact-match source checks.
-		$this_generated_data_value = ai4seo_prepare_generated_data_field_value(
-			$this_generated_data_identifier,
-			$this_generated_data_value
-		);
-
-		$old_generated_data[ $this_generated_data_identifier ] = $this_generated_data_value;
-		$is_field_value_updated                                = true;
-
-		if ( $update_generated_at ) {
-			$generated_at_by_field[ $this_generated_data_identifier ] = $generation_timestamp;
-		}
-	}
-
-	// Manual and bulk generations retain a latest-entry timestamp for older readers while stamping each updated field.
-	if ( $update_generated_at && $is_field_value_updated ) {
-		$old_generated_data['generated_at'] = $generation_timestamp;
-	} elseif ( $old_generated_at > 0 ) {
-		$old_generated_data['generated_at'] = $old_generated_at;
-	}
-
-	if ( $generated_at_by_field ) {
-		$old_generated_data['generated_at_by_field'] = $generated_at_by_field;
-	}
-
-	// Keep values and their provenance in one atomic generated-data snapshot.
-	$generated_data_json_string = wp_json_encode( $old_generated_data, JSON_UNESCAPED_UNICODE );
-
-	return ai4seo_update_post_meta(
-		$post_id,
-		AI4SEO_POST_META_GENERATED_DATA_META_KEY,
-		$generated_data_json_string
+	$operation_details = array(
+		'commit_state' => 'not_committed',
 	);
+	$post_id           = absint( $post_id );
+
+	if ( $post_id <= 0 || ! get_post( $post_id ) ) {
+		return false;
+	}
+
+	$revision_parent_post_id = wp_is_post_revision( $post_id );
+
+	if ( $revision_parent_post_id ) {
+		$post_id = absint( $revision_parent_post_id );
+	}
+
+	$lock_name = ai4seo_get_generated_data_postmeta_lock_name( $post_id );
+
+	if ( '' === $lock_name
+		|| ai4seo_is_database_advisory_lock_owned_by_current_connection( $lock_name )
+		|| ! ai4seo_acquire_database_advisory_lock( $lock_name )
+	) {
+		return false;
+	}
+
+	$generation_timestamp     = $update_generated_at ? ( $generated_at > 0 ? absint( $generated_at ) : time() ) : 0;
+	$save_succeeded           = false;
+	$write_may_have_committed = false;
+	$lock_released            = false;
+
+	try {
+		for ( $write_attempt = 0; $write_attempt < 3; ++$write_attempt ) {
+			$read_succeeded = false;
+			$snapshot       = ai4seo_read_authoritative_generated_data_postmeta_snapshot( $post_id, $read_succeeded );
+
+			if ( ! $read_succeeded ) {
+				break;
+			}
+
+			$build_succeeded = false;
+			$desired_details = ai4seo_build_generated_data_details_for_save(
+				$snapshot['generated_data_details'],
+				$generated_data,
+				$update_generated_at,
+				$generation_timestamp,
+				$unresolved_fields,
+				$build_succeeded
+			);
+
+			if ( ! $build_succeeded ) {
+				break;
+			}
+
+			if ( ai4seo_generated_data_details_are_identical( $snapshot['generated_data_details'], $desired_details ) ) {
+				$operation_details['commit_state'] = 'committed';
+				$save_succeeded                    = true;
+				break;
+			}
+
+			$desired_raw_value = ai4seo_encode_generated_data_details_for_postmeta( $desired_details );
+
+			if ( false === $desired_raw_value ) {
+				break;
+			}
+
+			$captured_added_meta_ids = array();
+			$capture_added_meta_id   = static function ( int $meta_id, int $object_id, string $meta_key, $meta_value ) use ( $post_id, $desired_raw_value, &$captured_added_meta_ids ): void {
+				if ( $post_id === $object_id
+					&& AI4SEO_POST_META_GENERATED_DATA_META_KEY === $meta_key
+					&& is_string( $meta_value )
+					&& hash_equals( $desired_raw_value, $meta_value )
+				) {
+					$captured_added_meta_ids[] = $meta_id;
+				}
+			};
+
+			add_action( 'added_post_meta', $capture_added_meta_id, PHP_INT_MAX, 4 );
+
+			$previous_suppress_errors = $wpdb->suppress_errors( true );
+			$wpdb->last_error         = '';
+			$write_result             = false;
+			$database_error           = '';
+
+			try {
+				if ( ! empty( $snapshot['exists'] ) ) {
+					$write_result = update_post_meta(
+						$post_id,
+						AI4SEO_POST_META_GENERATED_DATA_META_KEY,
+						wp_slash( $desired_raw_value ),
+						$snapshot['previous_value']
+					);
+				} else {
+					$write_result = add_post_meta(
+						$post_id,
+						AI4SEO_POST_META_GENERATED_DATA_META_KEY,
+						wp_slash( $desired_raw_value ),
+						true
+					);
+				}
+
+				$database_error = (string) $wpdb->last_error;
+			} catch ( Throwable $throwable ) {
+				$database_error = $throwable->getMessage();
+			} finally {
+				$wpdb->suppress_errors( $previous_suppress_errors );
+				remove_action( 'added_post_meta', $capture_added_meta_id, PHP_INT_MAX );
+			}
+
+			$owned_added_meta_id = 0;
+
+			if ( is_int( $write_result )
+				&& $write_result > 0
+				&& in_array( $write_result, $captured_added_meta_ids, true )
+			) {
+				$owned_added_meta_id = $write_result;
+			}
+
+			$verification_succeeded = false;
+			$verified_snapshot      = ai4seo_read_authoritative_generated_data_postmeta_snapshot( $post_id, $verification_succeeded );
+
+			if ( $verification_succeeded
+				&& ai4seo_generated_data_details_are_identical( $verified_snapshot['generated_data_details'], $desired_details )
+			) {
+				$operation_details['commit_state'] = 'committed';
+				$save_succeeded                    = true;
+				break;
+			}
+
+			if ( $owned_added_meta_id > 0 ) {
+				$compensation_succeeded = false;
+
+				try {
+					$compensation_succeeded = ai4seo_delete_owned_generated_data_postmeta_row( $post_id, $owned_added_meta_id, $desired_raw_value );
+				} catch ( Throwable $throwable ) {
+					ai4seo_debug_message( 984321732, 'Generated-data postmeta compensation could not be verified: ' . $throwable->getMessage(), true );
+				}
+
+				if ( ! $compensation_succeeded ) {
+					$write_may_have_committed = true;
+					break;
+				}
+
+				// The operation-owned row is gone; retry from the authoritative foreign or missing snapshot.
+				continue;
+			} elseif (
+				false !== $write_result
+				|| ! $verification_succeeded
+				|| '' !== $database_error
+			) {
+				$write_may_have_committed = true;
+			}
+
+			if ( '' !== $database_error ) {
+				ai4seo_debug_message( 984321730, 'Generated-data postmeta write could not be verified: ' . $database_error, true );
+				break;
+			}
+
+			if ( ! $verification_succeeded ) {
+				break;
+			}
+		}
+	} finally {
+		$lock_released = ai4seo_release_database_advisory_lock( $lock_name );
+	}
+
+	if ( ! $lock_released ) {
+		ai4seo_debug_message( 984321731, 'Could not release the generated-data postmeta advisory lock.', true );
+		$write_may_have_committed = $write_may_have_committed || $save_succeeded;
+		$save_succeeded           = false;
+	}
+
+	if ( ! $save_succeeded && $write_may_have_committed ) {
+		$operation_details['commit_state'] = 'possibly_committed';
+	}
+
+	return $save_succeeded;
 }
 
-// =========================================================================================== \\
 
 /**
  * Collects third-party SEO metadata source candidates for the metadata editor.
@@ -2068,7 +4070,6 @@ function ai4seo_read_metadata_editor_third_party_source_candidates( int $post_id
 	return $source_candidates;
 }
 
-// =========================================================================================== \\
 
 /**
  * Builds source details for a SOOZ-generated editor field value.
@@ -2085,7 +4086,6 @@ function ai4seo_get_editor_field_sooz_source_details( int $generated_at = 0, boo
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Builds source details for a third-party SEO editor field value.
@@ -2109,7 +4109,6 @@ function ai4seo_get_editor_field_third_party_source_details(
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Reads source details for Metadata Editor fields.
@@ -2192,7 +4191,6 @@ function ai4seo_read_metadata_editor_source_details( int $post_id, array $active
 	return $source_details;
 }
 
-// =========================================================================================== \\
 
 /**
  * Reads source details for Media Attributes Editor fields.
@@ -2233,7 +4231,6 @@ function ai4seo_read_attachment_attributes_editor_source_details( int $attachmen
 	return $source_details;
 }
 
-// =========================================================================================== \\
 
 /**
  * Normalizes a postmeta value for comparisons against WordPress read-back values.
@@ -2250,7 +4247,6 @@ function ai4seo_normalize_post_meta_value_for_comparison( $meta_value ): string 
 	return maybe_serialize( $meta_value );
 }
 
-// =========================================================================================== \\
 
 /**
  * Checks whether a postmeta update reached its requested effective state.
@@ -2280,10 +4276,10 @@ function ai4seo_did_post_meta_update_reach_requested_state(
 	wp_cache_delete( $post_id, 'post_meta' );
 
 	// Compare against the value after the same metadata sanitization WordPress applies during persistence.
-	$meta_key            = wp_unslash( $meta_key );
-	$meta_subtype        = get_object_subtype( 'post', $post_id );
-	$expected_meta_value = sanitize_meta( $meta_key, $meta_value, 'post', $meta_subtype );
-	$expected_comparison = ai4seo_normalize_post_meta_value_for_comparison( $expected_meta_value );
+	$meta_key             = wp_unslash( $meta_key );
+	$meta_subtype         = get_object_subtype( 'post', $post_id );
+	$expected_meta_value  = sanitize_meta( $meta_key, $meta_value, 'post', $meta_subtype );
+	$expected_comparison  = ai4seo_normalize_post_meta_value_for_comparison( $expected_meta_value );
 	$latest_meta_values   = get_post_meta( $post_id, $meta_key, false );
 	$latest_meta_values   = is_array( $latest_meta_values ) ? $latest_meta_values : array();
 	$matching_value_count = 0;
@@ -2293,7 +4289,7 @@ function ai4seo_did_post_meta_update_reach_requested_state(
 		$latest_comparison = ai4seo_normalize_post_meta_value_for_comparison( $latest_meta_value );
 
 		if ( $expected_comparison === $latest_comparison ) {
-			$matching_value_count++;
+			++$matching_value_count;
 		}
 	}
 
@@ -2322,11 +4318,11 @@ function ai4seo_did_post_meta_update_reach_requested_state(
 		$this_previous_comparison = ai4seo_normalize_post_meta_value_for_comparison( $previous_meta_value );
 
 		if ( $previous_comparison === $this_previous_comparison ) {
-			$previous_target_value_count++;
+			++$previous_target_value_count;
 		}
 
 		if ( $expected_comparison === $this_previous_comparison ) {
-			$previous_expected_value_count++;
+			++$previous_expected_value_count;
 		}
 	}
 
@@ -2346,7 +4342,7 @@ function ai4seo_did_post_meta_update_reach_requested_state(
 		$latest_comparison = ai4seo_normalize_post_meta_value_for_comparison( $latest_meta_value );
 
 		if ( $previous_comparison === $latest_comparison ) {
-			$latest_previous_value_count++;
+			++$latest_previous_value_count;
 		}
 	}
 
@@ -2355,7 +4351,6 @@ function ai4seo_did_post_meta_update_reach_requested_state(
 		&& $matching_value_count >= ( $previous_expected_value_count + $previous_target_value_count );
 }
 
-// =========================================================================================== \\
 
 /**
  * Safer wrapper for update_post_meta(). Same parameters and order.
@@ -2439,7 +4434,6 @@ function ai4seo_update_post_meta( int $post_id, string $meta_key, $meta_value, $
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to read the post content summary for a given post
@@ -2458,7 +4452,6 @@ function ai4seo_read_post_content_summary_from_post_meta( int $post_id ): string
 	return sanitize_text_field( $post_content_summary );
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to save the post content summary for a given post
@@ -2475,7 +4468,6 @@ function ai4seo_save_post_content_summary_to_postmeta( int $post_id, string $pos
 	return ai4seo_update_post_meta( $post_id, AI4SEO_POST_META_POST_CONTENT_SUMMARY_META_KEY, $post_content_summary );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the configured maximum length for the given editor field identifier.
@@ -2499,7 +4491,6 @@ function ai4seo_get_max_editor_input_length( string $identifier ): int {
 	return $fallback_max;
 }
 
-// =========================================================================================== \\
 
 /**
  * Normalizes editor input values so they can be validated and trimmed consistently.
@@ -2527,7 +4518,6 @@ function ai4seo_normalize_editor_input_value( $value, bool $should_unslash = fal
 	return $value;
 }
 
-// =========================================================================================== \\
 
 /**
  * Sanitizes editor input values while preserving literal backslashes.
@@ -2555,7 +4545,6 @@ function ai4seo_sanitize_editor_field_value( $value ): string {
 	return trim( $value );
 }
 
-// =========================================================================================== \\
 
 /**
  * Trims a string to the provided maximum length.
@@ -2572,7 +4561,6 @@ function ai4seo_trim_string_to_length( string $value, int $max_length ): string 
 	return ai4seo_mb_substr( $value, 0, $max_length );
 }
 
-// =========================================================================================== \\
 
 /**
  * Join field declarations, immutable storage caps, and soft API quality windows for all save paths.
@@ -2629,7 +4617,6 @@ function ai4seo_get_generated_output_contract( string $context ): array {
 	return $contract;
 }
 
-// =========================================================================================== \\
 
 /**
  * Normalize model separator variation and case-insensitive duplicates before enforcing the shared item cap.
@@ -2682,7 +4669,6 @@ function ai4seo_normalize_generated_output_keywords( string $value, int $max_ite
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Apply immutable storage caps without mechanically truncating values merely for soft quality-window misses.
@@ -2722,7 +4708,6 @@ function ai4seo_truncate_generated_output_at_word_boundary( string $value, int $
 	return $truncated_value;
 }
 
-// =========================================================================================== \\
 
 /**
  * Filter and normalize generated values before any manual or automated save.
@@ -2895,7 +4880,6 @@ function ai4seo_prepare_generated_output_fields_for_save(
 	return $result;
 }
 
-// =========================================================================================== \\
 
 /**
  * Updates active metadata and synchronizes configured third-party SEO integrations.
@@ -2918,6 +4902,7 @@ function ai4seo_update_active_metadata(
 		'active_metadata_succeeded'  => false,
 		'third_party_sync_succeeded' => true,
 		'failed_third_party_syncs'   => array(),
+		'commit_state'               => 'not_committed',
 	);
 
 	if ( ! defined( 'AI4SEO_METADATA_DETAILS' ) ) {
@@ -2946,22 +4931,26 @@ function ai4seo_update_active_metadata(
 	// Track integration and SOOZ outcomes independently until both persistence paths have completed.
 	$third_party_sync_succeeded               = true;
 	$third_party_sync_reached_requested_state = false;
-	$current_active_metadata                  = ai4seo_read_active_metadata_from_post_meta( $post_id, false );
+	$third_party_sync_may_have_committed      = false;
 	$did_merge_legacy_active_metadata         = false;
 	$active_metadata_updates_to_save          = array();
+	$only_if_empty_metadata_identifiers       = array();
+	$only_if_missing_metadata_identifiers     = array();
 
 	// Until migration finishes, merge missing legacy values into the same atomic SOOZ JSON write.
 	if ( ! ai4seo_is_active_metadata_migration_v235_completed() ) {
-		$legacy_active_metadata_by_post_ids = ai4seo_read_legacy_active_metadata_by_post_ids( array( $post_id ) );
-		$legacy_active_metadata             = $legacy_active_metadata_by_post_ids[ $post_id ] ?? array();
+		$legacy_read_succeeded              = false;
+		$legacy_active_metadata_by_post_ids = ai4seo_read_legacy_active_metadata_by_post_ids( array( $post_id ), $legacy_read_succeeded );
+
+		if ( ! $legacy_read_succeeded ) {
+			return false;
+		}
+
+		$legacy_active_metadata = $legacy_active_metadata_by_post_ids[ $post_id ] ?? array();
 
 		foreach ( $legacy_active_metadata as $this_metadata_identifier => $this_metadata_value ) {
-			if ( array_key_exists( $this_metadata_identifier, $current_active_metadata ) ) {
-				continue;
-			}
-
-			$current_active_metadata[ $this_metadata_identifier ]         = $this_metadata_value;
 			$active_metadata_updates_to_save[ $this_metadata_identifier ] = $this_metadata_value;
+			$only_if_missing_metadata_identifiers[]                       = $this_metadata_identifier;
 			$did_merge_legacy_active_metadata                             = true;
 		}
 	}
@@ -2994,16 +4983,29 @@ function ai4seo_update_active_metadata(
 		}
 
 		// Synchronize integrations first because an intentional non-overwrite skip controls SOOZ precedence.
-		$this_third_party_sync_result = ai4seo_update_third_party_seo_plugins_metadata(
-			$post_id,
-			$this_metadata_identifier,
-			$this_new_metadata_value,
-			$overwrite_this_metadata_field
-		);
+		$this_third_party_sync_may_have_committed = false;
+
+		try {
+			$this_third_party_sync_result = ai4seo_update_third_party_seo_plugins_metadata(
+				$post_id,
+				$this_metadata_identifier,
+				$this_new_metadata_value,
+				$overwrite_this_metadata_field,
+				$this_third_party_sync_may_have_committed
+			);
+		} finally {
+			$third_party_sync_may_have_committed = $third_party_sync_may_have_committed
+				|| $this_third_party_sync_may_have_committed;
+
+			if ( $third_party_sync_may_have_committed && 'committed' !== $operation_details['commit_state'] ) {
+				$operation_details['commit_state'] = 'possibly_committed';
+			}
+		}
 
 		// Remember any successful integration write so the frontend cache is purged once after the loop.
 		if ( $this_third_party_sync_result['sync_reached_requested_state'] ) {
 			$third_party_sync_reached_requested_state = true;
+			$operation_details['commit_state']        = 'committed';
 		}
 
 		// Aggregate plugin and field failures for retryable caller-facing diagnostics.
@@ -3024,33 +5026,52 @@ function ai4seo_update_active_metadata(
 			continue;
 		}
 
-		// Queue the SOOZ value only when overwrite rules permit replacing its current value.
+		// Queue the SOOZ value; the locked writer evaluates non-overwrite intent against exact storage.
+		$active_metadata_updates_to_save[ $this_metadata_identifier ] = $this_new_metadata_value;
+		$should_save_own_metadata                                     = true;
+
+		// A live update for this field supersedes a legacy missing-key-only migration candidate.
+		$only_if_missing_metadata_identifiers = array_values(
+			array_diff( $only_if_missing_metadata_identifiers, array( $this_metadata_identifier ) )
+		);
+
 		if ( $overwrite_this_metadata_field ) {
-			$current_active_metadata[ $this_metadata_identifier ]         = $this_new_metadata_value;
-			$active_metadata_updates_to_save[ $this_metadata_identifier ] = $this_new_metadata_value;
-			$should_save_own_metadata                                     = true;
+			$only_if_empty_metadata_identifiers = array_values(
+				array_diff( $only_if_empty_metadata_identifiers, array( $this_metadata_identifier ) )
+			);
 		} else {
-			$this_current_metadata_value = $current_active_metadata[ $this_metadata_identifier ] ?? '';
-
-			if ( $this_current_metadata_value ) {
-				continue;
-			}
-
-			$current_active_metadata[ $this_metadata_identifier ]         = $this_new_metadata_value;
-			$active_metadata_updates_to_save[ $this_metadata_identifier ] = $this_new_metadata_value;
-			$should_save_own_metadata                                     = true;
+			$only_if_empty_metadata_identifiers[] = $this_metadata_identifier;
 		}
 	}
 
 	// A no-op is successful; actual writes replace these defaults with their observed outcomes.
-	$active_metadata_succeeded                 = true;
+	$active_metadata_succeeded                = true;
 	$legacy_active_metadata_cleanup_succeeded = true;
+	$active_metadata_commit_state             = 'not_committed';
 
 	if ( $should_save_own_metadata ) {
-		$active_metadata_succeeded = ai4seo_save_active_metadata_to_postmeta( $post_id, $active_metadata_updates_to_save );
+		$active_metadata_operation_details = array();
+		$active_metadata_succeeded         = ai4seo_save_active_metadata_to_postmeta(
+			$post_id,
+			$active_metadata_updates_to_save,
+			false,
+			$active_metadata_operation_details,
+			array_values( array_unique( $only_if_empty_metadata_identifiers ) ),
+			array_values( array_unique( $only_if_missing_metadata_identifiers ) )
+		);
+		$active_metadata_commit_state      = isset( $active_metadata_operation_details['commit_state'] )
+			&& is_string( $active_metadata_operation_details['commit_state'] )
+			&& in_array( $active_metadata_operation_details['commit_state'], array( 'not_committed', 'committed', 'possibly_committed' ), true )
+			? $active_metadata_operation_details['commit_state']
+			: 'possibly_committed';
 
 		if ( $active_metadata_succeeded ) {
+			$operation_details['commit_state']        = 'committed';
 			$legacy_active_metadata_cleanup_succeeded = ai4seo_delete_legacy_active_metadata_for_post_ids( array( $post_id ) );
+		} elseif ( 'possibly_committed' === $active_metadata_commit_state
+			&& 'committed' !== $operation_details['commit_state']
+		) {
+			$operation_details['commit_state'] = 'possibly_committed';
 		}
 	}
 
@@ -3065,19 +5086,20 @@ function ai4seo_update_active_metadata(
 	$operation_details['overall_succeeded'] = $active_metadata_succeeded && $legacy_active_metadata_cleanup_succeeded && $third_party_sync_succeeded;
 
 	// Purge once when SOOZ persisted or any third-party target reached the requested state.
-	if ( ( $should_save_own_metadata && $active_metadata_succeeded ) || $third_party_sync_reached_requested_state ) {
+	if ( ( $should_save_own_metadata && ( $active_metadata_succeeded || 'not_committed' !== $active_metadata_commit_state ) )
+		|| $third_party_sync_reached_requested_state
+	) {
 		// Cache integrations are optional, so their exceptions must not change persistence results.
 		try {
 			ai4seo_purge_frontend_cache_for_post( $post_id );
 		} catch ( Exception $e ) {
-			// Continue with the already-determined persistence result.
+			ai4seo_debug_message( 1908261200, 'Frontend cache purge failed after metadata persistence: ' . $e->getMessage(), true );
 		}
 	}
 
 	return $operation_details['overall_succeeded'];
 }
 
-// =========================================================================================== \\
 
 /**
  * Builds the shared result contract used by every third-party metadata writer.
@@ -3103,7 +5125,625 @@ function ai4seo_build_third_party_seo_plugin_metadata_write_result(
 	);
 }
 
-// =========================================================================================== \\
+
+/**
+ * Reports whether a provider value is literally empty without treating numeric or boolean values as empty.
+ *
+ * @param mixed $metadata_value Provider metadata value.
+ * @return bool True only for a missing/null value or an empty string.
+ */
+function ai4seo_is_third_party_seo_metadata_value_literally_empty( $metadata_value ): bool {
+	return null === $metadata_value || ( is_string( $metadata_value ) && '' === $metadata_value );
+}
+
+
+/**
+ * Reads at most two exact postmeta rows so ordinary provider writes can reject ambiguous duplicates.
+ *
+ * @param int       $post_id        Post ID.
+ * @param string    $meta_key       Provider postmeta key.
+ * @param bool|null $read_succeeded Receives whether the authoritative read completed successfully.
+ * @return array<int,array{meta_id:int,meta_value:string}> Exact raw postmeta rows in stable ID order.
+ */
+function ai4seo_read_exact_third_party_postmeta_rows(
+	int $post_id,
+	string $meta_key,
+	?bool &$read_succeeded = null
+): array {
+	global $wpdb;
+
+	$read_succeeded = false;
+	$query          = ai4seo_prepare_database_query(
+		'SELECT meta_id, meta_value
+		FROM {{postmeta_table}}
+		WHERE post_id = {{post_id}}
+		AND BINARY meta_key = BINARY {{meta_key}}
+		ORDER BY meta_id ASC
+		LIMIT {{row_limit}}',
+		array(
+			'postmeta_table' => ai4seo_database_identifier_binding( 'table.postmeta' ),
+			'post_id'        => ai4seo_database_scalar_binding( '%d', $post_id ),
+			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- One provider key and owner identify the bounded exact-row snapshot.
+			'meta_key'       => ai4seo_database_scalar_binding( '%s', $meta_key ),
+			'row_limit'      => ai4seo_database_scalar_binding( '%d', 2 ),
+		)
+	);
+
+	if ( false === $query ) {
+		return array();
+	}
+
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler prepares this bounded current-state snapshot for an exact raw-value CAS.
+	$rows = $wpdb->get_results( $query, ARRAY_A );
+
+	if ( $wpdb->last_error || ! is_array( $rows ) ) {
+		ai4seo_debug_message( 984321706, 'Database error: ' . $wpdb->last_error, true );
+		return array();
+	}
+
+	$normalized_rows = array();
+
+	foreach ( $rows as $row ) {
+		$meta_id        = ai4seo_normalize_database_id( $row['meta_id'] ?? null );
+		$raw_meta_value = $row['meta_value'] ?? null;
+
+		if ( false === $meta_id || ! is_string( $raw_meta_value ) ) {
+			return array();
+		}
+
+		$normalized_rows[] = array(
+			'meta_id'    => $meta_id,
+			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- This is a normalized in-memory result key, not a SQL predicate.
+			'meta_value' => $raw_meta_value,
+		);
+	}
+
+	$read_succeeded = true;
+
+	return $normalized_rows;
+}
+
+
+/**
+ * Updates one stable postmeta row only while its exact raw bytes remain operation-owned.
+ *
+ * WordPress's empty previous-value argument is unconstrained, so the ordinary metadata API cannot
+ * protect an empty provider value against a concurrent editor. This helper mirrors the core metadata
+ * hooks around one exact raw-value CAS and invalidates the canonical postmeta cache after success.
+ *
+ * @param int    $meta_id            Stable postmeta row ID.
+ * @param int    $post_id            Owning post ID.
+ * @param string $meta_key           Provider postmeta key.
+ * @param string $previous_raw_value Exact raw value observed before the write.
+ * @param string $metadata_value     Requested provider metadata value.
+ * @return bool|null True on success or an authoritative hook short-circuit, false on contention, null on failure.
+ */
+function ai4seo_compare_and_swap_empty_third_party_postmeta_row(
+	int $meta_id,
+	int $post_id,
+	string $meta_key,
+	string $previous_raw_value,
+	string $metadata_value
+): ?bool {
+	global $wpdb;
+
+	// Match update_post_meta() by allowing the standard metadata filter to own the requested operation.
+	// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Mirrors the authoritative WordPress core metadata hook.
+	$check = apply_filters( 'update_post_metadata', null, $post_id, $meta_key, $metadata_value, '' );
+
+	if ( null !== $check ) {
+		return $check ? true : null;
+	}
+
+	$meta_subtype               = get_object_subtype( 'post', $post_id );
+	$unsanitized_metadata_value = $metadata_value;
+	$metadata_value             = sanitize_meta( $meta_key, $metadata_value, 'post', $meta_subtype );
+	$replacement_raw_value      = maybe_serialize( $metadata_value );
+
+	if ( ! is_string( $replacement_raw_value ) ) {
+		return null;
+	}
+
+	if ( hash_equals( $previous_raw_value, $replacement_raw_value ) ) {
+		return true;
+	}
+
+	$update_query = ai4seo_prepare_database_query(
+		'UPDATE {{postmeta_table}}
+		SET meta_value = {{replacement_meta_value}}
+		WHERE meta_id = {{meta_id}}
+		AND post_id = {{post_id}}
+		AND BINARY meta_key = BINARY {{meta_key}}
+		AND BINARY meta_value = BINARY {{previous_meta_value}}
+		LIMIT {{row_limit}}',
+		array(
+			'postmeta_table'         => ai4seo_database_identifier_binding( 'table.postmeta' ),
+			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- The stable primary key bounds this exact previous-byte CAS to one provider row.
+			'replacement_meta_value' => ai4seo_database_scalar_binding( '%s', $replacement_raw_value ),
+			'meta_id'                => ai4seo_database_scalar_binding( '%d', $meta_id ),
+			'post_id'                => ai4seo_database_scalar_binding( '%d', $post_id ),
+			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- The stable primary key bounds this exact provider-key ownership predicate to one row.
+			'meta_key'               => ai4seo_database_scalar_binding( '%s', $meta_key ),
+			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- The stable primary key bounds this exact previous-byte ownership predicate to one row.
+			'previous_meta_value'    => ai4seo_database_scalar_binding( '%s', $previous_raw_value ),
+			'row_limit'              => ai4seo_database_scalar_binding( '%d', 1 ),
+		)
+	);
+
+	if ( false === $update_query ) {
+		return null;
+	}
+
+	// Mirror WordPress core's before-update actions using the same unsanitized and serialized values.
+	// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Mirrors the authoritative WordPress core metadata hook.
+	do_action( 'update_post_meta', $meta_id, $post_id, $meta_key, $unsanitized_metadata_value );
+	// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Mirrors the authoritative WordPress core legacy metadata hook.
+	do_action( 'update_postmeta', $meta_id, $post_id, $meta_key, $replacement_raw_value );
+
+	$previous_suppress_errors = $wpdb->suppress_errors( true );
+	$wpdb->last_error         = '';
+
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler binds stable row identity and exact previous bytes; cache and metadata actions are repaired below after a committed update.
+	$query_result   = $wpdb->query( $update_query );
+	$database_error = (string) $wpdb->last_error;
+
+	$wpdb->suppress_errors( $previous_suppress_errors );
+
+	if ( false === $query_result || '' !== $database_error ) {
+		ai4seo_debug_message( 984321707, 'Database error during exact third-party postmeta update: ' . $database_error, true );
+		return null;
+	}
+
+	if ( 1 !== $query_result ) {
+		return false;
+	}
+
+	wp_cache_delete( $post_id, 'post_meta' );
+	// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Mirrors the authoritative WordPress core metadata hook.
+	do_action( 'updated_post_meta', $meta_id, $post_id, $meta_key, $unsanitized_metadata_value );
+	// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Mirrors the authoritative WordPress core legacy metadata hook.
+	do_action( 'updated_postmeta', $meta_id, $post_id, $meta_key, $replacement_raw_value );
+
+	return true;
+}
+
+
+/**
+ * Reads whether one ordinary-provider postmeta row still has exact operation-owned identity and bytes.
+ *
+ * @param int    $meta_id        Stable postmeta row ID.
+ * @param int    $post_id        Owning post ID.
+ * @param string $meta_key       Provider postmeta key.
+ * @param string $raw_meta_value Exact raw value inserted by the operation.
+ * @return bool|null True for an exact match, false for missing/replaced ownership, null on read failure.
+ */
+function ai4seo_third_party_postmeta_row_matches_exact_value(
+	int $meta_id,
+	int $post_id,
+	string $meta_key,
+	string $raw_meta_value
+): ?bool {
+	global $wpdb;
+
+	$meta_id = absint( $meta_id );
+	$post_id = absint( $post_id );
+
+	if ( $meta_id <= 0 || $post_id <= 0 || '' === $meta_key ) {
+		return null;
+	}
+
+	$query = ai4seo_prepare_database_query(
+		'SELECT meta_value FROM {{postmeta_table}}
+		WHERE meta_id = {{meta_id}}
+		AND post_id = {{post_id}}
+		AND BINARY meta_key = BINARY {{meta_key}}
+		LIMIT {{row_limit}}',
+		array(
+			'postmeta_table' => ai4seo_database_identifier_binding( 'table.postmeta' ),
+			'meta_id'        => ai4seo_database_scalar_binding( '%d', $meta_id ),
+			'post_id'        => ai4seo_database_scalar_binding( '%d', $post_id ),
+			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Stable primary-key and post ownership bound this exact provider-key check to one row.
+			'meta_key'       => ai4seo_database_scalar_binding( '%s', $meta_key ),
+			'row_limit'      => ai4seo_database_scalar_binding( '%d', 1 ),
+		)
+	);
+
+	if ( false === $query ) {
+		return null;
+	}
+
+	$wpdb->last_error = '';
+
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler binds stable row identity; this compensation checkpoint must bypass possibly stale postmeta caches.
+	$current_raw_value = $wpdb->get_var( $query );
+
+	if ( $wpdb->last_error ) {
+		return null;
+	}
+
+	return is_string( $current_raw_value ) && hash_equals( $raw_meta_value, $current_raw_value );
+}
+
+
+/**
+ * Deletes only the exact ordinary-provider postmeta row created by this operation.
+ *
+ * The stable meta ID and exact raw bytes prevent compensation from deleting a concurrently
+ * changed provider owner while the standard WordPress delete filter/actions remain observable.
+ *
+ * @param int    $meta_id           Stable postmeta row ID.
+ * @param int    $post_id           Owning post ID.
+ * @param string $meta_key          Provider postmeta key.
+ * @param mixed  $logical_meta_value Sanitized logical value exposed by WordPress's add hook.
+ * @param string $raw_meta_value    Exact raw value inserted by the operation.
+ * @return bool Whether the operation-owned row is now absent or no longer operation-owned.
+ */
+function ai4seo_delete_owned_third_party_postmeta_row(
+	int $meta_id,
+	int $post_id,
+	string $meta_key,
+	$logical_meta_value,
+	string $raw_meta_value
+): bool {
+	global $wpdb;
+
+	$meta_id = absint( $meta_id );
+	$post_id = absint( $post_id );
+
+	if ( $meta_id <= 0 || $post_id <= 0 || '' === $meta_key ) {
+		return false;
+	}
+
+	// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Mirrors WordPress core's authoritative delete-metadata filter.
+	$check = apply_filters( 'delete_post_metadata', null, $post_id, $meta_key, $logical_meta_value, false );
+
+	if ( null !== $check ) {
+		$row_still_matches = ai4seo_third_party_postmeta_row_matches_exact_value( $meta_id, $post_id, $meta_key, $raw_meta_value );
+
+		return null !== $row_still_matches && ! $row_still_matches;
+	}
+
+	$delete_query = ai4seo_prepare_database_query(
+		'DELETE FROM {{postmeta_table}}
+		WHERE meta_id = {{meta_id}}
+		AND post_id = {{post_id}}
+		AND BINARY meta_key = BINARY {{meta_key}}
+		AND BINARY meta_value = BINARY {{meta_value}}
+		LIMIT {{row_limit}}',
+		array(
+			'postmeta_table' => ai4seo_database_identifier_binding( 'table.postmeta' ),
+			'meta_id'        => ai4seo_database_scalar_binding( '%d', $meta_id ),
+			'post_id'        => ai4seo_database_scalar_binding( '%d', $post_id ),
+			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Stable primary-key and post ownership bound this exact provider-key compensation to one row.
+			'meta_key'       => ai4seo_database_scalar_binding( '%s', $meta_key ),
+			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- Stable primary-key identity bounds this exact operation-owned byte predicate to one row.
+			'meta_value'     => ai4seo_database_scalar_binding( '%s', $raw_meta_value ),
+			'row_limit'      => ai4seo_database_scalar_binding( '%d', 1 ),
+		)
+	);
+
+	if ( false === $delete_query ) {
+		return false;
+	}
+
+	$meta_ids = array( (string) $meta_id );
+
+	// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Mirrors WordPress core's pre-delete metadata action.
+	do_action( 'delete_post_meta', $meta_ids, $post_id, $meta_key, $logical_meta_value );
+	// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Mirrors WordPress core's legacy pre-delete postmeta action.
+	do_action( 'delete_postmeta', $meta_ids );
+
+	$previous_suppress_errors = $wpdb->suppress_errors( true );
+	$wpdb->last_error         = '';
+
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler binds stable row identity and exact operation-owned bytes; cache and post-delete actions are repaired after a committed delete.
+	$delete_result  = $wpdb->query( $delete_query );
+	$database_error = (string) $wpdb->last_error;
+
+	$wpdb->suppress_errors( $previous_suppress_errors );
+
+	if ( false === $delete_result || '' !== $database_error || (int) $delete_result > 1 ) {
+		ai4seo_debug_message( 984321733, 'Database error during exact ordinary-provider postmeta compensation: ' . $database_error, true );
+		return false;
+	}
+
+	if ( 0 === (int) $delete_result ) {
+		$row_still_matches = ai4seo_third_party_postmeta_row_matches_exact_value( $meta_id, $post_id, $meta_key, $raw_meta_value );
+
+		return null !== $row_still_matches && ! $row_still_matches;
+	}
+
+	wp_cache_delete( $post_id, 'post_meta' );
+	// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Mirrors WordPress core's post-delete metadata action.
+	do_action( 'deleted_post_meta', $meta_ids, $post_id, $meta_key, $logical_meta_value );
+	// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Mirrors WordPress core's legacy post-delete postmeta action.
+	do_action( 'deleted_postmeta', $meta_ids );
+
+	return true;
+}
+
+
+/**
+ * Returns the bounded advisory-lock name for one site's ordinary provider metadata owner.
+ *
+ * @param int    $post_id  Post ID.
+ * @param string $meta_key Provider postmeta key.
+ * @return string Site/post/key-scoped lock name, or an empty string for invalid input.
+ */
+function ai4seo_get_third_party_postmeta_only_if_empty_lock_name( int $post_id, string $meta_key ): string {
+	global $wpdb;
+
+	$post_id        = absint( $post_id );
+	$postmeta_table = isset( $wpdb->postmeta ) ? (string) $wpdb->postmeta : '';
+
+	if ( $post_id <= 0 || '' === $meta_key || '' === $postmeta_table ) {
+		return '';
+	}
+
+	$database_name = defined( 'DB_NAME' ) ? (string) DB_NAME : '';
+	$scope         = $database_name . '|' . $postmeta_table . '|' . absint( get_current_blog_id() ) . '|' . $post_id . '|' . $meta_key;
+
+	// MySQL and MariaDB limit advisory-lock names to 64 bytes; the hash also keeps provider keys private.
+	return 'ai4seo_meta_' . substr( hash( 'sha256', $scope ), 0, 52 );
+}
+
+
+/**
+ * Writes an ordinary provider postmeta value without overwriting any concurrent or duplicate owner.
+ *
+ * @param int    $post_id        Post ID.
+ * @param string $meta_key       Provider postmeta key.
+ * @param string $metadata_value Requested provider metadata value.
+ * @return array{write_attempted: bool, write_succeeded: bool, skipped_existing: bool, write_reached_requested_state: bool}
+ */
+function ai4seo_update_empty_third_party_postmeta(
+	int $post_id,
+	string $meta_key,
+	string $metadata_value
+): array {
+	global $wpdb;
+
+	$write_result = ai4seo_build_third_party_seo_plugin_metadata_write_result();
+	$post_id      = absint( $post_id );
+
+	if ( $post_id <= 0 || ! get_post( $post_id ) ) {
+		return $write_result;
+	}
+
+	// Match update_post_meta() by applying ordinary provider writes to a revision's parent post.
+	$revision_parent_post_id = wp_is_post_revision( $post_id );
+
+	if ( $revision_parent_post_id ) {
+		$post_id = absint( $revision_parent_post_id );
+	}
+
+	for ( $write_attempt = 0; $write_attempt < 3; ++$write_attempt ) {
+		$read_succeeded = false;
+		$current_rows   = ai4seo_read_exact_third_party_postmeta_rows( $post_id, $meta_key, $read_succeeded );
+
+		if ( ! $read_succeeded ) {
+			return $write_result;
+		}
+
+		if ( count( $current_rows ) > 1 ) {
+			foreach ( $current_rows as $current_row ) {
+				if ( ! ai4seo_is_third_party_seo_metadata_value_literally_empty( $current_row['meta_value'] ) ) {
+					$write_result['write_succeeded']  = true;
+					$write_result['skipped_existing'] = true;
+					return $write_result;
+				}
+			}
+
+			// Multiple empty rows have no unambiguous canonical owner and must remain untouched.
+			return $write_result;
+		}
+
+		if ( $current_rows ) {
+			$current_row = $current_rows[0];
+
+			if ( ! ai4seo_is_third_party_seo_metadata_value_literally_empty( $current_row['meta_value'] ) ) {
+				$write_result['write_succeeded']  = true;
+				$write_result['skipped_existing'] = true;
+				return $write_result;
+			}
+
+			$write_result['write_attempted'] = true;
+			$compare_and_swap_result         = ai4seo_compare_and_swap_empty_third_party_postmeta_row(
+				$current_row['meta_id'],
+				$post_id,
+				$meta_key,
+				$current_row['meta_value'],
+				$metadata_value
+			);
+
+			if ( true === $compare_and_swap_result ) {
+				$write_result['write_succeeded']               = true;
+				$write_result['write_reached_requested_state'] = true;
+				return $write_result;
+			}
+
+			if ( null === $compare_and_swap_result ) {
+				return $write_result;
+			}
+
+			continue;
+		}
+
+		$lock_name = ai4seo_get_third_party_postmeta_only_if_empty_lock_name( $post_id, $meta_key );
+
+		if ( '' === $lock_name || ! ai4seo_acquire_database_advisory_lock( $lock_name ) ) {
+			return $write_result;
+		}
+
+		$locked_read_succeeded            = false;
+		$locked_rows                      = array();
+		$add_result                       = false;
+		$database_error                   = '';
+		$lock_released                    = false;
+		$add_was_filter_owned             = false;
+		$add_was_verified                 = false;
+		$owned_added_meta_id              = 0;
+		$owned_added_raw_value            = '';
+		$owned_added_value                = null;
+		$compensation_succeeded           = false;
+		$post_compensation_read_succeeded = false;
+		$post_compensation_rows           = array();
+
+		try {
+			// The pre-lock snapshot is advisory only. Re-read under the site/post/key fence before creating an owner.
+			$locked_rows = ai4seo_read_exact_third_party_postmeta_rows( $post_id, $meta_key, $locked_read_succeeded );
+
+			if ( $locked_read_succeeded && ! $locked_rows ) {
+				// Capture a filter-owned short-circuit separately from a real core insert and its exact value.
+				$add_filter_was_short_circuited = false;
+				$captured_added_rows            = array();
+				$capture_add_filter_result      = static function ( $check, int $object_id, string $added_meta_key ) use ( $post_id, $meta_key, &$add_filter_was_short_circuited ) {
+					if ( $post_id === $object_id && hash_equals( $meta_key, $added_meta_key ) && null !== $check ) {
+						$add_filter_was_short_circuited = true;
+					}
+
+					return $check;
+				};
+				$capture_added_row              = static function ( int $meta_id, int $object_id, string $added_meta_key, $added_meta_value ) use ( $post_id, $meta_key, &$captured_added_rows ): void {
+					if ( $post_id !== $object_id || ! hash_equals( $meta_key, $added_meta_key ) ) {
+						return;
+					}
+
+					$added_raw_value = maybe_serialize( $added_meta_value );
+
+					if ( ! is_string( $added_raw_value ) ) {
+						return;
+					}
+
+					$captured_added_rows[ $meta_id ] = array(
+						'logical_value' => $added_meta_value,
+						'raw_value'     => $added_raw_value,
+					);
+				};
+
+				add_filter( 'add_post_metadata', $capture_add_filter_result, PHP_INT_MAX, 5 );
+				add_action( 'added_post_meta', $capture_added_row, PHP_INT_MAX, 4 );
+
+				// Core's metadata API preserves its add filters/actions while the advisory lock serializes cooperating creators.
+				$write_result['write_attempted'] = true;
+				$previous_suppress_errors        = $wpdb->suppress_errors( true );
+				$wpdb->last_error                = '';
+
+				try {
+					try {
+						$add_result     = add_post_meta( $post_id, $meta_key, wp_slash( $metadata_value ), true );
+						$database_error = (string) $wpdb->last_error;
+					} finally {
+						remove_filter( 'add_post_metadata', $capture_add_filter_result, PHP_INT_MAX );
+						remove_action( 'added_post_meta', $capture_added_row, PHP_INT_MAX );
+					}
+				} finally {
+					$wpdb->suppress_errors( $previous_suppress_errors );
+				}
+
+				if ( is_int( $add_result ) && $add_result > 0 && isset( $captured_added_rows[ $add_result ] ) ) {
+					$owned_added_meta_id   = $add_result;
+					$owned_added_raw_value = $captured_added_rows[ $add_result ]['raw_value'];
+					$owned_added_value     = $captured_added_rows[ $add_result ]['logical_value'];
+				} elseif ( $add_filter_was_short_circuited && '' === $database_error && false !== $add_result ) {
+					// WordPress treats a non-false add_post_metadata short-circuit as authoritative success.
+					$add_was_filter_owned                          = true;
+					$write_result['write_reached_requested_state'] = true;
+				}
+
+				if ( $owned_added_meta_id > 0 ) {
+					$verification_succeeded = false;
+					$verification_rows      = ai4seo_read_exact_third_party_postmeta_rows( $post_id, $meta_key, $verification_succeeded );
+
+					$add_was_verified = $verification_succeeded
+						&& 1 === count( $verification_rows )
+						&& $owned_added_meta_id === $verification_rows[0]['meta_id']
+						&& hash_equals( $owned_added_raw_value, $verification_rows[0]['meta_value'] );
+
+					if ( $add_was_verified ) {
+						$write_result['write_reached_requested_state'] = true;
+					} else {
+						$compensation_succeeded = ai4seo_delete_owned_third_party_postmeta_row(
+							$owned_added_meta_id,
+							$post_id,
+							$meta_key,
+							$owned_added_value,
+							$owned_added_raw_value
+						);
+
+						if ( $compensation_succeeded ) {
+							// Re-read while still fenced so the next attempt can classify the untouched external winner.
+							$post_compensation_rows = ai4seo_read_exact_third_party_postmeta_rows(
+								$post_id,
+								$meta_key,
+								$post_compensation_read_succeeded
+							);
+						}
+					}
+				}
+			}
+		} finally {
+			$lock_released = ai4seo_release_database_advisory_lock( $lock_name );
+		}
+
+		if ( ! $lock_released ) {
+			ai4seo_debug_message( 984321709, 'Could not release the ordinary-provider postmeta advisory lock.', true );
+			$write_result['write_succeeded']  = false;
+			$write_result['skipped_existing'] = false;
+			return $write_result;
+		}
+
+		if ( ! $locked_read_succeeded ) {
+			return $write_result;
+		}
+
+		if ( $locked_rows ) {
+			// A cooperating creator won after the first snapshot. Re-evaluate its exact row without writing.
+			continue;
+		}
+
+		if ( '' !== $database_error ) {
+			ai4seo_debug_message( 984321708, 'Database error during unique third-party postmeta add: ' . $database_error, true );
+			return $write_result;
+		}
+
+		if ( $add_was_filter_owned || $add_was_verified ) {
+			$write_result['write_succeeded'] = true;
+			return $write_result;
+		}
+
+		if ( $owned_added_meta_id > 0 ) {
+			if ( ! $compensation_succeeded || ! $post_compensation_read_succeeded ) {
+				return $write_result;
+			}
+
+			if ( count( $post_compensation_rows ) > 1 ) {
+				foreach ( $post_compensation_rows as $post_compensation_row ) {
+					if ( ! ai4seo_is_third_party_seo_metadata_value_literally_empty( $post_compensation_row['meta_value'] ) ) {
+						$write_result['write_succeeded']  = true;
+						$write_result['skipped_existing'] = true;
+						return $write_result;
+					}
+				}
+
+				return $write_result;
+			}
+
+			if ( $post_compensation_rows
+				&& ! ai4seo_is_third_party_seo_metadata_value_literally_empty( $post_compensation_rows[0]['meta_value'] ) ) {
+				$write_result['write_succeeded']  = true;
+				$write_result['skipped_existing'] = true;
+				return $write_result;
+			}
+
+			// The owned row is gone and no populated foreign winner exists; retry missing or empty state normally.
+			continue;
+		}
+	}
+
+	return $write_result;
+}
+
 
 /**
  * Updates one selected third-party SEO plugin and reports the write outcome.
@@ -3125,7 +5765,7 @@ function ai4seo_update_one_third_party_seo_plugin_metadata(
 	bool $overwrite_existing_data
 ): array {
 	// Unsupported mappings start as non-attempted failures and are upgraded only by an explicit skip or write.
-	$write_result = ai4seo_build_third_party_seo_plugin_metadata_write_result();
+	$write_result  = ai4seo_build_third_party_seo_plugin_metadata_write_result();
 	$only_if_empty = ! $overwrite_existing_data;
 
 	// Route integrations with compound storage through their dedicated preservation logic.
@@ -3164,34 +5804,33 @@ function ai4seo_update_one_third_party_seo_plugin_metadata(
 		return $write_result;
 	}
 
-	// Existing non-empty integration data intentionally prevents both its overwrite and the corresponding SOOZ write.
-	if ( $only_if_empty && get_post_meta( $post_id, $third_party_postmeta_key, true ) ) {
-		$postmeta_write_result = ai4seo_build_third_party_seo_plugin_metadata_write_result(
-			false,
-			true,
-			true
-		);
-	} else {
-		// Capability-driven suppression keeps outbound writes from re-entering the generic inbound mirror.
-		$postmeta_write_result = ai4seo_build_third_party_seo_plugin_metadata_write_result( true );
-		$supports_inbound_postmeta_sync = ai4seo_does_third_party_seo_plugin_support_inbound_postmeta_sync(
-			$third_party_seo_plugin_details
-		);
+	// Capability-driven suppression keeps outbound writes from re-entering the generic inbound mirror.
+	$supports_inbound_postmeta_sync = ai4seo_does_third_party_seo_plugin_support_inbound_postmeta_sync(
+		$third_party_seo_plugin_details
+	);
 
-		// The inbound hook must not interpret a SOOZ-originated write as a separate editor change.
-		if ( $supports_inbound_postmeta_sync ) {
-			ai4seo_manage_third_party_seo_metadata_sync_request_state( 'begin-outbound', $post_id );
-		}
+	// The inbound hook must not interpret a SOOZ-originated write as a separate editor change.
+	if ( $supports_inbound_postmeta_sync ) {
+		ai4seo_manage_third_party_seo_metadata_sync_request_state( 'begin-outbound', $post_id );
+	}
 
-		// The finally block guarantees request-local suppression cannot leak after any write outcome.
-		try {
-			$postmeta_write_result['write_succeeded'] = ai4seo_update_post_meta( $post_id, $third_party_postmeta_key, $metadata_value );
+	// The finally block guarantees request-local suppression cannot leak after any write outcome.
+	try {
+		if ( $only_if_empty ) {
+			$postmeta_write_result = ai4seo_update_empty_third_party_postmeta(
+				$post_id,
+				$third_party_postmeta_key,
+				$metadata_value
+			);
+		} else {
+			$postmeta_write_result                                  = ai4seo_build_third_party_seo_plugin_metadata_write_result( true );
+			$postmeta_write_result['write_succeeded']               = ai4seo_update_post_meta( $post_id, $third_party_postmeta_key, $metadata_value );
 			$postmeta_write_result['write_reached_requested_state'] = $postmeta_write_result['write_succeeded'];
-		} finally {
-			// Pair suppression with every attempted write, including writes that throw before returning a result.
-			if ( $supports_inbound_postmeta_sync ) {
-				ai4seo_manage_third_party_seo_metadata_sync_request_state( 'end-outbound', $post_id );
-			}
+		}
+	} finally {
+		// Pair suppression with every attempted write, including writes that throw before returning a result.
+		if ( $supports_inbound_postmeta_sync ) {
+			ai4seo_manage_third_party_seo_metadata_sync_request_state( 'end-outbound', $post_id );
 		}
 	}
 
@@ -3209,8 +5848,8 @@ function ai4seo_update_one_third_party_seo_plugin_metadata(
 	);
 
 	// Preserve AIOSEO's dual-storage contract while retaining SOOZ precedence based on its postmeta mirror.
-	$aioseo_write_attempted = $postmeta_write_result['write_attempted'] || $aioseo_table_write_result['write_attempted'];
-	$aioseo_write_succeeded = $postmeta_write_result['write_succeeded'] && $aioseo_table_write_result['write_succeeded'];
+	$aioseo_write_attempted               = $postmeta_write_result['write_attempted'] || $aioseo_table_write_result['write_attempted'];
+	$aioseo_write_succeeded               = $postmeta_write_result['write_succeeded'] && $aioseo_table_write_result['write_succeeded'];
 	$aioseo_write_reached_requested_state = $postmeta_write_result['write_reached_requested_state']
 		|| $aioseo_table_write_result['write_reached_requested_state'];
 
@@ -3222,23 +5861,26 @@ function ai4seo_update_one_third_party_seo_plugin_metadata(
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Updates configured third-party SEO plugins and reports synchronization details.
  *
- * @param int    $post_id                 Post ID.
- * @param string $metadata_identifier     Metadata identifier.
- * @param string $metadata_value          Metadata value.
- * @param bool   $overwrite_existing_data Whether existing data should be overwritten.
+ * @param int       $post_id                 Post ID.
+ * @param string    $metadata_identifier     Metadata identifier.
+ * @param string    $metadata_value          Metadata value.
+ * @param bool      $overwrite_existing_data Whether existing data should be overwritten.
+ * @param bool|null $sync_may_have_committed Receives whether any configured provider write was attempted or interrupted.
  * @return array{skip_own_metadata: bool, sync_attempted: bool, sync_succeeded: bool, sync_reached_requested_state: bool, failed_plugin_identifiers: array}
  */
 function ai4seo_update_third_party_seo_plugins_metadata(
 	int $post_id,
 	string $metadata_identifier,
 	string $metadata_value,
-	bool $overwrite_existing_data
+	bool $overwrite_existing_data,
+	?bool &$sync_may_have_committed = null
 ): array {
+	$sync_may_have_committed = false;
+
 	// Default to a successful no-op so inactive, deselected, and unsupported integrations remain neutral.
 	$sync_result = array(
 		'skip_own_metadata'            => false,
@@ -3289,7 +5931,9 @@ function ai4seo_update_third_party_seo_plugins_metadata(
 		}
 
 		// Isolate each plugin outcome so later configured integrations still run after an ordinary write failure.
-		$this_plugin_write_result = ai4seo_update_one_third_party_seo_plugin_metadata(
+		$prior_provider_may_have_committed = $sync_may_have_committed;
+		$sync_may_have_committed           = true;
+		$this_plugin_write_result          = ai4seo_update_one_third_party_seo_plugin_metadata(
 			$post_id,
 			$this_third_party_seo_plugin_identifier,
 			$this_third_party_seo_plugin_details,
@@ -3297,6 +5941,9 @@ function ai4seo_update_third_party_seo_plugins_metadata(
 			$metadata_value,
 			$overwrite_existing_data
 		);
+		$sync_may_have_committed           = $prior_provider_may_have_committed
+			|| $this_plugin_write_result['write_attempted']
+			|| $this_plugin_write_result['write_reached_requested_state'];
 
 		// Record actual persistence attempts independently from intentional existing-value skips.
 		if ( $this_plugin_write_result['write_attempted'] ) {
@@ -3325,7 +5972,6 @@ function ai4seo_update_third_party_seo_plugins_metadata(
 	return $sync_result;
 }
 
-// =========================================================================================== \\
 
 /**
  * Updates one Squirrly SEO metadata field while preserving its serialized row structure.
@@ -3343,113 +5989,212 @@ function ai4seo_update_active_metadata_for_squirrly_seo(
 	bool $only_if_empty = false
 ): array {
 	// Missing mappings or storage rows must retain an explicit non-attempted failure result.
-	$write_result = ai4seo_build_third_party_seo_plugin_metadata_write_result();
-
-	// Squirrly stores all supported fields together in the serialized qss.seo column.
+	$write_result                = ai4seo_build_third_party_seo_plugin_metadata_write_result();
 	$metadata_identifier_mapping = ai4seo_get_squirrly_seo_metadata_identifier_mapping();
+	$squirrly_seo_key            = $metadata_identifier_mapping[ $metadata_identifier ] ?? '';
 
-	$this_squirrly_seo_key = $metadata_identifier_mapping[ $metadata_identifier ] ?? '';
-
-	if ( ! $this_squirrly_seo_key ) {
+	if ( ! $squirrly_seo_key ) {
 		return $write_result;
 	}
 
-	// Load the complete serialized row so unrelated Squirrly fields survive the update.
+	$post_id = absint( $post_id );
+
+	if ( $post_id <= 0 ) {
+		return $write_result;
+	}
+
+	$url_hash_read_succeeded = false;
+	$url_hash_candidates     = ai4seo_read_squirrly_url_hash_candidates_by_post_ids( array( $post_id ), $url_hash_read_succeeded );
+	$current_blog_id         = ai4seo_normalize_database_id( get_current_blog_id() );
+
+	if ( ! $url_hash_read_succeeded || ! $url_hash_candidates || false === $current_blog_id ) {
+		return $write_result;
+	}
+
 	global $wpdb;
 
-	// The post ID lives inside Squirrly's serialized post column rather than a dedicated SQL column.
-	$squirrly_post_pattern = '%s:2:"ID";i:' . esc_sql( $post_id ) . ';%';
+	$requested_metadata_value = sanitize_text_field( $metadata_value );
 
-	$current_squirrly_values = $wpdb->get_var(
-		$wpdb->prepare(
-			"SELECT seo FROM {$wpdb->prefix}qss WHERE post LIKE %s",
-			$squirrly_post_pattern
-		)
-	);
+	for ( $write_attempt = 0; $write_attempt < 3; ++$write_attempt ) {
+		$squirrly_read_query = ai4seo_prepare_database_query(
+			'SELECT blog_id, url_hash, post, seo
+			FROM {{squirrly_table}}
+			WHERE blog_id = {{blog_id}}
+			AND url_hash IN ({{url_hashes}})
+			LIMIT {{row_limit}}',
+			array(
+				'squirrly_table' => ai4seo_database_identifier_binding( 'table.squirrly' ),
+				'blog_id'        => ai4seo_database_scalar_binding( '%d', $current_blog_id ),
+				'url_hashes'     => ai4seo_database_list_binding( '%s', array_keys( $url_hash_candidates ) ),
+				'row_limit'      => ai4seo_database_scalar_binding( '%d', 2 ),
+			)
+		);
 
-	if ( $wpdb->last_error ) {
-		ai4seo_debug_message( 984321683, 'Database error: ' . $wpdb->last_error, true );
-		return $write_result;
-	}
-	$current_squirrly_values = maybe_unserialize( $current_squirrly_values );
+		if ( false === $squirrly_read_query ) {
+			return $write_result;
+		}
 
-	// Squirrly data can contain a second serialization layer depending on the plugin version.
-	if ( $current_squirrly_values && is_string( $current_squirrly_values ) ) {
-		$current_squirrly_values = unserialize( $current_squirrly_values );
-	}
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler prepares this bounded provider-owned snapshot through Squirrly's site/hash index; exact raw columns are required for compare-and-swap.
+		$current_squirrly_rows = $wpdb->get_results( $squirrly_read_query, ARRAY_A );
 
-	// Normalize every missing or malformed row to the same empty collection outcome.
-	if ( ! $current_squirrly_values || ! is_array( $current_squirrly_values ) ) {
-		$current_squirrly_values = array();
-	}
+		if ( $wpdb->last_error || ! is_array( $current_squirrly_rows ) ) {
+			ai4seo_debug_message( 984321683, 'Database error: ' . $wpdb->last_error, true );
+			return $write_result;
+		}
 
-	// A missing or unreadable Squirrly row cannot be synchronized safely.
-	if ( empty( $current_squirrly_values ) ) {
-		return $write_result;
-	}
+		// A missing or ambiguous provider identity cannot be updated without risking another row.
+		if ( 1 !== count( $current_squirrly_rows ) ) {
+			return $write_result;
+		}
 
-	// Non-overwrite mode treats an existing integration value as an intentional successful skip.
-	if ( $only_if_empty ) {
-		if ( isset( $current_squirrly_values[ $this_squirrly_seo_key ] ) && $current_squirrly_values[ $this_squirrly_seo_key ] ) {
+		$current_squirrly_row = $current_squirrly_rows[0];
+
+		if ( ! is_array( $current_squirrly_row )
+			|| 4 !== count( $current_squirrly_row )
+			|| ! array_key_exists( 'blog_id', $current_squirrly_row )
+			|| ! array_key_exists( 'url_hash', $current_squirrly_row )
+			|| ! array_key_exists( 'post', $current_squirrly_row )
+			|| ! array_key_exists( 'seo', $current_squirrly_row )
+		) {
+			return $write_result;
+		}
+
+		$row_blog_id      = ai4seo_normalize_database_id( $current_squirrly_row['blog_id'] );
+		$current_url_hash = $current_squirrly_row['url_hash'];
+		$current_post_raw = $current_squirrly_row['post'];
+		$current_seo_raw  = $current_squirrly_row['seo'];
+
+		if ( $current_blog_id !== $row_blog_id
+			|| ! is_string( $current_url_hash )
+			|| 1 !== preg_match( '/^[a-f0-9]{32}$/', $current_url_hash )
+			|| ! isset( $url_hash_candidates[ $current_url_hash ][ $post_id ] )
+			|| ! is_string( $current_post_raw )
+			|| ( null !== $current_seo_raw && ! is_string( $current_seo_raw ) )
+		) {
+			return $write_result;
+		}
+
+		$current_squirrly_post_values = ai4seo_safe_maybe_unserialize( $current_post_raw );
+		$current_post_id              = is_array( $current_squirrly_post_values )
+			? ai4seo_normalize_database_id( $current_squirrly_post_values['ID'] ?? null )
+			: false;
+
+		if ( $post_id !== $current_post_id ) {
+			return $write_result;
+		}
+
+		$squirrly_decoding_failed = false;
+		$current_squirrly_values  = ai4seo_decode_squirrly_seo_values( $current_seo_raw, $squirrly_decoding_failed );
+
+		if ( $squirrly_decoding_failed ) {
+			return $write_result;
+		}
+
+		$current_metadata_value = $current_squirrly_values[ $squirrly_seo_key ] ?? null;
+
+		if ( $only_if_empty && ! ai4seo_is_third_party_seo_metadata_value_literally_empty( $current_metadata_value ) ) {
 			$write_result['write_succeeded']  = true;
 			$write_result['skipped_existing'] = true;
 			return $write_result;
 		}
+
+		$current_squirrly_values[ $squirrly_seo_key ] = $requested_metadata_value;
+		$replacement_seo_raw                          = maybe_serialize( $current_squirrly_values );
+		$write_result['write_attempted']              = true;
+
+		if ( $replacement_seo_raw === $current_seo_raw ) {
+			$write_result['write_succeeded']               = true;
+			$write_result['write_reached_requested_state'] = true;
+			return $write_result;
+		}
+
+		// Share stable row identity and replacement bindings across the nullable CAS variants.
+		$squirrly_update_bindings = array(
+			'squirrly_table' => ai4seo_database_identifier_binding( 'table.squirrly' ),
+			'seo_value'      => ai4seo_database_scalar_binding( '%s', $replacement_seo_raw ),
+			'blog_id'        => ai4seo_database_scalar_binding( '%d', $current_blog_id ),
+			'url_hash'       => ai4seo_database_scalar_binding( '%s', $current_url_hash ),
+			'post_value'     => ai4seo_database_scalar_binding( '%s', $current_post_raw ),
+		);
+
+		if ( null === $current_seo_raw ) {
+			$squirrly_update_query_template = 'UPDATE {{squirrly_table}} SET seo = {{seo_value}} WHERE blog_id = {{blog_id}} AND url_hash = {{url_hash}} AND BINARY post = BINARY {{post_value}} AND seo IS NULL LIMIT {{row_limit}}';
+		} else {
+			$squirrly_update_bindings['previous_seo_value'] = ai4seo_database_scalar_binding( '%s', $current_seo_raw );
+			$squirrly_update_query_template                 = 'UPDATE {{squirrly_table}} SET seo = {{seo_value}} WHERE blog_id = {{blog_id}} AND url_hash = {{url_hash}} AND BINARY post = BINARY {{post_value}} AND BINARY seo = BINARY {{previous_seo_value}} LIMIT {{row_limit}}';
+		}
+
+		$squirrly_update_bindings['row_limit'] = ai4seo_database_scalar_binding( '%d', 1 );
+		$squirrly_update_query                 = ai4seo_prepare_database_query( $squirrly_update_query_template, $squirrly_update_bindings );
+
+		if ( false === $squirrly_update_query ) {
+			return $write_result;
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler binds indexed site/hash identity plus the exact raw owner and snapshot; a zero-row result is retried from current storage.
+		$query_result = $wpdb->query( $squirrly_update_query );
+
+		if ( false === $query_result || $wpdb->last_error ) {
+			ai4seo_debug_message( 984321684, 'Database error: ' . $wpdb->last_error, true );
+			return $write_result;
+		}
+
+		if ( 1 === $query_result ) {
+			$write_result['write_succeeded']               = true;
+			$write_result['write_reached_requested_state'] = true;
+			return $write_result;
+		}
 	}
-
-	// Replace only the requested key before writing the complete serialized collection back.
-	$requested_metadata_value                            = sanitize_text_field( $metadata_value );
-	$current_squirrly_values[ $this_squirrly_seo_key ]  = $requested_metadata_value;
-	$write_result['write_attempted']                     = true;
-
-	$query_result = $wpdb->query(
-		$wpdb->prepare(
-			"UPDATE {$wpdb->prefix}qss SET seo = %s WHERE post LIKE %s",
-			maybe_serialize( $current_squirrly_values ),
-			$squirrly_post_pattern
-		)
-	);
-
-	if ( false === $query_result || $wpdb->last_error ) {
-		ai4seo_debug_message( 984321684, 'Database error: ' . $wpdb->last_error, true );
-		return $write_result;
-	}
-
-	// A positive affected-row count proves the requested serialized collection was written.
-	if ( $query_result > 0 ) {
-		$write_result['write_succeeded']               = true;
-		$write_result['write_reached_requested_state'] = true;
-		return $write_result;
-	}
-
-	// Read back the affected field because a zero-row SQL result may still be an idempotent success.
-	$latest_squirrly_values = $wpdb->get_var(
-		$wpdb->prepare(
-			"SELECT seo FROM {$wpdb->prefix}qss WHERE post LIKE %s",
-			$squirrly_post_pattern
-		)
-	);
-
-	if ( $wpdb->last_error ) {
-		ai4seo_debug_message( 984321688, 'Database error: ' . $wpdb->last_error, true );
-		return $write_result;
-	}
-
-	$latest_squirrly_values = maybe_unserialize( $latest_squirrly_values );
-
-	if ( is_string( $latest_squirrly_values ) ) {
-		$latest_squirrly_values = maybe_unserialize( $latest_squirrly_values );
-	}
-
-	$write_result['write_succeeded'] = is_array( $latest_squirrly_values )
-		&& array_key_exists( $this_squirrly_seo_key, $latest_squirrly_values )
-		&& $requested_metadata_value === (string) $latest_squirrly_values[ $this_squirrly_seo_key ];
-	$write_result['write_reached_requested_state'] = $write_result['write_succeeded'];
 
 	return $write_result;
 }
 
-// =========================================================================================== \\
+
+/**
+ * Deletes only a Slim SEO postmeta row whose stable identity and raw value are still operation-owned.
+ *
+ * @param int    $meta_id        Stable postmeta row ID returned by the operation's add.
+ * @param int    $post_id        Owning post ID.
+ * @param string $meta_key       Slim SEO's compound postmeta key.
+ * @param string $raw_meta_value Exact raw value observed after the operation's add.
+ * @return bool True when cleanup completed or ownership had already changed, false on failure.
+ */
+function ai4seo_delete_owned_slim_seo_postmeta_row( int $meta_id, int $post_id, string $meta_key, string $raw_meta_value ): bool {
+	global $wpdb;
+
+	$delete_query = ai4seo_prepare_database_query(
+		'DELETE FROM {{postmeta_table}} WHERE meta_id = {{meta_id}} AND post_id = {{post_id}} AND meta_key = {{meta_key}} AND BINARY meta_value = BINARY {{meta_value}} LIMIT {{row_limit}}',
+		array(
+			'postmeta_table' => ai4seo_database_identifier_binding( 'table.postmeta' ),
+			'meta_id'        => ai4seo_database_scalar_binding( '%d', $meta_id ),
+			'post_id'        => ai4seo_database_scalar_binding( '%d', $post_id ),
+			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Primary meta_id and post owner establish identity; the provider key prevents cross-contract cleanup.
+			'meta_key'       => ai4seo_database_scalar_binding( '%s', $meta_key ),
+			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- Exact raw bytes prove the row still contains this operation's inserted value before rollback.
+			'meta_value'     => ai4seo_database_scalar_binding( '%s', $raw_meta_value ),
+			'row_limit'      => ai4seo_database_scalar_binding( '%d', 1 ),
+		)
+	);
+
+	if ( false === $delete_query ) {
+		return false;
+	}
+
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler binds a stable row ID, owner, key, and exact operation-owned raw bytes.
+	$delete_result = $wpdb->query( $delete_query );
+
+	if ( false === $delete_result || $wpdb->last_error ) {
+		ai4seo_debug_message( 146829301, 'Database error: ' . $wpdb->last_error, true );
+		return false;
+	}
+
+	if ( 1 === $delete_result ) {
+		wp_cache_delete( $post_id, 'post_meta' );
+	}
+
+	return true;
+}
+
 
 /**
  * Updates one Slim SEO metadata field while preserving its shared postmeta structure.
@@ -3466,6 +6211,8 @@ function ai4seo_update_active_metadata_for_slim_seo(
 	string $metadata_value,
 	bool $only_if_empty = false
 ): array {
+	global $wpdb;
+
 	// Missing mappings retain an explicit non-attempted failure result.
 	$write_result = ai4seo_build_third_party_seo_plugin_metadata_write_result();
 
@@ -3476,40 +6223,303 @@ function ai4seo_update_active_metadata_for_slim_seo(
 	);
 	$slim_seo_postmeta_key   = $compound_sync_details['postmeta_key'] ?? '';
 	$metadata_array_keys     = $compound_sync_details['generation_field_array_keys'] ?? array();
-	$this_slim_seo_key       = $metadata_array_keys[ $metadata_identifier ] ?? '';
+	$slim_seo_key            = $metadata_array_keys[ $metadata_identifier ] ?? '';
 
-	if ( ! $slim_seo_postmeta_key || ! $this_slim_seo_key ) {
+	if ( ! $slim_seo_postmeta_key || ! $slim_seo_key ) {
 		return $write_result;
 	}
 
-	// Load the shared value so updating one field cannot discard its sibling.
-	$current_slim_seo_values = get_post_meta( $post_id, $slim_seo_postmeta_key, true );
-	$current_slim_seo_values = maybe_unserialize( $current_slim_seo_values );
+	$requested_metadata_value  = sanitize_text_field( $metadata_value );
+	$operation_owned_meta_id   = 0;
+	$operation_owned_raw_value = '';
+	$update_filter_was_applied = false;
 
-	// A missing or malformed value is equivalent to an empty Slim SEO collection.
-	if ( ! is_array( $current_slim_seo_values ) || ! $current_slim_seo_values ) {
-		$current_slim_seo_values = array();
-	}
+	try {
+		for ( $write_attempt = 0; $write_attempt < 3; ++$write_attempt ) {
+			$slim_seo_read_query = ai4seo_prepare_database_query(
+				'SELECT meta_id, meta_value FROM {{postmeta_table}} WHERE post_id = {{post_id}} AND meta_key = {{meta_key}} ORDER BY meta_id ASC LIMIT {{row_limit}}',
+				array(
+					'postmeta_table' => ai4seo_database_identifier_binding( 'table.postmeta' ),
+					'post_id'        => ai4seo_database_scalar_binding( '%d', $post_id ),
+					// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- The exact provider key is paired with one post owner, primary-key ordering, and a two-row ambiguity limit.
+					'meta_key'       => ai4seo_database_scalar_binding( '%s', $slim_seo_postmeta_key ),
+					'row_limit'      => ai4seo_database_scalar_binding( '%d', 2 ),
+				)
+			);
 
-	// Non-overwrite mode treats an existing integration value as an intentional successful skip.
-	if ( $only_if_empty ) {
-		if ( isset( $current_slim_seo_values[ $this_slim_seo_key ] ) && $current_slim_seo_values[ $this_slim_seo_key ] ) {
-			$write_result['write_succeeded']  = true;
-			$write_result['skipped_existing'] = true;
+			if ( false === $slim_seo_read_query ) {
+				return $write_result;
+			}
+
+			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- This typed raw snapshot bypasses eager metadata unserialization and supplies a stable meta_id for compare-and-swap.
+			$current_slim_seo_rows = $wpdb->get_results( $slim_seo_read_query, ARRAY_A );
+
+			if ( $wpdb->last_error || ! is_array( $current_slim_seo_rows ) ) {
+				ai4seo_debug_message( 146829301, 'Database error: ' . $wpdb->last_error, true );
+				return $write_result;
+			}
+
+			if ( count( $current_slim_seo_rows ) > 1 ) {
+				// If this operation lost a concurrent add race, discard only its exact row and merge the winner.
+				foreach ( $current_slim_seo_rows as $ambiguous_slim_seo_row ) {
+					$ambiguous_meta_id = ai4seo_normalize_database_id( $ambiguous_slim_seo_row['meta_id'] ?? null );
+
+					if ( false === $ambiguous_meta_id ) {
+						return $write_result;
+					}
+
+					if ( $ambiguous_meta_id === $operation_owned_meta_id
+						&& ( ! is_string( $ambiguous_slim_seo_row['meta_value'] ?? null )
+							|| ! hash_equals( $operation_owned_raw_value, $ambiguous_slim_seo_row['meta_value'] ) ) ) {
+						// A hook or concurrent writer replaced the inserted bytes, so the row is no longer ours to roll back.
+						$operation_owned_meta_id   = 0;
+						$operation_owned_raw_value = '';
+					}
+				}
+
+				if ( $operation_owned_meta_id > 0
+					&& ! ai4seo_delete_owned_slim_seo_postmeta_row( $operation_owned_meta_id, $post_id, $slim_seo_postmeta_key, $operation_owned_raw_value ) ) {
+					return $write_result;
+				}
+
+				if ( $operation_owned_meta_id <= 0 ) {
+					// Pre-existing duplicate provider rows have no unambiguous WordPress metadata identity.
+					return $write_result;
+				}
+
+				$operation_owned_meta_id   = 0;
+				$operation_owned_raw_value = '';
+				continue;
+			}
+
+			if ( ! $current_slim_seo_rows ) {
+				// A previously owned row disappeared independently, so no cleanup responsibility remains.
+				$operation_owned_meta_id         = 0;
+				$operation_owned_raw_value       = '';
+				$replacement_slim_seo_values     = array( $slim_seo_key => $requested_metadata_value );
+				$write_result['write_attempted'] = true;
+
+				if ( ! $update_filter_was_applied ) {
+					$update_filter_was_applied = true;
+					$update_check              = apply_filters(
+						// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- This intentionally preserves WordPress core's update_post_metadata short-circuit contract.
+						'update_post_metadata',
+						null,
+						$post_id,
+						$slim_seo_postmeta_key,
+						$replacement_slim_seo_values,
+						''
+					);
+
+					if ( null !== $update_check ) {
+						if ( ! $update_check ) {
+							return $write_result;
+						}
+
+						$write_result['write_succeeded']               = true;
+						$write_result['write_reached_requested_state'] = true;
+						return $write_result;
+					}
+				}
+
+				$captured_meta_id        = 0;
+				$captured_raw_meta_value = '';
+				$capture_added_row       = static function ( $meta_id, $object_id, $meta_key, $meta_value ) use ( $post_id, $slim_seo_postmeta_key, &$captured_meta_id, &$captured_raw_meta_value ): void {
+					if ( (int) $object_id !== $post_id || $meta_key !== $slim_seo_postmeta_key || ! is_numeric( $meta_id ) ) {
+						return;
+					}
+
+					$captured_meta_id        = (int) $meta_id;
+					$captured_raw_meta_value = maybe_serialize( $meta_value );
+				};
+
+				// Capture core's exact sanitized insertion payload before later added-post-meta hooks can mutate the row.
+				// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- This temporary observer mirrors WordPress core's added_post_meta action contract.
+				add_action( 'added_post_meta', $capture_added_row, PHP_INT_MIN, 4 );
+
+				try {
+					$added_meta_id = add_post_meta( $post_id, $slim_seo_postmeta_key, $replacement_slim_seo_values, true );
+				} finally {
+					remove_action( 'added_post_meta', $capture_added_row, PHP_INT_MIN );
+				}
+
+				if ( is_int( $added_meta_id ) && $added_meta_id > 0 && $captured_meta_id === $added_meta_id ) {
+					$operation_owned_meta_id   = $captured_meta_id;
+					$operation_owned_raw_value = $captured_raw_meta_value;
+					continue;
+				}
+
+				if ( false !== $added_meta_id ) {
+					// A metadata add short-circuit or unobservable provider insert is authoritative but never rollback-owned.
+					$write_result['write_succeeded']               = true;
+					$write_result['write_reached_requested_state'] = true;
+					return $write_result;
+				}
+
+				if ( $wpdb->last_error ) {
+					ai4seo_debug_message( 146829301, 'Database error: ' . $wpdb->last_error, true );
+					return $write_result;
+				}
+
+				// A concurrent creator can make the unique add lose without a database error; re-read and merge it.
+				continue;
+			}
+
+			$current_slim_seo_row       = $current_slim_seo_rows[0];
+			$current_slim_seo_meta_id   = ai4seo_normalize_database_id( $current_slim_seo_row['meta_id'] ?? null );
+			$current_slim_seo_raw_value = $current_slim_seo_row['meta_value'] ?? null;
+
+			if ( false === $current_slim_seo_meta_id
+				|| ( null !== $current_slim_seo_raw_value && ! is_string( $current_slim_seo_raw_value ) ) ) {
+				return $write_result;
+			}
+
+			if ( $operation_owned_meta_id > 0 && $current_slim_seo_meta_id !== $operation_owned_meta_id ) {
+				// Another actor removed this operation's row and supplied the current stable winner.
+				$operation_owned_meta_id   = 0;
+				$operation_owned_raw_value = '';
+			} elseif ( $operation_owned_meta_id > 0
+				&& ( ! is_string( $current_slim_seo_raw_value )
+					|| ! hash_equals( $operation_owned_raw_value, $current_slim_seo_raw_value ) ) ) {
+				// Never adopt bytes changed by an add hook or another writer as this operation's rollback predicate.
+				$operation_owned_meta_id   = 0;
+				$operation_owned_raw_value = '';
+			}
+
+			$slim_seo_decoding_failed = false;
+			$current_slim_seo_values  = ai4seo_decode_slim_seo_values( $current_slim_seo_raw_value, $slim_seo_decoding_failed );
+
+			if ( $slim_seo_decoding_failed ) {
+				ai4seo_debug_message( 146829302, 'Unsafe or invalid serialized Slim SEO metadata prevented an update.', true );
+				return $write_result;
+			}
+
+			$current_metadata_value = $current_slim_seo_values[ $slim_seo_key ] ?? null;
+
+			if ( $only_if_empty
+				&& $operation_owned_meta_id <= 0
+				&& ! ai4seo_is_third_party_seo_metadata_value_literally_empty( $current_metadata_value ) ) {
+				$write_result['write_succeeded']  = true;
+				$write_result['skipped_existing'] = true;
+				return $write_result;
+			}
+
+			$current_slim_seo_values[ $slim_seo_key ] = $requested_metadata_value;
+			$write_result['write_attempted']          = true;
+
+			if ( ! $update_filter_was_applied ) {
+				$update_filter_was_applied = true;
+				$update_check              = apply_filters(
+					// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- This intentionally preserves WordPress core's update_post_metadata short-circuit contract.
+					'update_post_metadata',
+					null,
+					$post_id,
+					$slim_seo_postmeta_key,
+					$current_slim_seo_values,
+					''
+				);
+
+				if ( null !== $update_check ) {
+					if ( ! $update_check ) {
+						return $write_result;
+					}
+
+					// WordPress treats a truthy short-circuit as the authoritative successful result.
+					$write_result['write_succeeded']               = true;
+					$write_result['write_reached_requested_state'] = true;
+					$operation_owned_meta_id                       = 0;
+					return $write_result;
+				}
+			}
+
+			$meta_subtype                = get_object_subtype( 'post', $post_id );
+			$replacement_slim_seo_values = sanitize_meta( $slim_seo_postmeta_key, $current_slim_seo_values, 'post', $meta_subtype );
+			$replacement_decoding_failed = false;
+			$replacement_slim_seo_values = ai4seo_decode_slim_seo_values( $replacement_slim_seo_values, $replacement_decoding_failed );
+
+			if ( $replacement_decoding_failed || ! $replacement_slim_seo_values ) {
+				return $write_result;
+			}
+
+			$replacement_slim_seo_raw_value = maybe_serialize( $replacement_slim_seo_values );
+
+			if ( $replacement_slim_seo_raw_value === $current_slim_seo_raw_value ) {
+				$write_result['write_succeeded']               = true;
+				$write_result['write_reached_requested_state'] = true;
+				$operation_owned_meta_id                       = 0;
+				return $write_result;
+			}
+
+			$slim_seo_update_bindings = array(
+				'postmeta_table' => ai4seo_database_identifier_binding( 'table.postmeta' ),
+				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- The exact raw value is the compare-and-swap payload and is constrained by primary meta_id, post owner, key, and one-row limit.
+				'meta_value'     => ai4seo_database_scalar_binding( '%s', $replacement_slim_seo_raw_value ),
+				'meta_id'        => ai4seo_database_scalar_binding( '%d', $current_slim_seo_meta_id ),
+				'post_id'        => ai4seo_database_scalar_binding( '%d', $post_id ),
+				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- The exact provider key supplements the primary meta_id identity and post owner in this compare-and-swap.
+				'meta_key'       => ai4seo_database_scalar_binding( '%s', $slim_seo_postmeta_key ),
+				'row_limit'      => ai4seo_database_scalar_binding( '%d', 1 ),
+			);
+
+			if ( null === $current_slim_seo_raw_value ) {
+				$slim_seo_update_query = ai4seo_prepare_database_query(
+					'UPDATE {{postmeta_table}} SET meta_value = {{meta_value}} WHERE meta_id = {{meta_id}} AND post_id = {{post_id}} AND meta_key = {{meta_key}} AND meta_value IS NULL LIMIT {{row_limit}}',
+					$slim_seo_update_bindings
+				);
+			} else {
+				$slim_seo_update_bindings['previous_meta_value'] = ai4seo_database_scalar_binding( '%s', $current_slim_seo_raw_value );
+				$slim_seo_update_query                           = ai4seo_prepare_database_query(
+					'UPDATE {{postmeta_table}} SET meta_value = {{meta_value}} WHERE meta_id = {{meta_id}} AND post_id = {{post_id}} AND meta_key = {{meta_key}} AND BINARY meta_value = BINARY {{previous_meta_value}} LIMIT {{row_limit}}',
+					$slim_seo_update_bindings
+				);
+			}
+
+			if ( false === $slim_seo_update_query ) {
+				return $write_result;
+			}
+
+			// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Direct CAS preserves WordPress core's pre-update metadata hook contract.
+			do_action( 'update_post_meta', $current_slim_seo_meta_id, $post_id, $slim_seo_postmeta_key, $replacement_slim_seo_values );
+			// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Direct CAS preserves WordPress core's legacy pre-update metadata hook contract.
+			do_action( 'update_postmeta', $current_slim_seo_meta_id, $post_id, $slim_seo_postmeta_key, $replacement_slim_seo_raw_value );
+
+			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler binds the stable meta_id, owner, key, and exact raw snapshot; successful writes invalidate WordPress's postmeta cache below.
+			$query_result = $wpdb->query( $slim_seo_update_query );
+
+			if ( false === $query_result || $wpdb->last_error ) {
+				ai4seo_debug_message( 146829301, 'Database error: ' . $wpdb->last_error, true );
+				return $write_result;
+			}
+
+			if ( 1 !== $query_result ) {
+				continue;
+			}
+
+			wp_cache_delete( $post_id, 'post_meta' );
+			// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Direct CAS preserves WordPress core's post-update metadata hook contract after success.
+			do_action( 'updated_post_meta', $current_slim_seo_meta_id, $post_id, $slim_seo_postmeta_key, $replacement_slim_seo_values );
+			// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Direct CAS preserves WordPress core's legacy post-update metadata hook contract after success.
+			do_action( 'updated_postmeta', $current_slim_seo_meta_id, $post_id, $slim_seo_postmeta_key, $replacement_slim_seo_raw_value );
+
+			$write_result['write_succeeded']               = true;
+			$write_result['write_reached_requested_state'] = true;
+			$operation_owned_meta_id                       = 0;
 			return $write_result;
 		}
+	} finally {
+		if ( $operation_owned_meta_id > 0 ) {
+			ai4seo_delete_owned_slim_seo_postmeta_row(
+				$operation_owned_meta_id,
+				$post_id,
+				$slim_seo_postmeta_key,
+				$operation_owned_raw_value
+			);
+		}
 	}
-
-	// Replace only the requested key and persist the complete collection through the shared wrapper.
-	$current_slim_seo_values[ $this_slim_seo_key ] = sanitize_text_field( $metadata_value );
-	$write_result['write_attempted']                = true;
-	$write_result['write_succeeded']                = ai4seo_update_post_meta( $post_id, $slim_seo_postmeta_key, $current_slim_seo_values );
-	$write_result['write_reached_requested_state']  = $write_result['write_succeeded'];
 
 	return $write_result;
 }
 
-// =========================================================================================== \\
 
 /**
  * Checks whether AIOSEO has initialized canonical storage for a post.
@@ -3519,31 +6529,53 @@ function ai4seo_update_active_metadata_for_slim_seo(
  */
 function ai4seo_does_all_in_one_seo_post_row_exist( int $post_id ): bool {
 	global $wpdb;
-	static $row_exists_by_post_id = array();
+	static $row_exists_by_storage_key = array();
 
-	if ( array_key_exists( $post_id, $row_exists_by_post_id ) ) {
-		return $row_exists_by_post_id[ $post_id ];
+	$identifier_registry = ai4seo_get_database_identifier_registry();
+	$aioseo_table_name   = $identifier_registry['table.aioseo_posts'] ?? '';
+	$current_blog_id     = function_exists( 'get_current_blog_id' ) ? get_current_blog_id() : 0;
+
+	if ( ! is_string( $aioseo_table_name ) || '' === $aioseo_table_name ) {
+		return false;
+	}
+
+	$storage_key = $current_blog_id . '|' . $aioseo_table_name . '|' . $post_id;
+
+	if ( array_key_exists( $storage_key, $row_exists_by_storage_key ) ) {
+		return $row_exists_by_storage_key[ $storage_key ];
 	}
 
 	// Read only the canonical identifier because field values are irrelevant to the preflight decision.
-	$aioseo_post_id = $wpdb->get_var(
-		$wpdb->prepare(
-			"SELECT post_id FROM {$wpdb->prefix}aioseo_posts WHERE post_id = %d LIMIT 1",
-			$post_id
+	$query = ai4seo_prepare_database_query(
+		'SELECT post_id FROM {{aioseo_table}} WHERE post_id = {{post_id}} LIMIT 1',
+		array(
+			'aioseo_table' => ai4seo_database_identifier_binding( 'table.aioseo_posts' ),
+			'post_id'      => ai4seo_database_scalar_binding( '%d', $post_id ),
 		)
 	);
+
+	if ( false === $query ) {
+		return false;
+	}
+
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler prepares this provider-table preflight and the request-local static cache immediately below owns reuse; AI for SEO owns no AIOSEO cache.
+	$aioseo_post_id = $wpdb->get_var( $query );
 
 	if ( $wpdb->last_error ) {
 		ai4seo_debug_message( 874321686, 'Database error: ' . $wpdb->last_error, true );
 		return false;
 	}
 
-	$row_exists_by_post_id[ $post_id ] = null !== $aioseo_post_id;
+	if ( null === $aioseo_post_id ) {
+		// A provider may create its canonical row later in the same request, so negative probes remain fresh.
+		return false;
+	}
 
-	return $row_exists_by_post_id[ $post_id ];
+	$row_exists_by_storage_key[ $storage_key ] = true;
+
+	return true;
 }
 
-// =========================================================================================== \\
 
 /**
  * Updates one AIOSEO metadata field in its own table.
@@ -3566,93 +6598,117 @@ function ai4seo_update_active_metadata_for_all_in_one_seo(
 	// Reuse the read-path allowlist so only supported AIOSEO columns can reach the dynamic query.
 	$metadata_identifier_mapping = ai4seo_get_all_in_one_seo_metadata_identifier_mapping();
 
-	$this_aioseo_column_name = $metadata_identifier_mapping[ $metadata_identifier ] ?? '';
+	$aioseo_column_name = $metadata_identifier_mapping[ $metadata_identifier ] ?? '';
 
-	if ( ! $this_aioseo_column_name ) {
+	if ( ! $aioseo_column_name ) {
+		return $write_result;
+	}
+
+	$aioseo_read_query_template = ai4seo_get_all_in_one_seo_metadata_query_template( 'read', $aioseo_column_name );
+
+	if ( ! $aioseo_read_query_template ) {
 		return $write_result;
 	}
 
 	global $wpdb;
 
-	if ( $only_if_empty ) {
-		// The preservation path needs the current value and simultaneously confirms row ownership.
-		$current_aioseo_row = $wpdb->get_row(
-			$wpdb->prepare(
-				'SELECT ' . esc_sql( $this_aioseo_column_name ) . " AS metadata_value FROM {$wpdb->prefix}aioseo_posts WHERE post_id = %d",
-				$post_id
+	$requested_metadata_value = sanitize_text_field( $metadata_value );
+
+	for ( $write_attempt = 0; $write_attempt < 3; ++$write_attempt ) {
+		$aioseo_read_query = ai4seo_prepare_database_query(
+			$aioseo_read_query_template,
+			array(
+				'aioseo_table' => ai4seo_database_identifier_binding( 'table.aioseo_posts' ),
+				'post_id'      => ai4seo_database_scalar_binding( '%d', $post_id ),
 			)
 		);
+
+		if ( false === $aioseo_read_query ) {
+			return $write_result;
+		}
+
+		// Every attempt re-reads the allowlisted column so a lost comparison can merge from current provider state.
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler prepares this current provider-column snapshot; AI for SEO owns no AIOSEO cache.
+		$current_aioseo_row = $wpdb->get_row( $aioseo_read_query, ARRAY_A );
 
 		if ( $wpdb->last_error ) {
 			ai4seo_debug_message( 984321686, 'Database error: ' . $wpdb->last_error, true );
 			return $write_result;
 		}
 
-		// AIOSEO owns row creation; an absent row intentionally becomes a silent synchronization failure.
-		if ( ! is_object( $current_aioseo_row ) || ! property_exists( $current_aioseo_row, 'metadata_value' ) ) {
+		// AIOSEO owns row creation; an absent or malformed row intentionally remains a silent failure.
+		if ( ! is_array( $current_aioseo_row ) || ! array_key_exists( 'metadata_value', $current_aioseo_row ) ) {
 			return $write_result;
 		}
 
-		if ( $current_aioseo_row->metadata_value ) {
+		$current_metadata_value = $current_aioseo_row['metadata_value'];
+
+		if ( null !== $current_metadata_value && ! is_string( $current_metadata_value ) ) {
+			return $write_result;
+		}
+
+		if ( $only_if_empty && ! ai4seo_is_third_party_seo_metadata_value_literally_empty( $current_metadata_value ) ) {
 			$write_result['write_succeeded']  = true;
 			$write_result['skipped_existing'] = true;
 			return $write_result;
 		}
-	} elseif ( ! ai4seo_does_all_in_one_seo_post_row_exist( $post_id ) ) {
-		return $write_result;
+
+		$write_result['write_attempted'] = true;
+
+		if ( $requested_metadata_value === $current_metadata_value ) {
+			$write_result['write_succeeded']               = true;
+			$write_result['write_reached_requested_state'] = true;
+			return $write_result;
+		}
+
+		$update_operation             = null === $current_metadata_value ? 'update-null' : 'update-value';
+		$aioseo_update_query_template = ai4seo_get_all_in_one_seo_metadata_query_template( $update_operation, $aioseo_column_name );
+
+		if ( ! $aioseo_update_query_template ) {
+			return $write_result;
+		}
+
+		$aioseo_update_bindings = array(
+			'aioseo_table'   => ai4seo_database_identifier_binding( 'table.aioseo_posts' ),
+			'metadata_value' => ai4seo_database_scalar_binding( '%s', $requested_metadata_value ),
+			'post_id'        => ai4seo_database_scalar_binding( '%d', $post_id ),
+		);
+
+		if ( null !== $current_metadata_value ) {
+			$aioseo_update_bindings['previous_metadata_value'] = ai4seo_database_scalar_binding( '%s', $current_metadata_value );
+		}
+
+		$aioseo_update_bindings['row_limit'] = ai4seo_database_scalar_binding( '%d', 1 );
+		$aioseo_update_query                 = ai4seo_prepare_database_query( $aioseo_update_query_template, $aioseo_update_bindings );
+
+		if ( false === $aioseo_update_query ) {
+			return $write_result;
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler binds the stable provider row identity and exact prior column bytes; a zero-row comparison miss is retried from current storage.
+		$query_result = $wpdb->query( $aioseo_update_query );
+
+		if ( false === $query_result || $wpdb->last_error ) {
+			ai4seo_debug_message( 984321687, 'Database error: ' . $wpdb->last_error, true );
+			return $write_result;
+		}
+
+		if ( 1 === $query_result ) {
+			$write_result['write_succeeded']               = true;
+			$write_result['write_reached_requested_state'] = true;
+			return $write_result;
+		}
 	}
-
-	// Sanitize and write only the allowlisted column selected by the fixed identifier mapping above.
-	$requested_metadata_value        = sanitize_text_field( $metadata_value );
-	$write_result['write_attempted'] = true;
-	$query_result                    = $wpdb->query(
-		$wpdb->prepare(
-			"UPDATE {$wpdb->prefix}aioseo_posts SET " . esc_sql( $this_aioseo_column_name ) . ' = %s WHERE post_id = %d',
-			$requested_metadata_value,
-			$post_id
-		)
-	);
-
-	if ( false === $query_result || $wpdb->last_error ) {
-		ai4seo_debug_message( 984321687, 'Database error: ' . $wpdb->last_error, true );
-		return $write_result;
-	}
-
-	// A positive affected-row count proves the requested column value was written.
-	if ( $query_result > 0 ) {
-		$write_result['write_succeeded']               = true;
-		$write_result['write_reached_requested_state'] = true;
-		return $write_result;
-	}
-
-	// A zero-row result requires readback to distinguish idempotence from an absent row.
-	$latest_metadata_row = $wpdb->get_row(
-		$wpdb->prepare(
-			'SELECT ' . esc_sql( $this_aioseo_column_name ) . " AS metadata_value FROM {$wpdb->prefix}aioseo_posts WHERE post_id = %d",
-			$post_id
-		)
-	);
-
-	if ( $wpdb->last_error ) {
-		ai4seo_debug_message( 984321689, 'Database error: ' . $wpdb->last_error, true );
-		return $write_result;
-	}
-
-	$write_result['write_succeeded'] = is_object( $latest_metadata_row )
-		&& property_exists( $latest_metadata_row, 'metadata_value' )
-		&& $requested_metadata_value === (string) $latest_metadata_row->metadata_value;
-	$write_result['write_reached_requested_state'] = $write_result['write_succeeded'];
 
 	return $write_result;
 }
 
 
-// =========================================================================================== \\
 
 /**
  * Returns the language of a post / page / product
  *
- * @param int $post_id the post id
+ * @param int $post_id the post id.
  * @return string the language of the post
  */
 function ai4seo_get_posts_language( int $post_id ): string {
@@ -3680,7 +6736,6 @@ function ai4seo_get_posts_language( int $post_id ): string {
 	return $metadata_generation_language;
 }
 
-// =========================================================================================== \\
 
 /**
  * Retrieves the active meta tags
@@ -3702,8 +6757,13 @@ function ai4seo_get_active_meta_tags(): array {
 	return $active_meta_tags;
 }
 
-// =========================================================================================== \\
 
+/**
+ * Return display names for active metadata fields.
+ *
+ * @param array|null $active_meta_tags Optional active metadata identifiers.
+ * @return array Active metadata field display names.
+ */
 function ai4seo_get_active_meta_tags_names( $active_meta_tags = null ): array {
 	if ( null === $active_meta_tags ) {
 		$active_meta_tags = ai4seo_get_active_meta_tags();
@@ -3712,7 +6772,7 @@ function ai4seo_get_active_meta_tags_names( $active_meta_tags = null ): array {
 	$active_meta_tags_names = array();
 
 	foreach ( AI4SEO_METADATA_DETAILS as $ai4seo_this_metadata_identifier => $ai4seo_this_metadata_details ) {
-		if ( in_array( $ai4seo_this_metadata_identifier, $active_meta_tags ) && isset( $ai4seo_this_metadata_details['name'] ) ) {
+		if ( in_array( $ai4seo_this_metadata_identifier, $active_meta_tags, true ) && isset( $ai4seo_this_metadata_details['name'] ) ) {
 			$active_meta_tags_names[] = $ai4seo_this_metadata_details['name'];
 		}
 	}

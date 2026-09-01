@@ -3,6 +3,7 @@
  * Called via AJAX.
  * Generates metadata through our RobHub API for a post and returns it as JSON.
  *
+ * @package AI_For_SEO
  * @since 1.0
  */
 
@@ -10,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! ai4seo_can_manage_this_plugin() ) {
+if ( ! ai4seo_can_use_plugin_content() ) {
 	return;
 }
 
@@ -77,6 +78,13 @@ if ( ! is_array( $ai4seo_generation_fields ) || count( $ai4seo_generation_fields
 	ai4seo_send_ajax_error( esc_html__( 'Generation fields are invalid.', 'ai-for-seo' ), 1613301025 );
 }
 
+// Canonicalize submitted identifiers before exact membership checks against the active metadata list.
+$ai4seo_generation_fields = ai4seo_normalize_metadata_identifier_list( $ai4seo_generation_fields );
+
+if ( ! $ai4seo_generation_fields ) {
+	ai4seo_send_ajax_error( esc_html__( 'Generation fields are invalid.', 'ai-for-seo' ), 1613301025 );
+}
+
 
 // === CHECK PARAMETER: OLD VALUES =========================================================== \\
 
@@ -96,10 +104,26 @@ $ai4seo_entry_custom_instructions = ai4seo_get_generation_entry_custom_instructi
 
 // === PREPARE ADDITIONAL DETAILS ========================================================= \\
 
-$ai4seo_active_meta_tags = ai4seo_get_active_meta_tags();
+// Normalize the configured identifiers at this request boundary before building field instructions.
+$ai4seo_active_meta_tags = ai4seo_normalize_metadata_identifier_list( ai4seo_get_active_meta_tags() );
 
 if ( ! $ai4seo_active_meta_tags ) {
 	ai4seo_send_ajax_error( esc_html__( 'No active meta tags found.', 'ai-for-seo' ), 3711221025 );
+}
+
+// Retain requested fields only when they are currently active, preserving their submitted order.
+$ai4seo_requested_active_meta_tags = array();
+
+foreach ( $ai4seo_generation_fields as $ai4seo_this_generation_field ) {
+	if ( in_array( $ai4seo_this_generation_field, $ai4seo_active_meta_tags, true ) ) {
+		$ai4seo_requested_active_meta_tags[] = $ai4seo_this_generation_field;
+	}
+}
+
+$ai4seo_generation_fields = $ai4seo_requested_active_meta_tags;
+
+if ( ! $ai4seo_generation_fields ) {
+	ai4seo_send_ajax_error( esc_html__( 'Generation fields are invalid.', 'ai-for-seo' ), 1613301025 );
 }
 
 
@@ -160,24 +184,24 @@ if ( $ai4seo_post_permalink ) {
 $ai4seo_field_instructions       = array();
 $ai4seo_metadata_prefixes        = ai4seo_get_setting( AI4SEO_SETTING_METADATA_PREFIXES );
 $ai4seo_metadata_suffixes        = ai4seo_get_setting( AI4SEO_SETTING_METADATA_SUFFIXES );
-$ai4seo_placeholder_replacements = ai4seo_get_metadata_placeholder_replacements( $ai4seo_post_id );
+$ai4seo_placeholder_replacements = ai4seo_get_metadata_output_placeholder_replacements( $ai4seo_post_id );
 
 // Resolve the title placeholder after common placeholders so RobHub receives final affixes for length budgeting.
 $ai4seo_post_title_for_placeholders = sanitize_text_field( get_the_title( $ai4seo_post_id ) );
 
 foreach ( $ai4seo_active_meta_tags as $ai4seo_this_active_meta_tag ) {
-	$ai4seo_this_to_generate = in_array( $ai4seo_this_active_meta_tag, $ai4seo_generation_fields );
+	$ai4seo_this_to_generate = in_array( $ai4seo_this_active_meta_tag, $ai4seo_generation_fields, true );
 	$ai4seo_this_old_value   = $ai4seo_old_input_values[ $ai4seo_this_active_meta_tag ] ?? '';
 
 	// Normalize client context and reject unresolved third-party templates before building RobHub instructions.
-	$ai4seo_this_old_value   = is_scalar( $ai4seo_this_old_value ) ? (string) $ai4seo_this_old_value : '';
-	$ai4seo_this_old_value   = ai4seo_prepare_third_party_seo_metadata_value_for_generation_context(
+	$ai4seo_this_old_value = is_scalar( $ai4seo_this_old_value ) ? (string) $ai4seo_this_old_value : '';
+	$ai4seo_this_old_value = ai4seo_prepare_third_party_seo_metadata_value_for_generation_context(
 		$ai4seo_this_old_value,
 		$ai4seo_post_id,
 		$ai4seo_this_active_meta_tag
 	);
-	$ai4seo_this_prefix      = $ai4seo_metadata_prefixes[ $ai4seo_this_active_meta_tag ] ?? '';
-	$ai4seo_this_suffix      = $ai4seo_metadata_suffixes[ $ai4seo_this_active_meta_tag ] ?? '';
+	$ai4seo_this_prefix    = $ai4seo_metadata_prefixes[ $ai4seo_this_active_meta_tag ] ?? '';
+	$ai4seo_this_suffix    = $ai4seo_metadata_suffixes[ $ai4seo_this_active_meta_tag ] ?? '';
 
 	if ( ! $ai4seo_this_to_generate && ! $ai4seo_this_old_value ) {
 		continue;

@@ -1,7 +1,8 @@
 <?php
 /**
- * AJAX handler for exporting settings
+ * AJAX handler for exporting settings.
  *
+ * @package AI_For_SEO
  * @since 2.1.0
  */
 
@@ -10,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Check user permissions.
-if ( ! ai4seo_can_manage_this_plugin() ) {
+if ( ! ai4seo_can_administer_plugin() ) {
 	return;
 }
 

@@ -4,7 +4,7 @@ Contributors: spacecodes
 Donate link: https://spa.ce.codes
 Requires at least: 6.6
 Tested up to: 7.1
-Stable tag: 2.5.0
+Stable tag: 2.5.1
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -225,6 +225,13 @@ It depends on how the generated data is stored and used. If *SOOZ - AI for SEO* 
 We welcome feature requests, editor integration ideas, page builder compatibility requests, and SEO workflow feedback. Please email [support@sooz.ai](mailto:support@sooz.ai) with your suggestions.
 
 == Changelog ==
+
+= 2.5.1 =
+* Added direct SOOZ metadata-editor controls for Elementor and the WordPress Block Editor, with more reliable initialization for dynamically loaded editor fields.
+* Added AVIF support for media attribute generation, including automatic preparation of compatible image data.
+* Improved media attribute saving and coverage tracking so valid existing image text stays intact and complete entries are recognized reliably.
+* Improved role-based access so permitted editors can use SOOZ only for content they are allowed to edit.
+* Bug Fixes & Maintenance: Fixed 5 minor bugs, implemented 1 performance improvement, and addressed 2 security issues.
 
 = 2.5.0 =
 * Added preview-first Metadata and Media Attributes editors with responsive Google, social, keyword, accessibility, and media appearance previews, field-specific edit shortcuts, and live quality guidance.

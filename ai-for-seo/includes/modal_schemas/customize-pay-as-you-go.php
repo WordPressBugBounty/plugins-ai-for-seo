@@ -2,6 +2,7 @@
 /**
  * Modal Schema: Represents the Customize Pay-As-You-Go modal.
  *
+ * @package AI_For_SEO
  * @since 2.0
  */
 
@@ -9,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! ai4seo_can_manage_this_plugin() ) {
+if ( ! ai4seo_can_administer_plugin() ) {
 	return;
 }
 
@@ -19,42 +20,60 @@ if ( ! ai4seo_can_manage_this_plugin() ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 
-$ai4seo_preferred_currency           = ai4seo_deep_sanitize( ai4seo_get_setting( AI4SEO_SETTING_PREFERRED_CURRENCY ) );
-$ai4seo_preferred_currency_lowercase = strtolower( $ai4seo_preferred_currency );
+$ai4seo_preferred_currency       = strtolower( ai4seo_deep_sanitize( ai4seo_get_setting( AI4SEO_SETTING_PREFERRED_CURRENCY ) ) );
+$ai4seo_used_currency            = $ai4seo_preferred_currency;
+$ai4seo_used_currency_uppercase  = strtoupper( $ai4seo_used_currency );
+$ai4seo_is_payg_enabled          = (bool) ai4seo_get_setting( AI4SEO_SETTING_PAYG_ENABLED );
+$ai4seo_payg_unavailable_message = '';
 
-if ( in_array( $ai4seo_preferred_currency_lowercase, array( 'usd', 'eur' ) ) ) {
-	$ai4seo_used_currency = $ai4seo_preferred_currency_lowercase;
+if ( ! in_array( $ai4seo_used_currency, array( 'usd', 'eur' ), true ) ) {
+	$ai4seo_payg_unavailable_message = sprintf(
+		/* translators: 1: Account billing currency. 2: Supported Pay-As-You-Go currencies. */
+		esc_html__( 'Pay-As-You-Go cannot be enabled or updated while your billing currency is %1$s. Automatic refill pricing is currently available only in %2$s.', 'ai-for-seo' ),
+		'<strong>' . esc_html( $ai4seo_used_currency_uppercase ) . '</strong>',
+		'<strong>' . esc_html__( 'USD or EUR', 'ai-for-seo' ) . '</strong>'
+	);
 } else {
-	// todo: use exchange rates to convert prices to other currencies
-	// fallback to usd for now.
-	$ai4seo_used_currency = 'usd';
-}
+	$ai4seo_payg_stripe_price_id   = ai4seo_deep_sanitize( ai4seo_get_setting( AI4SEO_SETTING_PAYG_STRIPE_PRICE_ID ) );
+	$ai4seo_payg_daily_budget      = (float) ai4seo_get_setting( AI4SEO_SETTING_PAYG_DAILY_BUDGET );
+	$ai4seo_payg_monthly_budget    = (float) ai4seo_get_setting( AI4SEO_SETTING_PAYG_MONTHLY_BUDGET );
+	$ai4seo_credits_packs          = ai4seo_get_credits_packs();
+	$ai4seo_credits_pack_price_key = "price_{$ai4seo_used_currency}";
 
-$ai4seo_used_currency_uppercase = strtoupper( $ai4seo_preferred_currency );
+	// Only offer packs denominated in the account currency because the API enforces budgets in that currency.
+	$ai4seo_credits_packs = array_filter(
+		$ai4seo_credits_packs,
+		static function ( array $ai4seo_credits_pack_entry ) use ( $ai4seo_credits_pack_price_key ): bool {
+			return isset( $ai4seo_credits_pack_entry[ $ai4seo_credits_pack_price_key ] );
+		}
+	);
 
-$ai4seo_is_payg_enabled      = (bool) ai4seo_get_setting( AI4SEO_SETTING_PAYG_ENABLED );
-$ai4seo_payg_stripe_price_id = ai4seo_deep_sanitize( ai4seo_get_setting( AI4SEO_SETTING_PAYG_STRIPE_PRICE_ID ) );
-$ai4seo_payg_daily_budget    = (float) ai4seo_get_setting( AI4SEO_SETTING_PAYG_DAILY_BUDGET );
-$ai4seo_payg_monthly_budget  = (float) ai4seo_get_setting( AI4SEO_SETTING_PAYG_MONTHLY_BUDGET );
-$ai4seo_credits_packs        = ai4seo_get_credits_packs();
+	if ( ! $ai4seo_credits_packs ) {
+		$ai4seo_payg_unavailable_message = sprintf(
+			/* translators: %s: Account billing currency. */
+			esc_html__( 'Pay-As-You-Go is temporarily unavailable because no automatic refill prices are available in %s.', 'ai-for-seo' ),
+			'<strong>' . esc_html( $ai4seo_used_currency_uppercase ) . '</strong>'
+		);
+	} else {
+		// Default to the first same-currency entry if the saved pack is unavailable.
+		if ( ! isset( $ai4seo_credits_packs[ $ai4seo_payg_stripe_price_id ] ) ) {
+			$ai4seo_payg_stripe_price_id = (string) array_key_first( $ai4seo_credits_packs );
+		}
 
-// default to first entry if not found.
-if ( ! isset( $ai4seo_credits_packs[ $ai4seo_payg_stripe_price_id ] ) ) {
-	$ai4seo_payg_stripe_price_id = array_keys( $ai4seo_credits_packs )[0];
-}
+		$ai4seo_selected_credits_pack_entry = $ai4seo_credits_packs[ $ai4seo_payg_stripe_price_id ];
 
-$ai4seo_selected_credits_pack_entry = $ai4seo_credits_packs[ $ai4seo_payg_stripe_price_id ];
+		$ai4seo_credits_pack_discounted_price = (float) $ai4seo_selected_credits_pack_entry[ $ai4seo_credits_pack_price_key ];
+		$ai4seo_credits_pack_original_price   = (float) $ai4seo_selected_credits_pack_entry[ $ai4seo_credits_pack_price_key ];
 
-$ai4seo_credits_pack_discounted_price = $ai4seo_selected_credits_pack_entry['price_usd'];
-$ai4seo_credits_pack_original_price   = $ai4seo_selected_credits_pack_entry['price_usd'];
+		// Default values for daily and monthly budget.
+		if ( ! $ai4seo_payg_daily_budget ) {
+			$ai4seo_payg_daily_budget = ceil( $ai4seo_credits_pack_original_price * 3 );
+		}
 
-// default values for daily and monthly budget.
-if ( ! $ai4seo_payg_daily_budget ) {
-	$ai4seo_payg_daily_budget = ceil( $ai4seo_credits_pack_original_price * 3 );
-}
-
-if ( ! $ai4seo_payg_monthly_budget ) {
-	$ai4seo_payg_monthly_budget = ceil( $ai4seo_credits_pack_original_price * 10 );
+		if ( ! $ai4seo_payg_monthly_budget ) {
+			$ai4seo_payg_monthly_budget = ceil( $ai4seo_credits_pack_original_price * 10 );
+		}
+	}
 }
 
 
@@ -72,6 +91,23 @@ echo '</div>';
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 echo "<div class='ai4seo-modal-schema-content'>";
+
+if ( $ai4seo_payg_unavailable_message ) {
+	echo "<div id='ai4seo-payg-unavailable'>";
+		ai4seo_echo_wp_kses( $ai4seo_payg_unavailable_message );
+	echo '</div>';
+	echo '</div>';
+
+	echo "<div class='ai4seo-modal-schema-footer'>";
+		ai4seo_echo_wp_kses( ai4seo_get_modal_close_button_tag() );
+
+	if ( $ai4seo_is_payg_enabled ) {
+		ai4seo_echo_wp_kses( ai4seo_get_button_tag( esc_html__( 'Disable', 'ai-for-seo' ), 'ai4seo-abort-button ai4seo-gap-left', 'ai4seo_disable_payg(this);' ) );
+	}
+
+	echo '</div>';
+	return;
+}
 
 	// form description.
 if ( $ai4seo_is_payg_enabled ) {
@@ -102,8 +138,8 @@ if ( $ai4seo_is_payg_enabled ) {
 					echo "<select name='" . esc_attr( $ai4seo_this_prefixed_input_id ) . "' id='" . esc_attr( $ai4seo_this_prefixed_input_id ) . "' onchange='ai4seo_handle_payg_form_change();'/>";
 
 			foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_this_credits_pack_entry ) {
-				if ( isset( $ai4seo_this_credits_pack_entry[ "price_{$ai4seo_used_currency}" ] ) ) {
-					$ai4seo_this_price = $ai4seo_this_credits_pack_entry[ "price_{$ai4seo_used_currency}" ];
+				if ( isset( $ai4seo_this_credits_pack_entry[ $ai4seo_credits_pack_price_key ] ) ) {
+					$ai4seo_this_price = $ai4seo_this_credits_pack_entry[ $ai4seo_credits_pack_price_key ];
 				} else {
 					// skip this entry if price for the selected currency is not available.
 					continue;
@@ -187,6 +223,23 @@ if ( $ai4seo_is_payg_enabled ) {
 
 			// === SUMMARY ================================================================================= \\
 
+			// Build the optional reference price separately so the translated summary receives one price fragment.
+			$ai4seo_payg_summary_reference_price_html = '';
+
+			if ( $ai4seo_credits_pack_original_price !== $ai4seo_credits_pack_discounted_price ) {
+				$ai4seo_payg_summary_reference_price_html = "<span class='ai4seo-payg-reference-price'>"
+					. esc_html( $ai4seo_used_currency_uppercase )
+					. " <span id='ai4seo-payg-summary-reference-price'>"
+					. esc_html( ai4seo_format_number_i18n( $ai4seo_credits_pack_original_price, 2 ) )
+					. '</span></span> ';
+			}
+
+			$ai4seo_payg_summary_price_html = $ai4seo_payg_summary_reference_price_html
+				. '<strong>' . esc_html( $ai4seo_used_currency_uppercase )
+				. " <span id='ai4seo-payg-summary-price'>"
+				. esc_html( ai4seo_format_number_i18n( $ai4seo_credits_pack_discounted_price, 2 ) )
+				. '</span></strong>';
+
 			echo "<div class='ai4seo-pay-as-you-go-summary-container'>";
 			echo '<h3>' . esc_html__( 'Summary', 'ai-for-seo' ) . '</h3>';
 			echo '<ol>';
@@ -195,8 +248,8 @@ if ( $ai4seo_is_payg_enabled ) {
 						/* translators: 1: Credits purchased per refill. 2: Price per refill. 3: Threshold to trigger refill. */
 						esc_html__( 'I will automatically purchase %1$s Credits for %2$s whenever the Credits balance falls below %3$s Credits.', 'ai-for-seo' ),
 						"<strong><span id='ai4seo-payg-summary-credits-amount'>" . esc_html( ai4seo_format_number_i18n( $ai4seo_credits_packs[ $ai4seo_payg_stripe_price_id ]['credits_amount'] ?? 0 ) ) . '</span></strong>',
-						( $ai4seo_credits_pack_original_price != $ai4seo_credits_pack_discounted_price ? "<span class='ai4seo-payg-reference-price'>" . esc_html( $ai4seo_used_currency_uppercase ) . " <span id='ai4seo-payg-summary-reference-price'>" . esc_html( ai4seo_format_number_i18n( $ai4seo_credits_pack_original_price, 2 ) ) . '</span></span> ' : '' ) .
-						'<strong>' . esc_html( $ai4seo_used_currency_uppercase ) . " <span id='ai4seo-payg-summary-price'>" . esc_html( ai4seo_format_number_i18n( $ai4seo_credits_pack_discounted_price, 2 ) ) . '</span></strong>',
+						// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Built from fixed markup and individually escaped values above.
+						$ai4seo_payg_summary_price_html,
 						"<strong><span id='ai4seo-payg-summary-threshold'>" . esc_html( ai4seo_format_number_i18n( AI4SEO_PAYG_CREDITS_THRESHOLD ) ) . '</span></strong>',
 					);
 					echo '</li>';

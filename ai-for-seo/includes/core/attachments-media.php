@@ -1,4 +1,10 @@
 <?php
+/**
+ * Handles attachment and media discovery, validation, and generation.
+ *
+ * @package AI_For_SEO
+ */
+
 // Keep extracted core modules inaccessible when WordPress has not loaded the plugin environment.
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -7,6 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // region ATTACHMENTS / MEDIA =================================================================== \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- This CAS deliberately mirrors WordPress core's public metadata filter/action lifecycle.
 /**
  * Build constant attachment data used by the client-side Media Attributes previews.
  *
@@ -63,6 +70,54 @@ function ai4seo_get_attachment_editor_preview_context(
 
 // End attachment preview-context construction before the existing media utilities begin.
 
+/**
+ * Format an attachment upload time from its WordPress date values.
+ *
+ * @param string $post_date_gmt   Attachment post_date_gmt value.
+ * @param string $timezone        Timezone identifier or 'auto'.
+ * @param string $post_date_local Optional attachment post_date fallback.
+ * @return string Formatted upload time, or an empty string when unavailable.
+ */
+function ai4seo_get_attachment_upload_time_display( string $post_date_gmt, string $timezone = 'auto', string $post_date_local = '' ): string {
+	$post_date_gmt    = trim( $post_date_gmt );
+	$display_timezone = ai4seo_get_timezone( $timezone );
+
+	if ( ai4seo_is_valid_mysql_datetime( $post_date_gmt ) ) {
+		// Interpret the database field explicitly as UTC so display timezones are applied exactly once.
+		$upload_timestamp = strtotime( $post_date_gmt . ' UTC' );
+	} elseif ( '' === $post_date_gmt || '0000-00-00 00:00:00' === $post_date_gmt ) {
+		$post_date_local = trim( $post_date_local );
+
+		// Recover legacy rows only from an exact local WordPress date in the resolved site timezone.
+		if ( ! ai4seo_is_valid_mysql_datetime( $post_date_local ) ) {
+			return '';
+		}
+
+		$local_datetime = DateTimeImmutable::createFromFormat( '!Y-m-d H:i:s', $post_date_local, $display_timezone );
+
+		if ( false === $local_datetime || $post_date_local !== $local_datetime->format( 'Y-m-d H:i:s' ) ) {
+			return '';
+		}
+
+		$upload_timestamp = $local_datetime->getTimestamp();
+	} else {
+		// A malformed non-zero GMT value is corrupt data, not a missing value eligible for fallback.
+		return '';
+	}
+
+	if ( false === $upload_timestamp ) {
+		return '';
+	}
+
+	return ai4seo_format_unix_timestamp( $upload_timestamp, 'auto', 'auto', ' ', $display_timezone->getName() );
+}
+
+/**
+ * Return the normalized MIME type for an attachment post.
+ *
+ * @param int $attachment_post_id Attachment post ID.
+ * @return string|null Normalized MIME type, an empty string when unavailable, or null for an invalid post.
+ */
 function ai4seo_get_attachment_post_mime_type( $attachment_post_id ): ?string {
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 373146404, 'Prevented loop', true );
@@ -90,8 +145,13 @@ function ai4seo_get_attachment_post_mime_type( $attachment_post_id ): ?string {
 	return ai4seo_get_mime_type_from_url( $attachment_url );
 }
 
-// =========================================================================================== \\
 
+/**
+ * Return the URL or GUID associated with an attachment-like post.
+ *
+ * @param int $attachment_post_id Attachment post ID.
+ * @return string|null Attachment URL, or null when the post is unavailable.
+ */
 function ai4seo_get_attachment_url( $attachment_post_id ): ?string {
 	$attachment_post = get_post( $attachment_post_id );
 
@@ -110,7 +170,6 @@ function ai4seo_get_attachment_url( $attachment_post_id ): ?string {
 	return $ai4seo_attachment_url;
 }
 
-// =========================================================================================== \\
 
 /**
  * Get the best available attachment source.
@@ -144,7 +203,8 @@ function ai4seo_get_best_attachment_source( int $attachment_post_id ): ?array {
 			return null;
 		}
 
-		$response = wp_remote_head(
+		// Offloaded attachment URLs may be external, so probe them through WordPress's SSRF-safe transport.
+		$response = wp_safe_remote_head(
 			$attachment_url,
 			array(
 				'timeout'     => 10,
@@ -152,14 +212,23 @@ function ai4seo_get_best_attachment_source( int $attachment_post_id ): ?array {
 			)
 		);
 
-		if ( is_wp_error( $response ) ) {
-			$response = wp_remote_get(
+		$should_use_range_get = is_wp_error( $response );
+
+		if ( ! $should_use_range_get ) {
+			$head_response_code   = (int) wp_remote_retrieve_response_code( $response );
+			$should_use_range_get = in_array( $head_response_code, array( 403, 405, 501 ), true );
+		}
+
+		if ( $should_use_range_get ) {
+			// Some storage providers reject HEAD; a one-byte safe GET checks reachability without fetching the file.
+			$response = wp_safe_remote_get(
 				$attachment_url,
 				array(
-					'timeout'     => 10,
-					'redirection' => 3,
-					'stream'      => false,
-					'headers'     => array(
+					'timeout'             => 10,
+					'redirection'         => 3,
+					'stream'              => false,
+					'limit_response_size' => 1,
+					'headers'             => array(
 						'Range' => 'bytes=0-0',
 					),
 				)
@@ -185,16 +254,18 @@ function ai4seo_get_best_attachment_source( int $attachment_post_id ): ?array {
 	return null;
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to read and analyze the attachment attributes coverage of the given attachment ids (post ids)
  *
- * @param int|array $attachment_post_ids The post ids of the attachments we want to analyze
+ * @param int|array $attachment_post_ids The post ids of the attachments we want to analyze.
+ * @param bool|null $read_succeeded Receives whether every authoritative read succeeded.
  * @return array
  */
-function ai4seo_read_and_analyse_attachment_attributes_coverage( $attachment_post_ids ): array {
+function ai4seo_read_and_analyse_attachment_attributes_coverage( $attachment_post_ids, ?bool &$read_succeeded = null ): array {
 	global $wpdb;
+
+	$read_succeeded = false;
 
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 898193802, 'Prevented loop', true );
@@ -211,6 +282,7 @@ function ai4seo_read_and_analyse_attachment_attributes_coverage( $attachment_pos
 
 	// bail on empty or invalid IDs.
 	if ( empty( $attachment_post_ids ) ) {
+		$read_succeeded = true;
 		return $attachment_attributes_coverage;
 	}
 
@@ -227,6 +299,7 @@ function ai4seo_read_and_analyse_attachment_attributes_coverage( $attachment_pos
 	$active_attachment_attributes = ai4seo_get_active_attachment_attributes();
 
 	if ( ! $active_attachment_attributes ) {
+		$read_succeeded = true;
 		return $attachment_attributes_coverage;
 	}
 
@@ -242,21 +315,31 @@ function ai4seo_read_and_analyse_attachment_attributes_coverage( $attachment_pos
 				continue;
 			}
 
-			$this_attachment_post_ids_placeholders = implode( ',', array_fill( 0, count( $this_attachment_post_ids_chunk ), '%d' ) );
-
-			$attachment_posts = $wpdb->get_results(
-				$wpdb->prepare(
-					"SELECT ID, post_title, post_excerpt, post_content, guid
-                     FROM {$wpdb->posts}
-                     WHERE ID IN ({$this_attachment_post_ids_placeholders})",
-					$this_attachment_post_ids_chunk
-				),
-				ARRAY_A
+			$attachment_posts_query = ai4seo_prepare_database_query(
+				'SELECT ID, post_title, post_excerpt, post_content, guid
+				FROM {{posts_table}}
+				WHERE ID IN ({{post_ids}})',
+				array(
+					'posts_table' => ai4seo_database_identifier_binding( 'table.posts' ),
+					'post_ids'    => ai4seo_database_list_binding( '%d', array_values( $this_attachment_post_ids_chunk ) ),
+				)
 			);
+
+			if ( false === $attachment_posts_query ) {
+				ai4seo_debug_message( 984321663, 'Could not prepare the attachment coverage query.', true );
+				return array();
+			}
+
+			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler prepared the bounded attachment-ID batch; coverage must reflect current post fields before generation decisions.
+			$attachment_posts = $wpdb->get_results( $attachment_posts_query, ARRAY_A );
 
 			// on error.
 			if ( $wpdb->last_error ) {
 				ai4seo_debug_message( 984321663, 'Database error: ' . $wpdb->last_error, true );
+				return array();
+			}
+
+			if ( ! is_array( $attachment_posts ) ) {
 				return array();
 			}
 
@@ -265,23 +348,39 @@ function ai4seo_read_and_analyse_attachment_attributes_coverage( $attachment_pos
 			}
 
 			foreach ( $attachment_posts as $this_attachment_post ) {
-				$this_attachment_post_id = absint( $this_attachment_post['ID'] );
+				if ( ! is_array( $this_attachment_post ) || ! array_key_exists( 'ID', $this_attachment_post ) ) {
+					return array();
+				}
+
+				$this_attachment_post_id = ai4seo_normalize_database_id( $this_attachment_post['ID'] );
+
+				if ( false === $this_attachment_post_id || ! isset( $attachment_attributes_coverage[ $this_attachment_post_id ] ) ) {
+					return array();
+				}
 
 				if ( in_array( 'title', $active_attachment_attributes, true ) ) {
+					if ( ! array_key_exists( 'post_title', $this_attachment_post ) ) {
+						return array();
+					}
+
 					$attachment_attributes_coverage[ $this_attachment_post_id ]['title'] = $this_attachment_post['post_title'];
 				}
 
 				if ( in_array( 'caption', $active_attachment_attributes, true ) ) {
+					if ( ! array_key_exists( 'post_excerpt', $this_attachment_post ) ) {
+						return array();
+					}
+
 					$attachment_attributes_coverage[ $this_attachment_post_id ]['caption'] = $this_attachment_post['post_excerpt'];
 				}
 
 				if ( in_array( 'description', $active_attachment_attributes, true ) ) {
+					if ( ! array_key_exists( 'post_content', $this_attachment_post ) ) {
+						return array();
+					}
+
 					$attachment_attributes_coverage[ $this_attachment_post_id ]['description'] = $this_attachment_post['post_content'];
 				}
-
-				// file-name if needed in the future:
-				// $file_name = substr( $attachment_post['guid'], strrpos( $attachment_post['guid'], '/' ) + 1 );
-				// $attachment_attributes_coverage[ $this_id ]['file-name'] = $file_name;.
 			}
 		}
 	}
@@ -294,19 +393,30 @@ function ai4seo_read_and_analyse_attachment_attributes_coverage( $attachment_pos
 				continue;
 			}
 
-			$this_post_ids_placeholders = implode( ',', array_fill( 0, count( $this_post_ids_chunk ), '%d' ) );
-
-			$this_attachment_postmetas = $wpdb->get_results(
-				$wpdb->prepare(
-					"SELECT post_id, meta_value FROM {$wpdb->postmeta} WHERE meta_key = %s AND post_id IN ({$this_post_ids_placeholders})",
-					...array_merge( array( '_wp_attachment_image_alt' ), $this_post_ids_chunk )
-				),
-				ARRAY_A
+			$attachment_postmeta_query = ai4seo_prepare_database_query(
+				'SELECT post_id, meta_value FROM {{postmeta_table}} WHERE meta_key = {{meta_key}} AND post_id IN ({{post_ids}})',
+				array(
+					'postmeta_table' => ai4seo_database_identifier_binding( 'table.postmeta' ),
+					'meta_key'       => ai4seo_database_scalar_binding( '%s', '_wp_attachment_image_alt' ), // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- The indexed exact key is paired with a bounded attachment-ID batch.
+					'post_ids'       => ai4seo_database_list_binding( '%d', array_values( $this_post_ids_chunk ) ),
+				)
 			);
+
+			if ( false === $attachment_postmeta_query ) {
+				ai4seo_debug_message( 984321664, 'Could not prepare the attachment alt-text coverage query.', true );
+				return array();
+			}
+
+			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler prepared the bounded key/attachment-ID batch; coverage must reflect current alt text before generation decisions.
+			$this_attachment_postmetas = $wpdb->get_results( $attachment_postmeta_query, ARRAY_A );
 
 			// on error.
 			if ( $wpdb->last_error ) {
 				ai4seo_debug_message( 984321664, 'Database error: ' . $wpdb->last_error, true );
+				return array();
+			}
+
+			if ( ! is_array( $this_attachment_postmetas ) ) {
 				return array();
 			}
 
@@ -315,16 +425,28 @@ function ai4seo_read_and_analyse_attachment_attributes_coverage( $attachment_pos
 			}
 
 			foreach ( $this_attachment_postmetas as $this_attachment_postmeta ) {
-				$this_attachment_post_id = absint( $this_attachment_postmeta['post_id'] );
-				$attachment_attributes_coverage[ $this_attachment_post_id ]['alt-text'] = strval( $this_attachment_postmeta['meta_value'] );
+				if ( ! is_array( $this_attachment_postmeta )
+					|| ! array_key_exists( 'post_id', $this_attachment_postmeta )
+					|| ! array_key_exists( 'meta_value', $this_attachment_postmeta )
+					|| ! is_string( $this_attachment_postmeta['meta_value'] ) ) {
+					return array();
+				}
+
+				$this_attachment_post_id = ai4seo_normalize_database_id( $this_attachment_postmeta['post_id'] );
+
+				if ( false === $this_attachment_post_id || ! isset( $attachment_attributes_coverage[ $this_attachment_post_id ] ) ) {
+					return array();
+				}
+
+				$attachment_attributes_coverage[ $this_attachment_post_id ]['alt-text'] = $this_attachment_postmeta['meta_value'];
 			}
 		}
 	}
 
+	$read_succeeded = true;
 	return $attachment_attributes_coverage;
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to return the summary of the attachment attributes coverage array
@@ -353,7 +475,6 @@ function ai4seo_get_attachment_attributes_coverage_summary( array $attachment_at
 	return $attachment_attributes_coverage_summary;
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to create an empty attachment attributes coverage array
@@ -396,7 +517,7 @@ function ai4seo_create_empty_attachment_attributes_coverage_array( array $attach
 		$attachment_attributes_coverage[ $post_id ] = array();
 
 		foreach ( AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS as $this_attachment_attribute_identifier => $this_attachment_attribute_details ) {
-			if ( ! in_array( $this_attachment_attribute_identifier, $active_attachment_attributes ) ) {
+			if ( ! in_array( $this_attachment_attribute_identifier, $active_attachment_attributes, true ) ) {
 				continue;
 			}
 
@@ -407,15 +528,17 @@ function ai4seo_create_empty_attachment_attributes_coverage_array( array $attach
 	return $attachment_attributes_coverage;
 }
 
-// =========================================================================================== \\
 
 /**
  * Checks if the metadata for a given post is fully covered
  *
- * @param int $attachment_post_id The post id to check the metadata coverage for.
+ * @param int       $attachment_post_id The post id to check the metadata coverage for.
+ * @param bool|null $read_succeeded Receives whether the one-ID source snapshot was authoritative.
  * @return bool Whether the metadata for a given post is fully covered
  */
-function ai4seo_are_attachment_attributes_fully_covered( int $attachment_post_id ): bool {
+function ai4seo_are_attachment_attributes_fully_covered( int $attachment_post_id, ?bool &$read_succeeded = null ): bool {
+	$read_succeeded = false;
+
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 346802262, 'Prevented loop', true );
 		return true;
@@ -425,27 +548,37 @@ function ai4seo_are_attachment_attributes_fully_covered( int $attachment_post_id
 	$active_attachment_attributes = ai4seo_get_active_attachment_attributes();
 
 	if ( ! $active_attachment_attributes ) {
+		$read_succeeded = true;
 		return true;
 	}
 
 	$num_active_and_covered_attachment_attributes = 0;
 
-	// get existing attributes coverage.
-	$attachment_attributes_coverage      = ai4seo_read_and_analyse_attachment_attributes_coverage( $attachment_post_id );
-	$this_attachment_attributes_coverage = $attachment_attributes_coverage[ $attachment_post_id ] ?? array();
+	// Read every one-ID owner without accepting cache misses, missing posts, or duplicate alt rows.
+	$source_read_succeeded               = false;
+	$attachment_post_exists              = false;
+	$this_attachment_attributes_coverage = ai4seo_read_available_attachment_attributes(
+		$attachment_post_id,
+		$source_read_succeeded,
+		$attachment_post_exists
+	);
+
+	if ( ! $source_read_succeeded || ! $attachment_post_exists ) {
+		return false;
+	}
 
 	foreach ( $active_attachment_attributes as $this_attachment_attribute ) {
-		if ( $this_attachment_attributes_coverage[ $this_attachment_attribute ] ) {
+		if ( ! empty( $this_attachment_attributes_coverage[ $this_attachment_attribute ] ) ) {
 			++$num_active_and_covered_attachment_attributes;
 		}
 	}
 
 	$attachment_attributes_coverage_percentage = ( $num_active_and_covered_attachment_attributes / count( $active_attachment_attributes ) ) * 100;
+	$read_succeeded                            = true;
 
-	return ( 100 == $attachment_attributes_coverage_percentage );
+	return ai4seo_is_full_coverage_percentage( $attachment_attributes_coverage_percentage );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the number of active attachment attributes
@@ -456,64 +589,392 @@ function ai4seo_get_active_num_attachment_attributes(): int {
 	return count( ai4seo_get_active_attachment_attributes() );
 }
 
-// =========================================================================================== \\
 
 /**
- * Returns the attachment attributes for a specific attachment post id
+ * Reads one attachment post and its authoritative attachment-attribute values.
  *
- * @param int $attachment_post_id The post id of the attachment.
- * @return array The attachment attributes
+ * @param int       $attachment_post_id Attachment post ID.
+ * @param bool|null $read_succeeded Receives whether both exact reads and row validation succeeded.
+ * @param bool|null $post_exists Receives whether the posts-table owner exists after a successful post read.
+ * @return array{post?: array, alt_text?: array} Validated source snapshot, or an empty array.
  */
-function ai4seo_read_available_attachment_attributes( int $attachment_post_id ): array {
-	// Read attachment title, caption, description, alt-text and file-path.
-	$ai4seo_this_attachment_post                                  = get_post( $attachment_post_id );
-	$ai4seo_this_post_attachment_attributes_values['title']       = $ai4seo_this_attachment_post->post_title ?? '';
-	$ai4seo_this_post_attachment_attributes_values['caption']     = $ai4seo_this_attachment_post->post_excerpt ?? '';
-	$ai4seo_this_post_attachment_attributes_values['description'] = $ai4seo_this_attachment_post->post_content ?? '';
-	$ai4seo_this_post_attachment_attributes_values['alt-text']    = get_post_meta( $attachment_post_id, '_wp_attachment_image_alt', true ) ?? '';
-	// $ai4seo_this_attachment_post_details["file-name"] = basename(get_attached_file($attachment_post_id)) ?? "";
+function ai4seo_read_attachment_attribute_source_snapshot(
+	int $attachment_post_id,
+	?bool &$read_succeeded = null,
+	?bool &$post_exists = null
+): array {
+	global $wpdb;
 
-	return $ai4seo_this_post_attachment_attributes_values;
+	$attachment_post_id = absint( $attachment_post_id );
+	$read_succeeded     = false;
+	$post_exists        = false;
+
+	if ( $attachment_post_id <= 0 ) {
+		return array();
+	}
+
+	$post_query = ai4seo_prepare_database_query(
+		'SELECT `ID`, `post_type`, `post_mime_type`, `guid`, `post_title`, `post_excerpt`, `post_content`
+		FROM {{posts_table}}
+		WHERE `ID` = {{post_id}}
+		LIMIT 1',
+		array(
+			'posts_table' => ai4seo_database_identifier_binding( 'table.posts' ),
+			'post_id'     => ai4seo_database_scalar_binding( '%d', $attachment_post_id ),
+		)
+	);
+
+	if ( false === $post_query ) {
+		return array();
+	}
+
+	$wpdb->last_error = '';
+
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed compiler owns the exact primary-key read; queue and coverage decisions require current source bytes.
+	$post_row = $wpdb->get_row( $post_query, ARRAY_A );
+
+	if ( $wpdb->last_error ) {
+		return array();
+	}
+
+	if ( null === $post_row ) {
+		$read_succeeded = true;
+		return array();
+	}
+
+	$required_post_string_columns = array(
+		'post_type',
+		'post_mime_type',
+		'guid',
+		'post_title',
+		'post_excerpt',
+		'post_content',
+	);
+
+	if ( ! is_array( $post_row ) || ai4seo_normalize_database_id( $post_row['ID'] ?? null ) !== $attachment_post_id ) {
+		return array();
+	}
+
+	foreach ( $required_post_string_columns as $required_post_string_column ) {
+		if ( ! array_key_exists( $required_post_string_column, $post_row ) || ! is_string( $post_row[ $required_post_string_column ] ) ) {
+			return array();
+		}
+	}
+
+	$post_exists           = true;
+	$attachment_meta_query = ai4seo_prepare_database_query(
+		'SELECT `meta_id`, `meta_key`, `meta_value`
+		FROM {{postmeta_table}}
+		WHERE `post_id` = {{post_id}}
+		AND `meta_key` IN ({{meta_keys}})
+		ORDER BY `meta_id` ASC
+		LIMIT 4',
+		array(
+			'postmeta_table' => ai4seo_database_identifier_binding( 'table.postmeta' ),
+			'post_id'        => ai4seo_database_scalar_binding( '%d', $attachment_post_id ),
+			'meta_keys'      => ai4seo_database_list_binding( '%s', array( '_wp_attached_file', '_wp_attachment_image_alt' ) ), // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Exact post ID plus LIMIT 4 bounds both duplicate-owner checks.
+		)
+	);
+
+	if ( false === $attachment_meta_query ) {
+		return array();
+	}
+
+	$wpdb->last_error = '';
+
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed compiler owns the exact post/key query; duplicate alt owners must fail closed outside object caches.
+	$attachment_meta_rows = $wpdb->get_results( $attachment_meta_query, ARRAY_A );
+
+	if ( $wpdb->last_error || ! is_array( $attachment_meta_rows ) ) {
+		return array();
+	}
+
+	$meta_states = array(
+		'_wp_attached_file'        => array(
+			'exists'  => false,
+			'meta_id' => 0,
+			'value'   => '',
+		),
+		'_wp_attachment_image_alt' => array(
+			'exists'  => false,
+			'meta_id' => 0,
+			'value'   => '',
+		),
+	);
+
+	foreach ( $attachment_meta_rows as $attachment_meta_row ) {
+		$meta_id        = is_array( $attachment_meta_row ) ? ai4seo_normalize_database_id( $attachment_meta_row['meta_id'] ?? null ) : false;
+		$meta_key       = is_array( $attachment_meta_row ) && isset( $attachment_meta_row['meta_key'] ) && is_string( $attachment_meta_row['meta_key'] )
+			? $attachment_meta_row['meta_key']
+			: '';
+		$raw_meta_value = is_array( $attachment_meta_row ) && array_key_exists( 'meta_value', $attachment_meta_row )
+			? $attachment_meta_row['meta_value']
+			: null;
+		$meta_value     = $raw_meta_value;
+
+		// WordPress wraps serialized-looking scalar metadata in one safe serialized-string layer.
+		if ( is_string( $meta_value ) && is_serialized( $meta_value ) ) {
+			$meta_value = ai4seo_safe_maybe_unserialize( $meta_value );
+		}
+
+		if ( false === $meta_id
+			|| ! isset( $meta_states[ $meta_key ] )
+			|| $meta_states[ $meta_key ]['exists']
+			|| ! is_string( $meta_value )
+			|| wp_check_invalid_utf8( $meta_value ) !== $meta_value
+			|| false !== strpos( $meta_value, "\0" )
+		) {
+			return array();
+		}
+
+		$meta_states[ $meta_key ] = array(
+			'exists'  => true,
+			'meta_id' => $meta_id,
+			'value'   => $meta_value,
+		);
+	}
+
+	$read_succeeded = true;
+	return array(
+		'post'          => $post_row,
+		'attached_file' => $meta_states['_wp_attached_file'],
+		'alt_text'      => $meta_states['_wp_attachment_image_alt'],
+	);
 }
 
-// =========================================================================================== \\
+
+/**
+ * Resolves an attachment URL without rereading post or postmeta storage.
+ *
+ * The exact snapshot remains authoritative. Native attachments prefer their verified attached-file
+ * path under the current uploads base URL and fall back to the verified GUID. Other supported media
+ * post types use their verified GUID directly.
+ *
+ * @param array $snapshot Snapshot returned by ai4seo_read_attachment_attribute_source_snapshot().
+ * @return string|null Resolved URL, or null when the verified snapshot has no usable source.
+ */
+function ai4seo_resolve_attachment_url_from_source_snapshot( array $snapshot ): ?string {
+	$post_state          = $snapshot['post'] ?? null;
+	$attached_file_state = $snapshot['attached_file'] ?? null;
+	$validate_url        = static function ( string $url ): ?string {
+		$url        = trim( $url );
+		$url_scheme = wp_parse_url( $url, PHP_URL_SCHEME );
+
+		if ( false === filter_var( $url, FILTER_VALIDATE_URL )
+			|| ! is_string( $url_scheme )
+			|| ! in_array( strtolower( $url_scheme ), array( 'http', 'https' ), true )
+		) {
+			return null;
+		}
+
+		return $url;
+	};
+
+	if ( ! is_array( $post_state )
+		|| ! isset( $post_state['post_type'], $post_state['guid'] )
+		|| ! is_string( $post_state['post_type'] )
+		|| ! is_string( $post_state['guid'] )
+		|| ! is_array( $attached_file_state )
+		|| ! isset( $attached_file_state['exists'], $attached_file_state['value'] )
+		|| ! is_bool( $attached_file_state['exists'] )
+		|| ! is_string( $attached_file_state['value'] )
+	) {
+		return null;
+	}
+
+	$verified_guid = trim( $post_state['guid'] );
+
+	if ( 'attachment' !== $post_state['post_type'] ) {
+		return $validate_url( $verified_guid );
+	}
+
+	if ( $attached_file_state['exists'] && '' !== trim( $attached_file_state['value'] ) ) {
+		$uploads = wp_get_upload_dir();
+
+		if ( is_array( $uploads )
+			&& empty( $uploads['error'] )
+			&& isset( $uploads['basedir'], $uploads['baseurl'] )
+			&& is_string( $uploads['basedir'] )
+			&& is_string( $uploads['baseurl'] )
+			&& '' !== $uploads['baseurl']
+		) {
+			$verified_file   = wp_normalize_path( trim( $attached_file_state['value'] ) );
+			$uploads_basedir = rtrim( wp_normalize_path( $uploads['basedir'] ), '/' );
+			$relative_file   = '';
+
+			if ( '' !== $uploads_basedir && 0 === strpos( $verified_file, $uploads_basedir . '/' ) ) {
+				$relative_file = substr( $verified_file, strlen( $uploads_basedir ) + 1 );
+			} elseif ( 1 !== preg_match( '#^(?:[A-Za-z]:/|/)#', $verified_file ) ) {
+				$relative_file = $verified_file;
+			}
+
+			$relative_file = ltrim( $relative_file, '/' );
+
+			if ( '' !== $relative_file
+				&& 0 !== strpos( $relative_file, '../' )
+				&& false === strpos( $relative_file, '/../' )
+				&& false === strpos( $relative_file, "\0" )
+			) {
+				$resolved_upload_url = $validate_url( rtrim( $uploads['baseurl'], '/' ) . '/' . $relative_file );
+
+				if ( null !== $resolved_upload_url ) {
+					return $resolved_upload_url;
+				}
+			}
+		}
+	}
+
+	return $validate_url( $verified_guid );
+}
+
+
+/**
+ * Returns the attachment attributes for a specific attachment post id.
+ *
+ * @param int       $attachment_post_id The post id of the attachment.
+ * @param bool|null $read_succeeded Receives whether the exact one-ID snapshot was authoritative.
+ * @param bool|null $post_exists Receives whether the attachment post exists.
+ * @return array The attachment attributes.
+ */
+function ai4seo_read_available_attachment_attributes(
+	int $attachment_post_id,
+	?bool &$read_succeeded = null,
+	?bool &$post_exists = null
+): array {
+	$attachment_attributes = array(
+		'title'       => '',
+		'caption'     => '',
+		'description' => '',
+		'alt-text'    => '',
+	);
+	$snapshot              = ai4seo_read_attachment_attribute_source_snapshot(
+		$attachment_post_id,
+		$read_succeeded,
+		$post_exists
+	);
+
+	if ( ! $read_succeeded || ! $post_exists ) {
+		return $attachment_attributes;
+	}
+
+	$attachment_attributes['title']       = $snapshot['post']['post_title'];
+	$attachment_attributes['caption']     = $snapshot['post']['post_excerpt'];
+	$attachment_attributes['description'] = $snapshot['post']['post_content'];
+	$attachment_attributes['alt-text']    = $snapshot['alt_text']['value'];
+
+	return $attachment_attributes;
+}
+
+
+/**
+ * Builds the exact attachment-attribute coverage transition for one valid media post.
+ *
+ * @param int       $attachment_post_id Attachment post ID whose persisted attributes are authoritative.
+ * @param bool      $clear_failed_generation_status Whether Failed must be absent after success.
+ * @param bool      $clear_claimable_generation_status Whether Pending and Force must also be absent.
+ * @param bool|null $read_succeeded Receives whether coverage and generated-data reads were authoritative.
+ * @return array{additions: array, removals: array}|array{} Normalized transition maps, or empty on read failure.
+ */
+function ai4seo_build_attachment_attributes_coverage_post_id_option_transition(
+	int $attachment_post_id,
+	bool $clear_failed_generation_status = false,
+	bool $clear_claimable_generation_status = false,
+	?bool &$read_succeeded = null
+): array {
+	$read_succeeded = false;
+
+	$coverage_option_names         = array(
+		AI4SEO_MISSING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME,
+		AI4SEO_FULLY_COVERED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME,
+		AI4SEO_GENERATED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME,
+	);
+	$coverage_read_succeeded       = false;
+	$generated_data_read_succeeded = false;
+	$is_fully_covered              = ai4seo_are_attachment_attributes_fully_covered( $attachment_post_id, $coverage_read_succeeded );
+	$has_generated_data            = ai4seo_post_has_generated_data( $attachment_post_id, $generated_data_read_succeeded );
+
+	if ( ! $coverage_read_succeeded || ! $generated_data_read_succeeded ) {
+		return array();
+	}
+
+	$has_generated_data   = $is_fully_covered && $has_generated_data;
+	$destination_option   = $is_fully_covered
+		? AI4SEO_FULLY_COVERED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME
+		: AI4SEO_MISSING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME;
+	$transition_additions = array( $destination_option => array( $attachment_post_id ) );
+	$transition_removals  = array();
+
+	if ( $has_generated_data ) {
+		$transition_additions[ AI4SEO_GENERATED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME ] = array( $attachment_post_id );
+	}
+
+	foreach ( $coverage_option_names as $coverage_option_name ) {
+		if ( ! isset( $transition_additions[ $coverage_option_name ] ) ) {
+			$transition_removals[ $coverage_option_name ] = array( $attachment_post_id );
+		}
+	}
+
+	if ( $clear_failed_generation_status ) {
+		$transition_removals[ AI4SEO_FAILED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME ] = array( $attachment_post_id );
+	}
+
+	if ( $clear_claimable_generation_status ) {
+		$transition_removals[ AI4SEO_PENDING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME ]         = array( $attachment_post_id );
+		$transition_removals[ AI4SEO_FORCE_OVERWRITE_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME ] = array( $attachment_post_id );
+	}
+
+	$read_succeeded = true;
+	return array(
+		'additions' => $transition_additions,
+		'removals'  => $transition_removals,
+	);
+}
+
 
 /**
  * Refreshes the attachment attributes coverage for the given post by putting the post id into the corresponding option
  *
  * @param int          $attachment_post_id The post id to refresh the attachment attributes coverage for.
  * @param WP_Post|null $post The post object to refresh the attachment attributes coverage for.
- * @return void
+ * @param bool         $clear_failed_generation_status Whether a successful manual save also clears Failed.
+ * @return bool True only when the complete requested coverage state was verified.
  */
-function ai4seo_refresh_one_posts_attachment_attributes_coverage( int $attachment_post_id, $post = null ) {
+function ai4seo_refresh_one_posts_attachment_attributes_coverage(
+	int $attachment_post_id,
+	$post = null,
+	bool $clear_failed_generation_status = false
+): bool {
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 393113591, 'Prevented loop', true );
-		return;
+		return false;
 	}
 
-	if ( ! is_numeric( $attachment_post_id ) ) {
-		return;
+	if ( $attachment_post_id <= 0 ) {
+		return false;
 	}
 
 	if ( ! ai4seo_is_post_a_valid_attachment( $attachment_post_id, $post ) ) {
-		ai4seo_remove_post_ids_from_all_options( $attachment_post_id );
-		return;
+		return ai4seo_remove_post_ids_from_all_options( $attachment_post_id );
 	}
 
-	// consider which option to put the post id into.
-	if ( ai4seo_are_attachment_attributes_fully_covered( $attachment_post_id ) ) {
-		ai4seo_add_post_ids_to_option( AI4SEO_FULLY_COVERED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME, $attachment_post_id );
+	$coverage_read_succeeded = false;
+	$coverage_transition     = ai4seo_build_attachment_attributes_coverage_post_id_option_transition(
+		$attachment_post_id,
+		$clear_failed_generation_status,
+		false,
+		$coverage_read_succeeded
+	);
 
-		// check if the post has generated data.
-		if ( ai4seo_post_has_generated_data( $attachment_post_id ) ) {
-			ai4seo_add_post_ids_to_option( AI4SEO_GENERATED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME, $attachment_post_id );
-		}
-	} else {
-		ai4seo_add_post_ids_to_option( AI4SEO_MISSING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME, $attachment_post_id );
+	if ( ! $coverage_read_succeeded ) {
+		return false;
 	}
+
+	return ai4seo_apply_post_id_option_transition(
+		$coverage_transition['additions'],
+		$coverage_transition['removals']
+	);
 }
 
-// =========================================================================================== \\
 
 /**
  * This function checks if an attachment is valid for our plugin to be considered
@@ -545,7 +1006,7 @@ function ai4seo_is_post_a_valid_attachment( int $attachment_post_id, ?WP_Post $a
 	}
 
 	// check if the post type is an attachment.
-	if ( ! in_array( $attachment_post->post_type, $supported_attachment_post_types ) ) {
+	if ( ! in_array( (string) $attachment_post->post_type, $supported_attachment_post_types, true ) ) {
 		return false;
 	}
 
@@ -558,14 +1019,13 @@ function ai4seo_is_post_a_valid_attachment( int $attachment_post_id, ?WP_Post $a
 	}
 
 	// check post status.
-	if ( ! in_array( $attachment_post->post_status, array( 'publish', 'future', 'private', 'pending', 'inherit' ) ) ) {
+	if ( ! in_array( (string) $attachment_post->post_status, array( 'publish', 'future', 'private', 'pending', 'inherit' ), true ) ) {
 		return false;
 	}
 
 	return true;
 }
 
-// =========================================================================================== \\
 
 /**
  * Resolves the image source used for attachment-attribute generation.
@@ -605,8 +1065,8 @@ function ai4seo_get_attachment_generation_image_source(
 
 	// Prefer WordPress metadata because it identifies the full image without opening the image binary.
 	$attachment_metadata = wp_get_attachment_metadata( $attachment_post_id );
-	$full_width           = 0;
-	$full_height          = 0;
+	$full_width          = 0;
+	$full_height         = 0;
 
 	if ( is_array( $attachment_metadata ) ) {
 		$full_width  = absint( $attachment_metadata['width'] ?? 0 );
@@ -719,7 +1179,6 @@ function ai4seo_get_attachment_generation_image_source(
 	return $full_image_source;
 }
 
-// =========================================================================================== \\
 
 /**
  * Calls the attachment-attribute generation endpoint with one preselected image source.
@@ -782,7 +1241,6 @@ function ai4seo_call_attachment_attributes_generation_api(
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Read the narrowly-scoped base64 continuation contract from a failed API response.
@@ -794,6 +1252,13 @@ function ai4seo_get_attachment_base64_recovery_token( $response ): string {
 	// Recovery metadata is meaningful only on a failed URL-mode request; a successful response
 	// must never prompt another generation request.
 	if ( ! is_array( $response ) || ( $response['success'] ?? false ) ) {
+		return '';
+	}
+
+	// Billing failures stop the account-scoped workflow even if malformed upstream metadata requests recovery.
+	if ( isset( $response['code'] )
+		&& ai4seo_robhub_api()->is_terminal_billing_error_code( $response['code'] )
+	) {
 		return '';
 	}
 
@@ -820,7 +1285,232 @@ function ai4seo_get_attachment_base64_recovery_token( $response ): string {
 	return $token;
 }
 
-// =========================================================================================== \\
+
+/**
+ * Normalize an attachment image preparation stage for safe diagnostics.
+ *
+ * @param mixed $failure_stage Untrusted or internally supplied stage value.
+ * @return string Allowlisted stage, or an empty string when unknown.
+ */
+function ai4seo_normalize_attachment_image_preparation_failure_stage( $failure_stage ): string {
+	// Reject unexpected types before sanitization can coerce them into misleading diagnostics.
+	if ( ! is_string( $failure_stage ) ) {
+		return '';
+	}
+
+	// Keep only stages emitted by the bounded image-preparation pipeline.
+	$failure_stage  = sanitize_key( $failure_stage );
+	$allowed_stages = array(
+		'decode_budget',
+		'image_editor',
+		'image_metadata',
+		'derivative_encode',
+		'derivative_metadata',
+		'derivative_mime',
+		'derivative_path',
+		'derivative_read',
+		'derivative_reopen',
+		'derivative_resize',
+		'derivative_save',
+		'derivative_size',
+		'loop_prevented',
+	);
+
+	if ( ! in_array( $failure_stage, $allowed_stages, true ) ) {
+		return '';
+	}
+
+	return $failure_stage;
+}
+
+
+/**
+ * Build a structured oversized media response for local/base64 attachment processing.
+ *
+ * @param int $content_length The known source size in bytes.
+ * @return array
+ */
+function ai4seo_get_attachment_source_too_large_response( int $content_length = 0 ): array {
+	// Mirror the RobHub oversized-fetch error so the existing failed-attachment handling can persist this state.
+	$message = 'Content too large to fetch';
+
+	if ( $content_length > 0 ) {
+		$message .= ' (Content-Length: ' . $content_length . ' bytes)';
+	}
+
+	return array(
+		'success' => false,
+		'message' => $message,
+		'code'    => 71214326,
+	);
+}
+
+
+/**
+ * Convert a TLS certificate failure into the structured attachment response contract.
+ *
+ * @param WP_Error $error The actionable TLS verification error.
+ * @return array
+ */
+function ai4seo_get_attachment_source_tls_error_response( WP_Error $error ): array {
+	// Preserve the transport error context because failed-attachment diagnostics consume each field.
+	return array(
+		'success'    => false,
+		'message'    => $error->get_error_message(),
+		'code'       => 101324725,
+		'error_code' => $error->get_error_code(),
+		'error_data' => $error->get_error_data(),
+	);
+}
+
+
+/**
+ * Load an image and return its base64 conversion result.
+ *
+ * @param string $image_url Image URL.
+ * @return array Image conversion result.
+ */
+function ai4seo_get_base64_from_image_file( $image_url ): array {
+	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
+		ai4seo_debug_message( 697474987, 'Prevented loop', true );
+		return array(
+			'success' => false,
+			'message' => 'Infinite loop detected',
+			'code'    => 91234725,
+		);
+	}
+
+	// Keep the local/base64 path within the same media source-size envelope as the URL-based API path.
+	$max_source_size      = AI4SEO_MAX_BASE64_ATTACHMENT_SOURCE_SIZE_BYTES;
+	$same_site_local_path = ai4seo_get_same_site_local_file_path_from_url( $image_url );
+
+	// Same-site media can be measured before loading the binary into PHP memory.
+	if ( $same_site_local_path && ai4seo_is_file_larger_than( $same_site_local_path, $max_source_size ) ) {
+		return ai4seo_get_attachment_source_too_large_response( ai4seo_get_file_size( $same_site_local_path ) );
+	}
+
+	// Remote media with Content-Length can be rejected before the body request.
+	if ( ! $same_site_local_path ) {
+		$remote_content_length = ai4seo_get_remote_content_length( $image_url );
+
+		if ( $remote_content_length > $max_source_size ) {
+			return ai4seo_get_attachment_source_too_large_response( $remote_content_length );
+		}
+	}
+
+	// Prefer contained local reads before one bounded SSRF-safe remote attempt; insecure retries are intentionally excluded.
+	try {
+		foreach ( array( 'local_only', 'remote_only' ) as $fetch_mode ) {
+			$image_body = ai4seo_get_remote_body( $image_url, $fetch_mode, $max_source_size );
+
+			if ( is_wp_error( $image_body ) ) {
+				// Convert the internal capped-fetch marker into the same structured API-style failure used below.
+				if ( $image_body->get_error_code() === 'ai4seo_fetch_too_large' ) {
+					return ai4seo_get_attachment_source_too_large_response();
+				}
+
+				if ( $image_body->get_error_code() === 'ai4seo_tls_verification_failed' ) {
+					return ai4seo_get_attachment_source_tls_error_response( $image_body );
+				}
+
+				continue;
+			}
+
+			if ( ! $image_body ) {
+				continue;
+			}
+
+			// Keep a final size guard in case the active WP HTTP transport does not honor limit_response_size.
+			if ( strlen( $image_body ) > $max_source_size ) {
+				return ai4seo_get_attachment_source_too_large_response( strlen( $image_body ) );
+			}
+
+			// Verify that the content is a valid image.
+			$is_probably_image = ai4seo_is_probably_image_content( $image_body );
+
+			if ( ! empty( $is_probably_image['is_probably_image'] ) ) {
+				break;
+			}
+		}
+	} catch ( Exception $e ) {
+		return array(
+			'success' => false,
+			'message' => 'Media URL not accessible: ' . $e->getMessage(),
+			'code'    => 91324725,
+		);
+	}
+
+	if ( is_wp_error( $image_body ) ) {
+		$remote_get_response_error = $image_body->get_error_message();
+
+		return array(
+			'success' => false,
+			'message' => 'Media URL not accessible: ' . $remote_get_response_error,
+			'code'    => 101324725,
+		);
+	}
+
+	if ( ! $image_body ) {
+		return array(
+			'success' => false,
+			'message' => 'Media content not accessible',
+			'code'    => 111324725,
+		);
+	}
+
+	if ( ! isset( $is_probably_image['is_probably_image'] ) || ! $is_probably_image['is_probably_image'] ) {
+		return array(
+			'success' => false,
+			'message' => 'The fetched content is not a valid image',
+			'code'    => 581927126,
+		);
+	}
+
+	// Normalize the signature detector output so the encoder can report whether conversion changed the format.
+	$source_mime_type = ai4seo_get_mime_type_from_detected_image_format(
+		(string) ( $is_probably_image['detected_format'] ?? '' )
+	);
+
+	// Encode the attachment while collecting the actual post-conversion MIME for the data URI.
+	$encoded_mime_type = $source_mime_type;
+	$failure_stage     = '';
+
+	try {
+		$attachment_base64 = ai4seo_smart_image_base64_encode(
+			$image_body,
+			$source_mime_type,
+			$encoded_mime_type,
+			$failure_stage
+		);
+	} catch ( Exception $e ) {
+		return array(
+			'success'       => false,
+			'message'       => 'Media content could not be base64 encoded: ' . $e->getMessage(),
+			'code'          => 131324725,
+			'failure_stage' => 'derivative_encode',
+		);
+	}
+
+	if ( ! $attachment_base64 ) {
+		// Normalize the by-reference stage and retain the established generic fallback for unknown failures.
+		$failure_stage = ai4seo_normalize_attachment_image_preparation_failure_stage( $failure_stage );
+		$failure_stage = '' !== $failure_stage ? $failure_stage : 'derivative_encode';
+
+		return array(
+			'success'       => false,
+			'message'       => 'Media content could not be base64 encoded',
+			'code'          => 141324725,
+			'failure_stage' => $failure_stage,
+		);
+	}
+
+	return array(
+		'success'   => true,
+		'data'      => $attachment_base64,
+		'mime_type' => $encoded_mime_type,
+	);
+}
+
 
 /**
  * Generates attachment attributes from a base64 representation of the selected image source.
@@ -844,9 +1534,10 @@ function ai4seo_generate_attachment_attributes_using_base64(
 	}
 
 	// Keep the full reference separate while fetching and encoding only the selected delivery source.
-	$original_url = (string) ( $attachment_image_source['original_url'] ?? '' );
-	$delivery_url = (string) ( $attachment_image_source['delivery_url'] ?? '' );
-	$mime_type    = (string) ( $attachment_image_source['mime_type'] ?? '' );
+	$original_url             = (string) ( $attachment_image_source['original_url'] ?? '' );
+	$delivery_url             = (string) ( $attachment_image_source['delivery_url'] ?? '' );
+	$mime_type                = (string) ( $attachment_image_source['mime_type'] ?? '' );
+	$is_recovery_continuation = ! empty( $robhub_api_call_parameters['attachment_recovery_token'] );
 
 	// Reuse the bounded image fetcher so the established 25 MB source limit remains authoritative for base64.
 	$base64_from_image_file_response = ai4seo_get_base64_from_image_file( $delivery_url );
@@ -854,6 +1545,10 @@ function ai4seo_generate_attachment_attributes_using_base64(
 	// Normalize all fetch failures before building the data URI so callers receive the established error contract.
 	if ( ! isset( $base64_from_image_file_response['success'] ) || ! $base64_from_image_file_response['success']
 		|| ! isset( $base64_from_image_file_response['data'] ) || ! $base64_from_image_file_response['data'] ) {
+		if ( $is_recovery_continuation ) {
+			ai4seo_log_attachment_base64_recovery_preparation_failure( $base64_from_image_file_response );
+		}
+
 		$base64_error_code    = (int) ( $base64_from_image_file_response['code'] ?? 361324725 );
 		$base64_error_message = $base64_from_image_file_response['message'] ?? 'Unknown error';
 
@@ -878,7 +1573,12 @@ function ai4seo_generate_attachment_attributes_using_base64(
 	$attachment_base64 = $base64_from_image_file_response['data'];
 	$encoded_mime_type = ai4seo_normalize_mime_type_string(
 		$base64_from_image_file_response['mime_type'] ?? ''
-	) ?: $mime_type;
+	);
+
+	// Fall back to the selected source MIME only when the encoded response does not identify one.
+	if ( ! $encoded_mime_type ) {
+		$encoded_mime_type = $mime_type;
+	}
 
 	// A base64 request is final. In particular, a server-guided continuation must not retain the
 	// failed delivery URL, which also makes a token replay incapable of triggering URL retrieval.
@@ -889,7 +1589,63 @@ function ai4seo_generate_attachment_attributes_using_base64(
 	return ai4seo_robhub_api()->call( 'ai4seo/generate-all-attachment-attributes', $robhub_api_call_parameters );
 }
 
-// =========================================================================================== \\
+/**
+ * Create the safe diagnostic fields for a failed client-side Base64 recovery preparation.
+ *
+ * @param array $base64_response Image preparation response.
+ * @return array Safe diagnostic fields containing the stage and source error code only.
+ */
+function ai4seo_get_attachment_base64_recovery_preparation_failure_diagnostic( array $base64_response ): array {
+	$source_error_code = ( isset( $base64_response['code'] ) && is_numeric( $base64_response['code'] ) )
+		? (int) $base64_response['code']
+		: 0;
+	$stage             = ai4seo_normalize_attachment_image_preparation_failure_stage(
+		$base64_response['failure_stage'] ?? ''
+	);
+
+	// Fall back to the legacy error-code classification only when no precise safe stage was supplied.
+	if ( '' === $stage ) {
+		$stage = 'unknown';
+
+		if ( in_array( $source_error_code, array( 91324725, 101324725, 111324725 ), true ) ) {
+			$stage = 'media_fetch_failed';
+		} elseif ( 71214326 === $source_error_code ) {
+			$stage = 'media_source_too_large';
+		} elseif ( 581927126 === $source_error_code ) {
+			$stage = 'media_validation_failed';
+		} elseif ( in_array( $source_error_code, array( 131324725, 141324725 ), true ) ) {
+			$stage = 'base64_encoding_failed';
+		} elseif ( 91234725 === $source_error_code ) {
+			$stage = 'loop_prevented';
+		}
+	}
+
+	return array(
+		'stage'             => $stage,
+		'source_error_code' => $source_error_code,
+	);
+}
+
+/**
+ * Log a sanitized diagnostic when a server-authorized Base64 recovery cannot be submitted.
+ *
+ * @param array $base64_response Image preparation response.
+ * @return void
+ */
+function ai4seo_log_attachment_base64_recovery_preparation_failure( array $base64_response ): void {
+	$diagnostic = ai4seo_get_attachment_base64_recovery_preparation_failure_diagnostic( $base64_response );
+
+	// Never log the original URL, continuation token, server response, image bytes, or raw failure message.
+	ai4seo_debug_message(
+		870014824,
+		'Attachment Base64 recovery preparation failed before continuation submission (stage: '
+		. $diagnostic['stage']
+		. '; source error code: '
+		. $diagnostic['source_error_code']
+		. ').'
+	);
+}
+
 
 /**
  * Create a WordPress image editor for raw image bytes.
@@ -946,8 +1702,69 @@ function ai4seo_get_image_editor_from_data(
 	);
 }
 
-// phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Project section separator.
-// =========================================================================================== \\
+
+/**
+ * Canonicalize a backend-selected derivative path within its reserved temporary namespace.
+ *
+ * WordPress image editors may keep the reserved placeholder filename, append the requested
+ * extension, or replace the placeholder extension. No other sibling or external path is owned
+ * by this conversion and therefore no other path may be read, tracked, or deleted.
+ *
+ * @param string $reserved_path        Temporary placeholder reserved by this conversion.
+ * @param string $candidate_path       Derivative path returned by the image editor.
+ * @param string $derivative_mime_type Requested derivative MIME type.
+ * @return string|WP_Error Canonical owned path, or an error for an unowned path.
+ */
+function ai4seo_get_owned_temporary_derivative_path(
+	string $reserved_path,
+	string $candidate_path,
+	string $derivative_mime_type
+) {
+	$reserved_directory = realpath( dirname( $reserved_path ) );
+	$canonical_path     = realpath( $candidate_path );
+
+	// Both the reserved namespace and the returned derivative must resolve before ownership is asserted.
+	if ( false === $reserved_directory || false === $canonical_path || ! is_file( $canonical_path ) ) {
+		return new WP_Error( 'ai4seo_image_derivative_path_unowned', 'The generated image derivative path is not owned by this conversion.' );
+	}
+
+	$normalized_reserved_directory  = wp_normalize_path( $reserved_directory );
+	$normalized_candidate_directory = wp_normalize_path( dirname( $canonical_path ) );
+	$reserved_basename              = basename( wp_normalize_path( $reserved_path ) );
+	$candidate_basename             = basename( wp_normalize_path( $canonical_path ) );
+
+	// Windows paths are case-insensitive, while canonical paths on other supported hosts retain case significance.
+	if ( '\\' === DIRECTORY_SEPARATOR ) {
+		$normalized_reserved_directory  = strtolower( $normalized_reserved_directory );
+		$normalized_candidate_directory = strtolower( $normalized_candidate_directory );
+		$reserved_basename              = strtolower( $reserved_basename );
+		$candidate_basename             = strtolower( $candidate_basename );
+	}
+
+	// A returned path outside the exact reserved temporary directory is never safe to consume or delete.
+	if ( $normalized_reserved_directory !== $normalized_candidate_directory ) {
+		return new WP_Error( 'ai4seo_image_derivative_path_unowned', 'The generated image derivative path is not owned by this conversion.' );
+	}
+
+	$allowed_extensions  = array(
+		'image/jpeg' => array( 'jpeg', 'jpg' ),
+		'image/png'  => array( 'png' ),
+	);
+	$candidate_extension = strtolower( (string) pathinfo( $candidate_basename, PATHINFO_EXTENSION ) );
+	$candidate_stem      = (string) pathinfo( $candidate_basename, PATHINFO_FILENAME );
+	$reserved_stem       = (string) pathinfo( $reserved_basename, PATHINFO_FILENAME );
+	$is_reserved_name    = $candidate_basename === $reserved_basename;
+	$is_expected_variant = in_array( $candidate_extension, $allowed_extensions[ $derivative_mime_type ] ?? array(), true )
+		&& in_array( $candidate_stem, array( $reserved_basename, $reserved_stem ), true );
+
+	// Permit only the placeholder itself or the two extension variants used by core image backends.
+	if ( ! $is_reserved_name && ! $is_expected_variant ) {
+		return new WP_Error( 'ai4seo_image_derivative_path_unowned', 'The generated image derivative path is not owned by this conversion.' );
+	}
+
+	return $canonical_path;
+}
+
 
 /**
  * Save the current image-editor state to a tracked temporary derivative.
@@ -970,20 +1787,234 @@ function ai4seo_save_temporary_image_derivative(
 		return new WP_Error( 'ai4seo_image_derivative_temp_file_failed', 'Could not create a temporary derivative file.' );
 	}
 
-	// Track both the placeholder and the backend-selected output path because extensions can differ.
+	// The placeholder itself was reserved by this conversion and is always safe to clean up.
+	$canonical_placeholder_path   = realpath( $derivative_placeholder_path );
+	$derivative_placeholder_path  = false === $canonical_placeholder_path
+		? $derivative_placeholder_path
+		: $canonical_placeholder_path;
 	$temporary_image_file_paths[] = $derivative_placeholder_path;
 	$saved_derivative             = $image_editor->save( $derivative_placeholder_path, $derivative_mime_type );
 
-	// Track an alternate path when the backend appends or replaces the requested extension.
-	if ( ! is_wp_error( $saved_derivative ) && ! empty( $saved_derivative['path'] ) ) {
-		$temporary_image_file_paths[] = $saved_derivative['path'];
+	// Canonicalize and track only backend paths derived from this conversion's reserved filename.
+	if ( ! is_wp_error( $saved_derivative )
+		&& isset( $saved_derivative['path'] )
+		&& is_string( $saved_derivative['path'] )
+		&& '' !== $saved_derivative['path']
+		&& is_file( $saved_derivative['path'] ) ) {
+		$owned_derivative_path = ai4seo_get_owned_temporary_derivative_path(
+			$derivative_placeholder_path,
+			$saved_derivative['path'],
+			$derivative_mime_type
+		);
+
+		if ( is_wp_error( $owned_derivative_path ) ) {
+			return $owned_derivative_path;
+		}
+
+		$saved_derivative['path']     = $owned_derivative_path;
+		$temporary_image_file_paths[] = $owned_derivative_path;
 	}
 
 	return $saved_derivative;
 }
 
-// phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Project section separator.
-// =========================================================================================== \\
+
+/**
+ * Determine whether source pixels can be decoded within absolute and current-memory safeguards.
+ *
+ * @param int $width  Image width in pixels.
+ * @param int $height Image height in pixels.
+ * @return bool Whether a decoder can be opened within the shared budget.
+ */
+function ai4seo_image_dimensions_fit_decode_budget( int $width, int $height ): bool {
+	if ( $width < 1 || $height < 1 ) {
+		return false;
+	}
+
+	// Mirror RobHub's conservative true-colour estimate while retaining PHP memory headroom.
+	$decode_bytes_per_pixel        = 8;
+	$memory_reserve_bytes          = 32 * 1024 * 1024;
+	$absolute_decode_budget        = 256 * 1024 * 1024;
+	$memory_limit                  = wp_convert_hr_to_bytes( (string) ini_get( 'memory_limit' ) );
+	$available_decode_budget       = $absolute_decode_budget;
+	$maximum_pixels_from_budget    = intdiv( $available_decode_budget, $decode_bytes_per_pixel );
+	$maximum_width_for_this_height = intdiv( $maximum_pixels_from_budget, $height );
+
+	// Even an unlimited PHP runtime retains a bounded source-canvas allocation ceiling.
+	if ( $memory_limit > 0 ) {
+		$available_memory              = $memory_limit
+			- memory_get_usage( true )
+			- $memory_reserve_bytes;
+		$available_decode_budget       = min( $available_decode_budget, max( 0, $available_memory ) );
+		$maximum_pixels_from_budget    = intdiv( $available_decode_budget, $decode_bytes_per_pixel );
+		$maximum_width_for_this_height = intdiv( $maximum_pixels_from_budget, $height );
+	}
+
+	return $width <= $maximum_width_for_this_height;
+}
+
+
+/**
+ * Determine whether prepared output dimensions satisfy the model-input canvas limit.
+ *
+ * @param int $width  Image width in pixels.
+ * @param int $height Image height in pixels.
+ * @return bool Whether the image can be submitted without further resizing.
+ */
+function ai4seo_image_dimensions_fit_model_output_budget( int $width, int $height ): bool {
+	return $width > 0
+		&& $height > 0
+		&& $width <= AI4SEO_ATTACHMENT_GENERATION_MAX_IMAGE_DIMENSION
+		&& $height <= AI4SEO_ATTACHMENT_GENERATION_MAX_IMAGE_DIMENSION
+		&& ai4seo_image_dimensions_fit_decode_budget( $width, $height );
+}
+
+
+/**
+ * Read and independently validate a generated image derivative.
+ *
+ * The image editor's save result is advisory. The bytes on disk remain authoritative for size,
+ * MIME type, dimensions, and whether WordPress can decode the derivative again.
+ *
+ * @param string      $derivative_path       Local derivative path returned by the image editor.
+ * @param string      $required_mime_type    MIME type required for the derivative.
+ * @param string      $reported_mime_type    MIME type reported by the image editor.
+ * @param int         $maximum_size_bytes    Maximum permitted derivative size.
+ * @param string|null $failure_stage         Safe failure-stage identifier.
+ * @return array|WP_Error Validated derivative data, or a normalized validation error.
+ */
+function ai4seo_read_validated_image_derivative(
+	string $derivative_path,
+	string $required_mime_type,
+	string $reported_mime_type,
+	int $maximum_size_bytes,
+	?string &$failure_stage = null
+) {
+	$failure_stage = '';
+
+	// A save result is not usable unless it identifies a readable local file.
+	if ( '' === $derivative_path || ! is_file( $derivative_path ) || ! is_readable( $derivative_path ) ) {
+		$failure_stage = 'derivative_path';
+		return new WP_Error( 'ai4seo_image_derivative_path_invalid', 'Could not read the generated image derivative.' );
+	}
+
+	$derivative_size_bytes = ai4seo_get_file_size( $derivative_path );
+
+	// Empty files and sizes that exceed the model-input bound must never be loaded into memory.
+	if ( $derivative_size_bytes <= 0 ) {
+		$failure_stage = 'derivative_read';
+		return new WP_Error( 'ai4seo_image_derivative_empty', 'The generated image derivative is empty.' );
+	}
+
+	if ( $maximum_size_bytes <= 0 || $derivative_size_bytes > $maximum_size_bytes ) {
+		$failure_stage = 'derivative_size';
+		return new WP_Error( 'ai4seo_image_derivative_too_large', 'The generated image derivative exceeds the target file size.' );
+	}
+
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- The derivative is a size-bounded local temporary file.
+	$derivative_image_data = file_get_contents( $derivative_path );
+
+	// Require a complete read so a partial body cannot be submitted with otherwise plausible metadata.
+	if ( ! is_string( $derivative_image_data ) || strlen( $derivative_image_data ) !== $derivative_size_bytes ) {
+		$failure_stage = 'derivative_read';
+		return new WP_Error( 'ai4seo_image_derivative_read_failed', 'Could not read the complete generated image derivative.' );
+	}
+
+	// Compare both the requested and backend-reported types against the independently detected container.
+	$required_mime_type  = ai4seo_normalize_mime_type_string( $required_mime_type ) ?? '';
+	$reported_mime_type  = ai4seo_normalize_mime_type_string( $reported_mime_type ) ?? '';
+	$signature_result    = ai4seo_is_probably_image_content( $derivative_image_data );
+	$signature_mime_type = ai4seo_get_mime_type_from_detected_image_format(
+		(string) ( $signature_result['detected_format'] ?? '' )
+	);
+
+	// Reject a recognizable incompatible container even when PHP cannot parse its dimensions.
+	if ( ! empty( $signature_result['is_probably_image'] )
+		&& ( $signature_mime_type !== $required_mime_type
+			|| ( '' !== $reported_mime_type && $signature_mime_type !== $reported_mime_type ) ) ) {
+		$failure_stage = 'derivative_mime';
+		return new WP_Error( 'ai4seo_image_derivative_mime_mismatch', 'The generated image derivative has an unexpected MIME type.' );
+	}
+
+	// Dimension and MIME metadata must be available before the derivative can be trusted.
+	if ( ! function_exists( 'getimagesizefromstring' ) ) {
+		$failure_stage = 'derivative_metadata';
+		return new WP_Error( 'ai4seo_image_derivative_metadata_unavailable', 'Image metadata inspection is unavailable.' );
+	}
+
+	// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- Invalid image bytes are an expected validation result.
+	$image_info = @getimagesizefromstring( $derivative_image_data );
+
+	if ( ! is_array( $image_info )
+		|| empty( $image_info[0] )
+		|| empty( $image_info[1] )
+		|| empty( $image_info['mime'] ) ) {
+		$failure_stage = 'derivative_metadata';
+		return new WP_Error( 'ai4seo_image_derivative_metadata_invalid', 'The generated image derivative has invalid metadata.' );
+	}
+
+	$actual_mime_type = ai4seo_normalize_mime_type_string( (string) $image_info['mime'] ) ?? '';
+
+	// The sniffed type must satisfy the requested conversion and agree with any backend claim.
+	if ( '' === $actual_mime_type
+		|| $actual_mime_type !== $required_mime_type
+		|| ( '' !== $reported_mime_type && $actual_mime_type !== $reported_mime_type ) ) {
+		$failure_stage = 'derivative_mime';
+		return new WP_Error( 'ai4seo_image_derivative_mime_mismatch', 'The generated image derivative has an unexpected MIME type.' );
+	}
+
+	$metadata_width  = (int) $image_info[0];
+	$metadata_height = (int) $image_info[1];
+
+	// Reject oversized pixel canvases before a backend allocates memory to reopen the compressed derivative.
+	if ( ! ai4seo_image_dimensions_fit_model_output_budget( $metadata_width, $metadata_height ) ) {
+		$failure_stage = 'decode_budget';
+		return new WP_Error( 'ai4seo_image_derivative_decode_budget_exceeded', 'The generated image derivative exceeds the image decode budget.' );
+	}
+
+	// Reopen the bytes from disk through WordPress so header-only or truncated images fail locally.
+	$validation_editor = wp_get_image_editor(
+		$derivative_path,
+		array(
+			'mime_type'        => $actual_mime_type,
+			'output_mime_type' => $actual_mime_type,
+		)
+	);
+
+	if ( is_wp_error( $validation_editor ) ) {
+		$failure_stage = 'derivative_reopen';
+		return new WP_Error( 'ai4seo_image_derivative_reopen_failed', 'WordPress could not reopen the generated image derivative.' );
+	}
+
+	// Capture the reopened dimensions before releasing the backend-specific editor resource.
+	$validation_dimensions = $validation_editor->get_size();
+	unset( $validation_editor );
+
+	// A decoder without dimensions did not successfully reopen the complete derivative.
+	if ( ! is_array( $validation_dimensions ) ) {
+		$failure_stage = 'derivative_reopen';
+		return new WP_Error( 'ai4seo_image_derivative_dimensions_mismatch', 'The generated image derivative dimensions could not be verified.' );
+	}
+
+	// Compare the decoder result with the independently sniffed dimensions before returning the bytes.
+	$validation_width  = (int) ( $validation_dimensions['width'] ?? 0 );
+	$validation_height = (int) ( $validation_dimensions['height'] ?? 0 );
+
+	if ( $metadata_width !== $validation_width
+		|| $metadata_height !== $validation_height ) {
+		$failure_stage = 'derivative_reopen';
+		return new WP_Error( 'ai4seo_image_derivative_dimensions_mismatch', 'The generated image derivative dimensions could not be verified.' );
+	}
+
+	return array(
+		'data'      => $derivative_image_data,
+		'mime_type' => $actual_mime_type,
+		'width'     => $metadata_width,
+		'height'    => $metadata_height,
+		'size'      => $derivative_size_bytes,
+	);
+}
+
 
 /**
  * Delete temporary image sources and derivatives.
@@ -1001,8 +2032,6 @@ function ai4seo_delete_temporary_image_files( array $temporary_image_file_paths 
 	}
 }
 
-// phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Project section separator.
-// =========================================================================================== \\
 
 /**
  * Scale image dimensions while keeping each side valid for WordPress image editors.
@@ -1019,8 +2048,93 @@ function ai4seo_get_scaled_image_dimensions( array $current_dimensions, float $s
 	);
 }
 
-// phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Project section separator.
-// =========================================================================================== \\
+
+/**
+ * Resolve source dimensions before WordPress allocates an image-editor canvas.
+ *
+ * The fetched bytes are the only safe authority. Attachment metadata can describe a stale or
+ * filtered source and therefore must never authorize a decoded image allocation.
+ *
+ * @param string $image_data       Raw source image bytes.
+ * @param string $source_mime_type MIME type detected from the source bytes.
+ * @return array{width: int, height: int}|false Safe dimensions, or false when unavailable.
+ */
+function ai4seo_get_source_image_dimensions_before_decode( string $image_data, string $source_mime_type = '' ) {
+	if ( function_exists( 'getimagesizefromstring' ) ) {
+		// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- Malformed or unsupported image bytes are an expected probe failure; callers fail closed when dimensions are unavailable.
+		$image_info = @getimagesizefromstring( $image_data );
+
+		if ( is_array( $image_info ) ) {
+			$parsed_width  = absint( $image_info[0] ?? 0 );
+			$parsed_height = absint( $image_info[1] ?? 0 );
+
+			if ( $parsed_width > 0 && $parsed_height > 0 ) {
+				return array(
+					'width'  => $parsed_width,
+					'height' => $parsed_height,
+				);
+			}
+		}
+	}
+
+	// PHP versions before 8.2 can recognize AVIF while reporting zero dimensions. WordPress'
+	// bounded AVIF parser reads an owned local file without allocating a decoded pixel canvas.
+	if ( 'image/avif' === ai4seo_normalize_mime_type_string( $source_mime_type ) ) {
+		return ai4seo_get_avif_source_image_dimensions_from_owned_temporary_file( $image_data );
+	}
+
+	return false;
+}
+
+
+/**
+ * Read AVIF dimensions through WordPress' container parser using an operation-owned temp file.
+ *
+ * @param string $image_data Raw AVIF bytes.
+ * @return array{width: int, height: int}|false Parsed dimensions, or false on any failure.
+ */
+function ai4seo_get_avif_source_image_dimensions_from_owned_temporary_file( string $image_data ) {
+	if ( ! function_exists( 'wp_tempnam' ) ) {
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+	}
+
+	if ( ! function_exists( 'wp_tempnam' ) || ! function_exists( 'wp_get_avif_info' ) ) {
+		return false;
+	}
+
+	$source_file_path = wp_tempnam( 'ai4seo-avif-source-inspection' );
+
+	if ( ! is_string( $source_file_path ) || '' === $source_file_path ) {
+		return false;
+	}
+
+	try {
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- The core AVIF parser requires an operation-owned local source path.
+		$written_bytes = file_put_contents( $source_file_path, $image_data );
+
+		if ( strlen( $image_data ) !== $written_bytes ) {
+			return false;
+		}
+
+		$avif_info = wp_get_avif_info( $source_file_path );
+		$width     = absint( $avif_info['width'] ?? 0 );
+		$height    = absint( $avif_info['height'] ?? 0 );
+
+		if ( $width < 1 || $height < 1 ) {
+			return false;
+		}
+
+		return array(
+			'width'  => $width,
+			'height' => $height,
+		);
+	} finally {
+		if ( file_exists( $source_file_path ) ) {
+			wp_delete_file( $source_file_path );
+		}
+	}
+}
+
 
 /**
  * Create a model-compatible base64 image, converting or downsizing when necessary.
@@ -1028,18 +2142,23 @@ function ai4seo_get_scaled_image_dimensions( array $current_dimensions, float $s
  * @param string      $image_data        The image data to encode.
  * @param string      $source_mime_type  MIME type detected from the source bytes.
  * @param string|null $encoded_mime_type Actual MIME type of the encoded output.
+ * @param string|null $failure_stage     Safe failure-stage identifier.
  * @return string The base64-encoded image data, or an empty string on error.
+ * @throws Exception When a derivative cannot be generated or validated.
  */
 function ai4seo_smart_image_base64_encode(
 	string $image_data,
 	string $source_mime_type = '',
-	?string &$encoded_mime_type = null
+	?string &$encoded_mime_type = null,
+	?string &$failure_stage = null
 ): string {
 	// Default to the detected source MIME; a derivative branch replaces it with a compatible format below.
 	$encoded_mime_type = ai4seo_normalize_mime_type_string( $source_mime_type ) ?? '';
+	$failure_stage     = '';
 
 	// Preserve the existing recursion guard before allocating temporary files or image-editor resources.
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
+		$failure_stage = 'loop_prevented';
 		ai4seo_debug_message( 241293986, 'Prevented loop', true );
 		return '';
 	}
@@ -1050,19 +2169,35 @@ function ai4seo_smart_image_base64_encode(
 
 	// Isolate backend and filesystem failures so every conversion error retains the established return contract.
 	try {
-		// Decide whether the source can pass through unchanged or requires a compatible derivative.
+		// Inspect every source before pass-through so compressed bytes cannot bypass canvas limits.
 		$source_image_size_bytes        = strlen( $image_data );
 		$requires_compatible_derivative = 'image/avif' === $encoded_mime_type;
+		$source_dimensions              = ai4seo_get_source_image_dimensions_before_decode( $image_data, $encoded_mime_type );
 
-		// RobHub requires an AVIF derivative even when the source is already below the size limit.
-		if ( $source_image_size_bytes <= $target_image_size_bytes && ! $requires_compatible_derivative ) {
-			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- Encode the image payload for the model request.
+		// Reject unsafe or unknown canvases before GD or Imagick can allocate decoded pixel memory.
+		if ( false === $source_dimensions
+			|| ! ai4seo_image_dimensions_fit_decode_budget( $source_dimensions['width'], $source_dimensions['height'] ) ) {
+			$failure_stage = 'decode_budget';
+			throw new Exception( 'The source image exceeds the safe decode budget.' );
+		}
+
+		$source_fits_output_canvas = ai4seo_image_dimensions_fit_model_output_budget(
+			$source_dimensions['width'],
+			$source_dimensions['height']
+		);
+		$requires_derivative       = $requires_compatible_derivative
+			|| $source_image_size_bytes > $target_image_size_bytes
+			|| ! $source_fits_output_canvas;
+
+		if ( ! $requires_derivative ) {
+			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- Encode the validated bounded source payload for the model request.
 			return base64_encode( $image_data );
 		}
 
-		// PNG preserves AVIF transparency across WordPress image backends; other oversized formats retain JPEG output.
+		// PNG preserves AVIF transparency across WordPress image backends; other derivatives use JPEG.
 		$derivative_mime_type = $requires_compatible_derivative ? 'image/png' : 'image/jpeg';
-		$image_editor         = ai4seo_get_image_editor_from_data(
+
+		$image_editor = ai4seo_get_image_editor_from_data(
 			$image_data,
 			$encoded_mime_type,
 			$derivative_mime_type,
@@ -1071,6 +2206,7 @@ function ai4seo_smart_image_base64_encode(
 
 		// Backend-selection failures are normalized through the common conversion error path.
 		if ( is_wp_error( $image_editor ) ) {
+			$failure_stage = 'image_editor';
 			throw new Exception( $image_editor->get_error_message() );
 		}
 
@@ -1079,6 +2215,7 @@ function ai4seo_smart_image_base64_encode(
 
 		// Quality configuration failures make all following derivative measurements unreliable.
 		if ( is_wp_error( $quality_result ) ) {
+			$failure_stage = 'derivative_encode';
 			throw new Exception( $quality_result->get_error_message() );
 		}
 
@@ -1087,15 +2224,25 @@ function ai4seo_smart_image_base64_encode(
 
 		// Reject editor states that cannot support proportional resizing.
 		if ( empty( $current_dimensions['width'] ) || empty( $current_dimensions['height'] ) ) {
+			$failure_stage = 'image_metadata';
 			throw new Exception( 'Could not determine image dimensions.' );
 		}
 
-		// Apply the source-size estimate once, then correct against actual derivative bytes below.
+		// Enforce the output canvas and byte estimate together, then correct against measured bytes below.
+		$initial_scale = min(
+			1,
+			AI4SEO_ATTACHMENT_GENERATION_MAX_IMAGE_DIMENSION / $current_dimensions['width'],
+			AI4SEO_ATTACHMENT_GENERATION_MAX_IMAGE_DIMENSION / $current_dimensions['height']
+		);
+
 		if ( $source_image_size_bytes > $target_image_size_bytes ) {
-			$initial_scale      = min( 1, sqrt( $target_image_size_bytes / $source_image_size_bytes ) );
+			$initial_scale = min( $initial_scale, sqrt( $target_image_size_bytes / $source_image_size_bytes ) );
+		}
+
+		if ( $initial_scale < 1 ) {
 			$initial_dimensions = ai4seo_get_scaled_image_dimensions( $current_dimensions, $initial_scale );
 
-			// Avoid a no-op resize when the source estimate already retains the loaded dimensions.
+			// Avoid a no-op resize when integer rounding retains the loaded dimensions.
 			if ( $initial_dimensions['width'] < $current_dimensions['width'] || $initial_dimensions['height'] < $current_dimensions['height'] ) {
 				$resize_result = $image_editor->resize(
 					$initial_dimensions['width'],
@@ -1105,6 +2252,7 @@ function ai4seo_smart_image_base64_encode(
 
 				// Surface backend-specific resizing failures through the shared conversion error contract.
 				if ( is_wp_error( $resize_result ) ) {
+					$failure_stage = 'derivative_resize';
 					throw new Exception( $resize_result->get_error_message() );
 				}
 			}
@@ -1120,6 +2268,7 @@ function ai4seo_smart_image_base64_encode(
 
 			// Normalize image-editor save errors before attempting to read an output path.
 			if ( is_wp_error( $saved_derivative ) ) {
+				$failure_stage = 'derivative_save';
 				throw new Exception( $saved_derivative->get_error_message() );
 			}
 
@@ -1127,30 +2276,48 @@ function ai4seo_smart_image_base64_encode(
 			$derivative_path = $saved_derivative['path'] ?? '';
 
 			// A successful save result still needs a readable local derivative path.
-			if ( ! is_string( $derivative_path ) || '' === $derivative_path || ! is_readable( $derivative_path ) ) {
+			if ( ! is_string( $derivative_path )
+				|| '' === $derivative_path
+				|| ! is_file( $derivative_path )
+				|| ! is_readable( $derivative_path ) ) {
+				$failure_stage = 'derivative_path';
 				throw new Exception( 'Could not read the generated image derivative.' );
 			}
 
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- The derivative is a bounded local temporary file.
-			$derivative_image_data = file_get_contents( $derivative_path );
+			// Measure the file before loading it so oversized attempts can be corrected without another allocation.
+			$derivative_image_size_bytes = ai4seo_get_file_size( $derivative_path );
 
-			// Empty or unreadable derivative bodies cannot be sent to the model.
-			if ( ! is_string( $derivative_image_data ) || '' === $derivative_image_data ) {
+			if ( $derivative_image_size_bytes <= 0 ) {
+				$failure_stage = 'derivative_read';
 				throw new Exception( 'The generated image derivative is empty.' );
 			}
 
-			// Measure decoded bytes because base64 expansion is outside the model's image-size target.
-			$derivative_image_size_bytes = strlen( $derivative_image_data );
-
-			// The first compliant derivative is final and exposes the backend-confirmed output MIME.
+			// The first size-compliant derivative must also pass independent MIME and decoder validation.
 			if ( $derivative_image_size_bytes <= $target_image_size_bytes ) {
-				$encoded_mime_type = $saved_derivative['mime-type'] ?? $derivative_mime_type;
+				// Release the source decoder before validation opens a second potentially large pixel canvas.
+				unset( $image_editor );
+
+				$validated_derivative = ai4seo_read_validated_image_derivative(
+					$derivative_path,
+					$derivative_mime_type,
+					(string) ( $saved_derivative['mime-type'] ?? '' ),
+					$target_image_size_bytes,
+					$failure_stage
+				);
+
+				if ( is_wp_error( $validated_derivative ) ) {
+					throw new Exception( $validated_derivative->get_error_message() );
+				}
+
+				$encoded_mime_type     = $validated_derivative['mime_type'];
+				$derivative_image_data = $validated_derivative['data'];
 				// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- Encode the bounded derivative for the model request.
 				return base64_encode( $derivative_image_data );
 			}
 
 			// Stop at the configured bound instead of performing an unbounded size-correction cycle.
 			if ( AI4SEO_ATTACHMENT_GENERATION_MAX_ENCODING_ATTEMPTS === $encoding_attempt ) {
+				$failure_stage = 'derivative_size';
 				throw new Exception( 'Could not reduce the image derivative to the target file size.' );
 			}
 
@@ -1162,6 +2329,7 @@ function ai4seo_smart_image_base64_encode(
 			// Stop when integer rounding leaves both dimensions unchanged.
 			if ( $current_dimensions['width'] === $corrected_dimensions['width']
 				&& $current_dimensions['height'] === $corrected_dimensions['height'] ) {
+				$failure_stage = 'derivative_resize';
 				throw new Exception( 'Could not reduce the image derivative dimensions further.' );
 			}
 
@@ -1173,72 +2341,962 @@ function ai4seo_smart_image_base64_encode(
 
 			// Any corrective resize failure makes the conversion attempt unusable.
 			if ( is_wp_error( $resize_result ) ) {
+				$failure_stage = 'derivative_resize';
 				throw new Exception( $resize_result->get_error_message() );
 			}
 		}
 	} catch ( Throwable $e ) {
 		// Keep backend failures observable while preserving the established empty-string error contract.
+		if ( '' === $failure_stage ) {
+			$failure_stage = 'derivative_encode';
+		}
+
 		ai4seo_debug_message( 578877568, $e->getMessage(), true );
 		return '';
 	} finally {
 		// Always clean backend-generated files, including early returns and failed conversions.
 		ai4seo_delete_temporary_image_files( $temporary_image_file_paths );
 	}
+
+	// Every bounded attempt returns or throws above; retain the declared string contract defensively.
+	return '';
 }
 
-// =========================================================================================== \\
 
 /**
- * Updates the currently active attachment attributes for an attachment
+ * Reads the single provider row owned by an imported NextGEN entry.
  *
- * @param int   $attachment_post_id the attachment post id
- * @param array $attachment_attribute_updates the updates to apply with the keys title, caption, description, alt-text
- * @param bool  $force_overwrite_all_existing_data if true, existing data will be overwritten, if false, we check the settings to identify the attachment attributes that should be overwritten
+ * @param int $picture_id NextGEN picture ID.
+ * @return array|false Provider row, or false when it cannot be read unambiguously.
+ */
+function ai4seo_read_nextgen_attachment_attribute_sync_row( int $picture_id ) {
+	global $wpdb;
+
+	$picture_id = absint( $picture_id );
+
+	if ( $picture_id <= 0 ) {
+		return false;
+	}
+
+	$query = ai4seo_prepare_database_query(
+		'SELECT `pid`, `description`, `alttext`
+		FROM {{pictures_table}}
+		WHERE `pid` = {{picture_id}}
+		LIMIT 2',
+		array(
+			'pictures_table' => ai4seo_database_identifier_binding( 'table.nextgen_pictures' ),
+			'picture_id'     => ai4seo_database_scalar_binding( '%d', $picture_id ),
+		)
+	);
+
+	if ( false === $query ) {
+		return false;
+	}
+
+	$wpdb->last_error = '';
+
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed compiler owns the optional provider identifier and pid; synchronization must preflight and verify the current provider row around its one-shot write.
+	$rows = $wpdb->get_results( $query, ARRAY_A );
+
+	if ( $wpdb->last_error || ! is_array( $rows ) || 1 !== count( $rows ) ) {
+		return false;
+	}
+
+	return $rows[0];
+}
+
+
+/**
+ * Checks whether a database row contains the exact requested field values.
+ *
+ * @param array $row Database row.
+ * @param array $expected_values Expected field values.
+ * @return bool True when every expected field has the same stored string value.
+ */
+function ai4seo_attachment_attribute_row_matches_values( array $row, array $expected_values ): bool {
+	foreach ( $expected_values as $field => $expected_value ) {
+		if ( ! array_key_exists( $field, $row ) || (string) $expected_value !== (string) $row[ $field ] ) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+
+/**
+ * Compares and sets allowed provider fields for one imported NextGEN entry.
+ *
+ * @param int   $picture_id NextGEN picture ID.
+ * @param array $desired_values Values to store.
+ * @param array $expected_values Values that must still be current for this write to own the change.
+ * @return array Result with succeeded, changed, and conflicted boolean keys.
+ */
+function ai4seo_compare_and_set_nextgen_attachment_attribute_sync_row( int $picture_id, array $desired_values, array $expected_values ): array {
+	global $wpdb;
+
+	$picture_id     = absint( $picture_id );
+	$allowed_fields = array(
+		'description' => true,
+		'alttext'     => true,
+	);
+
+	$result = array(
+		'succeeded'  => false,
+		'changed'    => false,
+		'conflicted' => false,
+	);
+
+	if (
+		$picture_id <= 0
+		|| ! $desired_values
+		|| array_diff_key( $desired_values, $allowed_fields )
+		|| array_diff_key( $expected_values, $allowed_fields )
+		|| array_keys( $desired_values ) !== array_keys( $expected_values )
+	) {
+		return $result;
+	}
+
+	// Canonical field order selects one of the closed query templates below.
+	$normalized_desired_values  = array();
+	$normalized_expected_values = array();
+
+	foreach ( array_keys( $allowed_fields ) as $field ) {
+		if ( array_key_exists( $field, $desired_values ) ) {
+			$normalized_desired_values[ $field ]  = $desired_values[ $field ];
+			$normalized_expected_values[ $field ] = $expected_values[ $field ];
+		}
+	}
+
+	$query_templates = array(
+		'description'         => 'UPDATE {{pictures_table}} SET `description` = {{desired_description}} WHERE `pid` = {{picture_id}} AND BINARY `description` = BINARY {{expected_description}} LIMIT 1',
+		'alttext'             => 'UPDATE {{pictures_table}} SET `alttext` = {{desired_alttext}} WHERE `pid` = {{picture_id}} AND BINARY `alttext` = BINARY {{expected_alttext}} LIMIT 1',
+		'description,alttext' => 'UPDATE {{pictures_table}} SET `description` = {{desired_description}}, `alttext` = {{desired_alttext}} WHERE `pid` = {{picture_id}} AND BINARY `description` = BINARY {{expected_description}} AND BINARY `alttext` = BINARY {{expected_alttext}} LIMIT 1',
+	);
+	$query_key       = implode( ',', array_keys( $normalized_desired_values ) );
+	$query_template  = $query_templates[ $query_key ] ?? '';
+
+	if ( '' === $query_template ) {
+		return $result;
+	}
+
+	$bindings = array(
+		'pictures_table' => ai4seo_database_identifier_binding( 'table.nextgen_pictures' ),
+		'picture_id'     => ai4seo_database_scalar_binding( '%d', $picture_id ),
+	);
+
+	foreach ( $normalized_desired_values as $field => $value ) {
+		$bindings[ 'desired_' . $field ]  = ai4seo_database_scalar_binding( '%s', $value );
+		$bindings[ 'expected_' . $field ] = ai4seo_database_scalar_binding( '%s', $normalized_expected_values[ $field ] );
+	}
+
+	$query = ai4seo_prepare_database_query( $query_template, $bindings );
+
+	if ( false === $query ) {
+		return $result;
+	}
+
+	$wpdb->last_error = '';
+
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- A closed typed template uses BINARY comparisons for byte-exact provider CAS; uncached readback distinguishes an equal no-op from a raced writer.
+	$update_result = $wpdb->query( $query );
+
+	if ( false === $update_result || $wpdb->last_error ) {
+		return $result;
+	}
+
+	$result['changed'] = (int) $update_result > 0;
+
+	$current_row = ai4seo_read_nextgen_attachment_attribute_sync_row( $picture_id );
+
+	if ( false === $current_row ) {
+		return $result;
+	}
+
+	if ( ai4seo_attachment_attribute_row_matches_values( $current_row, $normalized_desired_values ) ) {
+		$result['succeeded'] = true;
+		return $result;
+	}
+
+	$result['conflicted'] = true;
+	return $result;
+}
+
+
+/**
+ * Reads current WordPress-owned post columns without consulting the object cache.
+ *
+ * @param int $attachment_post_id Attachment post ID.
+ * @return array|false Current post row, or false on absence/database failure.
+ */
+function ai4seo_read_attachment_attribute_post_row( int $attachment_post_id ) {
+	global $wpdb;
+
+	$attachment_post_id = absint( $attachment_post_id );
+
+	if ( $attachment_post_id <= 0 ) {
+		return false;
+	}
+
+	$query = ai4seo_prepare_database_query(
+		'SELECT `ID`, `post_title`, `post_excerpt`, `post_content`
+		FROM {{posts_table}}
+		WHERE `ID` = {{post_id}}
+		LIMIT 1',
+		array(
+			'posts_table' => ai4seo_database_identifier_binding( 'table.posts' ),
+			'post_id'     => ai4seo_database_scalar_binding( '%d', $attachment_post_id ),
+		)
+	);
+
+	if ( false === $query ) {
+		return false;
+	}
+
+	$wpdb->last_error = '';
+
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed compiler owns the post identifier and ID; compare-and-set verification must bypass the possibly stale post object cache.
+	$row = $wpdb->get_row( $query, ARRAY_A );
+
+	return $wpdb->last_error || ! is_array( $row ) ? false : $row;
+}
+
+
+/**
+ * Compares and sets WordPress-owned post columns used for attachment attributes.
+ *
+ * @param int   $attachment_post_id Attachment post ID.
+ * @param array $desired_values Values to store.
+ * @param array $expected_values Values that must still be current for this write to own the change.
+ * @return array Result with succeeded, changed, and conflicted boolean keys.
+ */
+function ai4seo_compare_and_set_attachment_attribute_post_columns( int $attachment_post_id, array $desired_values, array $expected_values ): array {
+	global $wpdb;
+
+	$attachment_post_id = absint( $attachment_post_id );
+	$allowed_columns    = array(
+		'post_title'   => true,
+		'post_excerpt' => true,
+		'post_content' => true,
+	);
+
+	$result = array(
+		'succeeded'  => false,
+		'changed'    => false,
+		'conflicted' => false,
+	);
+
+	if (
+		$attachment_post_id <= 0
+		|| ! $desired_values
+		|| array_diff_key( $desired_values, $allowed_columns )
+		|| array_diff_key( $expected_values, $allowed_columns )
+		|| array_keys( $desired_values ) !== array_keys( $expected_values )
+	) {
+		return $result;
+	}
+
+	// Canonical column order selects one of the closed query templates below.
+	$normalized_desired_values  = array();
+	$normalized_expected_values = array();
+
+	foreach ( array_keys( $allowed_columns ) as $column ) {
+		if ( array_key_exists( $column, $desired_values ) ) {
+			$normalized_desired_values[ $column ]  = $desired_values[ $column ];
+			$normalized_expected_values[ $column ] = $expected_values[ $column ];
+		}
+	}
+
+	$query_templates = array(
+		'post_title'                           => 'UPDATE {{posts_table}} SET `post_title` = {{desired_post_title}} WHERE `ID` = {{post_id}} AND BINARY `post_title` = BINARY {{expected_post_title}} LIMIT 1',
+		'post_excerpt'                         => 'UPDATE {{posts_table}} SET `post_excerpt` = {{desired_post_excerpt}} WHERE `ID` = {{post_id}} AND BINARY `post_excerpt` = BINARY {{expected_post_excerpt}} LIMIT 1',
+		'post_content'                         => 'UPDATE {{posts_table}} SET `post_content` = {{desired_post_content}} WHERE `ID` = {{post_id}} AND BINARY `post_content` = BINARY {{expected_post_content}} LIMIT 1',
+		'post_title,post_excerpt'              => 'UPDATE {{posts_table}} SET `post_title` = {{desired_post_title}}, `post_excerpt` = {{desired_post_excerpt}} WHERE `ID` = {{post_id}} AND BINARY `post_title` = BINARY {{expected_post_title}} AND BINARY `post_excerpt` = BINARY {{expected_post_excerpt}} LIMIT 1',
+		'post_title,post_content'              => 'UPDATE {{posts_table}} SET `post_title` = {{desired_post_title}}, `post_content` = {{desired_post_content}} WHERE `ID` = {{post_id}} AND BINARY `post_title` = BINARY {{expected_post_title}} AND BINARY `post_content` = BINARY {{expected_post_content}} LIMIT 1',
+		'post_excerpt,post_content'            => 'UPDATE {{posts_table}} SET `post_excerpt` = {{desired_post_excerpt}}, `post_content` = {{desired_post_content}} WHERE `ID` = {{post_id}} AND BINARY `post_excerpt` = BINARY {{expected_post_excerpt}} AND BINARY `post_content` = BINARY {{expected_post_content}} LIMIT 1',
+		'post_title,post_excerpt,post_content' => 'UPDATE {{posts_table}} SET `post_title` = {{desired_post_title}}, `post_excerpt` = {{desired_post_excerpt}}, `post_content` = {{desired_post_content}} WHERE `ID` = {{post_id}} AND BINARY `post_title` = BINARY {{expected_post_title}} AND BINARY `post_excerpt` = BINARY {{expected_post_excerpt}} AND BINARY `post_content` = BINARY {{expected_post_content}} LIMIT 1',
+	);
+	$query_key       = implode( ',', array_keys( $normalized_desired_values ) );
+	$query_template  = $query_templates[ $query_key ] ?? '';
+
+	if ( '' === $query_template ) {
+		return $result;
+	}
+
+	$bindings = array(
+		'posts_table' => ai4seo_database_identifier_binding( 'table.posts' ),
+		'post_id'     => ai4seo_database_scalar_binding( '%d', $attachment_post_id ),
+	);
+
+	foreach ( $normalized_desired_values as $column => $value ) {
+		$bindings[ 'desired_' . $column ]  = ai4seo_database_scalar_binding( '%s', $value );
+		$bindings[ 'expected_' . $column ] = ai4seo_database_scalar_binding( '%s', $normalized_expected_values[ $column ] );
+	}
+
+	$query = ai4seo_prepare_database_query( $query_template, $bindings );
+
+	if ( false === $query ) {
+		return $result;
+	}
+
+	$wpdb->last_error = '';
+
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- A closed typed template uses BINARY comparisons for byte-exact post CAS while preserving unslashed storage; uncached readback distinguishes an equal no-op from a raced writer.
+	$update_result = $wpdb->query( $query );
+
+	if ( false === $update_result || $wpdb->last_error ) {
+		return $result;
+	}
+
+	$result['changed'] = (int) $update_result > 0;
+	$current_row       = ai4seo_read_attachment_attribute_post_row( $attachment_post_id );
+
+	if ( false === $current_row ) {
+		return $result;
+	}
+
+	if ( ai4seo_attachment_attribute_row_matches_values( $current_row, $normalized_desired_values ) ) {
+		$result['succeeded'] = true;
+		return $result;
+	}
+
+	$result['conflicted'] = true;
+	return $result;
+}
+
+
+/**
+ * Reads the exact WordPress alt-text metadata state without consulting the object cache.
+ *
+ * @param int $attachment_post_id Attachment post ID.
+ * @return array|false State with exists, meta_id, and value keys, or false on ambiguity/failure.
+ */
+function ai4seo_read_attachment_alt_text_postmeta_state( int $attachment_post_id ) {
+	global $wpdb;
+
+	$attachment_post_id = absint( $attachment_post_id );
+
+	if ( $attachment_post_id <= 0 ) {
+		return false;
+	}
+
+	$query = ai4seo_prepare_database_query(
+		'SELECT `meta_id`, `meta_value`
+		FROM {{postmeta_table}}
+		WHERE `post_id` = {{post_id}}
+		AND `meta_key` = {{meta_key}}
+		ORDER BY `meta_id` ASC
+		LIMIT 2',
+		array(
+			'postmeta_table' => ai4seo_database_identifier_binding( 'table.postmeta' ),
+			'post_id'        => ai4seo_database_scalar_binding( '%d', $attachment_post_id ),
+			'meta_key'       => ai4seo_database_scalar_binding( '%s', '_wp_attachment_image_alt' ), // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- The exact key is bounded by one post ID and two rows to establish an unambiguous CAS owner.
+		)
+	);
+
+	if ( false === $query ) {
+		return false;
+	}
+
+	$wpdb->last_error = '';
+
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed compiler owns the core identifier and exact key/ID values; this one-shot preflight must bypass a possibly stale metadata cache.
+	$rows = $wpdb->get_results( $query, ARRAY_A );
+
+	if ( $wpdb->last_error || ! is_array( $rows ) || count( $rows ) > 1 ) {
+		return false;
+	}
+
+	if ( ! $rows ) {
+		return array(
+			'exists'  => false,
+			'meta_id' => 0,
+			'value'   => '',
+		);
+	}
+
+	$meta_id = absint( $rows[0]['meta_id'] ?? 0 );
+
+	if ( $meta_id <= 0 || ! array_key_exists( 'meta_value', $rows[0] ) ) {
+		return false;
+	}
+
+	return array(
+		'exists'  => true,
+		'meta_id' => $meta_id,
+		'value'   => (string) $rows[0]['meta_value'],
+	);
+}
+
+
+/**
+ * Reads one exact attachment alt-text metadata owner by its primary key.
+ *
+ * @param int $attachment_post_id Attachment post ID.
+ * @param int $meta_id Postmeta primary key.
+ * @return array Result with succeeded, exists, and value keys.
+ */
+function ai4seo_read_attachment_alt_text_postmeta_row_by_id( int $attachment_post_id, int $meta_id ): array {
+	global $wpdb;
+
+	$attachment_post_id = absint( $attachment_post_id );
+	$meta_id            = absint( $meta_id );
+	$result             = array(
+		'succeeded' => false,
+		'exists'    => false,
+		'value'     => '',
+	);
+
+	if ( $attachment_post_id <= 0 || $meta_id <= 0 ) {
+		return $result;
+	}
+
+	$query = ai4seo_prepare_database_query(
+		'SELECT `meta_id`, `meta_value`
+		FROM {{postmeta_table}}
+		WHERE `meta_id` = {{meta_id}}
+		AND `post_id` = {{post_id}}
+		AND `meta_key` = {{meta_key}}
+		LIMIT 1',
+		array(
+			'postmeta_table' => ai4seo_database_identifier_binding( 'table.postmeta' ),
+			'meta_id'        => ai4seo_database_scalar_binding( '%d', $meta_id ),
+			'post_id'        => ai4seo_database_scalar_binding( '%d', $attachment_post_id ),
+			'meta_key'       => ai4seo_database_scalar_binding( '%s', '_wp_attachment_image_alt' ), // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- The primary meta ID and post ID bound this ownership verification to one row.
+		)
+	);
+
+	if ( false === $query ) {
+		return $result;
+	}
+
+	$wpdb->last_error = '';
+
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed compiler owns the core identifier and exact primary/key/post bindings; rollback verification must bypass stale metadata caches.
+	$row = $wpdb->get_row( $query, ARRAY_A );
+
+	if ( $wpdb->last_error ) {
+		return $result;
+	}
+
+	$result['succeeded'] = true;
+
+	if ( is_array( $row ) && absint( $row['meta_id'] ?? 0 ) === $meta_id && array_key_exists( 'meta_value', $row ) ) {
+		$result['exists'] = true;
+		$result['value']  = (string) $row['meta_value'];
+	}
+
+	return $result;
+}
+
+
+/**
+ * Compares and sets one attachment alt-text row against an exact preflight state.
+ *
+ * Missing rows use a guarded insert. Existing rows use their captured ID and a byte-exact value
+ * predicate. A zero-row result is accepted only when one unambiguous row already has the desired
+ * bytes; every other zero-row result is a concurrent-write conflict.
+ *
+ * @param int    $attachment_post_id Attachment post ID.
+ * @param string $desired_value Desired unslashed alt text.
+ * @param array  $expected_state Exact state returned by ai4seo_read_attachment_alt_text_postmeta_state().
+ * @return array Result with succeeded, changed, conflicted, and ownership keys.
+ */
+function ai4seo_compare_and_set_attachment_alt_text_postmeta( int $attachment_post_id, string $desired_value, array $expected_state ): array {
+	global $wpdb;
+
+	$attachment_post_id = absint( $attachment_post_id );
+	$meta_key           = '_wp_attachment_image_alt';
+	$result             = array(
+		'succeeded'  => false,
+		'changed'    => false,
+		'conflicted' => false,
+		'ownership'  => array(),
+	);
+
+	if (
+		$attachment_post_id <= 0
+		|| ! array_key_exists( 'exists', $expected_state )
+		|| ! is_bool( $expected_state['exists'] )
+		|| ! array_key_exists( 'meta_id', $expected_state )
+		|| ! array_key_exists( 'value', $expected_state )
+	) {
+		return $result;
+	}
+
+	// Match update_post_meta(): sanitize the unslashed request before its authoritative update filter.
+	$meta_subtype      = get_object_subtype( 'post', $attachment_post_id );
+	$update_hook_value = sanitize_meta( $meta_key, $desired_value, 'post', $meta_subtype );
+	$update_check      = apply_filters(
+		'update_post_metadata',
+		null,
+		$attachment_post_id,
+		$meta_key,
+		$update_hook_value,
+		''
+	);
+
+	// A non-null metadata filter owns the operation exactly as it does in WordPress core.
+	if ( null !== $update_check ) {
+		$result['succeeded'] = (bool) $update_check;
+		return $result;
+	}
+
+	if ( $expected_state['exists'] ) {
+		$expected_meta_id = absint( $expected_state['meta_id'] );
+
+		if ( $expected_meta_id <= 0 ) {
+			return $result;
+		}
+
+		$hook_value       = $update_hook_value;
+		$serialized_value = maybe_serialize( $hook_value );
+		$stored_value     = (string) $serialized_value;
+
+		// WordPress returns before update actions when the one existing value already matches.
+		if ( $stored_value === (string) $expected_state['value'] ) {
+			$result['succeeded'] = true;
+			return $result;
+		}
+
+		$query = ai4seo_prepare_database_query(
+			'UPDATE {{postmeta_table}}
+			SET `meta_value` = {{desired_value}}
+			WHERE `meta_id` = {{meta_id}}
+			AND `post_id` = {{post_id}}
+			AND `meta_key` = {{meta_key}}
+			AND BINARY `meta_value` = BINARY {{expected_value}}
+			LIMIT 1',
+			array(
+				'postmeta_table' => ai4seo_database_identifier_binding( 'table.postmeta' ),
+				'desired_value'  => ai4seo_database_scalar_binding( '%s', $stored_value ),
+				'meta_id'        => ai4seo_database_scalar_binding( '%d', $expected_meta_id ),
+				'post_id'        => ai4seo_database_scalar_binding( '%d', $attachment_post_id ),
+				'meta_key'       => ai4seo_database_scalar_binding( '%s', $meta_key ), // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- The primary meta ID and post ID bound this byte-exact ownership check to one row.
+				'expected_value' => ai4seo_database_scalar_binding( '%s', (string) $expected_state['value'] ),
+			)
+		);
+	} else {
+		// update_metadata() delegates a missing owner to add_metadata(), which sanitizes and filters again.
+		$hook_value = sanitize_meta( $meta_key, $desired_value, 'post', $meta_subtype );
+		$add_check  = apply_filters(
+			'add_post_metadata',
+			null,
+			$attachment_post_id,
+			$meta_key,
+			$hook_value,
+			false
+		);
+
+		if ( null !== $add_check ) {
+			$result['succeeded'] = (bool) $add_check;
+			return $result;
+		}
+
+		$serialized_value = maybe_serialize( $hook_value );
+		$stored_value     = (string) $serialized_value;
+
+		$query = ai4seo_prepare_database_query(
+			'INSERT INTO {{postmeta_insert_table}} (`post_id`, `meta_key`, `meta_value`)
+			SELECT {{insert_post_id}}, {{insert_meta_key}}, {{insert_meta_value}}
+			WHERE NOT EXISTS (
+				SELECT 1
+				FROM {{postmeta_exists_table}}
+				WHERE `post_id` = {{existing_post_id}}
+				AND `meta_key` = {{existing_meta_key}}
+			)',
+			array(
+				'postmeta_insert_table' => ai4seo_database_identifier_binding( 'table.postmeta' ),
+				'insert_post_id'        => ai4seo_database_scalar_binding( '%d', $attachment_post_id ),
+				'insert_meta_key'       => ai4seo_database_scalar_binding( '%s', $meta_key ),
+				'insert_meta_value'     => ai4seo_database_scalar_binding( '%s', $stored_value ),
+				'postmeta_exists_table' => ai4seo_database_identifier_binding( 'table.postmeta' ),
+				'existing_post_id'      => ai4seo_database_scalar_binding( '%d', $attachment_post_id ),
+				'existing_meta_key'     => ai4seo_database_scalar_binding( '%s', $meta_key ), // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- The exact key and post ID guard the single-row insert against a concurrent metadata owner.
+			)
+		);
+	}
+
+	if ( false === $query ) {
+		return $result;
+	}
+
+	// Reproduce core's pre-write actions only after every filter has allowed the direct mutation.
+	if ( $expected_state['exists'] ) {
+		do_action( 'update_post_meta', $expected_meta_id, $attachment_post_id, $meta_key, $hook_value );
+		do_action( 'update_postmeta', $expected_meta_id, $attachment_post_id, $meta_key, $serialized_value );
+	} else {
+		do_action( 'add_post_meta', $attachment_post_id, $meta_key, $hook_value );
+	}
+
+	$wpdb->last_error = '';
+
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Closed typed templates perform the missing/exact-value CAS; caller-owned cache invalidation follows every mutation or observed conflict.
+	$write_result = $wpdb->query( $query );
+
+	if ( false === $write_result || $wpdb->last_error ) {
+		return $result;
+	}
+
+	if ( (int) $write_result > 1 ) {
+		return $result;
+	}
+
+	$result['changed'] = 1 === (int) $write_result;
+
+	if ( $result['changed'] ) {
+		if ( $expected_state['exists'] ) {
+			$result['ownership'] = array(
+				'type'                => 'update',
+				'meta_id'             => $expected_meta_id,
+				'previous_value'      => (string) $expected_state['value'],
+				'previous_hook_value' => (string) $expected_state['value'],
+				'written_value'       => $stored_value,
+				'written_hook_value'  => $hook_value,
+			);
+		} else {
+			$inserted_meta_id = absint( $wpdb->insert_id );
+
+			if ( $inserted_meta_id <= 0 ) {
+				return $result;
+			}
+
+			$result['ownership'] = array(
+				'type'                => 'insert',
+				'meta_id'             => $inserted_meta_id,
+				'previous_value'      => '',
+				'previous_hook_value' => '',
+				'written_value'       => $stored_value,
+				'written_hook_value'  => $hook_value,
+			);
+		}
+
+		// Match WordPress cache/action order so post-write observers read the committed value.
+		wp_cache_delete( $attachment_post_id, 'post_meta' );
+
+		if ( $expected_state['exists'] ) {
+			do_action( 'updated_post_meta', $expected_meta_id, $attachment_post_id, $meta_key, $hook_value );
+			do_action( 'updated_postmeta', $expected_meta_id, $attachment_post_id, $meta_key, $serialized_value );
+		} else {
+			do_action( 'added_post_meta', $inserted_meta_id, $attachment_post_id, $meta_key, $hook_value );
+		}
+	}
+
+	$current_state = ai4seo_read_attachment_alt_text_postmeta_state( $attachment_post_id );
+
+	if ( false === $current_state ) {
+		if ( 0 === (int) $write_result && ! $wpdb->last_error ) {
+			$result['conflicted'] = true;
+		}
+
+		return $result;
+	}
+
+	if ( $current_state['exists'] && $stored_value === $current_state['value'] ) {
+		$result['succeeded'] = true;
+		return $result;
+	}
+
+	$result['conflicted'] = true;
+	return $result;
+}
+
+
+/**
+ * Reverses only the exact alt-text postmeta mutation owned by one failed operation.
+ *
+ * Updated rows are restored only while their current bytes still match the operation's write.
+ * Inserted rows are deleted only by their captured primary key and exact written bytes. Absence is
+ * accepted because a concurrent delete also removes this operation's partial state.
+ *
+ * @param int   $attachment_post_id Attachment post ID.
+ * @param array $ownership Exact ownership returned by ai4seo_compare_and_set_attachment_alt_text_postmeta().
+ * @return bool True when this operation's alt-text mutation is absent or restored.
+ */
+function ai4seo_reverse_attachment_alt_text_postmeta_write( int $attachment_post_id, array $ownership ): bool {
+	global $wpdb;
+
+	$attachment_post_id  = absint( $attachment_post_id );
+	$ownership_type      = (string) ( $ownership['type'] ?? '' );
+	$meta_id             = absint( $ownership['meta_id'] ?? 0 );
+	$meta_key            = '_wp_attachment_image_alt';
+	$previous_value      = (string) ( $ownership['previous_value'] ?? '' );
+	$written_value       = (string) ( $ownership['written_value'] ?? '' );
+	$previous_hook_value = array_key_exists( 'previous_hook_value', $ownership )
+		? $ownership['previous_hook_value']
+		: $previous_value;
+	$written_hook_value  = array_key_exists( 'written_hook_value', $ownership )
+		? $ownership['written_hook_value']
+		: $written_value;
+
+	if ( $attachment_post_id <= 0 || $meta_id <= 0 || ! in_array( $ownership_type, array( 'insert', 'update' ), true ) ) {
+		return false;
+	}
+
+	if ( 'update' === $ownership_type ) {
+		$meta_subtype        = get_object_subtype( 'post', $attachment_post_id );
+		$rollback_hook_value = sanitize_meta( $meta_key, $previous_hook_value, 'post', $meta_subtype );
+		$rollback_check      = apply_filters(
+			'update_post_metadata',
+			null,
+			$attachment_post_id,
+			$meta_key,
+			$rollback_hook_value,
+			$written_hook_value
+		);
+
+		if ( null !== $rollback_check ) {
+			return (bool) $rollback_check;
+		}
+
+		// Restore the exact captured bytes; maybe_serialize() would double-serialize scalar text that resembles serialized data.
+		$serialized_rollback_value = $previous_value;
+		$restored_value            = $previous_value;
+
+		$query = ai4seo_prepare_database_query(
+			'UPDATE {{postmeta_table}}
+			SET `meta_value` = {{previous_value}}
+			WHERE `meta_id` = {{meta_id}}
+			AND `post_id` = {{post_id}}
+			AND `meta_key` = {{meta_key}}
+			AND BINARY `meta_value` = BINARY {{written_value}}
+			LIMIT 1',
+			array(
+				'postmeta_table' => ai4seo_database_identifier_binding( 'table.postmeta' ),
+				'previous_value' => ai4seo_database_scalar_binding( '%s', $restored_value ),
+				'meta_id'        => ai4seo_database_scalar_binding( '%d', $meta_id ),
+				'post_id'        => ai4seo_database_scalar_binding( '%d', $attachment_post_id ),
+				'meta_key'       => ai4seo_database_scalar_binding( '%s', $meta_key ), // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- The primary meta ID and post ID bound this reverse CAS to the operation-owned row.
+				'written_value'  => ai4seo_database_scalar_binding( '%s', $written_value ),
+			)
+		);
+	} else {
+		$rollback_hook_value = $written_hook_value;
+		$rollback_check      = apply_filters(
+			'delete_post_metadata',
+			null,
+			$attachment_post_id,
+			$meta_key,
+			$rollback_hook_value,
+			false
+		);
+
+		if ( null !== $rollback_check ) {
+			return (bool) $rollback_check;
+		}
+
+		$query = ai4seo_prepare_database_query(
+			'DELETE FROM {{postmeta_table}}
+			WHERE `meta_id` = {{meta_id}}
+			AND `post_id` = {{post_id}}
+			AND `meta_key` = {{meta_key}}
+			AND BINARY `meta_value` = BINARY {{written_value}}
+			LIMIT 1',
+			array(
+				'postmeta_table' => ai4seo_database_identifier_binding( 'table.postmeta' ),
+				'meta_id'        => ai4seo_database_scalar_binding( '%d', $meta_id ),
+				'post_id'        => ai4seo_database_scalar_binding( '%d', $attachment_post_id ),
+				'meta_key'       => ai4seo_database_scalar_binding( '%s', $meta_key ), // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- The primary meta ID and post ID restrict deletion to the operation-owned insert.
+				'written_value'  => ai4seo_database_scalar_binding( '%s', $written_value ),
+			)
+		);
+	}
+
+	if ( false === $query ) {
+		return false;
+	}
+
+	// Do not announce a reverse mutation when a concurrent owner has already removed or replaced it.
+	$current_owner = ai4seo_read_attachment_alt_text_postmeta_row_by_id( $attachment_post_id, $meta_id );
+
+	if ( ! $current_owner['succeeded'] ) {
+		return false;
+	}
+
+	if ( ! $current_owner['exists'] ) {
+		return true;
+	}
+
+	if ( $written_value !== $current_owner['value'] ) {
+		return 'update' === $ownership_type && $restored_value === $current_owner['value'];
+	}
+
+	if ( 'update' === $ownership_type ) {
+		do_action( 'update_post_meta', $meta_id, $attachment_post_id, $meta_key, $rollback_hook_value );
+		do_action( 'update_postmeta', $meta_id, $attachment_post_id, $meta_key, $serialized_rollback_value );
+	} else {
+		$meta_ids = array( (string) $meta_id );
+		do_action( 'delete_post_meta', $meta_ids, $attachment_post_id, $meta_key, $rollback_hook_value );
+		do_action( 'delete_postmeta', $meta_ids );
+	}
+
+	$wpdb->last_error = '';
+
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Closed typed reverse-CAS/delete templates target only the captured primary key and exact bytes; caller repairs caches after the attempt.
+	$reverse_result = $wpdb->query( $query );
+
+	if ( false === $reverse_result || $wpdb->last_error || (int) $reverse_result > 1 ) {
+		return false;
+	}
+
+	if ( 1 === (int) $reverse_result ) {
+		wp_cache_delete( $attachment_post_id, 'post_meta' );
+
+		if ( 'update' === $ownership_type ) {
+			do_action( 'updated_post_meta', $meta_id, $attachment_post_id, $meta_key, $rollback_hook_value );
+			do_action( 'updated_postmeta', $meta_id, $attachment_post_id, $meta_key, $serialized_rollback_value );
+		} else {
+			do_action( 'deleted_post_meta', $meta_ids, $attachment_post_id, $meta_key, $rollback_hook_value );
+			do_action( 'deleted_postmeta', $meta_ids );
+		}
+	}
+
+	$current_owner = ai4seo_read_attachment_alt_text_postmeta_row_by_id( $attachment_post_id, $meta_id );
+
+	if ( ! $current_owner['succeeded'] ) {
+		return false;
+	}
+
+	if ( ! $current_owner['exists'] ) {
+		return true;
+	}
+
+	return 'update' === $ownership_type && $restored_value === $current_owner['value'];
+}
+// phpcs:enable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound
+
+
+/**
+ * Returns the bounded advisory-lock name for one site's attachment alt-text owner.
+ *
+ * @param int $attachment_post_id Attachment post ID.
+ * @return string Site/post/meta-scoped lock name, or an empty string for invalid input.
+ */
+function ai4seo_get_attachment_alt_text_postmeta_lock_name( int $attachment_post_id ): string {
+	global $wpdb;
+
+	$attachment_post_id = absint( $attachment_post_id );
+
+	if ( $attachment_post_id <= 0 ) {
+		return '';
+	}
+
+	$database_name = defined( 'DB_NAME' ) ? (string) DB_NAME : '';
+	$scope_hash    = substr( hash( 'sha256', $database_name . '|' . (string) $wpdb->prefix . '|' . absint( get_current_blog_id() ) ), 0, 32 );
+
+	// The database/prefix/site hash prevents server-wide GET_LOCK collisions; the longest signed ID keeps this at 63 bytes.
+	return 'ai4seo_alt_' . $scope_hash . '_' . $attachment_post_id;
+}
+
+
+/**
+ * Serializes one alt-text CAS and reverses any unverifiable owned write before releasing the lock.
+ *
+ * @param int    $attachment_post_id Attachment post ID.
+ * @param string $desired_value Desired unslashed alt text.
+ * @param array  $expected_state Exact preflight state.
+ * @return array CAS result plus rollback_attempted and rollback_succeeded keys.
+ */
+function ai4seo_write_attachment_alt_text_postmeta_with_lock( int $attachment_post_id, string $desired_value, array $expected_state ): array {
+	$lock_name = ai4seo_get_attachment_alt_text_postmeta_lock_name( $attachment_post_id );
+	$result    = array(
+		'succeeded'          => false,
+		'changed'            => false,
+		'conflicted'         => false,
+		'ownership'          => array(),
+		'rollback_attempted' => false,
+		'rollback_succeeded' => true,
+	);
+
+	if ( '' === $lock_name || ! ai4seo_acquire_database_advisory_lock( $lock_name ) ) {
+		return $result;
+	}
+
+	try {
+		$result                       = ai4seo_compare_and_set_attachment_alt_text_postmeta( $attachment_post_id, $desired_value, $expected_state );
+		$result['rollback_attempted'] = false;
+		$result['rollback_succeeded'] = true;
+
+		if ( ! $result['succeeded'] && $result['ownership'] ) {
+			$result['rollback_attempted'] = true;
+			$result['rollback_succeeded'] = ai4seo_reverse_attachment_alt_text_postmeta_write( $attachment_post_id, $result['ownership'] );
+		}
+
+		return $result;
+	} finally {
+		if ( ! ai4seo_release_database_advisory_lock( $lock_name ) ) {
+			ai4seo_debug_message( 984321724, 'Could not release the attachment alt-text database advisory lock.', true );
+		}
+	}
+}
+
+/**
+ * Updates the currently active attachment attributes for an attachment.
+ *
+ * Multi-owner writes use provider, posts, then postmeta order. Every later failure attempts to
+ * restore earlier owners from captured values. If compensation itself fails, false remains an
+ * idempotent retry signal and caches are repaired for any WordPress post state that may remain.
+ *
+ * @param int        $attachment_post_id the attachment post id.
+ * @param array      $attachment_attribute_updates the updates to apply with the keys title, caption, description, alt-text.
+ * @param bool       $force_overwrite_all_existing_data if true, existing data will be overwritten, if false, we check the settings to identify the attachment attributes that should be overwritten.
+ * @param array|null $operation_details Receives commit_state: not_committed, committed, or possibly_committed.
  * @return bool true on success, false on failure
  */
-function ai4seo_update_attachment_attributes( int $attachment_post_id, array $attachment_attribute_updates = array(), bool $force_overwrite_all_existing_data = false ): bool {
+function ai4seo_update_attachment_attributes(
+	int $attachment_post_id,
+	array $attachment_attribute_updates = array(),
+	bool $force_overwrite_all_existing_data = false,
+	?array &$operation_details = null
+): bool {
 	global $wpdb;
+
+	$operation_details = array(
+		'commit_state' => 'not_committed',
+	);
 
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 540510370, 'Prevented loop', true );
 		return false;
 	}
 
-	// sanitize.
+	// Normalize API/editor values through the shared field sanitizer before selecting persistence owners.
 	$attachment_attribute_updates = ai4seo_deep_sanitize( $attachment_attribute_updates, 'ai4seo_sanitize_editor_field_value' );
 
-	// handle specific overwrite existing data instruction.
+	// Apply field-specific overwrite settings unless the caller explicitly forces every owner.
 	$overwrite_existing_data_attachment_attributes_names = array();
 
 	if ( ! $force_overwrite_all_existing_data ) {
-		$overwrite_existing_data_attachment_attributes_names = ai4seo_get_setting( AI4SEO_SETTING_OVERWRITE_EXISTING_ATTACHMENT_ATTRIBUTES );
+		$overwrite_existing_data_attachment_attributes_names = ai4seo_normalize_attachment_attribute_identifier_list(
+			(array) ai4seo_get_setting( AI4SEO_SETTING_OVERWRITE_EXISTING_ATTACHMENT_ATTRIBUTES )
+		);
 	}
 
 	$ai4seo_active_attachment_attributes = ai4seo_get_active_attachment_attributes();
 
-	// read the attachment post.
+	// Load the attachment once so owner selection and every CAS preflight share the same starting state.
 	$attachment_post = get_post( $attachment_post_id );
 
 	if ( ! $attachment_post ) {
 		return false;
 	}
 
-	// keep track if we made changes to the post.
-	$we_made_changes_to_the_post = false;
+	// Collect every owner write before mutating any table.
+	$wordpress_owner_reached_desired_state = false;
 
-	// collect post column updates for wp_posts (title/caption/description).
-	$post_updates        = array();
-	$post_update_formats = array();
+	$post_updates              = array();
+	$original_post_values      = array();
+	$postmeta_update_requested = false;
+	$postmeta_update_value     = '';
+	$postmeta_expected_state   = array();
+	$nextgen_gallery_updates   = array();
+	$is_imported_nextgen_entry = ai4seo_is_plugin_or_theme_active( AI4SEO_THIRD_PARTY_PLUGIN_NEXTGEN_GALLERY )
+		&& AI4SEO_NEXTGEN_GALLERY_POST_TYPE === $attachment_post->post_type
+		&& absint( $attachment_post->post_parent ) > 0;
 
-	// third party plugins.
-	$is_nextgen_gallery_active = ai4seo_is_plugin_or_theme_active( AI4SEO_THIRD_PARTY_PLUGIN_NEXTGEN_GALLERY );
-
-	if ( $is_nextgen_gallery_active ) {
-		$nextgen_gallery_updates = array();
-	}
-
+	// Resolve requested fields into their WordPress and optional provider write sets before any mutation.
 	foreach ( AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS as $this_attachment_attribute_identifier => $this_attachment_attribute_details ) {
-		if ( ! in_array( $this_attachment_attribute_identifier, $ai4seo_active_attachment_attributes ) ) {
+		if ( ! in_array( $this_attachment_attribute_identifier, $ai4seo_active_attachment_attributes, true ) ) {
 			continue;
 		}
 
@@ -1252,21 +3310,21 @@ function ai4seo_update_attachment_attributes( int $attachment_post_id, array $at
 			continue;
 		}
 
-		// do we overwrite this particular attachment attribute?
+		// Resolve the caller-wide and field-specific overwrite policies before inspecting current values.
 		if ( true === $force_overwrite_all_existing_data ) {
 			$overwrite_this_attachment_attribute = true;
 		} else {
-			$overwrite_this_attachment_attribute = in_array( $this_attachment_attribute_identifier, $overwrite_existing_data_attachment_attributes_names );
+			$overwrite_this_attachment_attribute = in_array( $this_attachment_attribute_identifier, $overwrite_existing_data_attachment_attributes_names, true );
 		}
 
-		// make sure the max length is respected.
+		// Normalize and bound every value with the same editor-field contract used by interactive saves.
 		$this_attachment_attribute_value = ai4seo_normalize_editor_input_value( $this_attachment_attribute_value );
 		$this_max_length                 = ai4seo_get_max_editor_input_length( $this_attachment_attribute_identifier );
 		$this_attachment_attribute_value = ai4seo_trim_string_to_length( $this_attachment_attribute_value, $this_max_length );
 
-		// which table do we need to update? (title, caption, description => wp_posts, alt-text => wp_postmeta).
-		if ( in_array( $this_attachment_attribute_identifier, array( 'title', 'caption', 'description' ) ) ) {
-			// which column do we need to update? (title => post_title, caption => post_excerpt, description => post_content).
+		// Route post fields and alt text to their distinct persistence and CAS owners.
+		if ( in_array( $this_attachment_attribute_identifier, array( 'title', 'caption', 'description' ), true ) ) {
+			// Map public field identifiers to the exact wp_posts columns used by the closed CAS templates.
 			switch ( $this_attachment_attribute_identifier ) {
 				case 'title':
 					$this_post_column = 'post_title';
@@ -1281,83 +3339,276 @@ function ai4seo_update_attachment_attributes( int $attachment_post_id, array $at
 					continue 2;
 			}
 
-			// skip, if $overwrite_existing_data is false AND the previous value is not empty.
+			// Preserve nonempty existing values unless this field is explicitly overwrite-enabled.
 			if ( ! $overwrite_this_attachment_attribute && ! empty( $attachment_post->$this_post_column ) ) {
+				if ( $this_attachment_attribute_value === (string) $attachment_post->$this_post_column ) {
+					$wordpress_owner_reached_desired_state = true;
+				}
+
 				continue;
 			}
 
-			// collect updates for direct DB update (avoid wp_update_post slashing behavior).
-			$post_updates[ $this_post_column ] = $this_attachment_attribute_value;
-			$post_update_formats[]             = '%s';
+			// Collect direct post updates together so unslashed bytes and exact rollback ownership stay aligned.
+			$post_updates[ $this_post_column ]         = $this_attachment_attribute_value;
+			$original_post_values[ $this_post_column ] = (string) $attachment_post->$this_post_column;
 
-			// handle nextgen gallery description.
-			if ( $is_nextgen_gallery_active && 'description' === $this_attachment_attribute_identifier ) {
+			// Mirror imported NextGEN descriptions so provider and WordPress owners remain synchronized.
+			if ( $is_imported_nextgen_entry && 'description' === $this_attachment_attribute_identifier ) {
 				$nextgen_gallery_updates['description'] = $this_attachment_attribute_value;
 			}
-
-			$we_made_changes_to_the_post = true;
 		} elseif ( 'alt-text' === $this_attachment_attribute_identifier ) {
-			// update the postmeta table (mata_key = _wp_attachment_image_alt).
-			if ( ! $overwrite_this_attachment_attribute ) {
-				// if not empty -> skip.
-				$existing_attachment_attribute_value = get_post_meta( $attachment_post_id, '_wp_attachment_image_alt', true );
+			// Capture an exact missing/value owner before any provider or WordPress mutation.
+			$postmeta_expected_state = ai4seo_read_attachment_alt_text_postmeta_state( $attachment_post_id );
 
-				if ( ! empty( $existing_attachment_attribute_value ) ) {
-					continue;
-				}
-			}
-
-			// Propagate alt-text persistence failures so cron cannot mark a generation successful after a failed write.
-			$this_success = ai4seo_update_post_meta( $attachment_post_id, '_wp_attachment_image_alt', $this_attachment_attribute_value );
-
-			if ( ! $this_success ) {
+			if ( false === $postmeta_expected_state ) {
+				ai4seo_debug_message( 984321723, 'Could not preflight the exact attachment alt-text metadata owner: ' . $wpdb->last_error, true );
 				return false;
 			}
 
-			// handle nextgen gallery description.
-			if ( $is_nextgen_gallery_active ) {
+			// Preserve the existing non-overwrite rule, including PHP's established empty-value semantics.
+			if ( ! $overwrite_this_attachment_attribute && $postmeta_expected_state['exists'] && ! empty( $postmeta_expected_state['value'] ) ) {
+				if ( $this_attachment_attribute_value === $postmeta_expected_state['value'] ) {
+					$wordpress_owner_reached_desired_state = true;
+				}
+
+				continue;
+			}
+
+			$postmeta_update_requested = true;
+			$postmeta_update_value     = $this_attachment_attribute_value;
+
+			// Mirror imported NextGEN alt text under the same provider/WordPress synchronization contract.
+			if ( $is_imported_nextgen_entry ) {
 				$nextgen_gallery_updates['alttext'] = $this_attachment_attribute_value;
 			}
 		}
 	}
 
-	// only update the post if we made changes.
-	if ( $we_made_changes_to_the_post && ! empty( $post_updates ) ) {
-		$wpdb->update(
-			$wpdb->posts,
-			$post_updates,
-			array(
-				'ID' => $attachment_post_id,
-			),
-			$post_update_formats,
-			array(
-				'%d',
-			)
-		);
+	$nextgen_gallery_pid             = absint( $attachment_post->post_parent );
+	$original_nextgen_gallery_values = array();
+	$nextgen_write_owned             = false;
+	$post_write_owned                = false;
+	$post_cache_repair_required      = false;
+	$postmeta_cache_repair_required  = false;
 
-		if ( $wpdb->last_error ) {
-			ai4seo_debug_message( 984321688, 'Database error: ' . $wpdb->last_error, true );
+	// A genuine imported entry must have exactly one current provider owner before any mutation begins.
+	if ( $nextgen_gallery_updates ) {
+		$nextgen_gallery_updates = ai4seo_deep_sanitize( $nextgen_gallery_updates );
+		$nextgen_gallery_row     = ai4seo_read_nextgen_attachment_attribute_sync_row( $nextgen_gallery_pid );
+
+		if ( false === $nextgen_gallery_row ) {
+			ai4seo_debug_message( 984321689, 'Could not preflight the exact NextGEN picture row: ' . $wpdb->last_error, true );
 			return false;
 		}
 
+		foreach ( $nextgen_gallery_updates as $field => $value ) {
+			if ( ! array_key_exists( $field, $nextgen_gallery_row ) ) {
+				ai4seo_debug_message( 984321689, 'Could not preflight all requested NextGEN picture fields.', true );
+				return false;
+			}
+
+			$original_nextgen_gallery_values[ $field ] = $nextgen_gallery_row[ $field ];
+		}
+	}
+
+	// Provider first: a raced or failed optional-provider write must never leave WordPress half-updated.
+	if ( $nextgen_gallery_updates ) {
+		// Mark the call boundary conservatively in case a provider hook throws after mutation.
+		$operation_details['commit_state'] = 'possibly_committed';
+		$nextgen_write_result              = ai4seo_compare_and_set_nextgen_attachment_attribute_sync_row(
+			$nextgen_gallery_pid,
+			$nextgen_gallery_updates,
+			$original_nextgen_gallery_values
+		);
+
+		if ( ! $nextgen_write_result['succeeded'] ) {
+			$nextgen_write_error        = $wpdb->last_error;
+			$nextgen_rollback_succeeded = true;
+
+			// Roll back only a row this exact CAS changed, and only while its desired values remain current.
+			if ( $nextgen_write_result['changed'] ) {
+				$nextgen_rollback_result    = ai4seo_compare_and_set_nextgen_attachment_attribute_sync_row(
+					$nextgen_gallery_pid,
+					$original_nextgen_gallery_values,
+					$nextgen_gallery_updates
+				);
+				$nextgen_rollback_succeeded = $nextgen_rollback_result['succeeded'];
+
+				if ( ! $nextgen_rollback_succeeded ) {
+					ai4seo_debug_message( 984321720, 'NextGEN synchronization failed and its provider state could not be restored without overwriting a concurrent writer; retrying the same attachment update is safe.', true );
+				}
+			}
+
+			$operation_details['commit_state'] = $nextgen_rollback_succeeded ? 'not_committed' : 'possibly_committed';
+
+			ai4seo_debug_message( 984321689, 'Database error while synchronizing NextGEN attachment attributes: ' . $nextgen_write_error, true );
+			return false;
+		}
+
+		$nextgen_write_owned = $nextgen_write_result['changed'];
+	}
+
+	if ( $post_updates ) {
+		// A thrown query filter or readback can make a post CAS result unknowable to the caller.
+		$operation_details['commit_state'] = 'possibly_committed';
+		$post_write_result                 = ai4seo_compare_and_set_attachment_attribute_post_columns(
+			$attachment_post_id,
+			$post_updates,
+			$original_post_values
+		);
+		$post_cache_repair_required        = $post_write_result['changed']
+			|| $post_write_result['conflicted']
+			|| (
+				$post_write_result['succeeded']
+				&& ! $post_write_result['changed']
+				&& ! ai4seo_attachment_attribute_row_matches_values( $original_post_values, $post_updates )
+			);
+
+		if ( ! $post_write_result['succeeded'] ) {
+			$post_write_error        = $wpdb->last_error;
+			$post_rollback_succeeded = true;
+
+			if ( $post_write_result['changed'] ) {
+				$post_rollback_result       = ai4seo_compare_and_set_attachment_attribute_post_columns(
+					$attachment_post_id,
+					$original_post_values,
+					$post_updates
+				);
+				$post_cache_repair_required = $post_cache_repair_required || $post_rollback_result['changed'] || $post_rollback_result['conflicted'];
+				$post_rollback_succeeded    = $post_rollback_result['succeeded'];
+			}
+
+			$nextgen_rollback_succeeded = true;
+
+			if ( $nextgen_write_owned ) {
+				$nextgen_rollback_result    = ai4seo_compare_and_set_nextgen_attachment_attribute_sync_row(
+					$nextgen_gallery_pid,
+					$original_nextgen_gallery_values,
+					$nextgen_gallery_updates
+				);
+				$nextgen_rollback_succeeded = $nextgen_rollback_result['succeeded'];
+			}
+
+			$operation_details['commit_state'] = $post_rollback_succeeded && $nextgen_rollback_succeeded
+				? 'not_committed'
+				: 'possibly_committed';
+
+			if ( $post_cache_repair_required ) {
+				clean_post_cache( $attachment_post_id );
+
+				if ( ! ai4seo_force_bump_content_type_list_cache_version() ) {
+					ai4seo_debug_message( 984321725, 'Could not persist the attachment content-list cache repair after a failed post write; retrying the attachment update remains safe.', true );
+				}
+			}
+
+			if ( ! $post_rollback_succeeded || ! $nextgen_rollback_succeeded ) {
+				ai4seo_debug_message( 984321721, 'The WordPress attachment write failed and an owned earlier value could not be restored without overwriting a concurrent writer; retrying the same attachment update is safe.', true );
+			}
+
+			ai4seo_debug_message( 984321688, 'Database error: ' . $post_write_error, true );
+			return false;
+		}
+
+		$post_write_owned                      = $post_write_result['changed'];
+		$wordpress_owner_reached_desired_state = true;
+	}
+
+	// Postmeta is last because an exact conflict can compensate only earlier writes this operation owns.
+	if ( $postmeta_update_requested ) {
+		// The lock-scoped metadata writer can fail or throw after an owned write and compensation attempt.
+		$operation_details['commit_state'] = 'possibly_committed';
+		$postmeta_write_result             = ai4seo_write_attachment_alt_text_postmeta_with_lock(
+			$attachment_post_id,
+			$postmeta_update_value,
+			$postmeta_expected_state
+		);
+		$postmeta_expected_matches_desired = $postmeta_expected_state['exists']
+			&& $postmeta_update_value === $postmeta_expected_state['value'];
+		$postmeta_cache_repair_required    = $postmeta_write_result['changed']
+			|| $postmeta_write_result['conflicted']
+			|| (
+				$postmeta_write_result['succeeded']
+				&& ! $postmeta_write_result['changed']
+				&& ! $postmeta_expected_matches_desired
+			);
+
+		if ( $postmeta_write_result['succeeded'] ) {
+			$wordpress_owner_reached_desired_state = true;
+		}
+	}
+
+	if ( $postmeta_update_requested && ! $postmeta_write_result['succeeded'] ) {
+		// The lock-scoped writer reverses its exact alt owner before this branch compensates earlier owners.
+		$postmeta_rollback_succeeded = $postmeta_write_result['rollback_succeeded'];
+		$post_rollback_succeeded     = true;
+
+		if ( $post_write_owned ) {
+			$post_rollback_result       = ai4seo_compare_and_set_attachment_attribute_post_columns(
+				$attachment_post_id,
+				$original_post_values,
+				$post_updates
+			);
+			$post_cache_repair_required = true;
+			$post_rollback_succeeded    = $post_rollback_result['succeeded'];
+		}
+
+		$nextgen_rollback_succeeded = true;
+
+		if ( $nextgen_write_owned ) {
+			$nextgen_rollback_result    = ai4seo_compare_and_set_nextgen_attachment_attribute_sync_row(
+				$nextgen_gallery_pid,
+				$original_nextgen_gallery_values,
+				$nextgen_gallery_updates
+			);
+			$nextgen_rollback_succeeded = $nextgen_rollback_result['succeeded'];
+		}
+
+		$operation_details['commit_state'] = $postmeta_rollback_succeeded
+			&& $post_rollback_succeeded
+			&& $nextgen_rollback_succeeded
+			? 'not_committed'
+			: 'possibly_committed';
+
+		if ( $postmeta_cache_repair_required ) {
+			// Both a retained concurrent value and an owned direct mutation must bypass preflight-era metadata caches.
+			ai4seo_invalidate_postmeta_caches( array( $attachment_post_id ) );
+		}
+
+		if ( $post_cache_repair_required ) {
+			clean_post_cache( $attachment_post_id );
+		}
+
+		if ( $post_cache_repair_required || $postmeta_cache_repair_required ) {
+			if ( ! ai4seo_force_bump_content_type_list_cache_version() ) {
+				ai4seo_debug_message( 984321726, 'Could not persist the attachment content-list cache repair after a failed postmeta write; retrying the attachment update remains safe.', true );
+			}
+		}
+
+		if ( ! $postmeta_rollback_succeeded || ! $post_rollback_succeeded || ! $nextgen_rollback_succeeded ) {
+			ai4seo_debug_message( 984321722, 'The attachment postmeta write failed and one or more operation-owned writes could not be restored; retrying the same attachment update is safe.', true );
+		}
+
+		return false;
+	}
+
+	if ( $postmeta_cache_repair_required ) {
+		ai4seo_invalidate_postmeta_caches( array( $attachment_post_id ) );
+	}
+
+	if ( $post_cache_repair_required ) {
 		clean_post_cache( $attachment_post_id );
 	}
 
-	// handle nextgen gallery update.
-	if ( $is_nextgen_gallery_active && isset( $nextgen_gallery_updates ) && $nextgen_gallery_updates ) {
-		$nextgen_gallery_pid     = (int) $attachment_post->post_parent;
-		$nextgen_gallery_updates = ai4seo_deep_sanitize( $nextgen_gallery_updates );
-		$wpdb->update( esc_sql( $wpdb->prefix ) . 'ngg_pictures', $nextgen_gallery_updates, array( 'pid' => $nextgen_gallery_pid ) );
+	// Primary owners now expose the requested state, even if the following cache-version write fails.
+	$operation_details['commit_state'] = 'committed';
 
-		if ( $wpdb->last_error ) {
-			ai4seo_debug_message( 984321689, 'Database error: ' . $wpdb->last_error, true );
-			return false;
-		}
+	if ( $wordpress_owner_reached_desired_state && ! ai4seo_force_bump_content_type_list_cache_version() ) {
+		ai4seo_debug_message( 984321727, 'The attachment attributes reached their requested WordPress state, but the content-list cache version could not be persisted; retrying the same update will repair it.', true );
+		return false;
 	}
 
 	return true;
 }
-
 // =========================================================================================== \
 
 /**
@@ -1606,7 +3857,6 @@ function ai4seo_get_attachment_post_related_context( int $attachment_post_id, bo
 	$post_id = ai4seo_get_first_attachment_using_post_id( $attachment_post_id, $require_editable_post );
 
 	if ( $post_id <= 0 ) {
-		// ai4seo_debug_message(630085030, 'No post found using the attachment', true);.
 		return '';
 	}
 
@@ -1844,6 +4094,8 @@ function ai4seo_get_related_attachment_scan_limits(): array {
 		'max_total_selected_meta_bytes'    => 1048576,
 		'max_single_meta_value_bytes'      => 262144,
 		'max_image_url_attachment_lookups' => 50,
+		'max_serialized_value_depth'       => 8,
+		'max_serialized_value_nodes'       => 2048,
 	);
 }
 
@@ -1890,13 +4142,21 @@ function ai4seo_get_related_attachment_scannable_post_meta_rows( int $post_id, a
 	$max_single_meta_value_bytes    = absint( $related_attachment_scan_limits['max_single_meta_value_bytes'] ?? 262144 );
 
 	// Load only meta IDs and keys first; full values are fetched later only for selected media-like rows.
-	$post_meta_key_rows = $wpdb->get_results(
-		$wpdb->prepare(
-			"SELECT meta_id, meta_key FROM {$wpdb->postmeta} WHERE post_id = %d ORDER BY meta_id ASC",
-			$post_id
-		),
-		ARRAY_A
+	$post_meta_key_query = ai4seo_prepare_database_query(
+		'SELECT meta_id, meta_key FROM {{postmeta_table}} WHERE post_id = {{post_id}} ORDER BY meta_id ASC',
+		array(
+			'postmeta_table' => ai4seo_database_identifier_binding( 'table.postmeta' ),
+			'post_id'        => ai4seo_database_scalar_binding( '%d', $post_id ),
+		)
 	);
+
+	if ( false === $post_meta_key_query ) {
+		ai4seo_debug_message( 19747201, 'Could not prepare the related-attachment postmeta-key query.', true );
+		return array();
+	}
+
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler prepared this source-post lookup; the scan needs current keys before applying its strict row cap.
+	$post_meta_key_rows = $wpdb->get_results( $post_meta_key_query, ARRAY_A );
 
 	if ( $wpdb->last_error ) {
 		ai4seo_debug_message( 19747201, 'Database error: ' . $wpdb->last_error, true );
@@ -1951,15 +4211,22 @@ function ai4seo_get_related_attachment_scannable_post_meta_rows( int $post_id, a
 	}
 
 	// Fetch only selected values, and only up to the single-value cap, to avoid loading huge builder payloads.
-	$selected_post_meta_ids_placeholders = implode( ',', array_fill( 0, count( $selected_post_meta_ids ), '%d' ) );
-
-	$post_meta_value_rows = $wpdb->get_results(
-		$wpdb->prepare(
-			"SELECT meta_id, meta_key, LEFT(meta_value, %d) AS meta_value, LENGTH(meta_value) AS meta_value_bytes FROM {$wpdb->postmeta} WHERE meta_id IN ({$selected_post_meta_ids_placeholders}) ORDER BY meta_id ASC",
-			...array_merge( array( $max_single_meta_value_bytes ), $selected_post_meta_ids )
-		),
-		ARRAY_A
+	$post_meta_value_query = ai4seo_prepare_database_query(
+		'SELECT meta_id, meta_key, LEFT(meta_value, {{value_byte_limit}}) AS meta_value, LENGTH(meta_value) AS meta_value_bytes FROM {{postmeta_table}} WHERE meta_id IN ({{meta_ids}}) ORDER BY meta_id ASC',
+		array(
+			'value_byte_limit' => ai4seo_database_scalar_binding( '%d', $max_single_meta_value_bytes ),
+			'postmeta_table'   => ai4seo_database_identifier_binding( 'table.postmeta' ),
+			'meta_ids'         => ai4seo_database_list_binding( '%d', array_values( $selected_post_meta_ids ) ),
+		)
 	);
+
+	if ( false === $post_meta_value_query ) {
+		ai4seo_debug_message( 19747202, 'Could not prepare the related-attachment postmeta-value query.', true );
+		return array();
+	}
+
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler prepared exact selected meta IDs and the byte cap; current bounded prefixes are consumed only by this scan.
+	$post_meta_value_rows = $wpdb->get_results( $post_meta_value_query, ARRAY_A );
 
 	if ( $wpdb->last_error ) {
 		ai4seo_debug_message( 19747202, 'Database error: ' . $wpdb->last_error, true );
@@ -2009,7 +4276,9 @@ function ai4seo_get_related_attachment_scannable_post_meta_rows( int $post_id, a
 
 		$scannable_post_meta_rows[] = array(
 			'meta_id'    => absint( $this_post_meta_value_row['meta_id'] ?? 0 ),
+			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Result-shape key, not a meta-query predicate.
 			'meta_key'   => (string) ( $this_post_meta_value_row['meta_key'] ?? '' ),
+			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- Result-shape key, not a meta-query predicate.
 			'meta_value' => $this_post_meta_value,
 		);
 	}
@@ -2272,6 +4541,157 @@ function ai4seo_normalize_related_attachment_post_ids( array $attachment_post_id
 // =========================================================================================== \
 
 /**
+ * Removes object nodes from safely decoded related-media data while enforcing traversal caps.
+ *
+ * @param mixed $value The decoded node.
+ * @param int   $depth Current traversal depth.
+ * @param int   $max_depth Maximum allowed traversal depth.
+ * @param int   $max_nodes Maximum allowed node count.
+ * @param int   $node_count Mutable traversed node count.
+ * @param bool  $limit_exceeded Mutable limit state.
+ * @param bool  $discard_node Mutable object/resource discard state.
+ * @return mixed A scalar or sanitized array node.
+ */
+function ai4seo_sanitize_related_attachment_serialized_node( $value, int $depth, int $max_depth, int $max_nodes, int &$node_count, bool &$limit_exceeded, bool &$discard_node ) {
+	$discard_node = false;
+
+	if ( $limit_exceeded || $depth > $max_depth ) {
+		$limit_exceeded = true;
+		return null;
+	}
+
+	++$node_count;
+
+	if ( $node_count > $max_nodes ) {
+		$limit_exceeded = true;
+		return null;
+	}
+
+	// Never inspect decoded objects; incomplete classes may contain attacker-controlled properties.
+	if ( is_object( $value ) || is_resource( $value ) ) {
+		$discard_node = true;
+		return null;
+	}
+
+	if ( ! is_array( $value ) ) {
+		return $value;
+	}
+
+	$sanitized_value = array();
+
+	foreach ( $value as $this_key => $this_value ) {
+		$discard_child_node = false;
+		$sanitized_child    = ai4seo_sanitize_related_attachment_serialized_node(
+			$this_value,
+			$depth + 1,
+			$max_depth,
+			$max_nodes,
+			$node_count,
+			$limit_exceeded,
+			$discard_child_node
+		);
+
+		if ( $limit_exceeded ) {
+			return null;
+		}
+
+		if ( ! $discard_child_node ) {
+			$sanitized_value[ $this_key ] = $sanitized_child;
+		}
+	}
+
+	return $sanitized_value;
+}
+
+// =========================================================================================== \
+
+/**
+ * Safely decodes serialized related-media data without instantiating stored objects.
+ *
+ * This decoder is intentionally scan-only: object nodes are discarded while safe sibling
+ * arrays and scalars remain available to the attachment-ID extractor.
+ *
+ * @param mixed $value Potentially serialized related-media value.
+ * @return array Decode state containing `was_serialized`, `is_decoded`, and `value` entries.
+ */
+function ai4seo_decode_related_attachment_serialized_value( $value ): array {
+	$decode_result = array(
+		'was_serialized' => false,
+		'is_decoded'     => false,
+		'value'          => null,
+	);
+
+	if ( ! is_string( $value ) ) {
+		return $decode_result;
+	}
+
+	$serialized_value               = trim( $value );
+	$related_attachment_scan_limits = ai4seo_get_related_attachment_scan_limits();
+	$max_value_bytes                = absint( $related_attachment_scan_limits['max_single_meta_value_bytes'] ?? 262144 );
+	$max_depth                      = absint( $related_attachment_scan_limits['max_serialized_value_depth'] ?? 8 );
+	$max_nodes                      = absint( $related_attachment_scan_limits['max_serialized_value_nodes'] ?? 2048 );
+	$is_legacy_custom_object        = ai4seo_is_legacy_serialized_custom_object( $serialized_value );
+	$is_standard_serialized         = is_serialized( $serialized_value );
+
+	if ( '' === $serialized_value || ( ! $is_legacy_custom_object && ! $is_standard_serialized ) ) {
+		return $decode_result;
+	}
+
+	$decode_result['was_serialized'] = true;
+
+	if ( $is_legacy_custom_object || strlen( $serialized_value ) > $max_value_bytes ) {
+		return $decode_result;
+	}
+
+	// Reject enum tokens before unserialize can autoload their declaring class on PHP 8.1+.
+	if ( ai4seo_serialized_value_contains_enum_token( $serialized_value ) ) {
+		return $decode_result;
+	}
+
+	try {
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize,WordPress.PHP.NoSilencedErrors.Discouraged -- Class instantiation is disabled, depth is bounded, and malformed third-party metadata must fail closed without a warning.
+		$decoded_value = @unserialize(
+			$serialized_value,
+			array(
+				'allowed_classes' => false,
+				'max_depth'       => $max_depth,
+			)
+		);
+	} catch ( Throwable $exception ) {
+		return $decode_result;
+	}
+
+	// Distinguish the valid serialized false scalar from a bounded decoder failure.
+	if ( false === $decoded_value && 'b:0;' !== $serialized_value ) {
+		return $decode_result;
+	}
+
+	$node_count     = 0;
+	$limit_exceeded = false;
+	$discard_node   = false;
+	$decoded_value  = ai4seo_sanitize_related_attachment_serialized_node(
+		$decoded_value,
+		0,
+		$max_depth,
+		$max_nodes,
+		$node_count,
+		$limit_exceeded,
+		$discard_node
+	);
+
+	if ( $limit_exceeded || $discard_node ) {
+		return $decode_result;
+	}
+
+	$decode_result['is_decoded'] = true;
+	$decode_result['value']      = $decoded_value;
+
+	return $decode_result;
+}
+
+// =========================================================================================== \
+
+/**
  * Extracts attachment ID candidates from a mixed content or metadata value.
  *
  * @param mixed  $value The value to scan.
@@ -2315,13 +4735,20 @@ function ai4seo_extract_related_attachment_post_ids_from_value( $value, string $
 		return array();
 	}
 
-	// WordPress and page builders may store serialized arrays in single postmeta rows.
-	$maybe_unserialized_value = maybe_unserialize( $value );
+	// WordPress and page builders may store arrays alongside object-bearing data in postmeta rows.
+	$serialized_decode_result = ai4seo_decode_related_attachment_serialized_value( $value );
 
-	if ( $maybe_unserialized_value !== $value ) {
-		$related_attachment_post_ids = array_merge(
-			$related_attachment_post_ids,
-			ai4seo_extract_related_attachment_post_ids_from_value( $maybe_unserialized_value, $context_key, $depth + 1, $related_attachment_scan_state )
+	if ( $serialized_decode_result['was_serialized'] ) {
+		if ( ! $serialized_decode_result['is_decoded'] ) {
+			return array();
+		}
+
+		// Scan only the sanitized tree so discarded object or enum bytes cannot become regex matches.
+		return ai4seo_extract_related_attachment_post_ids_from_value(
+			$serialized_decode_result['value'],
+			$context_key,
+			$depth + 1,
+			$related_attachment_scan_state
 		);
 	}
 
@@ -2602,20 +5029,7 @@ function ai4seo_is_deep_context_search_supported_for_current_site(): bool {
  * @return bool
  */
 function ai4seo_disable_deep_context_search_for_images(): bool {
-	global $ai4seo_settings;
-	global $ai4seo_are_settings_initialized;
-
-	if ( ! $ai4seo_are_settings_initialized ) {
-		ai4seo_init_settings();
-	}
-
-	if ( ! $ai4seo_are_settings_initialized ) {
-		return false;
-	}
-
-	$ai4seo_settings[ AI4SEO_SETTING_DEEP_CONTEXT_SEARCH_FOR_IMAGES ] = false;
-
-	return ai4seo_push_local_setting_changes_to_database();
+	return ai4seo_update_setting( AI4SEO_SETTING_DEEP_CONTEXT_SEARCH_FOR_IMAGES, false );
 }
 
 // =========================================================================================== \
@@ -2696,7 +5110,7 @@ function ai4seo_get_col_with_optional_statement_timeout( string $select_sql, int
 
 	try {
 		// Safe: timed SQL wraps a SELECT that callers pass in fully prepared; the wrapper only adds a numeric timeout.
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- Optional deep-context discovery requires a current uncached result and enforces a database-native statement timeout around caller-prepared SELECT SQL.
 		$query_results = $wpdb->get_col( $timed_select_sql );
 		$query_error   = $wpdb->last_error;
 	} catch ( Throwable $e ) {
@@ -2788,6 +5202,7 @@ function ai4seo_get_database_statement_timeout_support(): array {
 		return $timeout_support;
 	}
 
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Database capability detection is immutable for the request and retained in the function-local static cache.
 	$db_version_string = (string) $wpdb->get_var( 'SELECT VERSION()' );
 	$db_version_number = preg_replace( '/[^0-9.].*$/', '', $db_version_string );
 	$is_mariadb        = ( stripos( $db_version_string, 'mariadb' ) !== false );
@@ -2871,17 +5286,27 @@ function ai4seo_get_first_attachment_using_post_id( int $attachment_post_id, boo
 	// look for thumbnail relations next.
 	global $wpdb;
 
-	$thumbnail_post_ids = $wpdb->get_col(
-		$wpdb->prepare(
-			"SELECT post_id
-         FROM {$wpdb->postmeta}
-         WHERE meta_key = '_thumbnail_id'
-           AND meta_value = %d
-         ORDER BY post_id ASC
-         LIMIT 25",
-			$attachment_post_id
+	$thumbnail_post_ids_query = ai4seo_prepare_database_query(
+		"SELECT post_id
+		FROM {{postmeta_table}}
+		WHERE meta_key = '_thumbnail_id'
+		AND meta_value = {{attachment_post_id}}
+		ORDER BY post_id ASC
+		LIMIT 25",
+		array(
+			'postmeta_table'     => ai4seo_database_identifier_binding( 'table.postmeta' ),
+			'attachment_post_id' => ai4seo_database_scalar_binding( '%d', $attachment_post_id ),
 		)
 	);
+
+	$thumbnail_post_ids = array();
+
+	if ( false === $thumbnail_post_ids_query ) {
+		ai4seo_debug_message( 630085040, 'Could not prepare the featured-image relationship query.', true );
+	} else {
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler prepared the bounded current relationship lookup; external thumbnail mutations have no plugin-owned cache boundary.
+		$thumbnail_post_ids = $wpdb->get_col( $thumbnail_post_ids_query );
+	}
 
 	if ( ! empty( $thumbnail_post_ids ) && is_array( $thumbnail_post_ids ) ) {
 		$thumbnail_post_id = ai4seo_get_first_eligible_attachment_context_post_id( $thumbnail_post_ids, $require_editable_post );
@@ -2937,7 +5362,7 @@ function ai4seo_get_first_attachment_using_post_id( int $attachment_post_id, boo
 		'%' . $wpdb->esc_like( "ids='" ) . '%' . $wpdb->esc_like( ',' . $attachment_post_id_string . "'" ) . '%',
 		'%' . $wpdb->esc_like( "ids='" ) . '%' . $wpdb->esc_like( ', ' . $attachment_post_id_string . "'" ) . '%',
 
-		// "ids":"123, 234, 345"
+		// JSON-encoded gallery ID lists.
 		'%' . $wpdb->esc_like( '"ids":"' . $attachment_post_id_string . ',' ) . '%',
 
 		'%' . $wpdb->esc_like( '"ids":"' ) . '%' . $wpdb->esc_like( ',' . $attachment_post_id_string . ',' ) . '%',
@@ -3053,7 +5478,6 @@ function ai4seo_get_first_attachment_using_post_id( int $attachment_post_id, boo
 	return ai4seo_get_attachment_related_post_id( $attachment_post_id, $require_editable_post );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the first eligible post ID from a list of candidates.
@@ -3080,7 +5504,7 @@ function ai4seo_get_first_eligible_attachment_context_post_id( array $candidate_
 /**
  * Checks whether a post can be used for attachment context.
  *
- * @param int $post_id the post id
+ * @param int $post_id the post id.
  * @return bool true if eligible
  */
 function ai4seo_is_attachment_context_post_eligible( int $post_id ): bool {
@@ -3112,7 +5536,7 @@ function ai4seo_is_attachment_context_post_eligible( int $post_id ): bool {
 /**
  * Returns the frontend URL for a public attachment context post.
  *
- * @param int $post_id the post id
+ * @param int $post_id the post id.
  * @return string public frontend url or empty string
  */
 function ai4seo_get_attachment_context_frontend_post_url( int $post_id ): string {
@@ -3156,10 +5580,10 @@ function ai4seo_get_attachment_context_frontend_post_url( int $post_id ): string
 /**
  * Returns the language of the attachment
  *
- * @param int $attachment_post_id the attachment post id
+ * @param int $attachment_post_id the attachment post id.
  * @return string the language of the attachment
  */
-function ai4seo_get_attachments_language( int $attachment_post_id ): string {
+function ai4seo_get_attachments_language( int $attachment_post_id ): string { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.Found -- Preserve the public attachment-language signature.
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 925515687, 'Prevented loop', true );
 		return '';
@@ -3168,7 +5592,28 @@ function ai4seo_get_attachments_language( int $attachment_post_id ): string {
 	return sanitize_text_field( ai4seo_get_setting( AI4SEO_SETTING_ATTACHMENT_ATTRIBUTES_GENERATION_LANGUAGE ) );
 }
 
-// =========================================================================================== \\
+
+/**
+ * Normalize attachment-attribute identifiers to the canonical string domain.
+ *
+ * @param array $attachment_attribute_identifiers Raw attachment-attribute identifiers.
+ * @return array Canonical string identifiers.
+ */
+function ai4seo_normalize_attachment_attribute_identifier_list( array $attachment_attribute_identifiers ): array {
+	// Retain only exact identifier strings so later strict comparisons cannot coerce scalar lookalikes.
+	$normalized_attachment_attribute_identifiers = array();
+
+	foreach ( $attachment_attribute_identifiers as $attachment_attribute_identifier ) {
+		if ( ! is_string( $attachment_attribute_identifier ) || '' === $attachment_attribute_identifier ) {
+			continue;
+		}
+
+		$normalized_attachment_attribute_identifiers[] = $attachment_attribute_identifier;
+	}
+
+	return array_values( array_unique( $normalized_attachment_attribute_identifiers ) );
+}
+
 
 /**
  * Retrieves the active attachment attributes.
@@ -3182,10 +5627,9 @@ function ai4seo_get_active_attachment_attributes(): array {
 		return array();
 	}
 
-	return $active_attachment_attributes;
+	return ai4seo_normalize_attachment_attribute_identifier_list( $active_attachment_attributes );
 }
 
-// =========================================================================================== \\
 
 /**
  * Retrieves the supported attachment post types
@@ -3216,8 +5660,13 @@ function ai4seo_get_supported_attachment_post_types( bool $require_active_attach
 	return $supported_attachment_post_types;
 }
 
-// =========================================================================================== \\
 
+/**
+ * Calculate the generation credit cost for one attachment post.
+ *
+ * @param array|null $only_this_attachment_attributes Optional attachment attribute identifiers to include.
+ * @return int Credit cost per attachment post.
+ */
 function ai4seo_calculate_attachment_attributes_credits_cost_per_attachment_post( $only_this_attachment_attributes = null ): int {
 	$attachment_attributes_price_table = ai4seo_get_attachment_attributes_price_table( $only_this_attachment_attributes );
 
@@ -3229,10 +5678,21 @@ function ai4seo_calculate_attachment_attributes_credits_cost_per_attachment_post
 	return array_sum( $attachment_attributes_price_table );
 }
 
-// =========================================================================================== \\
 
+/**
+ * Return credit prices for active attachment attributes.
+ *
+ * @param array|null $only_this_attachment_attributes Optional attachment attribute identifiers to include.
+ * @return array Attachment attribute identifiers mapped to credit costs.
+ */
 function ai4seo_get_attachment_attributes_price_table( $only_this_attachment_attributes = null ): array {
-	$active_attachment_attributes = ai4seo_get_active_attachment_attributes();
+	// Keep a non-empty caller filter restrictive even when all submitted identifiers normalize away.
+	$active_attachment_attributes                = ai4seo_get_active_attachment_attributes();
+	$restrict_to_requested_attachment_attributes = is_array( $only_this_attachment_attributes ) && ! empty( $only_this_attachment_attributes );
+
+	if ( is_array( $only_this_attachment_attributes ) ) {
+		$only_this_attachment_attributes = ai4seo_normalize_attachment_attribute_identifier_list( $only_this_attachment_attributes );
+	}
 
 	if ( empty( $active_attachment_attributes ) ) {
 		return array();
@@ -3241,7 +5701,7 @@ function ai4seo_get_attachment_attributes_price_table( $only_this_attachment_att
 	$price_table = array();
 
 	foreach ( $active_attachment_attributes as $this_active_attachment_attribute_identifier ) {
-		if ( $only_this_attachment_attributes && is_array( $only_this_attachment_attributes ) && ! in_array( $this_active_attachment_attribute_identifier, $only_this_attachment_attributes ) ) {
+		if ( $restrict_to_requested_attachment_attributes && ! in_array( $this_active_attachment_attribute_identifier, $only_this_attachment_attributes, true ) ) {
 			continue;
 		}
 
@@ -3256,17 +5716,27 @@ function ai4seo_get_attachment_attributes_price_table( $only_this_attachment_att
 	return $price_table;
 }
 
-// =========================================================================================== \\
 
+/**
+ * Return display names for active attachment attributes.
+ *
+ * @param array|null $active_attachment_attributes Optional active attribute identifiers.
+ * @return array Active attachment attribute display names.
+ */
 function ai4seo_get_active_attachment_attributes_names( $active_attachment_attributes = null ): array {
+	// Align optional caller input with the canonical setting domain used by the default accessor.
 	if ( null === $active_attachment_attributes ) {
 		$active_attachment_attributes = ai4seo_get_active_attachment_attributes();
+	} elseif ( is_array( $active_attachment_attributes ) ) {
+		$active_attachment_attributes = ai4seo_normalize_attachment_attribute_identifier_list( $active_attachment_attributes );
+	} else {
+		$active_attachment_attributes = array();
 	}
 
 	$active_attachment_attributes_names = array();
 
 	foreach ( AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS as $ai4seo_this_attachment_attribute_identifier => $ai4seo_this_attachment_attribute_details ) {
-		if ( in_array( $ai4seo_this_attachment_attribute_identifier, $active_attachment_attributes ) && isset( $ai4seo_this_attachment_attribute_details['name'] ) ) {
+		if ( in_array( $ai4seo_this_attachment_attribute_identifier, $active_attachment_attributes, true ) && isset( $ai4seo_this_attachment_attribute_details['name'] ) ) {
 			$active_attachment_attributes_names[] = $ai4seo_this_attachment_attribute_details['name'];
 		}
 	}

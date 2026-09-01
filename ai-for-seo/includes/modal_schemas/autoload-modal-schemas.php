@@ -2,6 +2,7 @@
 /**
  * Includes / autoload the modal schemas.
  *
+ * @package AI_For_SEO
  * @since 2.0
  */
 
@@ -9,7 +10,41 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! ai4seo_can_manage_this_plugin() ) {
+// A previous plugin version may include this newly installed file after WordPress replaces the directory.
+if ( ! function_exists( 'did_action' ) ) {
+	return;
+}
+
+// Current runtimes expose the self-update flag; legacy runtimes retain the conservative completion guard.
+if ( function_exists( 'ai4seo_is_deferred_modal_loading_suspended_for_self_update' ) ) {
+	if ( ai4seo_is_deferred_modal_loading_suspended_for_self_update() ) {
+		return;
+	}
+} elseif ( did_action( 'upgrader_process_complete' ) ) {
+	return;
+}
+
+if ( ! function_exists( 'ai4seo_get_primary_asset_contexts' ) ) {
+	return;
+}
+
+// Keep schema loading available to each authorized surface while administrative schemas remain separately gated below.
+$ai4seo_legacy_can_manage_plugin = ( ! function_exists( 'ai4seo_can_use_plugin_content' )
+	|| ! function_exists( 'ai4seo_can_administer_plugin' )
+	|| ! function_exists( 'ai4seo_can_recover_incognito_mode' ) )
+	&& function_exists( 'ai4seo_can_manage_this_plugin' )
+	&& ai4seo_can_manage_this_plugin();
+$ai4seo_can_use_plugin_content   = function_exists( 'ai4seo_can_use_plugin_content' )
+	? ai4seo_can_use_plugin_content()
+	: $ai4seo_legacy_can_manage_plugin;
+$ai4seo_can_administer_plugin    = function_exists( 'ai4seo_can_administer_plugin' )
+	? ai4seo_can_administer_plugin()
+	: $ai4seo_legacy_can_manage_plugin;
+$ai4seo_can_recover_incognito    = function_exists( 'ai4seo_can_recover_incognito_mode' )
+	? ai4seo_can_recover_incognito_mode()
+	: $ai4seo_legacy_can_manage_plugin;
+
+if ( ! $ai4seo_can_use_plugin_content && ! $ai4seo_can_administer_plugin && ! $ai4seo_can_recover_incognito ) {
 	return;
 }
 
@@ -24,17 +59,18 @@ $ai4seo_primary_asset_contexts = ai4seo_get_primary_asset_contexts();
 
 // === FIND SUITABLE MODAL SCHEMAS =========================================================== \\
 
-$is_user_inside_plugin_admin_pages     = ai4seo_is_user_inside_our_plugin_admin_pages();
-$is_user_inside_installed_plugins_page = ai4seo_is_user_inside_installed_plugins_page();
-$ai4seo_is_tos_gate_context            = in_array( 'tos-gate', $ai4seo_primary_asset_contexts, true );
+// Resolve page context once so every schema branch uses the same request state.
+$ai4seo_modal_autoload_is_plugin_admin_page      = ai4seo_is_user_inside_our_plugin_admin_pages();
+$ai4seo_modal_autoload_is_installed_plugins_page = ai4seo_is_user_inside_installed_plugins_page();
+$ai4seo_is_tos_gate_context                      = in_array( 'tos-gate', $ai4seo_primary_asset_contexts, true );
 
 // Foreign admin pages receive only the TOS schema selected by their dedicated asset context.
-if ( $ai4seo_is_tos_gate_context && ai4seo_does_user_need_to_accept_tos_toc_and_pp( true ) ) {
+if ( $ai4seo_can_administer_plugin && $ai4seo_is_tos_gate_context && ai4seo_does_user_need_to_accept_tos_toc_and_pp( true ) ) {
 	$ai4seo_modal_schemas[] = 'tos';
 }
 
 // Internal plugin pages retain their existing subpage-specific schema selection.
-if ( $is_user_inside_plugin_admin_pages && in_array( 'plugin-ui', $ai4seo_primary_asset_contexts, true ) ) {
+if ( $ai4seo_can_administer_plugin && $ai4seo_modal_autoload_is_plugin_admin_page && in_array( 'plugin-ui', $ai4seo_primary_asset_contexts, true ) ) {
 	// TOS.
 	if ( ai4seo_does_user_need_to_accept_tos_toc_and_pp( true ) ) {
 		$ai4seo_modal_schemas[] = 'tos'; // group a -> every page.
@@ -59,7 +95,7 @@ if ( $is_user_inside_plugin_admin_pages && in_array( 'plugin-ui', $ai4seo_primar
 }
 
 // Deactivation and PAYG schemas accompany only the Installed Plugins integration context.
-if ( $is_user_inside_installed_plugins_page && in_array( 'plugin-deactivation', $ai4seo_primary_asset_contexts, true ) ) {
+if ( $ai4seo_can_administer_plugin && $ai4seo_modal_autoload_is_installed_plugins_page && in_array( 'plugin-deactivation', $ai4seo_primary_asset_contexts, true ) ) {
 	$ai4seo_modal_schemas[] = 'plugin-deactivation-feedback';
 	$ai4seo_modal_schemas[] = 'customize-pay-as-you-go';
 }

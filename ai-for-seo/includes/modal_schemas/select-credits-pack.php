@@ -2,6 +2,7 @@
 /**
  * Modal Schema: Represents the Select Credits Pack modal.
  *
+ * @package AI_For_SEO
  * @since 2.0
  */
 
@@ -9,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! ai4seo_can_manage_this_plugin() ) {
+if ( ! ai4seo_can_administer_plugin() ) {
 	return;
 }
 
@@ -18,7 +19,6 @@ if ( ! ai4seo_can_manage_this_plugin() ) {
 // === PREPARE =============================================================================== \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
-// $ai4seo_preferred_currency = ai4seo_deep_sanitize(ai4seo_get_setting(AI4SEO_SETTING_PREFERRED_CURRENCY));
 $ai4seo_preferred_currency            = 'USD'; // todo: implement proper currency selection.
 $ai4seo_recommended_credits_pack_size = (int) ai4seo_get_recommended_credits_pack_size_by_num_missing_entries();
 $ai4seo_credits_packs                 = ai4seo_get_credits_packs();
@@ -78,15 +78,15 @@ if ( ! empty( $ai4seo_current_discount['voucher_code'] ) ) {
 foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_credits_pack_entry ) {
 	++$ai4seo_entry_counter;
 	$ai4seo_this_credits_amount          = (int) $ai4seo_credits_pack_entry['credits_amount'];
-	$ai4seo_this_price_usd               = $ai4seo_credits_pack_entry['price_usd'];
-	$ai4seo_this_reference_price_usd     = $ai4seo_credits_pack_entry['reference_price_usd'];
+	$ai4seo_this_price_usd               = (float) $ai4seo_credits_pack_entry['price_usd'];
+	$ai4seo_this_reference_price_usd     = (float) $ai4seo_credits_pack_entry['reference_price_usd'];
 	$ai4seo_this_price_usd               = $ai4seo_current_discount_percentage ? $ai4seo_this_price_usd * ( 1 - ( $ai4seo_current_discount_percentage / 100 ) ) : $ai4seo_this_price_usd;
 	$ai4seo_this_discount_percentage     = round( ( 1 - ( $ai4seo_this_price_usd / $ai4seo_this_reference_price_usd ) ) * 100 );
 	$ai4seo_this_entry_is_pre_selected   = $ai4seo_this_credits_amount === $ai4seo_recommended_credits_pack_size;
 	$ai4seo_this_entry_is_recommendation = $ai4seo_this_credits_amount === $ai4seo_recommended_credits_pack_size;
 
 	// Use the existing loop counter for a predictable label target without exposing the Stripe price ID in the DOM id.
-	$ai4seo_this_radio_input_id          = 'ai4seo-credits-pack-selection-' . $ai4seo_entry_counter;
+	$ai4seo_this_radio_input_id = 'ai4seo-credits-pack-selection-' . $ai4seo_entry_counter;
 
 	// floor $ai4seo_this_price_usd at second decimal to fix rounding issues.
 	$ai4seo_this_price_usd = floor( round( $ai4seo_this_price_usd * 100, 1 ) ) / 100;
@@ -142,7 +142,7 @@ foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_
 		echo '</div>';
 	}
 
-	if ( $ai4seo_this_price_usd != $ai4seo_this_reference_price_usd ) {
+	if ( $ai4seo_this_price_usd !== $ai4seo_this_reference_price_usd ) {
 		echo "<div class='ai4seo-credits-pack-selection-item-reference-price'>";
 			echo esc_html( $ai4seo_preferred_currency ) . ' ' . esc_html( ai4seo_format_number_i18n( $ai4seo_this_reference_price_usd, 2 ) );
 		echo '</div>';

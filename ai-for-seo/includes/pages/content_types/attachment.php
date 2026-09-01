@@ -2,6 +2,7 @@
 /**
  * Renders the content of the submenu media for the "AI for SEO" page.
  *
+ * @package AI_For_SEO
  * @since 1.2.0
  */
 
@@ -9,9 +10,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! ai4seo_can_manage_this_plugin() ) {
+if ( ! ai4seo_can_use_plugin_content() ) {
 	return;
 }
+
+$ai4seo_can_administer_plugin = ai4seo_can_administer_plugin();
 
 require_once __DIR__ . '/list-filters.php';
 
@@ -45,6 +48,7 @@ $ai4seo_media_label_plural   = _n( 'media', 'media', 2, 'ai-for-seo' );
 $ai4seo_total_pages          = 1;
 
 // Keep modal pagination isolated from the full media page by reading the shared filter page parameter.
+// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Capability-gated read-only pagination cursor; no state is changed.
 $ai4seo_current_page = absint( wp_unslash( $_REQUEST['ai4seo_page'] ?? 1 ) );
 
 if ( $ai4seo_current_page < 1 ) {
@@ -82,92 +86,17 @@ $ai4seo_do_generate_attachment_attributes_for_fully_covered_entries = ai4seo_do_
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 // handle the import of NextGen Gallery images.
-if ( ! $ai4seo_is_related_attachments_modal && ai4seo_is_plugin_or_theme_active( AI4SEO_THIRD_PARTY_PLUGIN_NEXTGEN_GALLERY ) ) {
+if ( $ai4seo_can_administer_plugin && ! $ai4seo_is_related_attachments_modal && ai4seo_is_plugin_or_theme_active( AI4SEO_THIRD_PARTY_PLUGIN_NEXTGEN_GALLERY ) ) {
 	$ai4seo_num_not_imported_nextgen_gallery_images = 0;
+	$ai4seo_nextgen_gallery_image_import_counts     = ai4seo_read_nextgen_gallery_image_import_counts();
 
-	if ( ai4seo_is_environmental_variable_cache_available( AI4SEO_ENVIRONMENTAL_VARIABLE_NEXTGEN_PICTURE_PIDS_CACHE ) ) {
-		$ai4seo_nextgen_gallery_image_pids = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_NEXTGEN_PICTURE_PIDS_CACHE );
-
-		if ( ! is_array( $ai4seo_nextgen_gallery_image_pids ) ) {
-			$ai4seo_nextgen_gallery_image_pids = array();
-		}
+	if ( false === $ai4seo_nextgen_gallery_image_import_counts ) {
+		ai4seo_debug_message( 984321699, 'Could not read the coherent NextGEN provider/imported image counts. Database error: ' . $wpdb->last_error );
 	} else {
-		$ai4seo_nextgen_gallery_pictures_table_name = esc_sql( $wpdb->prefix . 'ngg_pictures' );
-		$ai4seo_nextgen_gallery_image_pids_sql      = $wpdb->prepare(
-			"SELECT `pid` FROM {$ai4seo_nextgen_gallery_pictures_table_name} WHERE `pid` > %d",
-			0
+		$ai4seo_num_not_imported_nextgen_gallery_images = max(
+			0,
+			$ai4seo_nextgen_gallery_image_import_counts['provider_count'] - $ai4seo_nextgen_gallery_image_import_counts['imported_count']
 		);
-
-		// Prepared above; table name is built from WordPress' trusted table prefix.
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		$ai4seo_nextgen_gallery_image_pids = $wpdb->get_results( $ai4seo_nextgen_gallery_image_pids_sql, ARRAY_A );
-
-		if ( $wpdb->last_error ) {
-			ai4seo_debug_message( 984321699, 'Database error: ' . $wpdb->last_error );
-			$ai4seo_nextgen_gallery_image_pids = array();
-		}
-
-		if ( $ai4seo_nextgen_gallery_image_pids ) {
-			$ai4seo_nextgen_gallery_image_pids = array_map(
-				function ( $ai4seo_this_nextgen_gallery_image ) {
-					return (int) $ai4seo_this_nextgen_gallery_image['pid'];
-				},
-				$ai4seo_nextgen_gallery_image_pids
-			);
-		}
-
-		ai4seo_update_environmental_variable(
-			AI4SEO_ENVIRONMENTAL_VARIABLE_NEXTGEN_PICTURE_PIDS_CACHE,
-			$ai4seo_nextgen_gallery_image_pids,
-			true,
-			MINUTE_IN_SECONDS * 5
-		);
-	}
-
-	if ( $ai4seo_nextgen_gallery_image_pids ) {
-		if ( ai4seo_is_environmental_variable_cache_available( AI4SEO_ENVIRONMENTAL_VARIABLE_NEXTGEN_IMPORTED_IMAGES_COUNT_CACHE ) ) {
-			$ai4seo_num_imported_nextgen_gallery_images = (int) ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_NEXTGEN_IMPORTED_IMAGES_COUNT_CACHE );
-		} else {
-			// get the number of entries from wp_posts where type is AI4SEO_NEXTGEN_GALLERY_POST_TYPE and pid is not in wp_posts.post_parent.
-			$ai4seo_num_imported_nextgen_gallery_images = 0;
-			$ai4seo_database_chunk_size                 = ai4seo_get_database_chunk_size();
-			$ai4seo_nextgen_gallery_image_pid_chunks    = array_chunk( $ai4seo_nextgen_gallery_image_pids, $ai4seo_database_chunk_size );
-
-			foreach ( $ai4seo_nextgen_gallery_image_pid_chunks as $this_nextgen_gallery_image_pid_chunk ) {
-				$this_nextgen_gallery_image_pid_chunk = array_values( array_filter( array_map( 'absint', $this_nextgen_gallery_image_pid_chunk ) ) );
-
-				if ( ! $this_nextgen_gallery_image_pid_chunk ) {
-					continue;
-				}
-
-				$this_nextgen_gallery_image_pid_placeholders = implode( ', ', array_fill( 0, count( $this_nextgen_gallery_image_pid_chunk ), '%d' ) );
-				$this_imported_nextgen_gallery_images_sql    = $wpdb->prepare(
-					"SELECT COUNT(*) FROM {$wpdb->posts} WHERE `post_type` = %s AND `post_parent` IN ($this_nextgen_gallery_image_pid_placeholders)",
-					AI4SEO_NEXTGEN_GALLERY_POST_TYPE,
-					...$this_nextgen_gallery_image_pid_chunk
-				);
-
-				// Prepared above with dynamic placeholders for the current NextGEN PID chunk.
-                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-				$this_imported_nextgen_gallery_images = (int) $wpdb->get_var( $this_imported_nextgen_gallery_images_sql );
-
-				if ( $wpdb->last_error ) {
-					ai4seo_debug_message( 984321700, 'Database error: ' . $wpdb->last_error );
-					$this_imported_nextgen_gallery_images = 0;
-					break;
-				}
-
-				$ai4seo_num_imported_nextgen_gallery_images += $this_imported_nextgen_gallery_images;
-			}
-
-			ai4seo_update_environmental_variable(
-				AI4SEO_ENVIRONMENTAL_VARIABLE_NEXTGEN_IMPORTED_IMAGES_COUNT_CACHE,
-				$ai4seo_num_imported_nextgen_gallery_images,
-				true,
-				MINUTE_IN_SECONDS * 5
-			);
-		}
-		$ai4seo_num_not_imported_nextgen_gallery_images = count( $ai4seo_nextgen_gallery_image_pids ) - $ai4seo_num_imported_nextgen_gallery_images;
 	}
 
 	$ai4seo_import_nextgen_gallery_button = ai4seo_get_icon_button_tag(
@@ -512,12 +441,19 @@ if ( $ai4seo_should_derive_current_page_attachment_status_ids ) {
 }
 
 // remove entries from $ai4seo_all_failed_to_fill_attributes_attachment_post_ids that are not on this page.
+// Canonicalize status sources once before every strict row-level membership check below.
+$ai4seo_failed_attributes_attachment_post_ids = ai4seo_normalize_post_ids_from_option_value( $ai4seo_failed_attributes_attachment_post_ids );
+$ai4seo_fully_covered_attachment_post_ids     = ai4seo_normalize_post_ids_from_option_value( $ai4seo_fully_covered_attachment_post_ids );
+$ai4seo_generated_attachment_post_ids         = ai4seo_normalize_post_ids_from_option_value( $ai4seo_generated_attachment_post_ids );
+
 $ai4seo_current_page_failed_to_fill_attachment_post_ids = array();
 
 if ( $ai4seo_all_attachment_posts ) {
 	foreach ( $ai4seo_all_attachment_posts as $ai4seo_this_attachment_post ) {
-		if ( in_array( $ai4seo_this_attachment_post->ID, $ai4seo_failed_attributes_attachment_post_ids ) ) {
-			$ai4seo_current_page_failed_to_fill_attachment_post_ids[] = $ai4seo_this_attachment_post->ID;
+		$ai4seo_this_attachment_post_id = (int) $ai4seo_this_attachment_post->ID;
+
+		if ( in_array( $ai4seo_this_attachment_post_id, $ai4seo_failed_attributes_attachment_post_ids, true ) ) {
+			$ai4seo_current_page_failed_to_fill_attachment_post_ids[] = $ai4seo_this_attachment_post_id;
 		}
 	}
 }
@@ -526,17 +462,22 @@ if ( $ai4seo_all_attachment_posts ) {
 $ai4seo_retry_all_failed_attachment_attributes_generations_link_label = __( 'Retry all failed', 'ai-for-seo' );
 
 // retry all failed attachment attributes generations link.
-$ai4seo_retry_all_failed_attachment_attributes_generations_link_tag = ai4seo_get_small_icon_button_tag( 'rotate', $ai4seo_retry_all_failed_attachment_attributes_generations_link_label, '', 'ai4seo_retry_all_failed_attachment_attributes(this); return false;' );
+$ai4seo_retry_all_failed_attachment_attributes_generations_link_tag = $ai4seo_can_administer_plugin
+	? ai4seo_get_small_icon_button_tag( 'rotate', $ai4seo_retry_all_failed_attachment_attributes_generations_link_label, '', 'ai4seo_retry_all_failed_attachment_attributes(this); return false;' )
+	: '';
 
 // Give AJAX hydration a stable target for the full media table retry action.
 $ai4seo_retry_all_failed_attachment_attributes_container_id = 'ai4seo-retry-all-failed-attachment-attributes';
 
 // The related-media modal is scoped, while retry-all-failed is still a global media action.
-$ai4seo_should_show_retry_all_failed_attachment_attributes_generations_link = ! $ai4seo_is_related_attachments_modal
+$ai4seo_should_show_retry_all_failed_attachment_attributes_generations_link = $ai4seo_can_administer_plugin
+	&& ! $ai4seo_is_related_attachments_modal
 	&& ai4seo_should_show_content_type_retry_all_failed_button( $ai4seo_filter_context['status_options'], $ai4seo_status_filter_counts );
 $ai4seo_retry_all_failed_attachment_attributes_container_class              = $ai4seo_should_show_retry_all_failed_attachment_attributes_generations_link ? '' : ' ai4seo-display-none';
 
-$ai4seo_consider_purchasing_more_credits_link_tag = ai4seo_get_small_icon_button_tag( 'circle-plus', __( 'Get more Credits', 'ai-for-seo' ), 'ai4seo-primary-button', 'ai4seo_close_all_modals();ai4seo_open_get_more_credits_modal();' );
+$ai4seo_consider_purchasing_more_credits_link_tag = $ai4seo_can_administer_plugin
+	? ai4seo_get_small_icon_button_tag( 'circle-plus', __( 'Get more Credits', 'ai-for-seo' ), 'ai4seo-primary-button', 'ai4seo_close_all_modals();ai4seo_open_get_more_credits_modal();' )
+	: '';
 
 $ai4seo_active_attachment_attributes      = ai4seo_get_active_attachment_attributes();
 $ai4seo_active_attachment_attribute_names = ai4seo_get_active_attachment_attributes_names( $ai4seo_active_attachment_attributes );
@@ -562,7 +503,7 @@ $ai4seo_content_type_filter_controls_html     = ai4seo_get_content_type_filter_c
 		'defer_status_filters'           => $ai4seo_should_defer_status_filters,
 		'content_context'                => AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES,
 		'post_type'                      => $ai4seo_main_attachment_post_type,
-		'retry_all_failed_button_target' => $ai4seo_is_related_attachments_modal ? '' : $ai4seo_retry_all_failed_attachment_attributes_container_id,
+		'retry_all_failed_button_target' => ( $ai4seo_can_administer_plugin && ! $ai4seo_is_related_attachments_modal ) ? $ai4seo_retry_all_failed_attachment_attributes_container_id : '',
 	)
 );
 
@@ -648,7 +589,7 @@ if ( $ai4seo_active_attachment_attribute_names ) {
 }
 
 			// Keep the global retry action aligned with the Failed status filter, including deferred AJAX hydration.
-if ( ! $ai4seo_is_related_attachments_modal && ( $ai4seo_should_show_retry_all_failed_attachment_attributes_generations_link || $ai4seo_should_defer_status_filters ) ) {
+if ( $ai4seo_can_administer_plugin && ! $ai4seo_is_related_attachments_modal && ( $ai4seo_should_show_retry_all_failed_attachment_attributes_generations_link || $ai4seo_should_defer_status_filters ) ) {
 	echo '<div'
 		. " id='" . esc_attr( $ai4seo_retry_all_failed_attachment_attributes_container_id ) . "'"
 		. " class='ai4seo-table-title-button ai4seo-content-list-retry-all-failed-button" . esc_attr( $ai4seo_retry_all_failed_attachment_attributes_container_class ) . "'"
@@ -665,13 +606,27 @@ if ( ! $ai4seo_is_related_attachments_modal && ( $ai4seo_should_show_retry_all_f
 		echo '</th>';
 	echo '</tr>';
 
-	// Loop through entries and display table-row for each entry.
+// Resolve shared row fields once for status, preview, and action output.
+$ai4seo_attachment_timestamp_timezone = ai4seo_get_timezone()->getName();
+
 foreach ( $ai4seo_all_attachment_posts as $ai4seo_this_attachment ) {
-	// Prepare variables.
-	$ai4seo_this_post_attachment_id             = (int) $ai4seo_this_attachment->ID ?? '';
-	$ai4seo_this_attachment_title               = $ai4seo_this_attachment->post_title ?? '';
-	$ai4seo_this_mime_type                      = $ai4seo_this_attachment->post_mime_type ?? '';
-	$ai4seo_this_post_link                      = get_edit_post_link( $ai4seo_this_attachment ) ?: $ai4seo_this_attachment->guid ?? '';
+	// Keep edit destinations separate from filtered media sources used by previews and integration fallbacks.
+	$ai4seo_this_post_attachment_id    = (int) $ai4seo_this_attachment->ID;
+	$ai4seo_this_attachment_title      = $ai4seo_this_attachment->post_title ?? '';
+	$ai4seo_this_attachment_post_type  = $ai4seo_this_attachment->post_type ?? '';
+	$ai4seo_this_mime_type             = $ai4seo_this_attachment->post_mime_type ?? '';
+	$ai4seo_this_attachment_source_url = wp_get_attachment_url( $ai4seo_this_post_attachment_id );
+
+	// Imported NextGen entries are plugin-owned pseudo attachments, so WordPress has no native attachment URL for them.
+	if ( ! $ai4seo_this_attachment_source_url && AI4SEO_NEXTGEN_GALLERY_POST_TYPE === $ai4seo_this_attachment_post_type ) {
+		$ai4seo_this_attachment_source_url = $ai4seo_this_attachment->guid ?? '';
+	}
+
+	$ai4seo_this_post_link = get_edit_post_link( $ai4seo_this_attachment );
+
+	if ( ! $ai4seo_this_post_link ) {
+		$ai4seo_this_post_link = $ai4seo_this_attachment_source_url;
+	}
 	$ai4seo_this_attachment_language            = ai4seo_try_get_post_language_by_checking_multilanguage_plugins( $ai4seo_this_post_attachment_id );
 	$ai4seo_this_attachment_title_with_language = $ai4seo_this_attachment_title;
 
@@ -684,18 +639,23 @@ foreach ( $ai4seo_all_attachment_posts as $ai4seo_this_attachment ) {
 	$ai4seo_this_attachment_post_modified_gmt = (string) ( $ai4seo_this_attachment->post_modified_gmt ?? '' );
 	$ai4seo_this_attachment_post_modified     = (string) ( $ai4seo_this_attachment->post_modified ?? '' );
 
-	// get timestamp of post date.
-	$ai4seo_this_attachment_date_timestamp        = strtotime( $ai4seo_this_attachment_post_date_gmt . ' UTC' );
-	$ai4seo_this_attachment_post_date_display     = $ai4seo_this_attachment_post_date;
-	$ai4seo_this_attachment_post_date_gmt_display = $ai4seo_this_attachment_post_date_gmt;
+	// Preserve the absolute timestamp consumed by row filtering independently from presentation formatting.
+	$ai4seo_this_attachment_date_timestamp = false;
 
-	if ( $ai4seo_this_attachment_date_timestamp ) {
-		$ai4seo_this_attachment_post_date_gmt_display = ai4seo_format_unix_timestamp( $ai4seo_this_attachment_date_timestamp, 'auto', 'auto', ' ', 'UTC' );
+	if ( ai4seo_is_valid_mysql_datetime( $ai4seo_this_attachment_post_date_gmt ) ) {
+		$ai4seo_this_attachment_date_timestamp = strtotime( $ai4seo_this_attachment_post_date_gmt . ' UTC' );
 	}
 
-	$ai4seo_this_attachment_post_date_local_timestamp = strtotime( $ai4seo_this_attachment_post_date );
-	if ( $ai4seo_this_attachment_post_date_local_timestamp ) {
-		$ai4seo_this_attachment_post_date_display = ai4seo_format_unix_timestamp( $ai4seo_this_attachment_post_date_local_timestamp );
+	// Prefer the shared GMT path while allowing display-only recovery from a validated legacy local date.
+	$ai4seo_this_attachment_post_date_display = ai4seo_get_attachment_upload_time_display(
+		$ai4seo_this_attachment_post_date_gmt,
+		$ai4seo_attachment_timestamp_timezone,
+		$ai4seo_this_attachment_post_date
+	);
+
+	// Preserve the table's established marker when WordPress has no valid upload date.
+	if ( '' === $ai4seo_this_attachment_post_date_display ) {
+		$ai4seo_this_attachment_post_date_display = '-';
 	}
 
 	// Keep row-level exclusion aligned with queue SQL and the waiting-to-queue status resolver.
@@ -717,9 +677,9 @@ foreach ( $ai4seo_all_attachment_posts as $ai4seo_this_attachment ) {
 		$ai4seo_this_attachment_attributes_is_not_covered     = false;
 	}
 
-	$ai4seo_this_attachment_post_is_fully_covered      = in_array( $ai4seo_this_post_attachment_id, $ai4seo_fully_covered_attachment_post_ids );
+	$ai4seo_this_attachment_post_is_fully_covered      = in_array( $ai4seo_this_post_attachment_id, $ai4seo_fully_covered_attachment_post_ids, true );
 	$ai4seo_this_attachment_attributes_is_not_finished = ( $ai4seo_this_attachment_attribute_coverage_percentage < 100 );
-	$ai4seo_this_attachment_post_is_generated          = in_array( $ai4seo_this_post_attachment_id, $ai4seo_generated_attachment_post_ids );
+	$ai4seo_this_attachment_post_is_generated          = in_array( $ai4seo_this_post_attachment_id, $ai4seo_generated_attachment_post_ids, true );
 	$ai4seo_this_attachment_sub_info_rows              = array();
 	$ai4seo_this_attachment_has_recent_activity        = isset( $ai4seo_recent_attachment_activity_entries_by_post_id[ $ai4seo_this_post_attachment_id ] );
 	$ai4seo_this_recent_activity_details_subtext_tag   = '';
@@ -739,13 +699,14 @@ foreach ( $ai4seo_all_attachment_posts as $ai4seo_this_attachment ) {
 		);
 	}
 
+	// Retain raw UTC/local creation and modification values for diagnostics, with markers for missing data.
 	$ai4seo_this_attachment_upload_timestamp_tooltip = sprintf(
 		/* translators: 1: post_date_gmt, 2: post_date, 3: post_modified_gmt, 4: post_modified */
 		__( "post_date_gmt: %1\$s\npost_date: %2\$s\npost_modified_gmt: %3\$s\npost_modified: %4\$s", 'ai-for-seo' ),
-		$ai4seo_this_attachment_post_date_gmt ?: '-',
-		$ai4seo_this_attachment_post_date ?: '-',
-		$ai4seo_this_attachment_post_modified_gmt ?: '-',
-		$ai4seo_this_attachment_post_modified ?: '-'
+		$ai4seo_this_attachment_post_date_gmt ? $ai4seo_this_attachment_post_date_gmt : '-',
+		$ai4seo_this_attachment_post_date ? $ai4seo_this_attachment_post_date : '-',
+		$ai4seo_this_attachment_post_modified_gmt ? $ai4seo_this_attachment_post_modified_gmt : '-',
+		$ai4seo_this_attachment_post_modified ? $ai4seo_this_attachment_post_modified : '-'
 	);
 
 	$ai4seo_this_attachment_sub_info_rows[] = "<span class='ai4seo-attachment-upload-timestamp' title='" . esc_attr( $ai4seo_this_attachment_upload_timestamp_tooltip ) . "'>" .
@@ -760,7 +721,7 @@ foreach ( $ai4seo_all_attachment_posts as $ai4seo_this_attachment ) {
 		sprintf(
 			/* translators: %s: MIME type */
 			esc_html__( 'MIME type: %s', 'ai-for-seo' ),
-			esc_html( $ai4seo_this_mime_type ?: '-' )
+			esc_html( $ai4seo_this_mime_type ? $ai4seo_this_mime_type : '-' )
 		);
 
 	$ai4seo_this_attachment_coverage_suffix = $ai4seo_this_attachment_post_is_fully_covered ? ' ' . esc_html__( '(completed)', 'ai-for-seo' ) : '';
@@ -789,7 +750,7 @@ foreach ( $ai4seo_all_attachment_posts as $ai4seo_this_attachment ) {
 
 	$ai4seo_this_attachment_sub_info_html = "<div class='ai4seo-sub-info'>" . implode( ' &bull; ', $ai4seo_this_attachment_sub_info_rows ) . '</div>';
 
-	$ai4seo_is_attachment_post_failed = in_array( $ai4seo_this_post_attachment_id, $ai4seo_current_page_failed_to_fill_attachment_post_ids );
+	$ai4seo_is_attachment_post_failed = in_array( $ai4seo_this_post_attachment_id, $ai4seo_current_page_failed_to_fill_attachment_post_ids, true );
 	// Check queue state separately, so Pending and Processing can have different visuals.
 	$ai4seo_is_attachment_post_missing               = in_array( $ai4seo_this_post_attachment_id, $ai4seo_missing_attachment_attributes_post_ids, true );
 	$ai4seo_is_attachment_post_pending               = in_array( $ai4seo_this_post_attachment_id, $ai4seo_pending_attributes_attachment_post_ids, true );
@@ -824,22 +785,22 @@ foreach ( $ai4seo_all_attachment_posts as $ai4seo_this_attachment ) {
 		}
 	}
 
+	// Prefer the generated thumbnail, then the filtered source URL, and use the generic icon only without real media.
 	$ai4seo_preview_image_url      = '';
 	$ai4seo_preview_image_alt_text = __( 'No image preview available', 'ai-for-seo' );
 
-	if ( in_array( $ai4seo_this_mime_type, array( 'image/jpeg', 'image/png', 'image/gif', 'image/webp' ) ) ) {
+	if ( in_array( (string) $ai4seo_this_mime_type, array( 'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif' ), true ) ) {
 		$ai4seo_preview_image_url = wp_get_attachment_image_url( $ai4seo_this_post_attachment_id, array( 48, 48 ) );
+
+		if ( ! $ai4seo_preview_image_url ) {
+			$ai4seo_preview_image_url = $ai4seo_this_attachment_source_url;
+		}
 
 		if ( $ai4seo_preview_image_url ) {
 			$ai4seo_this_attachment_alt_text = trim( (string) get_post_meta( $ai4seo_this_post_attachment_id, '_wp_attachment_image_alt', true ) );
-			$ai4seo_preview_image_alt_text   = $ai4seo_this_attachment_alt_text ?: $ai4seo_this_attachment_title_with_language;
-		}
-
-		if ( ! $ai4seo_preview_image_url ) {
-			$ai4seo_preview_image_url = $ai4seo_this_post_link;
+			$ai4seo_preview_image_alt_text   = $ai4seo_this_attachment_alt_text ? $ai4seo_this_attachment_alt_text : $ai4seo_this_attachment_title_with_language;
 		}
 	}
-
 	if ( ! $ai4seo_preview_image_url ) {
 		$ai4seo_preview_image_url = ai4seo_get_assets_images_url( 'icons/document-question-48x48.png' );
 	}
@@ -863,17 +824,31 @@ foreach ( $ai4seo_all_attachment_posts as $ai4seo_this_attachment ) {
 
 		// Image or File Preview.
 		echo "<td class='ai4seo-attachment-list-image-preview'>";
-			echo "<a href='" . esc_url( $ai4seo_this_post_link ) . "' target='_blank'>";
-				echo "<img src='" . esc_url( $ai4seo_preview_image_url ) . "' alt='" . esc_attr( $ai4seo_preview_image_alt_text ) . "'/>";
-			echo '</a>';
+	if ( $ai4seo_this_post_link ) {
+		echo "<a href='" . esc_url( $ai4seo_this_post_link ) . "' target='_blank'>";
+	}
+
+		echo "<img src='" . esc_url( $ai4seo_preview_image_url ) . "' alt='" . esc_attr( $ai4seo_preview_image_alt_text ) . "'/>";
+
+	if ( $ai4seo_this_post_link ) {
+		echo '</a>';
+	}
+
 		echo '</td>';
 
 		// Title.
 		echo "<td class='title column-title has-row-actions column-primary post-title ai4seo-hidden-on-mobile'>";
 			echo '<strong>';
-				echo "<a href='" . esc_url( $ai4seo_this_post_link ) . "' target='_blank'>";
-					echo esc_html( $ai4seo_this_attachment_title_with_language );
-				echo '</a>';
+	if ( $ai4seo_this_post_link ) {
+		echo "<a href='" . esc_url( $ai4seo_this_post_link ) . "' target='_blank'>";
+	}
+
+		echo esc_html( $ai4seo_this_attachment_title_with_language );
+
+	if ( $ai4seo_this_post_link ) {
+		echo '</a>';
+	}
+
 			echo '</strong>';
 
 			ai4seo_echo_wp_kses( $ai4seo_this_attachment_sub_info_html );
@@ -884,25 +859,26 @@ foreach ( $ai4seo_all_attachment_posts as $ai4seo_this_attachment ) {
 	if ( $ai4seo_active_attachment_attributes ) {
 		$ai4seo_progress_bar_animation_class           = '';
 		$ai4seo_should_show_auto_queue_disallowed_note = $ai4seo_is_bulk_generation_activated
-		&& $ai4seo_should_auto_queue_bulk_generation_entries
-		&& $ai4seo_is_attachment_post_auto_queue_disallowed
-		&& $ai4seo_this_attachment_attributes_is_not_finished
-		&& ! $ai4seo_is_attachment_post_pending
-		&& ! $ai4seo_is_attachment_post_processing;
+			&& $ai4seo_should_auto_queue_bulk_generation_entries
+			&& $ai4seo_is_attachment_post_auto_queue_disallowed
+			&& $ai4seo_this_attachment_attributes_is_not_finished
+			&& ! $ai4seo_is_attachment_post_pending
+			&& ! $ai4seo_is_attachment_post_processing;
 		$ai4seo_should_show_autopilot_pending_note     = $ai4seo_is_attachment_post_pending
-		&& ! $ai4seo_is_attachment_post_processing;
+			&& ! $ai4seo_is_attachment_post_processing;
 
 		if ( $ai4seo_is_attachment_post_processing ) {
-					$ai4seo_progress_bar_animation_class = ' ai4seo-green-animated-progress-bar';
+			$ai4seo_progress_bar_animation_class = ' ai4seo-green-animated-progress-bar';
 		}
 
-				// Reuse the list-wide progress helper so attachment and post rows expose identical accessibility metadata.
-				echo ai4seo_get_seo_coverage_progress_bar_tag(
-					$ai4seo_this_post_attachment_id,
-					$ai4seo_this_attachment_attribute_coverage_percentage,
-					$ai4seo_progress_bar_animation_class,
-					$ai4seo_this_attachment_attributes_is_not_finished
-				);
+		// Reuse the list-wide progress helper so attachment and post rows expose identical accessibility metadata.
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Static progress markup escapes every dynamic attribute with esc_attr().
+		echo ai4seo_get_seo_coverage_progress_bar_tag(
+			$ai4seo_this_post_attachment_id,
+			$ai4seo_this_attachment_attribute_coverage_percentage,
+			$ai4seo_progress_bar_animation_class,
+			$ai4seo_this_attachment_attributes_is_not_finished
+		);
 
 		if ( $ai4seo_is_attachment_post_waiting_to_get_queued ) {
 				echo "<div class='ai4seo-sub-info'>";
@@ -925,7 +901,9 @@ foreach ( $ai4seo_all_attachment_posts as $ai4seo_this_attachment ) {
 		} elseif ( $ai4seo_is_insufficient_credits ) {
 			echo "<div class='ai4seo-sub-info ai4seo-red-message'>";
 			echo esc_html__( 'Insufficient Credits', 'ai-for-seo' ) . '. ';
-			ai4seo_echo_wp_kses( $ai4seo_consider_purchasing_more_credits_link_tag );
+			if ( $ai4seo_can_administer_plugin ) {
+				ai4seo_echo_wp_kses( $ai4seo_consider_purchasing_more_credits_link_tag );
+			}
 			echo '</div>';
 		} elseif ( $ai4seo_is_attachment_post_failed && $ai4seo_this_attachment_attributes_is_not_finished ) {
 			echo "<div class='ai4seo-seo-data-not-covered-message'>";
@@ -1004,9 +982,10 @@ $ai4seo_pagination_base_argument = add_query_arg(
 	),
 	admin_url( 'admin.php' )
 );
+// Normalize page bounds and preserve WordPress's placeholder when a concrete pagination base cannot be built.
 $ai4seo_total_pages              = max( 1, $ai4seo_total_pages );
 $ai4seo_current_page             = max( 1, $ai4seo_current_page );
-$ai4seo_pagination_base_argument = $ai4seo_pagination_base_argument ?: '%_%'; // Default base if not defined.
+$ai4seo_pagination_base_argument = $ai4seo_pagination_base_argument ? $ai4seo_pagination_base_argument : '%_%';
 
 // Preserve the modal source post while reusing the media page pagination helper.
 if ( $ai4seo_is_related_attachments_modal && $ai4seo_related_attachments_modal_post_id > 0 ) {
@@ -1022,7 +1001,7 @@ $ai4seo_pagination_arguments = array(
 	'mid_size'  => 0,
 	'prev_text' => '&larr; ' . __( 'Previous', 'ai-for-seo' ),
 	'next_text' => __( 'Next', 'ai-for-seo' ) . ' &rarr;',
-	'add_args'  => ( $ai4seo_filter_query_args ?: false ),
+	'add_args'  => ( $ai4seo_filter_query_args ? $ai4seo_filter_query_args : false ),
 );
 
 $ai4seo_pagination_links = paginate_links( $ai4seo_pagination_arguments );

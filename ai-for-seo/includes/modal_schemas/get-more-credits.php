@@ -2,6 +2,7 @@
 /**
  * Modal Schema: Represents the Get More Credits modal.
  *
+ * @package AI_For_SEO
  * @since 2.0
  */
 
@@ -9,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! ai4seo_can_manage_this_plugin() ) {
+if ( ! ai4seo_can_administer_plugin() ) {
 	return;
 }
 
@@ -48,11 +49,11 @@ $ai4seo_current_subscription_end_formatted_text = ai4seo_format_unix_timestamp( 
 $ai4seo_user_is_on_free_plan               = ( 'free' === $ai4seo_robhub_subscription_plan ) || $ai4seo_robhub_subscription_end_timestamp < time();
 $ai4seo_robhub_subscription_plan_css_class = ( $ai4seo_user_is_on_free_plan ? 'ai4seo-black-message' : 'ai4seo-green-message' );
 
-// double check if subscription should be renewed.
+// The normalized subscription contract exposes renewal intent as a strict boolean.
 $ai4seo_robhub_subscription_do_renew = $ai4seo_robhub_subscription['do_renew'] ?? false;
 $ai4seo_robhub_subscription_do_renew = ! $ai4seo_user_is_on_free_plan
 	&& $ai4seo_robhub_subscription_end_timestamp
-	&& '1' === $ai4seo_robhub_subscription_do_renew;
+	&& true === $ai4seo_robhub_subscription_do_renew;
 
 $ai4seo_robhub_subscription_renew_frequency = $ai4seo_robhub_subscription['renew_frequency'] ?? false;
 $ai4seo_robhub_subscription_renew_frequency = $ai4seo_robhub_subscription_do_renew
@@ -66,19 +67,16 @@ $ai4seo_payg_status             = ai4seo_read_environmental_variable( AI4SEO_ENV
 $ai4seo_payg_failure_reason     = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_FAILURE_REASON );
 $ai4seo_has_purchased_something = (bool) ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_HAS_PURCHASED_SOMETHING );
 
-$ai4seo_api_username = ai4seo_robhub_api()->get_api_username();
-
-
 // ___________________________________________________________________________________________ \\
 // === HEADLINE ============================================================================== \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 	echo "<div class='" . esc_attr( $ai4seo_get_more_credits_headline_class ) . "'>";
-	if ( $ai4seo_get_more_credits_is_ajax_render ) {
-		echo "<div class='ai4seo-modal-headline-icon'>";
-			ai4seo_echo_wp_kses( ai4seo_get_sooz_logo_image_tag( 'sooz' ) );
-		echo '</div>';
-	}
+if ( $ai4seo_get_more_credits_is_ajax_render ) {
+	echo "<div class='ai4seo-modal-headline-icon'>";
+		ai4seo_echo_wp_kses( ai4seo_get_sooz_logo_image_tag( 'sooz' ) );
+	echo '</div>';
+}
 	echo esc_html__( 'How to get more Credits', 'ai-for-seo' );
 echo '</div>';
 
@@ -125,8 +123,6 @@ if ( ! $ai4seo_user_is_on_free_plan ) {
 
 			// FREE PLAN.
 	if ( $ai4seo_user_is_on_free_plan ) {
-		$ai4seo_purchase_plan_url = ai4seo_get_purchase_plan_url( $ai4seo_api_username );
-
 		echo esc_html__( 'Do you need Credits on a regular basis over a long period? With our annual subscriptions, you’ll receive a set amount of Credits each month at the best possible price.', 'ai-for-seo' );
 
 		echo '<br><br>';
@@ -141,14 +137,11 @@ if ( ! $ai4seo_user_is_on_free_plan ) {
 
 		// Upgrade button.
 		ai4seo_echo_wp_kses(
-			ai4seo_get_a_tag_icon_button_tag(
-				$ai4seo_purchase_plan_url,
-				'',
-				'_blank',
+			ai4seo_get_icon_button_tag(
 				'list',
 				esc_html__( 'See options', 'ai-for-seo' ),
 				'ai4seo-primary-button',
-				'ai4seo_track_subscription_pricing_visit();',
+				'ai4seo_init_subscription_pricing(this);',
 			)
 		);
 	} else {
@@ -223,7 +216,7 @@ if ( ! $ai4seo_user_is_on_free_plan ) {
 				echo '</ol>';
 
 				// Manage Subscription button.
-				ai4seo_echo_wp_kses( ai4seo_get_a_tag_icon_button_tag( AI4SEO_STRIPE_BILLING_URL, '', '_blank', 'stripe', esc_html__( 'Manage Subscription', 'ai-for-seo' ), 'ai4seo-primary-button', 'ai4seo_track_subscription_pricing_visit();' ) );
+				ai4seo_echo_wp_kses( ai4seo_get_icon_button_tag( 'stripe', esc_html__( 'Manage Subscription', 'ai-for-seo' ), 'ai4seo-primary-button', 'ai4seo_init_subscription_pricing(this);' ) );
 	}
 		echo '</div>';
 	echo '</div>';

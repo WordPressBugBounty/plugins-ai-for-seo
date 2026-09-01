@@ -19,9 +19,17 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return WP_Error|null Error on failure, null on success or no-op.
  */
 function ai4seo_process_save_anything_robhub_environmental_variables( array &$upcoming_save_anything_updates ) {
-	// Preserve the category's existing silent no-op behavior for users without plugin-management rights.
-	if ( ! ai4seo_can_manage_this_plugin() ) {
+	// Leave payloads without communicator state fields to their owning save processors.
+	if ( ! array_intersect( array_keys( $upcoming_save_anything_updates ), array_keys( ai4seo_robhub_api()::DEFAULT_ENVIRONMENTAL_VARIABLES ) ) ) {
 		return null;
+	}
+
+	// Protect credentials and account state even when the processor is called outside the AJAX dispatcher.
+	if ( ! ai4seo_can_administer_plugin() ) {
+		return new WP_Error(
+			11420725,
+			esc_html__( 'Action blocked due to security reasons. Please refresh this page and try again.', 'ai-for-seo' )
+		);
 	}
 
 	// Capture active credentials before persistence so a failed verification can restore the prior account state.

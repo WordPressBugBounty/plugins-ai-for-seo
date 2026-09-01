@@ -2,6 +2,7 @@
 /**
  * Displays the Get More Credits modal. Called via AJAX.
  *
+ * @package AI_For_SEO
  * @since 2.4.3
  */
 
@@ -10,8 +11,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-// Billing details are available only to users who can manage the plugin.
-if ( ! ai4seo_can_manage_this_plugin() ) {
+// Billing details and purchase controls belong exclusively to the administrative boundary.
+if ( ! ai4seo_can_administer_plugin() ) {
 	return;
 }
 
@@ -21,10 +22,17 @@ if ( false === wp_verify_nonce( $GLOBALS['ai4seo_ajax_nonce'] ?? '', AI4SEO_GLOB
 	return;
 }
 
+$ai4seo_get_more_credits_schema_path = ai4seo_get_includes_modal_schemas_path( 'get-more-credits.php' );
+
+if ( ! is_readable( $ai4seo_get_more_credits_schema_path ) ) {
+	ai4seo_send_ajax_error( esc_html__( 'The Credits modal is currently unavailable. Please refresh the page and try again.', 'ai-for-seo' ), 1108261201 );
+	return;
+}
+
 // Render the canonical schema directly with the wrapper classes consumed by the AJAX modal parser.
 ob_start();
 $ai4seo_modal_render_context = 'ajax';
-include ai4seo_get_includes_modal_schemas_path( 'get-more-credits.php' );
+require $ai4seo_get_more_credits_schema_path;
 unset( $ai4seo_modal_render_context );
 $ai4seo_get_more_credits_modal_content = ob_get_clean();
 

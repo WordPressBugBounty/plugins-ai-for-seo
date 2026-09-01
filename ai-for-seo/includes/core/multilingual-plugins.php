@@ -1,4 +1,10 @@
 <?php
+/**
+ * Provides integrations with multilingual plugins.
+ *
+ * @package AI_For_SEO
+ */
+
 // Keep extracted core modules inaccessible when WordPress has not loaded the plugin environment.
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -7,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // region MULTI-LANGUAGE THIRD-PARTY PLUGINS ==================================================== \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
-// region TRANSLATEPRESS ======================================================================== \\
+// region TRANSLATEPRESS ========================================================================.
 
 /**
  * Remove TranslatePress tags and wrappers from a string.
@@ -17,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Output:
  * "Metadata Editor Manage metadata for Stuffed peppers (#35432)"
  *
- * @param string $input
+ * @param string $input Text that may contain TranslatePress tags.
  * @return string
  */
 function ai4seo_remove_translatepress_tags( string $input ): string {
@@ -62,7 +68,6 @@ function ai4seo_try_get_post_language_by_checking_multilanguage_plugins( int $po
 	return '';
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the language code for a post if a supported multi-language plugin is active.
@@ -73,6 +78,7 @@ function ai4seo_try_get_post_language_by_checking_multilanguage_plugins( int $po
 function ai4seo_get_post_language_code_by_multilanguage_plugins( int $post_id ): string {
 	// WPML.
 	if ( ai4seo_is_plugin_or_theme_active( AI4SEO_THIRD_PARTY_PLUGIN_WPML ) ) {
+		// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WPML defines this public integration hook.
 		$attachment_language = apply_filters( 'wpml_post_language_details', null, $post_id );
 		$attachment_language = ai4seo_deep_sanitize( $attachment_language );
 
@@ -84,7 +90,6 @@ function ai4seo_get_post_language_code_by_multilanguage_plugins( int $post_id ):
 	return '';
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns active WPML languages as labels keyed by language code.
@@ -108,7 +113,7 @@ function ai4seo_get_available_wpml_languages(): array {
 
 	// Ask WPML for every active language, even when the current entry has no translation.
 	$wpml_active_languages = apply_filters(
-		'wpml_active_languages',
+		'wpml_active_languages', // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WPML defines this public integration hook.
 		null,
 		array(
 			'skip_missing' => 0,
@@ -151,7 +156,6 @@ function ai4seo_get_available_wpml_languages(): array {
 	return $ai4seo_available_wpml_languages;
 }
 
-// =========================================================================================== \\
 
 /**
  * Sanitizes WPML language-code lists for settings, filters, and queue cleanup.
@@ -191,7 +195,6 @@ function ai4seo_sanitize_wpml_language_codes( $wpml_language_codes, bool $restri
 	return array_values( array_unique( $sanitized_wpml_language_codes ) );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns disabled WPML languages for metadata lists and automation.
@@ -208,7 +211,6 @@ function ai4seo_get_disabled_metadata_wpml_language_codes(): array {
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns disabled WPML languages for media-attribute lists and automation.
@@ -225,7 +227,6 @@ function ai4seo_get_disabled_attachment_attributes_wpml_language_codes(): array 
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Converts submitted active WPML languages into the disabled-language storage format.
@@ -241,7 +242,6 @@ function ai4seo_get_disabled_wpml_language_codes_from_active_selection( $active_
 	return array_values( array_diff( $available_wpml_language_codes, $active_wpml_language_codes ) );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns a cached language code for repeated WPML scope checks in the same request.
@@ -266,7 +266,6 @@ function ai4seo_get_cached_post_language_code_by_multilanguage_plugins( int $pos
 	return $ai4seo_post_language_code_request_cache[ $post_id ];
 }
 
-// =========================================================================================== \\
 
 /**
  * Removes entries whose WPML language is disabled from a post-ID list.
@@ -304,7 +303,6 @@ function ai4seo_filter_post_ids_by_disabled_wpml_languages( array $post_ids, arr
 	return $filtered_post_ids;
 }
 
-// =========================================================================================== \\
 
 /**
  * Executes a callback while temporarily forcing WPML to return all languages.
@@ -320,7 +318,9 @@ function ai4seo_with_wpml_all_languages( callable $callback ) {
 	$filter_function   = 'ai4seo_wpml_return_all_languages';
 	$previous_language = null;
 
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Sanitized request-local language snapshot used only for restoration; no persistent state is changed.
 	if ( isset( $_GET['lang'] ) ) {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Sanitized request-local language snapshot used only for restoration; no persistent state is changed.
 		$previous_lang_get = sanitize_key( wp_unslash( $_GET['lang'] ) );
 	} else {
 		$previous_lang_get = null;
@@ -356,7 +356,6 @@ function ai4seo_with_wpml_all_languages( callable $callback ) {
 	}
 }
 
-// =========================================================================================== \\
 
 /**
  * Helper to return the WPML value for "all languages".

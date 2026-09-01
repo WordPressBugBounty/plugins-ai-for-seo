@@ -2,6 +2,7 @@
 /**
  * Renders the content of the submenu page for the "AI for SEO" posts-page.
  *
+ * @package AI_For_SEO
  * @since 1.0
  */
 
@@ -9,9 +10,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! ai4seo_can_manage_this_plugin() ) {
+if ( ! ai4seo_can_use_plugin_content() ) {
 	return;
 }
+
+$ai4seo_can_administer_plugin = ai4seo_can_administer_plugin();
 
 require_once __DIR__ . '/list-filters.php';
 
@@ -24,7 +27,7 @@ $ai4seo_supported_post_types = ai4seo_get_supported_post_types();
 
 $ai4seo_post_type = ai4seo_get_active_post_type_subpage();
 
-if ( ! in_array( $ai4seo_post_type, $ai4seo_supported_post_types ) ) {
+if ( ! in_array( $ai4seo_post_type, $ai4seo_supported_post_types, true ) ) {
 	echo 'Unknown post type: ' . esc_html( $ai4seo_post_type );
 	return;
 }
@@ -33,6 +36,7 @@ $ai4seo_translated_post_type        = ai4seo_get_post_type_translation( $ai4seo_
 $ai4seo_translated_post_type_plural = ai4seo_get_post_type_translation( $ai4seo_post_type, true );
 
 // sanitize and get current page (pagination).
+// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Capability-gated read-only pagination cursor; no state is changed.
 $ai4seo_current_page = absint( wp_unslash( $_REQUEST['ai4seo_page'] ?? 1 ) );
 
 if ( $ai4seo_current_page < 1 ) {
@@ -46,19 +50,23 @@ $ai4seo_current_credits_balance = ai4seo_robhub_api()->get_credits_balance();
 $ai4seo_retry_all_failed_metadata_generations_link_label = __( 'Retry all failed', 'ai-for-seo' );
 
 // retry all failed metadata generations link.
-$ai4seo_retry_all_failed_metadata_generations_link_tag = ai4seo_get_small_icon_button_tag( 'rotate', $ai4seo_retry_all_failed_metadata_generations_link_label, '', "ai4seo_retry_all_failed_metadata(this, '" . esc_js( $ai4seo_post_type ) . "'); return false;" );
+$ai4seo_retry_all_failed_metadata_generations_link_tag = $ai4seo_can_administer_plugin
+	? ai4seo_get_small_icon_button_tag( 'rotate', $ai4seo_retry_all_failed_metadata_generations_link_label, '', "ai4seo_retry_all_failed_metadata(this, '" . esc_js( $ai4seo_post_type ) . "'); return false;" )
+	: '';
 
 // Give AJAX hydration a stable target that is scoped to this post-type table.
 $ai4seo_retry_all_failed_metadata_generations_container_id = 'ai4seo-retry-all-failed-metadata-' . sanitize_html_class( $ai4seo_post_type );
 
-$ai4seo_consider_purchasing_more_credits_link_tag = ai4seo_get_small_icon_button_tag( 'circle-plus', __( 'Get more Credits', 'ai-for-seo' ), 'ai4seo-primary-button', 'ai4seo_close_all_modals(); ai4seo_open_get_more_credits_modal();' );
+$ai4seo_consider_purchasing_more_credits_link_tag = $ai4seo_can_administer_plugin
+	? ai4seo_get_small_icon_button_tag( 'circle-plus', __( 'Get more Credits', 'ai-for-seo' ), 'ai4seo-primary-button', 'ai4seo_close_all_modals(); ai4seo_open_get_more_credits_modal();' )
+	: '';
 
 // get value for bulk toggle checkbox.
 $ai4seo_is_bulk_generation_activated              = ai4seo_is_bulk_generation_enabled( $ai4seo_post_type );
 $ai4seo_is_bulk_generation_checked_phrase         = ( $ai4seo_is_bulk_generation_activated ? 'checked' : '' );
 $ai4seo_should_auto_queue_bulk_generation_entries = ai4seo_should_auto_queue_bulk_generation_entries();
 $ai4seo_disabled_post_author_ids                  = ai4seo_get_disabled_post_author_ids();
-$ai4seo_disabled_taxonomy_terms                   = ai4seo_get_disabled_taxonomy_terms();
+$ai4seo_disabled_taxonomy_terms                   = ai4seo_get_enforced_disabled_taxonomy_terms();
 
 // Read metadata WPML exclusions once so filters, status counts, and queue previews use the same scope.
 $ai4seo_disabled_metadata_wpml_language_codes          = ai4seo_get_disabled_metadata_wpml_language_codes();
@@ -376,19 +384,27 @@ if ( $ai4seo_should_derive_current_page_metadata_status_ids ) {
 $ai4seo_third_party_seo_plugin_key_phrases = ai4seo_read_third_party_seo_plugin_key_phrases( $ai4seo_current_post_ids );
 
 // remove entries from $ai4seo_failed_to_fill_post_ids that are not on this page.
+// Canonicalize status sources once before every strict row-level membership check below.
+$ai4seo_all_failed_metadata_post_ids    = ai4seo_normalize_post_ids_from_option_value( $ai4seo_all_failed_metadata_post_ids );
+$ai4seo_fully_covered_metadata_post_ids = ai4seo_normalize_post_ids_from_option_value( $ai4seo_fully_covered_metadata_post_ids );
+$ai4seo_generated_metadata_post_ids     = ai4seo_normalize_post_ids_from_option_value( $ai4seo_generated_metadata_post_ids );
+
 $ai4seo_current_page_failed_to_fill_post_ids = array();
 
 if ( $ai4seo_all_posts ) {
 	foreach ( $ai4seo_all_posts as $ai4seo_this_post ) {
-		if ( in_array( $ai4seo_this_post->ID, $ai4seo_all_failed_metadata_post_ids ) ) {
-			$ai4seo_current_page_failed_to_fill_post_ids[] = $ai4seo_this_post->ID;
+		$ai4seo_this_post_id = (int) $ai4seo_this_post->ID;
+
+		if ( in_array( $ai4seo_this_post_id, $ai4seo_all_failed_metadata_post_ids, true ) ) {
+			$ai4seo_current_page_failed_to_fill_post_ids[] = $ai4seo_this_post_id;
 		}
 	}
 }
 $ai4seo_all_failed_metadata_post_ids = $ai4seo_current_page_failed_to_fill_post_ids;
 
 // Retry-all visibility follows the same count-backed rule that makes the Failed status filter visible.
-$ai4seo_should_show_retry_all_failed_metadata_generations_link = ai4seo_should_show_content_type_retry_all_failed_button( $ai4seo_filter_context['status_options'], $ai4seo_status_filter_counts );
+$ai4seo_should_show_retry_all_failed_metadata_generations_link = $ai4seo_can_administer_plugin
+	&& ai4seo_should_show_content_type_retry_all_failed_button( $ai4seo_filter_context['status_options'], $ai4seo_status_filter_counts );
 $ai4seo_retry_all_failed_metadata_generations_container_class  = $ai4seo_should_show_retry_all_failed_metadata_generations_link ? '' : ' ai4seo-display-none';
 
 $ai4seo_active_meta_tags                      = ai4seo_get_active_meta_tags();
@@ -408,7 +424,7 @@ $ai4seo_content_type_filter_controls_html     = ai4seo_get_content_type_filter_c
 		'defer_status_filters'           => $ai4seo_should_defer_status_filters,
 		'content_context'                => AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA,
 		'post_type'                      => $ai4seo_post_type,
-		'retry_all_failed_button_target' => $ai4seo_retry_all_failed_metadata_generations_container_id,
+		'retry_all_failed_button_target' => $ai4seo_can_administer_plugin ? $ai4seo_retry_all_failed_metadata_generations_container_id : '',
 	)
 );
 
@@ -478,7 +494,7 @@ if ( $ai4seo_active_meta_tags_names ) {
 			echo '</span>';
 
 			// Keep the global retry action aligned with the Failed status filter, including deferred AJAX hydration.
-if ( $ai4seo_should_show_retry_all_failed_metadata_generations_link || $ai4seo_should_defer_status_filters ) {
+if ( $ai4seo_can_administer_plugin && ( $ai4seo_should_show_retry_all_failed_metadata_generations_link || $ai4seo_should_defer_status_filters ) ) {
 	echo '<div'
 		. " id='" . esc_attr( $ai4seo_retry_all_failed_metadata_generations_container_id ) . "'"
 		. " class='ai4seo-table-title-button ai4seo-content-list-retry-all-failed-button" . esc_attr( $ai4seo_retry_all_failed_metadata_generations_container_class ) . "'"
@@ -495,10 +511,12 @@ if ( $ai4seo_should_show_retry_all_failed_metadata_generations_link || $ai4seo_s
 		echo '</th>';
 	echo '</tr>';
 
-	// Loop through all posts.
+// Resolve the display timezone once before rendering post rows.
+$ai4seo_post_timestamp_timezone = ai4seo_get_timezone()->getName();
+
 foreach ( $ai4seo_all_posts as $ai4seo_this_post ) {
 	// Get post-ID.
-	$ai4seo_this_post_id = $ai4seo_this_post->ID;
+	$ai4seo_this_post_id = (int) $ai4seo_this_post->ID;
 
 	// Get post-title.
 	$ai4seo_single_post_title               = $ai4seo_this_post->post_title;
@@ -517,15 +535,23 @@ foreach ( $ai4seo_all_posts as $ai4seo_this_post ) {
 	$ai4seo_this_post_modified_gmt = (string) ( $ai4seo_this_post->post_modified_gmt ?? '' );
 	$ai4seo_this_post_modified     = (string) ( $ai4seo_this_post->post_modified ?? '' );
 
-	// get timestamp of post date.
-	$ai4seo_this_post_date_timestamp = strtotime( $ai4seo_this_post_date_gmt . ' UTC' );
-	$ai4seo_this_post_date_display   = $ai4seo_this_post_date;
+	// Parse the absolute GMT value once; invalid and WordPress zero dates remain explicit missing data.
+	$ai4seo_this_post_date_timestamp = false;
+	$ai4seo_this_post_date_display   = '-';
 
-	$ai4seo_this_post_date_local_timestamp = strtotime( $ai4seo_this_post_date );
-	if ( $ai4seo_this_post_date_local_timestamp ) {
-		$ai4seo_this_post_date_display = ai4seo_format_unix_timestamp( $ai4seo_this_post_date_local_timestamp );
+	if ( ai4seo_is_valid_mysql_datetime( $ai4seo_this_post_date_gmt ) ) {
+		$ai4seo_this_post_date_timestamp = strtotime( $ai4seo_this_post_date_gmt . ' UTC' );
 	}
 
+	if ( false !== $ai4seo_this_post_date_timestamp ) {
+		$ai4seo_this_post_date_display = ai4seo_format_unix_timestamp(
+			$ai4seo_this_post_date_timestamp,
+			'auto',
+			'auto',
+			' ',
+			$ai4seo_post_timestamp_timezone
+		);
+	}
 	// Keep row-level exclusion aligned with queue SQL and the waiting-to-queue status resolver.
 	$ai4seo_is_excluded_by_new_or_existing_filter = ! empty( $ai4seo_bulk_generation_date_filter_state['is_valid'] )
 		&& ! ai4seo_does_bulk_generation_date_filter_include_timestamp(
@@ -540,11 +566,11 @@ foreach ( $ai4seo_all_posts as $ai4seo_this_post ) {
 		$ai4seo_this_active_metadata_coverage_percentage = 100;
 	}
 
-	$ai4seo_this_post_is_fully_covered               = in_array( $ai4seo_this_post_id, $ai4seo_fully_covered_metadata_post_ids );
+	$ai4seo_this_post_is_fully_covered               = in_array( $ai4seo_this_post_id, $ai4seo_fully_covered_metadata_post_ids, true );
 	$ai4seo_this_metadata_generation_is_not_finished = ! $ai4seo_this_post_is_fully_covered;
-	$ai4seo_this_post_is_generated                   = in_array( $ai4seo_this_post_id, $ai4seo_generated_metadata_post_ids );
+	$ai4seo_this_post_is_generated                   = in_array( $ai4seo_this_post_id, $ai4seo_generated_metadata_post_ids, true );
 	$ai4seo_this_post_sub_info_rows                  = array();
-	$ai4seo_this_post_is_failed_to_fill              = in_array( $ai4seo_this_post_id, $ai4seo_current_page_failed_to_fill_post_ids );
+	$ai4seo_this_post_is_failed_to_fill              = in_array( $ai4seo_this_post_id, $ai4seo_current_page_failed_to_fill_post_ids, true );
 	$ai4seo_this_post_has_recent_activity            = isset( $ai4seo_recent_metadata_activity_entries_by_post_id[ $ai4seo_this_post_id ] );
 	$ai4seo_this_recent_activity_details_subtext_tag = '';
 
@@ -563,13 +589,14 @@ foreach ( $ai4seo_all_posts as $ai4seo_this_post ) {
 		);
 	}
 
+	// Retain raw UTC/local creation and modification values for diagnostics, with markers for missing data.
 	$ai4seo_this_post_timestamp_tooltip = sprintf(
 		/* translators: 1: post_date_gmt, 2: post_date, 3: post_modified_gmt, 4: post_modified */
 		__( "post_date_gmt: %1\$s\npost_date: %2\$s\npost_modified_gmt: %3\$s\npost_modified: %4\$s", 'ai-for-seo' ),
-		$ai4seo_this_post_date_gmt ?: '-',
-		$ai4seo_this_post_date ?: '-',
-		$ai4seo_this_post_modified_gmt ?: '-',
-		$ai4seo_this_post_modified ?: '-'
+		$ai4seo_this_post_date_gmt ? $ai4seo_this_post_date_gmt : '-',
+		$ai4seo_this_post_date ? $ai4seo_this_post_date : '-',
+		$ai4seo_this_post_modified_gmt ? $ai4seo_this_post_modified_gmt : '-',
+		$ai4seo_this_post_modified ? $ai4seo_this_post_modified : '-'
 	);
 
 	$ai4seo_this_post_sub_info_rows[] = "<span class='ai4seo-attachment-upload-timestamp' title='" . esc_attr( $ai4seo_this_post_timestamp_tooltip ) . "'>" .
@@ -690,6 +717,7 @@ foreach ( $ai4seo_all_posts as $ai4seo_this_post ) {
 		}
 
 		// Reuse the list-wide progress helper so post and attachment rows expose identical accessibility metadata.
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Static progress markup escapes every dynamic attribute with esc_attr().
 		echo ai4seo_get_seo_coverage_progress_bar_tag(
 			$ai4seo_this_post_id,
 			$ai4seo_this_active_metadata_coverage_percentage,
@@ -719,7 +747,9 @@ foreach ( $ai4seo_all_posts as $ai4seo_this_post ) {
 			echo "<div class='ai4seo-sub-info ai4seo-red-message'>";
 				echo esc_html__( 'Insufficient Credits', 'ai-for-seo' ) . '.';
 				echo ' ';
+			if ( $ai4seo_can_administer_plugin ) {
 				ai4seo_echo_wp_kses( $ai4seo_consider_purchasing_more_credits_link_tag );
+			}
 			echo '</div>';
 		} elseif ( $ai4seo_this_post_is_failed_to_fill && $ai4seo_this_metadata_generation_is_not_finished ) {
 			echo "<div class='ai4seo-seo-data-not-covered-message'>";
@@ -810,9 +840,10 @@ $ai4seo_pagination_base_argument = add_query_arg(
 	admin_url( 'admin.php' )
 );
 
+// Normalize page bounds and preserve WordPress's placeholder when a concrete pagination base cannot be built.
 $ai4seo_total_pages              = max( 1, $ai4seo_total_pages );
 $ai4seo_current_page             = max( 1, $ai4seo_current_page );
-$ai4seo_pagination_base_argument = $ai4seo_pagination_base_argument ?: '%_%'; // Default base if not defined.
+$ai4seo_pagination_base_argument = $ai4seo_pagination_base_argument ? $ai4seo_pagination_base_argument : '%_%';
 $ai4seo_pagination_arguments     = array(
 	'base'      => $ai4seo_pagination_base_argument,
 	'total'     => $ai4seo_total_pages,
@@ -822,7 +853,7 @@ $ai4seo_pagination_arguments     = array(
 	'mid_size'  => 0,
 	'prev_text' => '&larr; ' . __( 'Previous', 'ai-for-seo' ),
 	'next_text' => __( 'Next', 'ai-for-seo' ) . ' &rarr;',
-	'add_args'  => ( $ai4seo_filter_query_args ?: false ),
+	'add_args'  => ( $ai4seo_filter_query_args ? $ai4seo_filter_query_args : false ),
 );
 
 $ai4seo_pagination_links = paginate_links( $ai4seo_pagination_arguments );

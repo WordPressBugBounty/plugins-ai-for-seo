@@ -11,9 +11,56 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+// Recovery renders before any credential read so invalid ownership cannot expose the normal Account page.
+if ( ai4seo_can_recover_incognito_mode() ) {
+	$ai4seo_incognito_setting_input_name = ai4seo_get_prefixed_input_name( AI4SEO_SETTING_ENABLE_INCOGNITO_MODE );
+
+	echo "<div class='card ai4seo-form-section'>";
+		echo '<h1>' . esc_html__( 'Incognito Mode recovery', 'ai-for-seo' ) . '</h1>';
+		echo '<p>' . esc_html__( 'The saved Incognito Mode owner is missing or is no longer a site administrator. Content access remains blocked until an administrator claims ownership or disables Incognito Mode.', 'ai-for-seo' ) . '</p>';
+
+		echo "<div class='ai4seo-buttons-wrapper'>";
+			echo "<div class='ai4seo-form'>";
+				echo "<input type='hidden' name='" . esc_attr( $ai4seo_incognito_setting_input_name ) . "' value='true' />";
+				ai4seo_echo_wp_kses(
+					ai4seo_get_submit_button_tag(
+						esc_html__( 'Claim Incognito ownership', 'ai-for-seo' ),
+						'ai4seo-primary-button ai4seo-lockable',
+						'ai4seo_save_anything(jQuery(this), null, function() { ai4seo_safe_page_load(); });'
+					)
+				);
+			echo '</div>';
+
+			echo "<div class='ai4seo-form'>";
+				echo "<input type='hidden' name='" . esc_attr( $ai4seo_incognito_setting_input_name ) . "' value='false' />";
+				ai4seo_echo_wp_kses(
+					ai4seo_get_submit_button_tag(
+						esc_html__( 'Disable Incognito Mode', 'ai-for-seo' ),
+						'ai4seo-lockable',
+						'ai4seo_save_anything(jQuery(this), null, function() { ai4seo_safe_page_load(); });'
+					)
+				);
+			echo '</div>';
+		echo '</div>';
+	echo '</div>';
+
+	return;
+}
+
+// Defense in depth keeps direct includes behind the same route-level administrative boundary.
+if ( ! ai4seo_can_administer_plugin() ) {
+	wp_die(
+		esc_html__( 'You are not allowed to access this page.', 'ai-for-seo' ),
+		esc_html__( 'Access denied', 'ai-for-seo' ),
+		array( 'response' => 403 )
+	);
+}
+
 $ai4seo_robhub_subscription      = ai4seo_robhub_api()->read_environmental_variable( ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION );
 $ai4seo_is_robhub_account_synced = ai4seo_robhub_api()->is_account_synced();
 $ai4seo_is_auth_locked           = ai4seo_robhub_api()->is_auth_data_locked();
+$ai4seo_has_rotation_recovery    = ai4seo_robhub_api()->has_api_password_rotation_recovery_intent();
+$ai4seo_rotation_recovery_notice = ai4seo_robhub_api()->get_api_password_rotation_recovery_notice_state();
 
 // Define boolean to determine whether to read license-data.
 $ai4seo_show_license_details = (bool) ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_HAS_PURCHASED_SOMETHING );
@@ -72,6 +119,36 @@ $ai4seo_has_purchased_something               = (bool) ai4seo_read_environmental
 
 echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
+// A server-generated replacement is intentionally never returned to this site.
+// Keep the administrator on secure recovery guidance until the emailed pair verifies.
+if ( $ai4seo_has_rotation_recovery ) {
+	$ai4seo_rotation_recovery_status        = $ai4seo_rotation_recovery_notice['status'] ?? 'none';
+	$ai4seo_rotation_credential_email_state = $ai4seo_rotation_recovery_notice['credential_email_status'] ?? 'not-applicable';
+
+	echo "<div class='notice notice-warning inline ai4seo-api-password-rotation-recovery-notice' role='status'>";
+	echo '<p><strong>' . esc_html__( 'License reconnection required', 'ai-for-seo' ) . '</strong></p>';
+	echo '<p>';
+
+	if ( 'confirmed' === $ai4seo_rotation_recovery_status && 'sent' === $ai4seo_rotation_credential_email_state ) {
+		echo esc_html__( 'A replacement license key was sent to the verified Stripe checkout email. Check your inbox and spam folder, then enter the emailed license owner and key below and save your changes.', 'ai-for-seo' );
+	} elseif ( 'confirmed' === $ai4seo_rotation_recovery_status && 'failed' === $ai4seo_rotation_credential_email_state ) {
+		echo esc_html__( 'A replacement license key was generated, but email delivery could not be confirmed. Delivery retries automatically; use the license recovery help below if the verified Stripe checkout inbox still has no message.', 'ai-for-seo' );
+	} elseif ( 'confirmed' === $ai4seo_rotation_recovery_status ) {
+		echo esc_html__( 'A replacement license key is being delivered to the verified Stripe checkout email. Check your inbox and spam folder, then enter the emailed license owner and key below and save your changes.', 'ai-for-seo' );
+	} elseif ( 'pending' === $ai4seo_rotation_recovery_status ) {
+		echo esc_html__( 'Secure license recovery is awaiting confirmation. Refresh the account status, then check the verified Stripe checkout email before reconnecting below.', 'ai-for-seo' );
+	} else {
+		// Malformed or unreadable local recovery bytes remain quarantined and are never rendered.
+		echo esc_html__( 'Secure license recovery needs attention. Check the verified Stripe checkout inbox or use the recovery help below, then reconnect with the verified credentials.', 'ai-for-seo' );
+	}
+
+	echo '</p>';
+	echo "<div class='ai4seo-buttons-wrapper'>";
+	ai4seo_echo_wp_kses( ai4seo_get_icon_button_tag( 'key-slash', esc_html__( 'License recovery help', 'ai-for-seo' ), '', 'ai4seo_open_lost_key_modal();' ) );
+	echo '</div>';
+	echo '</div>';
+}
+
 	// ___________________________________________________________________________________________ \\
 	// === LICENSE =============================================================================== \\
 	// ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
@@ -92,14 +169,14 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 				// Show description in case of existing license.
 if ( $ai4seo_show_license_details ) {
 	echo '<ul>';
-		echo '<li>' . esc_html__( 'Please make sure to save the license owner and license key somewhere safe in case your need to reconnect your website to your existing account.', 'ai-for-seo' ) . '</li>';
-		echo '<li><strong>' . esc_html__( 'You can use these credentials on as many websites as you like which is especially convenient for SEO- and web agencies.', 'ai-for-seo' ) . '</strong></li>';
+	echo '<li>' . esc_html__( 'Please make sure to save the license owner and license key somewhere safe in case your need to reconnect your website to your existing account.', 'ai-for-seo' ) . '</li>';
+	echo '<li><strong>' . esc_html__( 'You can use these credentials on as many websites as you like which is especially convenient for SEO- and web agencies.', 'ai-for-seo' ) . '</strong></li>';
 	echo '</ul>';
 } else {
-				// Show the onboarding copy when no license credentials are available yet.
+			// Show the onboarding copy when no license credentials are available yet.
 	echo '<ul>';
-		echo '<li>' . esc_html__( 'Here you can connect your website to an existing account in order to use the Credits from your main account.', 'ai-for-seo' ) . '</li>';
-		echo '<li>' . esc_html__( 'Your credentials will be generated automatically when you purchase a plan or Credits and you will be able to find them here.', 'ai-for-seo' ) . '</li>';
+	echo '<li>' . esc_html__( 'Here you can connect your website to an existing account in order to use the Credits from your main account.', 'ai-for-seo' ) . '</li>';
+	echo '<li>' . esc_html__( 'Your credentials will be generated automatically when you purchase a plan or Credits and you will be able to find them here.', 'ai-for-seo' ) . '</li>';
 	echo '</ul>';
 }
 			echo '</div>';
@@ -122,37 +199,38 @@ if ( $ai4seo_show_license_details ) {
 		// === API PASSWORD / LICENSE KEY =========================================================================== \\
 
 		$ai4seo_this_prefixed_input_id          = ai4seo_get_prefixed_input_name( ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_API_PASSWORD );
-		$ai4seo_license_key_input_wrapper_class = 'ai4seo-form-item-input-wrapper ai4seo-license-key-input-wrapper' . ( $ai4seo_license_key ? ' ai4seo-license-key-input-wrapper-has-toggle' : '' );
+		$ai4seo_license_key_input_wrapper_class = 'ai4seo-form-item-input-wrapper ai4seo-license-key-input-wrapper ai4seo-license-key-input-wrapper-has-toggle' . ( $ai4seo_license_key ? '' : ' ai4seo-license-key-entry-mode' );
+		$ai4seo_license_key_toggle_controls     = $ai4seo_license_key ? 'ai4seo-visual-license-key-holder ai4seo-actual-license-key-holder' : $ai4seo_this_prefixed_input_id;
 
 		echo "<div class='ai4seo-form-item'>";
 			echo "<label for='" . esc_attr( $ai4seo_this_prefixed_input_id ) . "'>" . esc_html__( 'License key', 'ai-for-seo' ) . ':</label>';
 			echo "<div class='" . esc_attr( $ai4seo_license_key_input_wrapper_class ) . "'>";
-				// Display only actual input-field for when there is no existing api-key.
+				// Mask a new license key while retaining an explicit reveal control for verification.
 if ( ! $ai4seo_license_key ) {
-	echo "<input type='text' class='ai4seo-textfield' id='" . esc_attr( $ai4seo_this_prefixed_input_id ) . "' name='" . esc_attr( $ai4seo_this_prefixed_input_id ) . "' autocomplete='off' value='' />";
+	echo "<input type='password' class='ai4seo-textfield' id='" . esc_attr( $ai4seo_this_prefixed_input_id ) . "' name='" . esc_attr( $ai4seo_this_prefixed_input_id ) . "' autocomplete='new-password' value='' />";
 } else {
-				// Render both license-key states so JavaScript can swap visibility without rebuilding the field.
+			// Render both saved-key states so JavaScript can swap visibility without rebuilding the field.
 	echo "<div id='ai4seo-actual-license-key-holder' class='ai4seo-display-none'>";
-		echo "<input type='text' class='ai4seo-textfield' id='" . esc_attr( $ai4seo_this_prefixed_input_id ) . "' name='" . esc_attr( $ai4seo_this_prefixed_input_id ) . "' autocomplete='off' value='" . esc_attr( $ai4seo_license_key ) . "' />";
+	echo "<input type='text' class='ai4seo-textfield' id='" . esc_attr( $ai4seo_this_prefixed_input_id ) . "' name='" . esc_attr( $ai4seo_this_prefixed_input_id ) . "' autocomplete='off' value='" . esc_attr( $ai4seo_license_key ) . "' />";
 	echo '</div>';
 
-				// Keep the masked state in the same wrapper so the floating toggle stays anchored.
+			// Keep the masked state in the same wrapper so the floating toggle stays anchored.
 	echo "<div id='ai4seo-visual-license-key-holder'>";
-		echo "<input type='text' class='ai4seo-textfield ai4seo-inactive-element ai4seo-license-key-mask' autocomplete='off' value='**********************************' readonly='readonly' />";
+	echo "<input type='text' class='ai4seo-textfield ai4seo-inactive-element ai4seo-license-key-mask' autocomplete='off' value='**********************************' readonly='readonly' />";
 	echo '</div>';
-
-				// The button owns both labels because one control now replaces the old inline show/hide elements.
-	echo "<button type='button' class='ai4seo-form-floating-textfield-icon-holder ai4seo-license-key-toggle' aria-controls='ai4seo-visual-license-key-holder ai4seo-actual-license-key-holder' aria-expanded='false' aria-label='" . esc_attr__( 'Show license key', 'ai-for-seo' ) . "' data-ai4seo-show-label='" . esc_attr__( 'Show license key', 'ai-for-seo' ) . "' data-ai4seo-hide-label='" . esc_attr__( 'Hide license key', 'ai-for-seo' ) . "'>";
-		echo "<span class='ai4seo-license-key-toggle-show-state'>";
-			echo esc_html__( 'Show', 'ai-for-seo' ) . ' ';
-			ai4seo_echo_wp_kses( ai4seo_get_svg_tag( 'eye', __( 'Reveal License Key', 'ai-for-seo' ) ) );
-		echo '</span>';
-		echo "<span class='ai4seo-license-key-toggle-hide-state ai4seo-display-none'>";
-			echo esc_html__( 'Hide', 'ai-for-seo' ) . ' ';
-			ai4seo_echo_wp_kses( ai4seo_get_svg_tag( 'eye-slash', __( 'Hide License Key', 'ai-for-seo' ) ) );
-		echo '</span>';
-	echo '</button>';
 }
+
+				// Use one control and label pair for both saved-key and editable-key visibility.
+	echo "<button type='button' class='ai4seo-form-floating-textfield-icon-holder ai4seo-license-key-toggle' aria-controls='" . esc_attr( $ai4seo_license_key_toggle_controls ) . "' aria-expanded='false' aria-label='" . esc_attr__( 'Show license key', 'ai-for-seo' ) . "' data-ai4seo-show-label='" . esc_attr__( 'Show license key', 'ai-for-seo' ) . "' data-ai4seo-hide-label='" . esc_attr__( 'Hide license key', 'ai-for-seo' ) . "'>";
+	echo "<span class='ai4seo-license-key-toggle-show-state'>";
+		echo esc_html__( 'Show', 'ai-for-seo' ) . ' ';
+		ai4seo_echo_wp_kses( ai4seo_get_svg_tag( 'eye', __( 'Reveal License Key', 'ai-for-seo' ) ) );
+	echo '</span>';
+	echo "<span class='ai4seo-license-key-toggle-hide-state ai4seo-display-none'>";
+		echo esc_html__( 'Hide', 'ai-for-seo' ) . ' ';
+		ai4seo_echo_wp_kses( ai4seo_get_svg_tag( 'eye-slash', __( 'Hide License Key', 'ai-for-seo' ) ) );
+	echo '</span>';
+	echo '</button>';
 			echo '</div>';
 		echo '</div>';
 
@@ -422,9 +500,9 @@ if ( $ai4seo_license_username && $ai4seo_license_key && $ai4seo_show_license_det
 			}
 
 				echo "<p class='ai4seo-form-item-description'>";
-					$latest_tos_and_toc_and_pp_version = ai4seo_get_latest_tos_and_toc_and_pp_version();
+					$ai4seo_latest_tos_and_toc_and_pp_version = ai4seo_get_latest_tos_and_toc_and_pp_version();
 					/* translators: %s: Latest version number */
-					echo esc_html( sprintf( __( 'Current version: %s', 'ai-for-seo' ), $latest_tos_and_toc_and_pp_version ) ) . '.<br><br>';
+					echo esc_html( sprintf( __( 'Current version: %s', 'ai-for-seo' ), $ai4seo_latest_tos_and_toc_and_pp_version ) ) . '.<br><br>';
 					ai4seo_echo_wp_kses( ai4seo_get_tos_toc_and_pp_accepted_time_output() );
 				echo '</p>';
 			echo '</div>';
@@ -443,7 +521,7 @@ if ( $ai4seo_license_username && $ai4seo_license_key && $ai4seo_show_license_det
 				$ai4seo_this_prefixed_input_id = ai4seo_get_prefixed_input_name( AI4SEO_ENVIRONMENTAL_VARIABLE_ENHANCED_REPORTING_ACCEPTED );
 
 				// Enhanced reporting opt-in keeps the existing option text while the native checkbox renders as a switch.
-				$extended_data_collection_tooltip_text = __( 'This data includes feature usage, performance metrics, and error logs. It will be stored for up to 30 days to assist with improving the plugin. You can opt out of data collection at any time through the plugin settings.', 'ai-for-seo' );
+				$ai4seo_extended_data_collection_tooltip_text = __( 'This data includes feature usage, performance metrics, and error logs. It will be stored for up to 30 days to assist with improving the plugin. You can opt out of data collection at any time through the plugin settings.', 'ai-for-seo' );
 
 				echo "<div class='ai4seo-account-extended-data-consent'>";
 					// Keep the tooltip trigger outside the label so both controls retain their native keyboard behavior.
@@ -451,36 +529,36 @@ if ( $ai4seo_license_username && $ai4seo_license_key && $ai4seo_show_license_det
 						echo "<label for='" . esc_attr( $ai4seo_this_prefixed_input_id ) . "'>" . esc_html__( 'I agree to share extended data to support the ongoing development of the plugin. I may opt out at any time.', 'ai-for-seo' ) . '</label>';
 						ai4seo_echo_wp_kses(
 							ai4seo_get_icon_with_tooltip_tag(
-								$extended_data_collection_tooltip_text,
+								$ai4seo_extended_data_collection_tooltip_text,
 								'',
 								'circle-question',
 								__( 'Enhanced Reporting help', 'ai-for-seo' )
 							)
 						);
-					echo '</span>';
-					echo "<input type='checkbox' id='" . esc_attr( $ai4seo_this_prefixed_input_id ) . "' name='" . esc_attr( $ai4seo_this_prefixed_input_id ) . "' class='ai4seo-single-checkbox' " . ( $ai4seo_did_user_accept_enhanced_reporting ? " checked='checked'" : '' ) . '>';
-				echo '</div>';
+						echo '</span>';
+						echo "<input type='checkbox' id='" . esc_attr( $ai4seo_this_prefixed_input_id ) . "' name='" . esc_attr( $ai4seo_this_prefixed_input_id ) . "' class='ai4seo-single-checkbox' " . ( $ai4seo_did_user_accept_enhanced_reporting ? " checked='checked'" : '' ) . '>';
+						echo '</div>';
 
-				echo "<p class='ai4seo-form-item-description'>";
-					// revoked?
-			if ( ! $ai4seo_did_user_accept_enhanced_reporting && $ai4seo_enhanced_reporting_revoke_timestamp ) {
-				$ai4seo_readable_revoked_time = ai4seo_format_unix_timestamp( $ai4seo_enhanced_reporting_revoke_timestamp );
-				ai4seo_echo_wp_kses( ai4seo_get_svg_tag( 'square-xmark', '', 'ai4seo-16x16-icon ai4seo-red-icon' ) );
-				echo ' ';
-				/* translators: %s: Revoked time */
-				printf( esc_html__( 'Revoked on %s.', 'ai-for-seo' ), esc_html( $ai4seo_readable_revoked_time ) );
-			} else {
-				ai4seo_echo_wp_kses( ai4seo_get_enhanced_reporting_accepted_time_output() );
-			}
-				echo '</p>';
-			echo '</div>';
-			echo '</div>';
-			echo '</div>';
+						echo "<p class='ai4seo-form-item-description'>";
+						// revoked?
+						if ( ! $ai4seo_did_user_accept_enhanced_reporting && $ai4seo_enhanced_reporting_revoke_timestamp ) {
+							$ai4seo_readable_revoked_time = ai4seo_format_unix_timestamp( $ai4seo_enhanced_reporting_revoke_timestamp );
+							ai4seo_echo_wp_kses( ai4seo_get_svg_tag( 'square-xmark', '', 'ai4seo-16x16-icon ai4seo-red-icon' ) );
+							echo ' ';
+							/* translators: %s: Revoked time */
+							printf( esc_html__( 'Revoked on %s.', 'ai-for-seo' ), esc_html( $ai4seo_readable_revoked_time ) );
+						} else {
+							ai4seo_echo_wp_kses( ai4seo_get_enhanced_reporting_accepted_time_output() );
+						}
+						echo '</p>';
+						echo '</div>';
+						echo '</div>';
+						echo '</div>';
 
-			// Submit button.
-			echo "<div class='ai4seo-sticky-buttons-bar'>";
-			echo "<div class='ai4seo-buttons-wrapper'>";
-			ai4seo_echo_wp_kses( ai4seo_get_submit_button_tag( esc_html__( 'Save changes', 'ai-for-seo' ), 'ai4seo-start-inactive ai4seo-big-button', 'ai4seo_save_anything(jQuery(this), ai4seo_validate_account_inputs, function() { ai4seo_safe_page_load(); });' ) );
-			echo '</div>';
-			echo '</div>';
-			echo '</div>';
+						// Submit button.
+						echo "<div class='ai4seo-sticky-buttons-bar'>";
+						echo "<div class='ai4seo-buttons-wrapper'>";
+						ai4seo_echo_wp_kses( ai4seo_get_submit_button_tag( esc_html__( 'Save changes', 'ai-for-seo' ), 'ai4seo-start-inactive ai4seo-big-button', 'ai4seo_save_anything(jQuery(this), ai4seo_validate_account_inputs, function() { ai4seo_safe_page_load(); });' ) );
+						echo '</div>';
+						echo '</div>';
+						echo '</div>';

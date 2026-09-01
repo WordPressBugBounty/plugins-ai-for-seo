@@ -1,4 +1,10 @@
 <?php
+/**
+ * Handles legal agreement acceptance state.
+ *
+ * @package AI_For_SEO
+ */
+
 // Keep extracted core modules inaccessible when WordPress has not loaded the plugin environment.
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -8,35 +14,17 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 /**
- * Function to check if we're going to show a terms of service layer
- * ATTENTION: DO NOT USE ROBHUB API COMMUNICATOR FUNCTIONS IN THIS FUNCTION TO PREVENT LOOPS
+ * Return the disabled terms-acceptance gate state.
  *
- * @param bool $check_group The check group value.
- * @return bool True if we need to show the terms of service layer, false if not.
+ * @param bool $check_group Retained for compatibility with existing callers while the gate is disabled.
+ * @return bool Always false while terms acceptance is disabled.
  */
 function ai4seo_does_user_need_to_accept_tos_toc_and_pp( $check_group = true ): bool {
-	global $ai4seo_persistent_does_user_need_to_accept_tos_toc_and_pp;
-
-	// currently deactivated.
+	// Preserve the established optional argument while the terms gate remains intentionally disabled.
+	unset( $check_group );
 	return false;
-
-	if ( null !== $ai4seo_persistent_does_user_need_to_accept_tos_toc_and_pp ) {
-		return $ai4seo_persistent_does_user_need_to_accept_tos_toc_and_pp;
-	}
-
-	// get latest update to the terms of service, terms of conditions or privacy policy.
-	$latest_tos_or_toc_or_pp_update_timestamp = ai4seo_get_latest_tos_or_toc_or_pp_update_timestamp();
-
-	// get the last time the user accepted the terms of service, terms of conditions or privacy policy.
-	$tos_toc_and_pp_accepted_time = (int) ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_TOS_TOC_AND_PP_ACCEPTED_TIME );
-
-	// check if the user needs to accept the new terms.
-	$ai4seo_persistent_does_user_need_to_accept_tos_toc_and_pp = ( $tos_toc_and_pp_accepted_time < $latest_tos_or_toc_or_pp_update_timestamp );
-
-	return $ai4seo_persistent_does_user_need_to_accept_tos_toc_and_pp;
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns whether the TOS modal should be rendered during the current admin request.
@@ -60,7 +48,6 @@ function ai4seo_should_show_terms_of_service_modal_on_current_request(): bool {
 	return $last_tos_modal_open_time < time() - WEEK_IN_SECONDS;
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the latest timestamp of the terms of service, terms of conditions or privacy policy update, depending on
@@ -89,7 +76,6 @@ function ai4seo_get_latest_tos_or_toc_or_pp_update_timestamp(): int {
 	}
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to get the latest version of the terms of service, terms of conditions or privacy policy
@@ -97,10 +83,16 @@ function ai4seo_get_latest_tos_or_toc_or_pp_update_timestamp(): int {
  * @return string
  */
 function ai4seo_get_latest_tos_and_toc_and_pp_version(): string {
-	return 'v' . ( ai4seo_gmdate( 'Y-m-d', ai4seo_get_latest_tos_or_toc_or_pp_update_timestamp() ) ?: '???' );
+	$latest_update_date = ai4seo_gmdate( 'Y-m-d', ai4seo_get_latest_tos_or_toc_or_pp_update_timestamp() );
+
+	// Preserve a recognizable version marker when the update timestamp cannot be formatted.
+	if ( ! $latest_update_date ) {
+		$latest_update_date = '???';
+	}
+
+	return 'v' . $latest_update_date;
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to show the terms of service modal
@@ -128,10 +120,8 @@ function ai4seo_show_terms_of_service_modal() {
 	});
 	</script>
 	<?php
-	// ------------------------------------------------------------------------ \\
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the HTML code of the TOS content.
@@ -208,7 +198,6 @@ function ai4seo_get_tos_content(): string {
 	return $html;
 }
 
-// =========================================================================================== \\
 
 /**
  * Called via AJAX - On reject of the terms of service -> deactivate plugin
@@ -218,6 +207,11 @@ function ai4seo_get_tos_content(): string {
 function ai4seo_reject_tos() {
 	// Make sure that this function is only called once.
 	if ( ! ai4seo_singleton( __FUNCTION__ ) ) {
+		return;
+	}
+
+	// Preserve defense in depth for direct callbacks that bypass the central dispatcher.
+	if ( ! ai4seo_require_ajax_administration() ) {
 		return;
 	}
 
@@ -241,7 +235,6 @@ function ai4seo_reject_tos() {
 	ai4seo_send_ajax_success();
 }
 
-// =========================================================================================== \\
 
 /**
  * Called via AJAX - On accept of the terms of service -> save the timestamp
@@ -251,6 +244,11 @@ function ai4seo_reject_tos() {
 function ai4seo_accept_tos() {
 	// Make sure that this function is only called once.
 	if ( ! ai4seo_singleton( __FUNCTION__ ) ) {
+		return;
+	}
+
+	// Preserve defense in depth for direct callbacks that bypass the central dispatcher.
+	if ( ! ai4seo_require_ajax_administration() ) {
 		return;
 	}
 
@@ -276,7 +274,7 @@ function ai4seo_accept_tos() {
 	// handle enhanced reporting -> only save changes if we see the tos for the first time or the user has not accepted it before
 	// not handling the save here only because the user did not see the checkbox in the modal.
 	if ( ! $tos_toc_and_pp_accepted_time || ! $enhanced_reporting_accepted ) {
-		// check for $_POST["accepted_enhanced_reporting"].
+		// Read the enhanced-reporting choice submitted with the acceptance form.
 		$enhanced_reporting_accepted = isset( $_POST['accepted_enhanced_reporting'] ) && 'true' === $_POST['accepted_enhanced_reporting'];
 
 		if ( $enhanced_reporting_accepted ) {
@@ -291,7 +289,6 @@ function ai4seo_accept_tos() {
 	ai4seo_send_ajax_success();
 }
 
-// =========================================================================================== \\
 
 /**
  * Set the ToS Acceptance details to the database
@@ -324,7 +321,6 @@ function ai4seo_set_tos_accept_details( bool $accepted_enhanced_reporting, strin
 	ai4seo_update_option( AI4SEO_ADDITIONAL_TOS_ACCEPT_DETAILS_OPTION_NAME, $additional_tos_accept_details );
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to send the additional tos accept details, if available in the database
@@ -336,8 +332,8 @@ function ai4seo_send_additional_tos_accept_details() {
 		return;
 	}
 
-	// Make sure that the user is allowed to use this plugin.
-	if ( ! ai4seo_can_manage_this_plugin() ) {
+	// Legal acceptance reporting exposes site-wide account state and remains administrative.
+	if ( ! ai4seo_can_administer_plugin() ) {
 		return;
 	}
 

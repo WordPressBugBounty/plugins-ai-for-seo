@@ -1,4 +1,11 @@
 == Changelog ==
+= 2.5.1 =
+* Added direct SOOZ metadata-editor controls for Elementor and the WordPress Block Editor, with more reliable initialization for dynamically loaded editor fields.
+* Added AVIF support for media attribute generation, including automatic preparation of compatible image data.
+* Improved media attribute saving and coverage tracking so valid existing image text stays intact and complete entries are recognized reliably.
+* Improved role-based access so permitted editors can use SOOZ only for content they are allowed to edit.
+* Bug Fixes & Maintenance: Fixed 5 minor bugs, implemented 1 performance improvement, and addressed 2 security issues.
+
 = 2.5.0 =
 * Added preview-first Metadata and Media Attributes editors with responsive Google, social, keyword, accessibility, and media appearance previews, field-specific edit shortcuts, and live quality guidance.
 * Added a setting to choose whether Preview or Editor mode opens by default while preserving Editor mode for existing users.

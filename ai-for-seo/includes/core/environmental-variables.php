@@ -1,4 +1,10 @@
 <?php
+/**
+ * Manages internal environmental state and caches.
+ *
+ * @package AI_For_SEO
+ */
+
 // Keep extracted core modules inaccessible when WordPress has not loaded the plugin environment.
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -8,57 +14,32 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 /**
- * Function to retrieve all environmental variables from database
+ * Normalize stored environmental overrides into the complete runtime value map.
  *
- * @param bool $use_cache Should we use the cache
- * @return array All environmental variables
+ * @param mixed $current_environmental_variables Stored environmental overrides.
+ * @return array Complete validated runtime environmental values.
  */
-function ai4seo_read_all_environmental_variables( bool $use_cache = true ): array {
-	global $ai4seo_environmental_variables;
-	global $ai4seo_environmental_variables_are_loaded;
-
-	if ( ai4seo_prevent_loops( __FUNCTION__, 5 ) ) {
-		ai4seo_debug_message( 690812093, 'Prevented loop', true );
-		return array();
-	}
-
-	if ( ! isset( $ai4seo_environmental_variables ) || ! is_array( $ai4seo_environmental_variables ) ) {
-		$ai4seo_environmental_variables = AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES;
-	}
-
-	// get cached version.
-	if ( $use_cache && $ai4seo_environmental_variables_are_loaded ) {
-		return $ai4seo_environmental_variables;
-	}
-
-	$current_environmental_variables = ai4seo_get_option( AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME, false, ! $use_cache );
-
-	// nothing in our database? fallback to known/default environmental variables.
+function ai4seo_normalize_environmental_variable_overrides_for_runtime( $current_environmental_variables ): array {
+	// Missing or malformed storage represents an empty override map, so expose declared defaults unchanged.
 	if ( ! is_array( $current_environmental_variables ) || ! $current_environmental_variables ) {
-		$ai4seo_environmental_variables            = AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES;
-		$ai4seo_environmental_variables_are_loaded = true;
-		return $ai4seo_environmental_variables;
+		return AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES;
 	}
 
 	$loaded_environmental_variables = AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES;
 
-	// go through each base environmental variable and check if it is valid.
-	foreach ( AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES as $environmental_variable_name => $environmental_variable_value ) {
-		// set default if not set.
-		if ( ! isset( $current_environmental_variables[ $environmental_variable_name ] ) ) {
-			$current_environmental_variables[ $environmental_variable_name ] = AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES[ $environmental_variable_name ];
-		}
+	// Merge only declared base variables; unknown keys are excluded unless recognized as TTL companions below.
+	foreach ( AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES as $environmental_variable_name => $default_environmental_variable_value ) {
+		$current_environmental_variable_value = $current_environmental_variables[ $environmental_variable_name ] ?? $default_environmental_variable_value;
 
-		// validate.
-		if ( ! ai4seo_validate_environmental_variable_value( $environmental_variable_name, $current_environmental_variables[ $environmental_variable_name ] ) ) {
+		if ( ! ai4seo_validate_environmental_variable_value( $environmental_variable_name, $current_environmental_variable_value ) ) {
 			ai4seo_debug_message( 2317181024, 'Invalid value for environmental variable "' . $environmental_variable_name . '"', true );
-			$current_environmental_variables[ $environmental_variable_name ] = AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES[ $environmental_variable_name ];
+			$current_environmental_variable_value = $default_environmental_variable_value;
 		}
 
-		$loaded_environmental_variables[ $environmental_variable_name ] = $current_environmental_variables[ $environmental_variable_name ];
+		$loaded_environmental_variables[ $environmental_variable_name ] = $current_environmental_variable_value;
 	}
 
-	// include ttl companion entries as runtime-accepted environmental variables.
+	// TTL companions are runtime state even though they are not part of the declared base map.
 	foreach ( $current_environmental_variables as $environmental_variable_name => $environmental_variable_value ) {
 		if ( ! ai4seo_is_environmental_variable_ttl_name( (string) $environmental_variable_name ) ) {
 			continue;
@@ -72,19 +53,132 @@ function ai4seo_read_all_environmental_variables( bool $use_cache = true ): arra
 		$loaded_environmental_variables[ $environmental_variable_name ] = (int) $environmental_variable_value;
 	}
 
-	$ai4seo_environmental_variables            = $loaded_environmental_variables;
-	$ai4seo_environmental_variables_are_loaded = true;
+	return $loaded_environmental_variables;
+}
+
+
+/**
+ * Read one failure-aware environmental snapshot from the active site's options table.
+ *
+ * This reader never publishes defaults or failed storage into request globals. Rechecking the
+ * options-table identity after the query also prevents a site switch from mis-scoping its result.
+ *
+ * @return array{success: bool, values: array} Snapshot result.
+ */
+function ai4seo_read_authoritative_environmental_variables_snapshot(): array {
+	global $wpdb;
+
+	// Keep one stable failure shape so lock-owning callers can fail closed without publishing defaults.
+	$failed_snapshot = array(
+		'success' => false,
+		'values'  => array(),
+	);
+
+	// Refuse to query until WordPress exposes one exact active options table for this request.
+	if ( ! is_object( $wpdb ) || ! isset( $wpdb->options ) || '' === (string) $wpdb->options ) {
+		return $failed_snapshot;
+	}
+
+	// Pin the active site's options table across the read so a mid-query site switch invalidates the result.
+	$options_table = (string) $wpdb->options;
+
+	// Use a value-only direct read so missing storage remains distinct from query failure without cache input.
+	try {
+		$option_query = ai4seo_prepare_database_query(
+			'SELECT option_value FROM {{options_table}} WHERE option_name = {{option_name}} LIMIT 1',
+			array(
+				'options_table' => ai4seo_database_identifier_binding( 'table.options' ),
+				'option_name'   => ai4seo_database_scalar_binding( '%s', AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME ),
+			)
+		);
+
+		if ( false === $option_query ) {
+			return $failed_snapshot;
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The prepared one-row read must distinguish missing storage from a database failure.
+		$serialized_environmental_variables = $wpdb->get_var( $option_query );
+	} catch ( Throwable $throwable ) {
+		ai4seo_debug_message( 2317181026, $throwable->getMessage(), true );
+		return $failed_snapshot;
+	}
+
+	// Reject both database failures and scope drift instead of normalizing either into valid defaults.
+	if ( $wpdb->last_error || ! isset( $wpdb->options ) || $options_table !== (string) $wpdb->options ) {
+		if ( $wpdb->last_error ) {
+			ai4seo_debug_message( 2317181027, 'Database error: ' . $wpdb->last_error, true );
+		}
+
+		return $failed_snapshot;
+	}
+
+	// A missing row is valid default-only state; malformed stored values are normalized below.
+	$stored_environmental_variables = null === $serialized_environmental_variables
+		? array()
+		: ai4seo_safe_maybe_unserialize( $serialized_environmental_variables );
+
+	return array(
+		'success' => true,
+		'values'  => ai4seo_normalize_environmental_variable_overrides_for_runtime( $stored_environmental_variables ),
+	);
+}
+
+
+/**
+ * Function to retrieve all environmental variables from database
+ *
+ * @param bool $use_cache Should we use the cache.
+ * @return array All environmental variables
+ */
+function ai4seo_read_all_environmental_variables( bool $use_cache = true ): array {
+	global $wpdb;
+	global $ai4seo_environmental_variables;
+	global $ai4seo_environmental_variables_are_loaded;
+	global $ai4seo_environmental_variables_options_table;
+
+	if ( ai4seo_prevent_loops( __FUNCTION__, 5 ) ) {
+		ai4seo_debug_message( 690812093, 'Prevented loop', true );
+		return array();
+	}
+
+	if ( ! isset( $ai4seo_environmental_variables ) || ! is_array( $ai4seo_environmental_variables ) ) {
+		$ai4seo_environmental_variables = AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES;
+	}
+
+	$current_options_table = is_object( $wpdb ) && isset( $wpdb->options ) ? (string) $wpdb->options : '';
+
+	// Retain compatibility with request caches initialized before this scope marker existed, then
+	// reject the cache whenever switch_to_blog() changes the authoritative options table.
+	if ( ! isset( $ai4seo_environmental_variables_options_table ) || ! is_string( $ai4seo_environmental_variables_options_table ) ) {
+		$ai4seo_environmental_variables_options_table = $current_options_table;
+	} elseif ( $ai4seo_environmental_variables_options_table !== $current_options_table ) {
+		$ai4seo_environmental_variables               = AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES;
+		$ai4seo_environmental_variables_are_loaded    = false;
+		$ai4seo_environmental_variables_options_table = $current_options_table;
+	}
+
+	// get cached version.
+	if ( $use_cache && ! empty( $ai4seo_environmental_variables_are_loaded ) ) {
+		return $ai4seo_environmental_variables;
+	}
+
+	// Keep the request-global as the only cache so values are decoded before WordPress can
+	// instantiate stored objects.
+	$current_environmental_variables = ai4seo_get_option( AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME, false, true );
+
+	$ai4seo_environmental_variables               = ai4seo_normalize_environmental_variable_overrides_for_runtime( $current_environmental_variables );
+	$ai4seo_environmental_variables_are_loaded    = true;
+	$ai4seo_environmental_variables_options_table = $current_options_table;
 
 	return $ai4seo_environmental_variables;
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to retrieve a specific environmental variable
  *
- * @param string $environmental_variable_name The name of the environmental variable
- * @param bool   $use_cache Should we use the cache
+ * @param string $environmental_variable_name The name of the environmental variable.
+ * @param bool   $use_cache Should we use the cache.
  * @return mixed The value of the environmental variable
  */
 function ai4seo_read_environmental_variable( string $environmental_variable_name, bool $use_cache = true ) {
@@ -115,21 +209,239 @@ function ai4seo_read_environmental_variable( string $environmental_variable_name
 	}
 }
 
-// =========================================================================================== \\
+
+/**
+ * Returns the bounded retry budget for shared environmental option mutations.
+ *
+ * @return int
+ */
+function ai4seo_get_environmental_variable_mutation_attempt_limit(): int {
+	return 5;
+}
+
+
+/**
+ * Reloads authoritative environmental storage into WordPress and request caches.
+ *
+ * @return bool True when a raw storage snapshot was available, false on snapshot failure.
+ */
+function ai4seo_reconcile_environmental_variable_caches_from_storage(): bool {
+	$authoritative_snapshot = ai4seo_get_raw_option_snapshot( AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME );
+	if ( null !== $authoritative_snapshot ) {
+		// Another writer can commit after the raw read, so never publish the observed value or absence.
+		ai4seo_invalidate_option_cache( AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME );
+	}
+
+	ai4seo_read_all_environmental_variables( false );
+	return null !== $authoritative_snapshot;
+}
+
+
+/**
+ * Applies one mutation to the authoritative environmental override map using exact CAS retries.
+ *
+ * The callback receives the raw persisted override map and must return exactly:
+ * - overrides: the complete replacement raw override map;
+ * - changed: whether persistence is required;
+ * - result: caller-specific data calculated from that same authoritative snapshot.
+ *
+ * @param callable $mutation_callback Builds one replacement from the latest raw override map.
+ * @param bool     $publish_wordpress_hooks Whether successful writes mirror core option actions.
+ * @param mixed    $mutation_result Receives caller-specific data from the final attempted snapshot.
+ * @return bool True on a successful/no-op mutation, false after a storage failure or exhausted conflicts.
+ */
+function ai4seo_mutate_environmental_variable_overrides( callable $mutation_callback, bool $publish_wordpress_hooks = false, &$mutation_result = null ): bool {
+	global $wpdb;
+
+	// Require a closed callback result shape so partial mutation state can never reach persistence.
+	$required_mutation_keys = array(
+		'overrides',
+		'changed',
+		'result',
+	);
+	$attempt_limit          = ai4seo_get_environmental_variable_mutation_attempt_limit();
+	$database_error         = '';
+
+	// Re-run the callback against the latest raw option snapshot after every CAS conflict.
+	for ( $attempt = 0; $attempt < $attempt_limit; ++$attempt ) {
+		$option_snapshot = ai4seo_get_raw_option_snapshot( AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME );
+
+		if ( null === $option_snapshot ) {
+			$database_error = is_object( $wpdb ) ? (string) $wpdb->last_error : '';
+			break;
+		}
+
+		$current_overrides = is_array( $option_snapshot['value'] ) ? $option_snapshot['value'] : array();
+		$mutation_state    = $mutation_callback( $current_overrides );
+
+		if (
+			! is_array( $mutation_state )
+			|| array_keys( $mutation_state ) !== $required_mutation_keys
+			|| ! is_array( $mutation_state['overrides'] )
+			|| ! is_bool( $mutation_state['changed'] )
+		) {
+			break;
+		}
+
+		$mutation_result = $mutation_state['result'];
+		if ( ! $mutation_state['changed'] ) {
+			// The callback can outlive this snapshot; invalidation cannot overwrite a later cache publication.
+			ai4seo_invalidate_option_cache( AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME );
+			ai4seo_read_all_environmental_variables( false );
+			return true;
+		}
+
+		$replacement_raw_value = maybe_serialize( $mutation_state['overrides'] );
+
+		// Treat an already-achieved exact replacement as success while repairing every request/cache view.
+		if (
+			$option_snapshot['exists']
+			&& 'no' === $option_snapshot['autoload']
+			&& hash_equals( $replacement_raw_value, $option_snapshot['raw_value'] )
+		) {
+			// Exact at observation time does not authorize publishing stale bytes after a later writer.
+			ai4seo_invalidate_option_cache( AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME );
+			ai4seo_read_all_environmental_variables( false );
+			return true;
+		}
+
+		$compare_and_swap_result = ai4seo_compare_and_swap_option_snapshot(
+			AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME,
+			$option_snapshot,
+			$mutation_state['overrides'],
+			false,
+			$publish_wordpress_hooks
+		);
+
+		if ( true === $compare_and_swap_result ) {
+			ai4seo_read_all_environmental_variables( false );
+			return true;
+		}
+
+		if ( null === $compare_and_swap_result ) {
+			$database_error = is_object( $wpdb ) ? (string) $wpdb->last_error : '';
+			break;
+		}
+	}
+
+	// Failed writers must not leave optimistic or stale environmental state in either cache layer.
+	ai4seo_reconcile_environmental_variable_caches_from_storage();
+	if ( '' !== $database_error && is_object( $wpdb ) ) {
+		$wpdb->last_error = $database_error;
+	}
+	return false;
+}
+
+
+/**
+ * Mutates one environmental value from the latest authoritative option snapshot.
+ *
+ * The callback runs inside every outer compare-and-swap attempt, receives the
+ * validated current value (or its declared default), and must return the complete
+ * replacement value. Unrelated environmental overrides and an optional TTL remain
+ * part of the same atomic option replacement.
+ *
+ * @param string   $environmental_variable_name Environmental variable to mutate.
+ * @param callable $mutation_callback Builds the complete replacement from the latest value.
+ * @param bool     $use_cache Whether to warm request state and publish mirrored WordPress option hooks.
+ * @param int      $cache_ttl Cache TTL in seconds. Zero disables TTL companion updates.
+ * @return bool True on a successful/no-op mutation, false on invalid output or storage failure.
+ */
+function ai4seo_mutate_environmental_variable_value(
+	string $environmental_variable_name,
+	callable $mutation_callback,
+	bool $use_cache = true,
+	int $cache_ttl = 0
+): bool {
+	if ( ai4seo_prevent_loops( __FUNCTION__, 5 ) ) {
+		ai4seo_debug_message( 146829303, 'Prevented loop', true );
+		return false;
+	}
+
+	if ( ai4seo_is_environmental_variable_ttl_name( $environmental_variable_name ) ) {
+		ai4seo_debug_message( 146829304, 'Attempted to mutate a TTL companion environmental variable directly: "' . $environmental_variable_name . '"', true );
+		return false;
+	}
+
+	if ( ! isset( AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES[ $environmental_variable_name ] ) ) {
+		ai4seo_debug_message( 146829305, 'Unknown environmental variable name: "' . $environmental_variable_name . '"', true );
+		return false;
+	}
+
+	// Preserve the public cache flag's request-warming behavior without basing the mutation on that cache.
+	if ( $use_cache ) {
+		ai4seo_read_all_environmental_variables();
+	}
+
+	return ai4seo_mutate_environmental_variable_overrides(
+		static function ( array $current_overrides ) use ( $environmental_variable_name, $mutation_callback, $cache_ttl ): array {
+			$current_value = AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES[ $environmental_variable_name ];
+
+			// Invalid target bytes behave like the public reader's declared default and are repaired by this mutation.
+			if (
+				array_key_exists( $environmental_variable_name, $current_overrides )
+				&& ai4seo_validate_environmental_variable_value( $environmental_variable_name, $current_overrides[ $environmental_variable_name ] )
+			) {
+				$current_value = $current_overrides[ $environmental_variable_name ];
+			}
+
+			$replacement_value = $mutation_callback( $current_value );
+
+			if ( ! ai4seo_validate_environmental_variable_value( $environmental_variable_name, $replacement_value ) ) {
+				ai4seo_debug_message( 146829306, 'Environmental variable mutation produced an invalid value for "' . $environmental_variable_name . '"', true );
+				return array();
+			}
+
+			$replacement_value     = ai4seo_deep_sanitize( $replacement_value );
+			$replacement_overrides = $current_overrides;
+			$did_change            = false;
+
+			// Persist only non-default overrides while retaining every unrelated raw entry.
+			if ( ai4seo_are_persisted_state_values_equivalent( AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES[ $environmental_variable_name ], $replacement_value ) ) {
+				if ( array_key_exists( $environmental_variable_name, $replacement_overrides ) ) {
+					unset( $replacement_overrides[ $environmental_variable_name ] );
+					$did_change = true;
+				}
+			} elseif (
+				! array_key_exists( $environmental_variable_name, $replacement_overrides )
+				|| $replacement_overrides[ $environmental_variable_name ] !== $replacement_value
+			) {
+				$replacement_overrides[ $environmental_variable_name ] = $replacement_value;
+				$did_change = true;
+			}
+
+			// Renew the value and its TTL inside one retry so concurrent map entries cannot be discarded.
+			if ( 0 < $cache_ttl ) {
+				$ttl_name        = ai4seo_get_environmental_variable_ttl_name( $environmental_variable_name );
+				$replacement_ttl = time() + $cache_ttl;
+
+				if ( ! isset( $replacement_overrides[ $ttl_name ] ) || $replacement_ttl !== $replacement_overrides[ $ttl_name ] ) {
+					$replacement_overrides[ $ttl_name ] = $replacement_ttl;
+					$did_change                         = true;
+				}
+			}
+
+			return array(
+				'overrides' => $replacement_overrides,
+				'changed'   => $did_change,
+				'result'    => null,
+			);
+		},
+		$use_cache
+	);
+}
+
 
 /**
  * Function to update a specific environmental variable
  *
- * @param string $environmental_variable_name The name of the environmental variable
- * @param mixed  $new_environmental_variable_value The new value of the environmental variable
- * @param bool   $use_cache Should we use the cache
+ * @param string $environmental_variable_name The name of the environmental variable.
+ * @param mixed  $new_environmental_variable_value The new value of the environmental variable.
+ * @param bool   $use_cache Should we use the cache.
  * @param int    $cache_ttl Cache TTL in seconds. 0 disables TTL companion updates.
  * @return bool True if the environmental variable was updated successfully, false if not
  */
 function ai4seo_update_environmental_variable( string $environmental_variable_name, $new_environmental_variable_value, bool $use_cache = true, int $cache_ttl = 0 ): bool {
-	global $ai4seo_environmental_variables;
-	global $ai4seo_environmental_variables_are_loaded;
-
 	if ( ai4seo_prevent_loops( __FUNCTION__, 5 ) ) {
 		ai4seo_debug_message( 726736127, 'Prevented loop', true );
 		return false;
@@ -154,58 +466,14 @@ function ai4seo_update_environmental_variable( string $environmental_variable_na
 	// sanitize.
 	$new_environmental_variable_value = ai4seo_deep_sanitize( $new_environmental_variable_value );
 
-	// use semaphore to make sure this critical section is thread-safe.
-	if ( ! $use_cache ) {
-		/*
-		if (!ai4seo_acquire_semaphore(__FUNCTION__)) {
-			// could not acquire semaphore -> another process is in the critical section -> return
-			return false;
-		}*/
-	}
-
-	// overwrite entry in $current_environmental_variables-array.
-	$current_environmental_variables = ai4seo_read_all_environmental_variables( $use_cache );
-
-	// is same as default value? delete it.
-	if ( AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES[ $environmental_variable_name ] == $new_environmental_variable_value ) {
-		unset( $current_environmental_variables[ $environmental_variable_name ] );
-	} else {
-		$value_is_unchanged = isset( $current_environmental_variables[ $environmental_variable_name ] )
-			&& $current_environmental_variables[ $environmental_variable_name ] === $new_environmental_variable_value;
-
-		// An unchanged cache value still needs its TTL renewed.
-		if ( $value_is_unchanged && $cache_ttl <= 0 ) {
-			return true;
-		}
-
-		if ( ! $value_is_unchanged ) {
-			$current_environmental_variables[ $environmental_variable_name ] = $new_environmental_variable_value;
-		}
-	}
-
-	// if we have a cache TTL, we also update the TTL companion variable to current time + TTL, so that the cache can be properly invalidated after the TTL has expired.
-	if ( $cache_ttl > 0 ) {
-		$ttl_environmental_variable_name                                     = ai4seo_get_environmental_variable_ttl_name( $environmental_variable_name );
-		$current_environmental_variables[ $ttl_environmental_variable_name ] = time() + $cache_ttl;
-	}
-
-	// no changes made.
-	if ( $ai4seo_environmental_variables == $current_environmental_variables ) {
-		return true;
-	}
-
-	// update the global parameter as well.
-	$ai4seo_environmental_variables            = $current_environmental_variables;
-	$ai4seo_environmental_variables_are_loaded = true;
-
-	// Save updated environmental variables to database.
-	$success = ai4seo_update_option( AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME, $current_environmental_variables, false, ! $use_cache );
-
-	if ( ! $use_cache ) {
-		// ai4seo_release_semaphore(__FUNCTION__);.
-	}
-
-	return $success;
+	return ai4seo_mutate_environmental_variable_value(
+		$environmental_variable_name,
+		static function () use ( $new_environmental_variable_value ) {
+			return $new_environmental_variable_value;
+		},
+		$use_cache,
+		$cache_ttl
+	);
 }
 
 /**
@@ -261,18 +529,14 @@ function ai4seo_reconcile_bulk_generation_date_filter_reference_timestamp( $refe
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to delete an environmental variable
  *
- * @param string $environmental_variable_name The name of the environmental variable
+ * @param string $environmental_variable_name The name of the environmental variable.
  * @return bool True if the environmental variable was deleted successfully, false if not
  */
 function ai4seo_delete_environmental_variable( string $environmental_variable_name ): bool {
-	global $ai4seo_environmental_variables;
-	global $ai4seo_environmental_variables_are_loaded;
-
 	if ( ai4seo_prevent_loops( __FUNCTION__, 5 ) ) {
 		ai4seo_debug_message( 912986381, 'Prevented loop', true );
 		return false;
@@ -284,25 +548,23 @@ function ai4seo_delete_environmental_variable( string $environmental_variable_na
 		return false;
 	}
 
-	// overwrite entry in $current_environmental_variables-array.
-	$current_environmental_variables = ai4seo_read_all_environmental_variables();
+	return ai4seo_mutate_environmental_variable_overrides(
+		static function ( array $current_overrides ) use ( $environmental_variable_name ): array {
+			$did_change = array_key_exists( $environmental_variable_name, $current_overrides );
 
-	if ( ! isset( $current_environmental_variables[ $environmental_variable_name ] ) ) {
-		return true;
-	}
+			if ( $did_change ) {
+				unset( $current_overrides[ $environmental_variable_name ] );
+			}
 
-	// delete the entry.
-	unset( $current_environmental_variables[ $environmental_variable_name ] );
-
-	// update the class parameter as well.
-	$ai4seo_environmental_variables            = $current_environmental_variables;
-	$ai4seo_environmental_variables_are_loaded = true;
-
-	// Save updated environmental variables to database.
-	return ai4seo_update_option( AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME, $current_environmental_variables, false );
+			return array(
+				'overrides' => $current_overrides,
+				'changed'   => $did_change,
+				'result'    => null,
+			);
+		}
+	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Deletes all environmental variables
@@ -310,16 +572,28 @@ function ai4seo_delete_environmental_variable( string $environmental_variable_na
  * @return bool
  */
 function ai4seo_delete_all_environmental_variables(): bool {
-	global $ai4seo_environmental_variables;
-	global $ai4seo_environmental_variables_are_loaded;
+	$option_snapshot = ai4seo_get_raw_option_snapshot( AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME );
 
-	$ai4seo_environmental_variables            = AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES;
-	$ai4seo_environmental_variables_are_loaded = true;
+	if ( null === $option_snapshot ) {
+		ai4seo_reconcile_environmental_variable_caches_from_storage();
+		return false;
+	}
 
-	return ai4seo_delete_option( AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME );
+	$delete_result = ai4seo_compare_and_delete_option_snapshot(
+		AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME,
+		$option_snapshot
+	);
+
+	if ( true === $delete_result ) {
+		ai4seo_read_all_environmental_variables( false );
+		return true;
+	}
+
+	// A conflicting writer owns the newer map; fail without deleting it and publish its state locally.
+	ai4seo_reconcile_environmental_variable_caches_from_storage();
+	return false;
 }
 
-// =========================================================================================== \\
 
 /**
  * Bulk update environmental variables.
@@ -330,6 +604,7 @@ function ai4seo_delete_all_environmental_variables(): bool {
  * Values equal to their defaults are removed from the stored overrides.
  *
  * @param array $environmental_variable_updates Associative array: name => value.
+ * @param bool  $warm_request_cache Whether to preserve the public bulk helper's request-cache warm-up.
  * @return array {
  *     @type bool  $success        True if persisted successfully (or nothing to persist), false on DB write failure.
  *     @type int   $updated_count  Number of variables that changed (added/updated/removed).
@@ -337,10 +612,7 @@ function ai4seo_delete_all_environmental_variables(): bool {
  *     @type array $invalid_values List of names skipped because the value was invalid.
  * }
  */
-function ai4seo_bulk_update_environmental_variables( array $environmental_variable_updates ): array {
-	global $ai4seo_environmental_variables;
-	global $ai4seo_environmental_variables_are_loaded;
-
+function ai4seo_bulk_update_environmental_variables( array $environmental_variable_updates, bool $warm_request_cache = true ): array {
 	$result = array(
 		'success'        => true,
 		'updated_count'  => 0,
@@ -358,64 +630,73 @@ function ai4seo_bulk_update_environmental_variables( array $environmental_variab
 		return $result;
 	}
 
-	// Read current overrides once.
-	$current_environmental_variables = ai4seo_read_all_environmental_variables();
+	// Retain the established request-cache warm-up contract without using it as mutation input.
+	if ( $warm_request_cache ) {
+		ai4seo_read_all_environmental_variables();
+	}
 
-	// Iterate all requested updates.
+	$validated_updates = array();
+
 	foreach ( $environmental_variable_updates as $this_name => $this_value ) {
-		// Validate variable name against whitelist.
 		if ( ! isset( AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES[ $this_name ] ) ) {
-			// Unknown name. Skip and record.
 			$result['invalid_names'][] = $this_name;
 			ai4seo_debug_message( 2017171025, 'Unknown environmental variable name in bulk update: "' . $this_name . '"', true );
 			continue;
 		}
 
-		// Validate value using existing validator.
 		if ( ! ai4seo_validate_environmental_variable_value( $this_name, $this_value ) ) {
-			// Invalid value. Skip and record.
 			$result['invalid_values'][] = $this_name;
 			ai4seo_debug_message( 2117171025, 'Invalid value for environmental variable "' . $this_name . '" in bulk update.', true );
 			continue;
 		}
 
-		// Sanitize value deeply.
-		$this_value = ai4seo_deep_sanitize( $this_value );
-
-		// If equals default, ensure override is removed.
-		if ( AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES[ $this_name ] == $this_value ) {
-			if ( isset( $current_environmental_variables[ $this_name ] ) ) {
-				unset( $current_environmental_variables[ $this_name ] );
-				++$result['updated_count'];
-			}
-			continue;
-		}
-
-		// If no change vs current override, skip.
-		if ( isset( $current_environmental_variables[ $this_name ] )
-			&& $current_environmental_variables[ $this_name ] == $this_value ) {
-			continue;
-		}
-
-		// Apply/overwrite override.
-		$current_environmental_variables[ $this_name ] = $this_value;
-		++$result['updated_count'];
+		$validated_updates[ $this_name ] = ai4seo_deep_sanitize( $this_value );
 	}
 
-	// If nothing changed, keep success=true and return.
-	if ( $ai4seo_environmental_variables == $current_environmental_variables ) {
+	if ( ! $validated_updates ) {
 		return $result;
 	}
 
-	// Update the global cache.
-	$ai4seo_environmental_variables            = $current_environmental_variables;
-	$ai4seo_environmental_variables_are_loaded = true;
+	$mutation_updated_count = 0;
+	$did_update             = ai4seo_mutate_environmental_variable_overrides(
+		static function ( array $current_overrides ) use ( $validated_updates ): array {
+			$replacement_overrides = $current_overrides;
+			$updated_count         = 0;
 
-	// Persist once.
-	$did_update = ai4seo_update_option( AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME, $current_environmental_variables, false );
+			foreach ( $validated_updates as $this_name => $this_value ) {
+				if ( ai4seo_are_persisted_state_values_equivalent( AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES[ $this_name ], $this_value ) ) {
+					if ( array_key_exists( $this_name, $replacement_overrides ) ) {
+						unset( $replacement_overrides[ $this_name ] );
+						++$updated_count;
+					}
+					continue;
+				}
+
+				// Retain the stored representation when only a storage-compatible scalar type differs.
+				if (
+					array_key_exists( $this_name, $replacement_overrides )
+					&& ai4seo_are_persisted_state_values_equivalent( $replacement_overrides[ $this_name ], $this_value )
+				) {
+					continue;
+				}
+
+				$replacement_overrides[ $this_name ] = $this_value;
+				++$updated_count;
+			}
+
+			return array(
+				'overrides' => $replacement_overrides,
+				'changed'   => 0 < $updated_count,
+				'result'    => $updated_count,
+			);
+		},
+		false,
+		$mutation_updated_count
+	);
+
+	$result['updated_count'] = (int) $mutation_updated_count;
 
 	if ( ! $did_update ) {
-		// DB write failed. Keep in-memory state but surface failure.
 		$result['success'] = false;
 		ai4seo_debug_message( 2217171025, 'Failed to persist environmental variables in bulk update.', true );
 	}
@@ -423,13 +704,117 @@ function ai4seo_bulk_update_environmental_variables( array $environmental_variab
 	return $result;
 }
 
-// =========================================================================================== \\
+
+/**
+ * Normalize one durable automatic-retry request token.
+ *
+ * Boolean true remains readable only as a legacy marker so existing interrupted requests can be
+ * migrated to a generation-specific token before reconciliation. False is the declared idle value.
+ *
+ * @param mixed $request_token Candidate token.
+ * @return string|bool Canonical token, true for a legacy marker, or false when idle/invalid.
+ */
+function ai4seo_normalize_auto_retry_failed_request_token( $request_token ) {
+	if ( true === $request_token ) {
+		return true;
+	}
+
+	if ( ! is_string( $request_token ) ) {
+		return false;
+	}
+
+	$request_token = strtolower( trim( $request_token ) );
+
+	return 1 === preg_match(
+		'/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/',
+		$request_token
+	)
+		? $request_token
+		: false;
+}
+
+
+/**
+ * Replace one environmental value only when its latest validated generation still matches.
+ *
+ * A mismatched value is a successful no-op: it belongs to another writer and must remain intact.
+ * Storage failures remain distinguishable through the function result.
+ *
+ * @param string $environmental_variable_name Environmental variable name.
+ * @param mixed  $expected_value Exact currently owned value.
+ * @param mixed  $replacement_value Replacement value.
+ * @param bool   $did_replace Receives whether the expected generation was replaced.
+ * @return bool True after a checked replacement or mismatch no-op, false on validation/storage failure.
+ */
+function ai4seo_compare_and_swap_environmental_variable_value(
+	string $environmental_variable_name,
+	$expected_value,
+	$replacement_value,
+	bool &$did_replace
+): bool {
+	$did_replace = false;
+
+	if (
+		! isset( AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES[ $environmental_variable_name ] )
+		|| ! ai4seo_validate_environmental_variable_value( $environmental_variable_name, $expected_value )
+		|| ! ai4seo_validate_environmental_variable_value( $environmental_variable_name, $replacement_value )
+	) {
+		return false;
+	}
+
+	$expected_value     = ai4seo_deep_sanitize( $expected_value );
+	$replacement_value  = ai4seo_deep_sanitize( $replacement_value );
+	$mutation_result    = false;
+	$mutation_succeeded = ai4seo_mutate_environmental_variable_overrides(
+		static function ( array $current_overrides ) use ( $environmental_variable_name, $expected_value, $replacement_value ): array {
+			$current_value = AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES[ $environmental_variable_name ];
+
+			if (
+				array_key_exists( $environmental_variable_name, $current_overrides )
+				&& ai4seo_validate_environmental_variable_value(
+					$environmental_variable_name,
+					$current_overrides[ $environmental_variable_name ]
+				)
+			) {
+				$current_value = $current_overrides[ $environmental_variable_name ];
+			}
+
+			if ( $current_value !== $expected_value ) {
+				return array(
+					'overrides' => $current_overrides,
+					'changed'   => false,
+					'result'    => false,
+				);
+			}
+
+			$replacement_overrides = $current_overrides;
+
+			if ( ai4seo_are_persisted_state_values_equivalent( AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES[ $environmental_variable_name ], $replacement_value ) ) {
+				unset( $replacement_overrides[ $environmental_variable_name ] );
+			} else {
+				$replacement_overrides[ $environmental_variable_name ] = $replacement_value;
+			}
+
+			return array(
+				'overrides' => $replacement_overrides,
+				'changed'   => $replacement_overrides !== $current_overrides,
+				'result'    => true,
+			);
+		},
+		false,
+		$mutation_result
+	);
+
+	$did_replace = $mutation_succeeded && true === $mutation_result;
+	return $mutation_succeeded;
+}
+
 
 /**
  * Validate value of an environmental variable
  *
- * @param string $environmental_variable_name The name of the environmental variable
- * @param mixed  $environmental_variable_value The value of the environmental variable
+ * @param string $environmental_variable_name The name of the environmental variable.
+ * @param mixed  $environmental_variable_value The value of the environmental variable.
  */
 function ai4seo_validate_environmental_variable_value( string $environmental_variable_name, $environmental_variable_value ): bool {
 	if ( ai4seo_prevent_loops( __FUNCTION__, 5 ) ) {
@@ -476,8 +861,12 @@ function ai4seo_validate_environmental_variable_value( string $environmental_var
 
 		case AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_STATE:
 		case AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STATE:
-			// string with specific allowed values.
-			return in_array( $environmental_variable_value, array( 'idle', 'processing', 'completed' ) );
+			// Persisted processing states use exact string identifiers.
+			return is_string( $environmental_variable_value ) && in_array( $environmental_variable_value, array( 'idle', 'processing', 'completed' ), true );
+
+		case AI4SEO_ENVIRONMENTAL_VARIABLE_GENERATION_STATUS_SUMMARY_REBUILD_STATE:
+			// A required rebuild restarts once; processing resumes the same bounded replacement analysis.
+			return is_string( $environmental_variable_value ) && in_array( $environmental_variable_value, array( 'idle', 'required', 'processing' ), true );
 
 		case AI4SEO_ENVIRONMENTAL_VARIABLE_CURRENT_DISCOUNT:
 			// empty or array with at least name and percentage.
@@ -513,6 +902,11 @@ function ai4seo_validate_environmental_variable_value( string $environmental_var
 		case AI4SEO_ENVIRONMENTAL_VARIABLE_ENHANCED_REPORTING_ACCEPTED:
 			// boolean.
 			return is_bool( $environmental_variable_value );
+
+		case AI4SEO_ENVIRONMENTAL_VARIABLE_AUTO_RETRY_FAILED_REQUIRED:
+			// False is idle, true is a migratable legacy marker, and strings are generation tokens.
+			return false === $environmental_variable_value
+				|| false !== ai4seo_normalize_auto_retry_failed_request_token( $environmental_variable_value );
 
 		case AI4SEO_ENVIRONMENTAL_VARIABLE_CRON_JOB_STATUS_LIST:
 			// array of strings (containing a-z and -).
@@ -569,7 +963,8 @@ function ai4seo_validate_environmental_variable_value( string $environmental_var
 			return true;
 
 		case AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_STATUS:
-			return in_array( $environmental_variable_value, AI4SEO_ALLOWED_PAYG_STATUS );
+			// PAYG routing accepts only statuses from the shared account-response contract.
+			return is_string( $environmental_variable_value ) && in_array( $environmental_variable_value, AI4SEO_ALLOWED_PAYG_STATUS, true );
 
 		case AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_FAILURE_REASON:
 			if ( ! is_string( $environmental_variable_value ) ) {
@@ -686,24 +1081,22 @@ function ai4seo_validate_environmental_variable_value( string $environmental_var
 	}
 }
 
-// =========================================================================================== \\
 
 /**
  * Check if an environmental variable name is a TTL companion variable.
  *
- * @param string $environmental_variable_name
+ * @param string $environmental_variable_name Environmental variable name.
  * @return bool True if the name ends with the TTL suffix, false otherwise.
  */
 function ai4seo_is_environmental_variable_ttl_name( string $environmental_variable_name ): bool {
 	return substr( $environmental_variable_name, -strlen( AI4SEO_ENVIRONMENTAL_VARIABLE_CACHE_TTL_SUFFIX ) ) === AI4SEO_ENVIRONMENTAL_VARIABLE_CACHE_TTL_SUFFIX;
 }
 
-// =========================================================================================== \\
 
 /**
  * Build ttl companion environmental variable name.
  *
- * @param string $environmental_variable_name
+ * @param string $environmental_variable_name Environmental variable name.
  * @return string
  */
 function ai4seo_get_environmental_variable_ttl_name( string $environmental_variable_name ): string {
@@ -737,65 +1130,60 @@ function ai4seo_is_environmental_variable_cache_available( string $environmental
 	return (int) $all_environmental_variables[ $ttl_name ] > time();
 }
 
-// =========================================================================================== \\
 
 /**
  * Invalidate one environmental variable cache by removing its ttl companion value.
  *
  * @param string $environmental_variable_name The base environmental variable name.
- * @return void
+ * @return bool True when the cache was invalidated or already absent, false on invalid input or storage failure.
  */
-function ai4seo_invalidate_environmental_variable_cache( string $environmental_variable_name ): void {
+function ai4seo_invalidate_environmental_variable_cache( string $environmental_variable_name ): bool {
 	if ( ! isset( AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES[ $environmental_variable_name ] ) ) {
-		return;
+		return false;
 	}
 
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 311224226, 'Prevented loop', true );
-		return;
+		return false;
 	}
 
-	ai4seo_delete_environmental_variable( ai4seo_get_environmental_variable_ttl_name( $environmental_variable_name ) );
+	return ai4seo_delete_environmental_variable( ai4seo_get_environmental_variable_ttl_name( $environmental_variable_name ) );
 }
 
-// =========================================================================================== \\
 
 /**
  * Invalidate all environmental variable caches by removing every __ttl_time entry.
  *
- * @return void
+ * @return bool True when every cache TTL was removed or already absent.
  */
-function ai4seo_invalidate_all_environmental_variable_caches(): void {
-	global $ai4seo_environmental_variables;
-	global $ai4seo_environmental_variables_are_loaded;
-
+function ai4seo_invalidate_all_environmental_variable_caches(): bool {
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 321224226, 'Prevented loop', true );
-		return;
+		return false;
 	}
 
-	$all_environmental_variables = ai4seo_read_all_environmental_variables( false );
-	$did_change                  = false;
+	return ai4seo_mutate_environmental_variable_overrides(
+		static function ( array $current_overrides ): array {
+			$did_change = false;
 
-	foreach ( $all_environmental_variables as $this_name => $unused_value ) {
-		if ( ! ai4seo_is_environmental_variable_ttl_name( (string) $this_name ) ) {
-			continue;
+			foreach ( $current_overrides as $this_name => $unused_value ) {
+				if ( ! ai4seo_is_environmental_variable_ttl_name( (string) $this_name ) ) {
+					continue;
+				}
+
+				unset( $current_overrides[ $this_name ] );
+				$did_change = true;
+			}
+
+			return array(
+				'overrides' => $current_overrides,
+				'changed'   => $did_change,
+				'result'    => null,
+			);
 		}
-
-		unset( $all_environmental_variables[ $this_name ] );
-		$did_change = true;
-	}
-
-	if ( ! $did_change ) {
-		return;
-	}
-
-	$ai4seo_environmental_variables            = $all_environmental_variables;
-	$ai4seo_environmental_variables_are_loaded = true;
-	ai4seo_update_option( AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME, $all_environmental_variables, false );
+	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns environmental variable => action map for cache invalidation.
@@ -876,7 +1264,6 @@ function ai4seo_get_environmental_variable_to_action_cache_invalidation_map(): a
 	);
 }
 
-// =========================================================================================== \\
 /**
  * Register all cache invalidation hooks based on environmental variable map.
  *
@@ -904,12 +1291,11 @@ function ai4seo_add_invalidate_caches_hooks(): void {
 }
 
 
-// =========================================================================================== \\
 
 /**
  * Read attachment ID lookup cache entry by normalized filename.
  *
- * @param string $normalized_filename
+ * @param string $normalized_filename Normalized attachment filename.
  * @return int|false
  */
 function ai4seo_get_cached_attachment_id_from_filename( string $normalized_filename ) {
@@ -931,13 +1317,12 @@ function ai4seo_get_cached_attachment_id_from_filename( string $normalized_filen
 	return (int) $lookup_cache[ $normalized_filename ];
 }
 
-// =========================================================================================== \\
 
 /**
  * Store attachment ID lookup cache entry by normalized filename.
  *
- * @param string $normalized_filename
- * @param int    $attachment_id
+ * @param string $normalized_filename Normalized attachment filename.
+ * @param int    $attachment_id Attachment post ID.
  * @return void
  */
 function ai4seo_set_cached_attachment_id_from_filename( string $normalized_filename, int $attachment_id ): void {
@@ -946,21 +1331,18 @@ function ai4seo_set_cached_attachment_id_from_filename( string $normalized_filen
 		return;
 	}
 
-	$lookup_cache = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ATTACHMENT_ID_LOOKUP_CACHE );
-
-	if ( ! is_array( $lookup_cache ) ) {
-		$lookup_cache = array();
-	}
-
-	$lookup_cache[ $normalized_filename ] = (int) $attachment_id;
-
-	if ( count( $lookup_cache ) > 200 ) {
-		$lookup_cache = array_slice( $lookup_cache, -200, null, true );
-	}
-
-	ai4seo_update_environmental_variable(
+	// Merge and trim inside each CAS retry so another filename cached concurrently is retained.
+	ai4seo_mutate_environmental_variable_value(
 		AI4SEO_ENVIRONMENTAL_VARIABLE_ATTACHMENT_ID_LOOKUP_CACHE,
-		$lookup_cache,
+		static function ( array $lookup_cache ) use ( $normalized_filename, $attachment_id ): array {
+			$lookup_cache[ $normalized_filename ] = (int) $attachment_id;
+
+			if ( count( $lookup_cache ) > 200 ) {
+				$lookup_cache = array_slice( $lookup_cache, -200, null, true );
+			}
+
+			return $lookup_cache;
+		},
 		true,
 		HOUR_IN_SECONDS
 	);

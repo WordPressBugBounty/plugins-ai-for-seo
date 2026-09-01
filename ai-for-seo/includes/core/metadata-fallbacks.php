@@ -121,7 +121,6 @@ function ai4seo_apply_possible_fallbacks( int $post_id, string $metadata_identif
 	$our_metadata[ $metadata_identifier ] = $fallback_value;
 }
 
-// =========================================================================================== \\
 
 /**
  * Retrieve the setting name that stores the fallback preference for a metadata identifier.
@@ -150,7 +149,6 @@ function ai4seo_get_metadata_fallback_setting_name( string $metadata_identifier 
 	return null;
 }
 
-// =========================================================================================== \\
 
 /**
  * Retrieve the metadata identifier mapped to a fallback setting name.
@@ -179,7 +177,6 @@ function ai4seo_get_fallback_metadata_identifier_by_setting_name( string $settin
 	return null;
 }
 
-// =========================================================================================== \\
 
 /**
  * Return the available fallback options for a metadata identifier.
@@ -246,7 +243,6 @@ function ai4seo_get_metadata_fallback_allowed_values( string $metadata_identifie
 	return array();
 }
 
-// =========================================================================================== \\
 
 /**
  * Return the available fallback identifiers for a metadata identifier.
@@ -313,7 +309,6 @@ function ai4seo_get_metadata_fallback_allowed_value_identifiers( string $metadat
 	return array();
 }
 
-// =========================================================================================== \\
 
 /**
  * Get a shortened fallback text from the post title.
@@ -335,7 +330,6 @@ function ai4seo_get_metadata_fallback_post_title( int $post_id ): string {
 	return ai4seo_limit_metadata_fallback_text( $post_title, 100 );
 }
 
-// =========================================================================================== \\
 
 /**
  * Get a shortened fallback text from the post excerpt.
@@ -357,7 +351,6 @@ function ai4seo_get_metadata_fallback_post_excerpt( int $post_id ): string {
 	return ai4seo_limit_metadata_fallback_text( $post_excerpt, 150 );
 }
 
-// =========================================================================================== \\
 
 /**
  * Get a shortened fallback text from the post content.
@@ -379,7 +372,6 @@ function ai4seo_get_metadata_fallback_post_content( int $post_id ): string {
 	return ai4seo_limit_metadata_fallback_text( $post_content, 150 );
 }
 
-// =========================================================================================== \\
 
 /**
  * Prepare a string for fallback usage by removing markup and normalizing whitespace.
@@ -407,7 +399,6 @@ function ai4seo_prepare_metadata_fallback_text( $text ): string {
 	return trim( $text );
 }
 
-// =========================================================================================== \\
 
 /**
  * Limit fallback text length while keeping current words intact where possible.

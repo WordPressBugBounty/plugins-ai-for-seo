@@ -2,6 +2,7 @@
 /**
  * Displays the Media Attributes editor. Called via AJAX.
  *
+ * @package AI_For_SEO
  * @since 1.0
  */
 
@@ -9,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! ai4seo_can_manage_this_plugin() ) {
+if ( ! ai4seo_can_use_plugin_content() ) {
 	return;
 }
 
@@ -68,7 +69,23 @@ if ( ! $ai4seo_this_attachment_post ) {
 
 // === GET ADDITIONAL DETAILS ===================================================================== \\
 
-$ai4seo_this_post_attachment_attributes = ai4seo_read_available_attachment_attributes( $ai4seo_this_attachment_post_id );
+$ai4seo_attachment_read_succeeded       = false;
+$ai4seo_attachment_post_exists          = false;
+$ai4seo_this_post_attachment_attributes = ai4seo_read_available_attachment_attributes(
+	$ai4seo_this_attachment_post_id,
+	$ai4seo_attachment_read_succeeded,
+	$ai4seo_attachment_post_exists
+);
+
+if ( ! $ai4seo_attachment_read_succeeded ) {
+	ai4seo_send_ajax_error( esc_html__( 'Media attributes could not be loaded. Please refresh the page and try again.', 'ai-for-seo' ), 2208262602 );
+	return;
+}
+
+if ( ! $ai4seo_attachment_post_exists ) {
+	ai4seo_send_ajax_error( esc_html__( 'Attachment Post not found.', 'ai-for-seo' ), 57177525 );
+	return;
+}
 
 // Media source hints only compare active attachment attributes with SOOZ generated-data snapshots.
 $ai4seo_attachment_attribute_source_details = ai4seo_read_attachment_attributes_editor_source_details(
@@ -124,17 +141,17 @@ if ( '' !== $ai4seo_attachment_file_size ) {
 	$ai4seo_attachment_identity_details[] = $ai4seo_attachment_file_size;
 }
 
-$ai4seo_attachment_upload_time = trim( (string) $ai4seo_this_attachment_post->post_date );
-if ( '' !== $ai4seo_attachment_upload_time ) {
-	$ai4seo_attachment_upload_timestamp = strtotime( $ai4seo_attachment_upload_time );
-	$ai4seo_attachment_upload_display   = $ai4seo_attachment_upload_timestamp
-		? ai4seo_format_unix_timestamp( $ai4seo_attachment_upload_timestamp )
-		: $ai4seo_attachment_upload_time;
-
+// Prefer the absolute GMT value while allowing legacy attachments to recover their validated local date.
+$ai4seo_attachment_upload_time_display = ai4seo_get_attachment_upload_time_display(
+	(string) $ai4seo_this_attachment_post->post_date_gmt,
+	'auto',
+	(string) $ai4seo_this_attachment_post->post_date
+);
+if ( '' !== $ai4seo_attachment_upload_time_display ) {
 	$ai4seo_attachment_identity_details[] = sprintf(
 		/* translators: %s: Attachment upload time. */
 		__( 'Upload time: %s', 'ai-for-seo' ),
-		$ai4seo_attachment_upload_display
+		$ai4seo_attachment_upload_time_display
 	);
 }
 
@@ -149,7 +166,8 @@ if ( '' !== $ai4seo_attachment_mime_type_display ) {
 
 $ai4seo_attachment_identity_subtitle = implode( ' · ', $ai4seo_attachment_identity_details );
 
-$ai4seo_active_attachment_attributes = ai4seo_get_active_attachment_attributes();
+// Merge fixed core fields with the shared registry so editor rendering and attribute ordering cannot drift.
+$ai4seo_active_attachment_attributes  = ai4seo_get_active_attachment_attributes();
 $ai4seo_attachment_editor_field_order = array_values(
 	array_unique(
 		array_merge(
@@ -159,7 +177,8 @@ $ai4seo_attachment_editor_field_order = array_values(
 	),
 );
 
-$ai4seo_settings_url                              = ai4seo_get_subpage_url( 'settings' );
+$ai4seo_can_administer_plugin                     = ai4seo_can_administer_plugin();
+$ai4seo_settings_url                              = $ai4seo_can_administer_plugin ? ai4seo_get_subpage_url( 'settings' ) : '';
 $ai4seo_attachment_attributes_custom_instructions = ai4seo_read_custom_instructions_postmeta( $ai4seo_this_attachment_post_id, AI4SEO_POST_META_ATTACHMENT_ATTRIBUTES_CUSTOM_INSTRUCTIONS_META_KEY );
 $ai4seo_attachment_field_evaluations              = array();
 $ai4seo_attachment_preview_evaluation_identifiers = array(
@@ -233,7 +252,9 @@ if ( ! $ai4seo_active_attachment_attributes ) {
 	ai4seo_echo_wp_kses( ai4seo_get_modal_headline_tag( __( 'Media Attributes Editor', 'ai-for-seo' ) ) );
 	ai4seo_echo_wp_kses(
 		ai4seo_get_editor_no_active_fields_notice_tag(
-			__( 'No media attributes are active. Please activate at least one media attribute in the plugin settings to manage media attributes.', 'ai-for-seo' ),
+			$ai4seo_can_administer_plugin
+				? __( 'No media attributes are active. Please activate at least one media attribute in the plugin settings to manage media attributes.', 'ai-for-seo' )
+				: __( 'No media attributes are active. A site administrator must activate at least one media attribute before media attributes can be managed.', 'ai-for-seo' ),
 			$ai4seo_settings_url
 		)
 	);
@@ -556,12 +577,19 @@ echo '<div'
 
 	// friendly reminder: $ai4seo_skipped_attachment_attributes.
 	if ( $ai4seo_skipped_attachment_attributes ) {
+		if ( $ai4seo_can_administer_plugin ) {
+			/* translators: 1: Comma-separated list of media attributes. 2: URL to plugin settings. */
+			$ai4seo_inactive_fields_notice = __( '<strong>Note:</strong> The following media attributes are currently inactive and not shown in this editor: %1$s. You can activate them in the <a href="%2$s" target="_blank">plugin settings</a>.', 'ai-for-seo' );
+		} else {
+			/* translators: %1$s: Comma-separated list of media attributes. */
+			$ai4seo_inactive_fields_notice = __( '<strong>Note:</strong> The following media attributes are currently inactive and not shown in this editor: %1$s. A site administrator can activate them in the plugin settings.', 'ai-for-seo' );
+		}
+
 		ai4seo_echo_wp_kses(
 			ai4seo_get_editor_inactive_fields_notice_tag(
 				$ai4seo_skipped_attachment_attributes,
 				AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS,
-				/* translators: 1: Comma-separated list of media attributes. 2: URL to plugin settings. */
-				__( '<strong>Note:</strong> The following media attributes are currently inactive and not shown in this editor: %1$s. You can activate them in the <a href="%2$s" target="_blank">plugin settings</a>.', 'ai-for-seo' ),
+				$ai4seo_inactive_fields_notice,
 				$ai4seo_settings_url
 			)
 		);

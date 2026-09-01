@@ -1,4 +1,10 @@
 <?php
+/**
+ * Provides reusable plugin UI and HTML output helpers.
+ *
+ * @package AI_For_SEO
+ */
+
 // Keep extracted core modules inaccessible when WordPress has not loaded the plugin environment.
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -11,8 +17,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Returns the SVG tag for the given (fontawesome) icon name
  *
  * @param string $icon_name The name of the icon. Check function for allowed icon names.
- * @param string $alt_text (optional)
- * @param string $icon_css_class (optional)
+ * @param string $alt_text Alternative text for a non-decorative icon.
+ * @param string $icon_css_class Additional icon CSS classes.
  * @param bool   $is_decorative Whether the icon is decorative (optional).
  * @return string The icon SVG tag
  */
@@ -135,7 +141,6 @@ function ai4seo_sanitize_css_class_list( string $css_classes ): string {
 	return implode( ' ', $css_classes );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns an icon with a tooltip.
@@ -168,13 +173,17 @@ function ai4seo_get_icon_with_tooltip_tag( string $tooltip_text, string $icon_cs
 	);
 }
 
-// =========================================================================================== \\
 
+/**
+ * Return the SOOZ logo image tag for a selected variant.
+ *
+ * @param string $variant Logo variant identifier.
+ * @return string Escaped logo image tag.
+ */
 function ai4seo_get_sooz_logo_image_tag( string $variant = 'sooz' ): string {
 	return "<img src='" . esc_url( ai4seo_get_sooz_logo_url( $variant ) ) . "' alt='" . esc_attr( AI4SEO_PLUGIN_NAME ) . "' title='" . esc_attr( AI4SEO_PLUGIN_NAME ) . "' class='ai4seo-sooz-logo'>";
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the next post ID from an ordered list of post IDs.
@@ -203,7 +212,6 @@ function ai4seo_get_next_post_id_from_ordered_post_ids( int $current_post_id, ar
 	return $ordered_post_ids[ $current_post_index + 1 ];
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the shared editor button that saves the current entry and opens the next entry.
@@ -269,7 +277,6 @@ function ai4seo_get_editor_save_next_button_tag(
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Return the accessible Preview and Editor segmented control shared by both entry editors.
@@ -716,21 +723,23 @@ function ai4seo_get_editor_no_active_fields_notice_tag( string $message, string 
 	}
 
 	// Keep the empty-editor notice identical between metadata and media-attribute modals.
-	$output  = esc_html( $message );
-	$output .= '<br><br>';
-	$output .= ai4seo_get_a_tag_icon_button_tag(
-		$settings_url,
-		'',
-		'',
-		'gear',
-		esc_html__( 'Settings', 'ai-for-seo' ),
-		'ai4seo-primary-button'
-	);
+	$output = esc_html( $message );
+
+	if ( '' !== trim( $settings_url ) ) {
+		$output .= '<br><br>';
+		$output .= ai4seo_get_a_tag_icon_button_tag(
+			$settings_url,
+			'',
+			'',
+			'gear',
+			esc_html__( 'Settings', 'ai-for-seo' ),
+			'ai4seo-primary-button'
+		);
+	}
 
 	return $output;
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns display names for editor field identifiers.
@@ -757,7 +766,6 @@ function ai4seo_get_editor_field_display_names( array $field_identifiers, array 
 	return $field_display_names;
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the shared editor notice shown when configured fields are inactive.
@@ -781,8 +789,8 @@ function ai4seo_get_editor_inactive_fields_notice_tag(
 	}
 
 	// The wrapper classes match the editor form spacing while the template owns the visible text.
-    $output          = "<div class='ai4seo-medium-gap'></div>";
-    $output         .= "<div class='ai4seo-form-item ai4seo-form-item-flush'>";
+	$output          = "<div class='ai4seo-medium-gap'></div>";
+	$output         .= "<div class='ai4seo-form-item ai4seo-form-item-flush'>";
 		$output     .= "<div class='ai4seo-yellow-message ai4seo-yellow-message-inline-offset'>";
 			$output .= sprintf(
 				$notice_template,
@@ -795,7 +803,6 @@ function ai4seo_get_editor_inactive_fields_notice_tag(
 	return $output;
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the source message markup for an editor field label.
@@ -898,7 +905,6 @@ function ai4seo_get_editor_field_source_message_details( array $source_details )
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the HTML for the edit metadata button
@@ -926,7 +932,6 @@ function ai4seo_get_edit_metadata_button(
 	return ai4seo_get_icon_button_tag( 'pen-to-square', '', '', $onclick, $button_label );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the HTML for the edit attachment attributes button
@@ -954,7 +959,6 @@ function ai4seo_get_edit_attachment_attributes_button(
 	return ai4seo_get_icon_button_tag( 'pen-to-square', '', '', $onclick, $button_label );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the HTML for the related media button.
@@ -973,37 +977,6 @@ function ai4seo_get_related_attachments_button( int $post_id, string $button_tex
 		AI4SEO_PLUGIN_NAME . ': ' . esc_html__( 'Related Media', 'ai-for-seo' )
 	);
 }
-
-// =========================================================================================== \\
-
-/*
-function ai4seo_get_current_language() {
-	// Read current language with weglot-plugin if it is installed and active
-	if (function_exists("weglot_get_current_language")) {
-		return weglot_get_current_language();
-	}
-
-	// Read current language with WPML-plugin if it is installed and active
-	elseif (has_filter("wpml_current_language")) {
-		return apply_filters("wpml_current_language", null);
-	}
-
-	// Read regular WordPress-language
-	else {
-		// Get language
-		$language = get_locale();
-
-		// Set default language if no language has been found
-		if (empty($language)) {
-			$language = "en_US";
-		}
-
-		// Convert language into simple language-code and return it
-		return substr($language, 0, 2);
-	}
-}*/
-
-// =========================================================================================== \\
 
 /**
  * Generates one accordion element.
@@ -1045,7 +1018,6 @@ function ai4seo_get_accordion_element( string $headline, string $content ): stri
 	return $output;
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the accessible SEO coverage progress bar shared by post and attachment lists.
@@ -1075,7 +1047,6 @@ function ai4seo_get_seo_coverage_progress_bar_tag( int $post_id, $coverage_perce
 	return $progress_bar_tag;
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns dashboard chart values in the shared visual and legend order.
@@ -1104,7 +1075,6 @@ function ai4seo_get_seo_coverage_chart_values(
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Outputs one dashboard half-donut chart with its heading and completion summary.
@@ -1205,7 +1175,6 @@ function ai4seo_echo_half_donut_chart_with_headline_and_percentage(
 	echo '</div>';
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to output a half donut chart
@@ -1217,22 +1186,22 @@ function ai4seo_echo_half_donut_chart( array $values ) {
 	$total = array_sum( array_column( $values, 'value' ) );
 
 	echo '<svg width="250" height="120" xmlns="http://www.w3.org/2000/svg">';
-	$startOffset = -235; // Adjust start position so that it begins to the left.
+	// Offset the first stroke so semantic segment order draws the half-donut from left to right.
+	$start_offset = -235;
 
 	// Preserve semantic key order because each segment starts where the preceding status ends.
 	foreach ( $values as $type => $info ) {
-		$percentage = ( $info['value'] / $total ) * 235;
+		$percentage          = ( $info['value'] / $total ) * 235;
 		$chart_segment_class = 'ai4seo-chart-segment-' . sanitize_html_class( (string) $type );
 
 		// Segment colors live in CSS so dashboard data only needs semantic status keys.
 		echo "<circle class='ai4seo-circle ai4seo-chart-segment " . esc_attr( $chart_segment_class ) . "' r='75' cx='125' cy='100' fill='transparent' ";
-		echo "stroke-width='20' stroke-dasharray='" . esc_attr( $percentage ) . " 99999' stroke-dashoffset='" . esc_attr( $startOffset ) . "' />";
-		$startOffset -= $percentage;
+		echo "stroke-width='20' stroke-dasharray='" . esc_attr( $percentage ) . " 99999' stroke-dashoffset='" . esc_attr( $start_offset ) . "' />";
+		$start_offset -= $percentage;
 	}
 	echo '</svg>';
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to output the legend for the half donut chart
@@ -1269,30 +1238,30 @@ function ai4seo_echo_chart_legend( array $values, bool $is_seo_autopilot_enabled
 				echo esc_html( $chart_legend_text );
 
 				// Contextual actions connect actionable statuses to their existing setup and activity mechanisms.
-				if ( 'queued' === $type && ! $is_seo_autopilot_enabled ) {
-					echo ' ';
-					ai4seo_echo_wp_kses(
-						ai4seo_get_small_icon_button_tag(
-							'paper-plane',
-							esc_html__( 'Set up SEO Autopilot', 'ai-for-seo' ),
-							'',
-							'ai4seo_open_modal_from_schema("seo-autopilot", {modal_size: "small", unsaved_changes_warnings: true});'
-						)
-					);
-				}
+		if ( 'queued' === $type && ! $is_seo_autopilot_enabled && ai4seo_can_administer_plugin() ) {
+			echo ' ';
+			ai4seo_echo_wp_kses(
+				ai4seo_get_small_icon_button_tag(
+					'paper-plane',
+					esc_html__( 'Set up SEO Autopilot', 'ai-for-seo' ),
+					'',
+					'ai4seo_open_modal_from_schema("seo-autopilot", {modal_size: "small", unsaved_changes_warnings: true});'
+				)
+			);
+		}
 
-				if ( 'failed' === $type ) {
-					echo ' ';
-					ai4seo_echo_wp_kses(
-						ai4seo_get_small_a_tag_icon_button_tag(
-							'#ai4seo-recent-activity',
-							'',
-							'_self',
-							'magnifying-glass',
-							esc_html__( 'Check details', 'ai-for-seo' )
-						)
-					);
-				}
+		if ( 'failed' === $type ) {
+			echo ' ';
+			ai4seo_echo_wp_kses(
+				ai4seo_get_small_a_tag_icon_button_tag(
+					'#ai4seo-recent-activity',
+					'',
+					'_self',
+					'magnifying-glass',
+					esc_html__( 'Check details', 'ai-for-seo' )
+				)
+			);
+		}
 
 			echo '</div>';
 		echo '</div>';
@@ -1301,7 +1270,6 @@ function ai4seo_echo_chart_legend( array $values, bool $is_seo_autopilot_enabled
 	echo '</div>';
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to output a money-back-guarantee notice
@@ -1311,13 +1279,7 @@ function ai4seo_echo_chart_legend( array $values, bool $is_seo_autopilot_enabled
 function ai4seo_output_money_back_guarantee_notice() {
 	echo "<div class='ai4seo-money-back-guarantee-notice'>";
 
-		// Portrait.
-		/*
-		echo "<div class='ai4seo-andre-erbis-portrait'>";
-			echo "<img src='" . esc_url(ai4seo_get_assets_images_url("andre-erbis-at-space-codes.webp")) . "' alt='André Erbis @ Space Codes - " . esc_attr__("SEO Expert and Full Stack Developer", "ai-for-seo") . "' />";
-		echo "</div>";*/
-
-			// Headline.
+		// Headline.
 		echo "<div class='ai4seo-money-back-guarantee-headline'>";
 			echo esc_html__( "Found a better price elsewhere? We'll match it!", 'ai-for-seo' );
 		echo '</div>';
@@ -1361,7 +1323,6 @@ function ai4seo_output_money_back_guarantee_notice() {
 	echo '</div>';
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to output the loading-icon including holder-element
@@ -1374,7 +1335,6 @@ function ai4seo_echo_loading_icon_output() {
 	echo '</span>';
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to output a link styled as an icon button.
@@ -1439,19 +1399,31 @@ function ai4seo_get_a_tag_icon_button_tag( string $a_href, string $a_css_class =
 	return $output;
 }
 
-// =========================================================================================== \\
 
+/**
+ * Return the standard external contact button.
+ *
+ * @param string $a_css_class Anchor CSS classes.
+ * @param string $button_css_class Button CSS classes.
+ * @return string Contact button HTML.
+ */
 function ai4seo_get_contact_us_button( string $a_css_class = '', $button_css_class = '' ): string {
 	return ai4seo_get_a_tag_icon_button_tag( AI4SEO_OFFICIAL_CONTACT_URL, $a_css_class, '_blank', 'comments', __( 'Contact us', 'ai-for-seo' ), $button_css_class );
 }
 
-// =========================================================================================== \\
 
+/**
+ * Return a text button using the shared icon-button renderer.
+ *
+ * @param string $text Button text.
+ * @param string $css_class Additional CSS classes.
+ * @param string $onclick Optional inline click handler.
+ * @return string Button HTML.
+ */
 function ai4seo_get_button_tag( string $text, string $css_class = '', string $onclick = '' ): string {
 	return ai4seo_get_icon_button_tag( '', $text, $css_class, $onclick );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns a native collapsible details/summary block.
@@ -1486,7 +1458,6 @@ function ai4seo_get_collapsible_tag( string $summary, string $content, string $c
 	return $output;
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to output a button tag with icon and text.
@@ -1555,8 +1526,16 @@ function ai4seo_get_icon_button_tag( string $icon, string $text, string $css_cla
 	return $output;
 }
 
-// =========================================================================================== \\
 
+/**
+ * Return a compact icon button.
+ *
+ * @param string $icon Icon identifier.
+ * @param string $text Button text.
+ * @param string $css_class Additional CSS classes.
+ * @param string $onclick Optional inline click handler.
+ * @return string Button HTML.
+ */
 function ai4seo_get_small_icon_button_tag( string $icon = '', string $text = '', string $css_class = '', string $onclick = '' ): string {
 	// default values.
 	if ( empty( $css_class ) ) {
@@ -1568,8 +1547,16 @@ function ai4seo_get_small_icon_button_tag( string $icon = '', string $text = '',
 	return ai4seo_get_icon_button_tag( $icon, $text, $css_class, $onclick );
 }
 
-// =========================================================================================== \\
 
+/**
+ * Return an abort-style icon button.
+ *
+ * @param string $icon Icon identifier.
+ * @param string $text Button text.
+ * @param string $css_class Additional CSS classes.
+ * @param string $onclick Optional inline click handler.
+ * @return string Button HTML.
+ */
 function ai4seo_get_abort_button_tag( string $icon = '', string $text = '', string $css_class = '', string $onclick = '' ): string {
 	// default values.
 	if ( empty( $text ) ) {
@@ -1585,8 +1572,15 @@ function ai4seo_get_abort_button_tag( string $icon = '', string $text = '', stri
 	return ai4seo_get_icon_button_tag( $icon, $text, $css_class, $onclick );
 }
 
-// =========================================================================================== \\
 
+/**
+ * Return a button that closes its containing modal.
+ *
+ * @param string $text Button text.
+ * @param string $css_class Additional CSS classes.
+ * @param string $onclick Optional inline click handler prepended to the modal close action.
+ * @return string Button HTML.
+ */
 function ai4seo_get_modal_close_button_tag( string $text = '', string $css_class = '', string $onclick = '' ): string {
 	// default values.
 	if ( empty( $text ) ) {
@@ -1608,8 +1602,15 @@ function ai4seo_get_modal_close_button_tag( string $text = '', string $css_class
 	return ai4seo_get_button_tag( $text, $css_class, $onclick );
 }
 
-// =========================================================================================== \\
 
+/**
+ * Return a submit-style text button.
+ *
+ * @param string $text Button text.
+ * @param string $css_class Additional CSS classes.
+ * @param string $onclick Optional inline click handler.
+ * @return string Button HTML.
+ */
 function ai4seo_get_submit_button_tag( string $text = '', string $css_class = '', string $onclick = '' ): string {
 	// default values.
 	if ( empty( $text ) ) {
@@ -1625,7 +1626,6 @@ function ai4seo_get_submit_button_tag( string $text = '', string $css_class = ''
 	return ai4seo_get_button_tag( $text, $css_class, $onclick );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the shared modal headline tag with the SOOZ logo.
@@ -1647,7 +1647,6 @@ function ai4seo_get_modal_headline_tag( string $headline, string $logo_variant =
 	return $output;
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the shared modal footer tag for modal action buttons.
@@ -1683,7 +1682,6 @@ function ai4seo_get_modal_footer_tag( array $button_tags, string $css_class = ''
 	return $output;
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to output a small button text link tag, wrapped in an a-tag
@@ -1708,28 +1706,30 @@ function ai4seo_get_small_a_tag_icon_button_tag( string $a_href, string $a_css_c
 	return ai4seo_get_a_tag_icon_button_tag( $a_href, $a_css_class, $a_target, $button_icon, $button_text, $button_css_class, $button_onclick );
 }
 
-// =========================================================================================== \\
 
 /**
  * Function that outputs the options for a language selection select field
  *
- * @param string $selected The selected value.
+ * @param mixed $selected The selected value.
  * @return string The html of the options for the select field
  */
 function ai4seo_get_generation_language_select_options_html( $selected = 'auto' ): string {
+	// Normalize caller input once so option selection never relies on PHP type juggling.
+	$selected     = is_scalar( $selected ) ? (string) $selected : '';
 	$languages    = ai4seo_get_translated_generation_language_options();
 	$languages    = array( 'auto' => '- ' . __( 'Automatic', 'ai-for-seo' ) . ' -' ) + $languages;
 	$options_html = '';
 
-	foreach ( $languages as $value => $text ) {
-		$selected_attribute = ( $selected == $value ) ? ' selected' : '';
-		$options_html      .= "<option value='" . esc_attr( $value ) . "'" . esc_attr( $selected_attribute ) . '>' . esc_html( $text ) . '</option>';
+	// Compare canonical string identifiers while preserving the registry's display labels.
+	foreach ( $languages as $language_identifier => $language_name ) {
+		$language_identifier = (string) $language_identifier;
+		$selected_attribute  = ( $selected === $language_identifier ) ? ' selected' : '';
+		$options_html       .= "<option value='" . esc_attr( $language_identifier ) . "'" . esc_attr( $selected_attribute ) . '>' . esc_html( $language_name ) . '</option>';
 	}
 
 	return $options_html;
 }
 
-// =========================================================================================== \\
 
 /**
  * Get all available language options for AI generation
@@ -1789,12 +1789,11 @@ function ai4seo_get_translated_generation_language_options(): array {
 	return $languages;
 }
 
-// =========================================================================================== \\
 
 /**
  * Retrieve the translation for the different chart-legend-types
  *
- * @param string $legend_identifier
+ * @param string $legend_identifier Chart legend identifier.
  * @return string
  */
 function ai4seo_get_chart_legend_translation( string $legend_identifier ): string {
@@ -1818,7 +1817,6 @@ function ai4seo_get_chart_legend_translation( string $legend_identifier ): strin
 	}
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns a select-all checkbox with a visible or screen-reader-only label.
@@ -1854,7 +1852,6 @@ function ai4seo_get_select_all_checkbox( $target_checkbox_name, $label = 'auto' 
 	return $output;
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns an entry checkbox with a screen-reader label for bulk generation actions.
@@ -1889,7 +1886,6 @@ function ai4seo_get_bulk_generation_queue_entry_checkbox( string $target_checkbo
 	return $output;
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns stage labels and descriptions for a saved prompt slider setting.
@@ -2303,7 +2299,6 @@ function ai4seo_get_prompt_slider_setting_stages( string $setting_name ): array 
 	return array();
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the settings-page description for a saved prompt slider setting.
@@ -2407,7 +2402,6 @@ function ai4seo_get_prompt_slider_setting_description( string $setting_name ): s
 	return '';
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns a settings-page form item for a saved prompt slider setting.
@@ -2517,7 +2511,6 @@ function ai4seo_get_prompt_slider_setting_form_item_tag(
 	return $output;
 }
 
-// =========================================================================================== \\
 
 /**
  * Sanitizes slider CSS values that are later exposed as inline CSS variables.
@@ -2550,7 +2543,6 @@ function ai4seo_sanitize_slider_css_value( $css_value, string $fallback ): strin
 	return $css_value;
 }
 
-// =========================================================================================== \\
 
 /**
  * Sanitizes slider track opacity values for the track-only visual layer.
@@ -2593,7 +2585,6 @@ function ai4seo_sanitize_slider_opacity_value( $opacity_value, string $fallback 
 	return rtrim( rtrim( sprintf( '%.3F', $opacity_number ), '0' ), '.' );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns tooltip HTML that lists every slider stage label and description.
@@ -2640,7 +2631,6 @@ function ai4seo_get_slider_input_stage_help_tooltip_html( array $stages ): strin
 	return '<ul class="ai4seo-slider-input-help-list">' . implode( '', $tooltip_items ) . '</ul>';
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns a staged slider input built from radio controls.
@@ -2660,7 +2650,7 @@ function ai4seo_get_slider_input_tag( array $args ): string {
 	}
 
 	// Preserve the caller's DOM ID reference while removing markup and control whitespace before escaping.
-	$aria_labelledby_value    = trim( sanitize_text_field( (string) ( $args['aria_labelledby'] ?? '' ) ) );
+	$aria_labelledby_value   = trim( sanitize_text_field( (string) ( $args['aria_labelledby'] ?? '' ) ) );
 	$help_trigger_aria_label = trim( sanitize_text_field( (string) ( $args['help_trigger_aria_label'] ?? '' ) ) );
 
 	// Normalize layout options so the markup only emits supported CSS modifier classes.
@@ -2902,7 +2892,6 @@ function ai4seo_get_slider_input_tag( array $args ): string {
 	return $output;
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the custom SOOZ list bulk queue action controls.
@@ -2961,7 +2950,6 @@ function ai4seo_get_bulk_generation_queue_action_controls( string $context, stri
 	return $output;
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns generated-data counts by post type for reset controls.
@@ -3001,7 +2989,6 @@ function ai4seo_get_generated_data_reset_post_type_counts(): array {
 	return $generated_data_post_type_counts;
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the reset UI label for a generated-data post type.
@@ -3016,7 +3003,6 @@ function ai4seo_get_generated_data_reset_post_type_label( string $post_type ): s
 	return ucfirst( $post_type_label );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns generated-data reset checkboxes by post type.
@@ -3075,7 +3061,6 @@ function ai4seo_get_generated_data_reset_post_type_checkboxes_html( string $inpu
 	return $checkboxes_html;
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns generated-data reset post type options for JavaScript-rendered controls.
@@ -3111,7 +3096,6 @@ function ai4seo_get_generated_data_reset_post_type_options_html( array $generate
 	return $options_html;
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to output the current accepted timestamp of the terms of service in a readable format
@@ -3122,7 +3106,6 @@ function ai4seo_get_tos_toc_and_pp_accepted_time_output(): string {
 	return ai4seo_get_environmental_variable_accepted_time_output( AI4SEO_ENVIRONMENTAL_VARIABLE_TOS_TOC_AND_PP_ACCEPTED_TIME );
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to output the current accepted timestamp of the enhanced reporting agreement
@@ -3133,7 +3116,6 @@ function ai4seo_get_enhanced_reporting_accepted_time_output(): string {
 	return ai4seo_get_environmental_variable_accepted_time_output( AI4SEO_ENVIRONMENTAL_VARIABLE_ENHANCED_REPORTING_ACCEPTED_TIME );
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to output the current accepted timestamp of a specific environmental variable in a readable format
@@ -3156,19 +3138,16 @@ function ai4seo_get_environmental_variable_accepted_time_output( $environmental_
 		$content               .= ai4seo_get_svg_tag( 'square-check', '', 'ai4seo-16x16-icon ai4seo-dark-green-icon' ) . ' ';
 		/* translators: %s: Accepted time in a human readable format. */
 		$content .= sprintf( esc_html__( 'Accepted on %s.', 'ai-for-seo' ), $readable_accepted_time );
-	} else {
-		// $content .= ai4seo_get_svg_tag("square-xmark", "", "ai4seo-16x16-icon ai4seo-red-icon") . " ";
-		// $content .= esc_html__("Not accepted yet.", "ai-for-seo");
 	}
+
 	return $content;
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to check if the SEO Autopilot is running at least X amount of seconds
  *
- * @param int $duration The duration in seconds
+ * @param int $duration The duration in seconds.
  * @return bool True if the SEO Autopilot is running at least X amount of seconds
  */
 function ai4seo_was_seo_autopilot_set_up_at_least_x_seconds_ago( int $duration = 300 ): bool {
@@ -3186,8 +3165,14 @@ function ai4seo_was_seo_autopilot_set_up_at_least_x_seconds_ago( int $duration =
 	return ( time() - $seo_autopilot_start_time ) >= $duration;
 }
 
-// =========================================================================================== \\
 
+/**
+ * Render the credit-cost and purchasing-state breakdown.
+ *
+ * @param float|int $credits_percentage Available credits as a percentage of the required amount.
+ * @param bool      $can_afford_at_least_one_generation Whether the balance covers at least one generation.
+ * @return void
+ */
 function ai4seo_echo_cost_breakdown_section( $credits_percentage, bool $can_afford_at_least_one_generation = true ) {
 	$active_meta_tags_names                                 = ai4seo_get_active_meta_tags_names();
 	$active_attachment_attribute_names                      = ai4seo_get_active_attachment_attributes_names();
@@ -3208,10 +3193,6 @@ function ai4seo_echo_cost_breakdown_section( $credits_percentage, bool $can_affo
 	$red_x_icon                            = ai4seo_get_svg_tag( 'xmark', '', 'ai4seo-red-icon ai4seo-upscaled-inline-icon' ) . ' ';
 
 	echo "<div class='ai4seo-centered-inline-content'>";
-		// echo '<h4>';
-		// echo esc_html__("Cost Breakdown", "ai-for-seo");
-		// echo "</h4>";.
-
 		echo '<ul>';
 			echo '<li>';
 	if ( $metadata_credits_cost_per_post ) {
@@ -3331,13 +3312,21 @@ function ai4seo_echo_cost_breakdown_section( $credits_percentage, bool $can_affo
 	echo '</div>';
 }
 
-// =========================================================================================== \\
 
+/**
+ * Render the currently active discount notice.
+ *
+ * @return void
+ */
 function ai4seo_echo_current_discount() {
+	if ( ! ai4seo_can_administer_plugin() ) {
+		return;
+	}
+
 	$ai4seo_current_discount = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_CURRENT_DISCOUNT );
 
 	if ( ! $ai4seo_current_discount ) {
-		return '';
+		return;
 	}
 
 	// create green bubble with gift icon and discount percentage.
@@ -3365,8 +3354,13 @@ function ai4seo_echo_current_discount() {
 	echo '</div>';
 }
 
-// =========================================================================================== \\
 
+/**
+ * Return the copyable voucher-code control.
+ *
+ * @param string $voucher_code Voucher code to display.
+ * @return string Voucher-code HTML.
+ */
 function ai4seo_get_voucher_code_output( $voucher_code ): string {
 	$voucher_code_output              = "<div class='ai4seo-voucher-code-wrapper'>";
 		$voucher_code_output         .= "<div class='ai4seo-voucher-code'>" . esc_html( $voucher_code );
@@ -3380,7 +3374,6 @@ function ai4seo_get_voucher_code_output( $voucher_code ): string {
 	return $voucher_code_output;
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to return the HTML for a dashicon tag
@@ -3401,7 +3394,6 @@ function ai4seo_get_dashicon_tag(
 		. ' class="dashicons dashicons-' . esc_attr( $icon_name ) . ' ' . esc_attr( $css_class ) . '"></i>';
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to return the HTML for a dashicon tag for the menu items

@@ -493,7 +493,7 @@ if ( ! function_exists( 'ai4seo_setup_content_type_filters' ) ) {
 						$this_search_ids = $request_sql_cache[ $prepared_sql ];
 					} else {
 						// Safe: $prepared_sql is built immediately above from generated placeholders and prepared values.
-                        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter
+						// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- This current scoped search is cached by its complete prepared SQL for the remainder of the request.
 						$this_search_ids = $wpdb->get_col( $prepared_sql );
 
 						if ( $wpdb->last_error ) {
@@ -583,7 +583,7 @@ if ( ! function_exists( 'ai4seo_setup_content_type_filters' ) ) {
 						$meta_ids = $request_meta_sql_cache[ $prepared_meta_sql ];
 					} else {
 						// Safe: $prepared_meta_sql is built immediately above from generated placeholders and prepared values.
-                        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter
+						// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- This current filename search is cached by its complete prepared SQL for the remainder of the request.
 						$meta_ids = $wpdb->get_col( $prepared_meta_sql );
 
 						if ( $wpdb->last_error ) {
@@ -898,6 +898,69 @@ if ( ! function_exists( 'ai4seo_get_content_type_metadata_status_ids' ) ) {
 	}
 }
 
+if ( ! function_exists( 'ai4seo_get_content_type_list_request_cache_scope' ) ) {
+	/**
+	 * Returns the active site's exact storage and version scope for list request caches.
+	 *
+	 * @param int $cache_version Optional already-resolved content-list cache version.
+	 * @return string Request-cache scope.
+	 */
+	function ai4seo_get_content_type_list_request_cache_scope( int $cache_version = 0 ): string {
+		global $wpdb;
+
+		if ( $cache_version < 1 ) {
+			$cache_version = function_exists( 'ai4seo_get_content_type_list_cache_version' )
+				? ai4seo_get_content_type_list_cache_version()
+				: 1;
+		}
+
+		$table_names = array();
+
+		foreach ( array( 'options', 'posts', 'postmeta', 'term_relationships', 'term_taxonomy' ) as $table_property ) {
+			$table_names[ $table_property ] = is_object( $wpdb ) && isset( $wpdb->{$table_property} ) && is_string( $wpdb->{$table_property} )
+				? $wpdb->{$table_property}
+				: '';
+		}
+
+		return md5(
+			(string) wp_json_encode(
+				array(
+					'blog_id'       => function_exists( 'get_current_blog_id' ) ? (int) get_current_blog_id() : 0,
+					'table_names'   => $table_names,
+					'cache_version' => $cache_version,
+				)
+			)
+		);
+	}
+}
+
+if ( ! function_exists( 'ai4seo_is_content_type_list_cache_namespace_dirty' ) ) {
+	/**
+	 * Reports whether later mutations are awaiting the current site's final namespace bump.
+	 *
+	 * @return bool Whether request and persistent list caches must be bypassed.
+	 */
+	function ai4seo_is_content_type_list_cache_namespace_dirty(): bool {
+		global $wpdb;
+
+		if ( ! function_exists( 'ai4seo_get_content_type_list_cache_version_bump_state' ) ) {
+			return false;
+		}
+
+		$options_table = is_object( $wpdb ) && isset( $wpdb->options ) && is_string( $wpdb->options )
+			? $wpdb->options
+			: '';
+
+		if ( '' === $options_table ) {
+			return true;
+		}
+
+		$bump_state_by_options_table =& ai4seo_get_content_type_list_cache_version_bump_state();
+
+		return ! empty( $bump_state_by_options_table[ $options_table ]['needs_final_bump'] );
+	}
+}
+
 if ( ! function_exists( 'ai4seo_get_content_type_status_ids' ) ) {
 	/**
 	 * Reads post IDs for one content-list status with a request-local option cache.
@@ -933,21 +996,30 @@ if ( ! function_exists( 'ai4seo_get_content_type_option_post_ids' ) ) {
 			return array();
 		}
 
+		$cache_key                = ai4seo_get_content_type_list_request_cache_scope() . ':' . $option_name;
+		$is_cache_namespace_dirty = ai4seo_is_content_type_list_cache_namespace_dirty();
+
 		// Large list rendering may check several row states against the same option.
-		if ( ! isset( $option_post_ids_cache[ $option_name ] ) ) {
-			$option_post_ids_cache[ $option_name ] = array_values(
-				array_unique(
-					array_filter(
-						array_map(
-							'absint',
-							ai4seo_get_post_ids_from_option( $option_name )
-						)
-					)
-				)
-			);
+		if ( ! $is_cache_namespace_dirty && isset( $option_post_ids_cache[ $cache_key ] ) ) {
+			return $option_post_ids_cache[ $cache_key ];
 		}
 
-		return $option_post_ids_cache[ $option_name ];
+		$option_post_ids = array_values(
+			array_unique(
+				array_filter(
+					array_map(
+						'absint',
+						ai4seo_get_post_ids_from_option( $option_name )
+					)
+				)
+			)
+		);
+
+		if ( ! $is_cache_namespace_dirty ) {
+			$option_post_ids_cache[ $cache_key ] = $option_post_ids;
+		}
+
+		return $option_post_ids;
 	}
 }
 
@@ -1055,7 +1127,7 @@ if ( ! function_exists( 'ai4seo_read_content_type_post_list_all_ids' ) ) {
 		}
 
 		// Safe: SQL fragments come from ai4seo_get_content_type_post_list_sql_parts() and values are prepared when placeholders are present.
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- The caller stores this complete ID result behind the versioned content-list cache key.
 		$post_ids = $wpdb->get_col( $sql );
 
 		if ( $wpdb->last_error ) {
@@ -1119,7 +1191,7 @@ if ( ! function_exists( 'ai4seo_count_content_type_post_list_entries' ) ) {
 		}
 
 		// Safe: SQL fragments come from ai4seo_get_content_type_post_list_sql_parts() and values are prepared when placeholders are present.
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- The count is current list state and is stored by the caller behind the versioned content-list cache key.
 		$count = (int) $wpdb->get_var( $sql );
 
 		if ( $wpdb->last_error ) {
@@ -1187,7 +1259,7 @@ if ( ! function_exists( 'ai4seo_read_content_type_post_list_page_ids' ) ) {
 			$values[] = $offset;
 
 			// Safe: WHERE/ORDER fragments are generated by local helpers and all variable values are prepared below.
-            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter
+			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- This bounded current page read feeds the versioned content-list result assembled by the caller.
 			$post_ids = $wpdb->get_col( $wpdb->prepare( $sql, ...$values ) );
 
 			if ( $wpdb->last_error ) {
@@ -1201,18 +1273,19 @@ if ( ! function_exists( 'ai4seo_read_content_type_post_list_page_ids' ) ) {
 		// Very large hidden lists are handled in small page batches to avoid oversized NOT IN clauses.
 		$excluded_post_id_lookup = array_flip( $excluded_post_ids );
 		$visible_post_ids        = array();
+		$visible_post_id_count   = 0;
 		$visible_index           = 0;
 		$raw_offset              = 0;
 		$batch_size              = max( $limit * 5, 100 );
 
-		while ( count( $visible_post_ids ) < $limit ) {
+		while ( $visible_post_id_count < $limit ) {
 			$values   = $sql_parts['values'];
 			$sql      = "SELECT ID FROM {$wpdb->posts}{$sql_parts['where_sql']}{$orderby_sql} LIMIT %d OFFSET %d";
 			$values[] = $batch_size;
 			$values[] = $raw_offset;
 
 			// Safe: WHERE/ORDER fragments are generated by local helpers and all variable values are prepared below.
-            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter
+			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- Large exclusion sets require fresh bounded page batches that feed the caller's versioned list result.
 			$batch_post_ids = $wpdb->get_col( $wpdb->prepare( $sql, ...$values ) );
 
 			if ( $wpdb->last_error ) {
@@ -1239,9 +1312,10 @@ if ( ! function_exists( 'ai4seo_read_content_type_post_list_page_ids' ) ) {
 				}
 
 				$visible_post_ids[] = $this_post_id;
+				++$visible_post_id_count;
 				++$visible_index;
 
-				if ( count( $visible_post_ids ) >= $limit ) {
+				if ( $visible_post_id_count >= $limit ) {
 					break;
 				}
 			}
@@ -1335,7 +1409,7 @@ if ( ! function_exists( 'ai4seo_validate_content_type_post_ids_for_list' ) ) {
 			$sql = "SELECT ID FROM {$wpdb->posts} WHERE " . implode( ' AND ', $sql_parts );
 
 			// Safe: SQL parts use generated placeholders and sanitized post filters; all variable values are prepared below.
-            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter
+			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- Option-stored candidates must be validated against current post state before the caller caches the versioned list.
 			$valid_post_ids = $wpdb->get_col( $wpdb->prepare( $sql, ...$values ) );
 
 			if ( $wpdb->last_error ) {
@@ -1396,7 +1470,6 @@ if ( ! function_exists( 'ai4seo_intersect_content_type_option_ids_with_page' ) )
 	}
 }
 
-// =========================================================================================== \\
 
 if ( ! function_exists( 'ai4seo_get_content_type_current_page_status_ids' ) ) {
 	/**
@@ -1634,6 +1707,8 @@ if ( ! function_exists( 'ai4seo_resolve_optimized_content_type_list' ) ) {
 		$is_large_site              = ( $current_posts_table_entries_count >= AI4SEO_LARGE_SITE_POSTS_THRESHOLD );
 		$should_defer_status_counts = ( $is_large_site && 'all' === $filter_status );
 		$cache_version              = function_exists( 'ai4seo_get_content_type_list_cache_version' ) ? ai4seo_get_content_type_list_cache_version() : 1;
+		$request_cache_scope        = ai4seo_get_content_type_list_request_cache_scope( $cache_version );
+		$is_cache_namespace_dirty   = ai4seo_is_content_type_list_cache_namespace_dirty();
 		$cache_key                  = 'content_list_' . md5(
 			wp_json_encode(
 				array(
@@ -1660,6 +1735,7 @@ if ( ! function_exists( 'ai4seo_resolve_optimized_content_type_list' ) ) {
 					'new_or_existing_filter'       => $new_or_existing_filter,
 					'new_or_existing_filter_reference_timestamp' => $new_or_existing_filter_reference_timestamp,
 					'cache_version'                => $cache_version,
+					'request_cache_scope'          => $request_cache_scope,
 				)
 			)
 		);
@@ -1667,11 +1743,13 @@ if ( ! function_exists( 'ai4seo_resolve_optimized_content_type_list' ) ) {
 		static $request_cache = array();
 
 		// Prefer the request cache first so repeated page fragments do not duplicate SQL work.
-		if ( isset( $request_cache[ $cache_key ] ) ) {
+		if ( ! $is_cache_namespace_dirty && isset( $request_cache[ $cache_key ] ) ) {
 			return $request_cache[ $cache_key ];
 		}
 
-		$cached_result = wp_cache_get( $cache_key, 'ai4seo_content_type_lists' );
+		$cached_result = $is_cache_namespace_dirty
+			? false
+			: wp_cache_get( $cache_key, 'ai4seo_content_type_lists' );
 
 		if ( is_array( $cached_result ) ) {
 			$request_cache[ $cache_key ] = $cached_result;
@@ -1814,8 +1892,10 @@ if ( ! function_exists( 'ai4seo_resolve_optimized_content_type_list' ) ) {
 			'sort_value_map'                        => array(),
 		);
 
-		$request_cache[ $cache_key ] = $result;
-		wp_cache_set( $cache_key, $result, 'ai4seo_content_type_lists', MINUTE_IN_SECONDS * 5 );
+		if ( ! $is_cache_namespace_dirty ) {
+			$request_cache[ $cache_key ] = $result;
+			wp_cache_set( $cache_key, $result, 'ai4seo_content_type_lists', MINUTE_IN_SECONDS * 5 );
+		}
 
 		return $result;
 	}
@@ -1886,8 +1966,10 @@ if ( ! function_exists( 'ai4seo_get_content_type_status_filter_hydration_result'
 		}
 
 		// Cache only within the request because the rendered HTML contains fresh WordPress nonces.
-		$cache_version = function_exists( 'ai4seo_get_content_type_list_cache_version' ) ? ai4seo_get_content_type_list_cache_version() : 1;
-		$cache_key     = 'content_status_filters_' . md5(
+		$cache_version            = function_exists( 'ai4seo_get_content_type_list_cache_version' ) ? ai4seo_get_content_type_list_cache_version() : 1;
+		$request_cache_scope      = ai4seo_get_content_type_list_request_cache_scope( $cache_version );
+		$is_cache_namespace_dirty = ai4seo_is_content_type_list_cache_namespace_dirty();
+		$cache_key                = 'content_status_filters_' . md5(
 			wp_json_encode(
 				array(
 					'content_context'              => $content_context,
@@ -1909,6 +1991,7 @@ if ( ! function_exists( 'ai4seo_get_content_type_status_filter_hydration_result'
 					'new_or_existing_filter'       => $new_or_existing_filter,
 					'new_or_existing_filter_reference_timestamp' => $new_or_existing_filter_reference_timestamp,
 					'cache_version'                => $cache_version,
+					'request_cache_scope'          => $request_cache_scope,
 				)
 			)
 		);
@@ -1916,7 +1999,7 @@ if ( ! function_exists( 'ai4seo_get_content_type_status_filter_hydration_result'
 		static $request_cache = array();
 
 		// The AJAX endpoint may be retried on the same request; keep exact counts coherent and cheap.
-		if ( isset( $request_cache[ $cache_key ] ) ) {
+		if ( ! $is_cache_namespace_dirty && isset( $request_cache[ $cache_key ] ) ) {
 			return $request_cache[ $cache_key ];
 		}
 
@@ -1971,7 +2054,9 @@ if ( ! function_exists( 'ai4seo_get_content_type_status_filter_hydration_result'
 			'is_exact'                     => true,
 		);
 
-		$request_cache[ $cache_key ] = $result;
+		if ( ! $is_cache_namespace_dirty ) {
+			$request_cache[ $cache_key ] = $result;
+		}
 
 		return $result;
 	}
@@ -2186,14 +2271,20 @@ if ( ! function_exists( 'ai4seo_get_content_type_post_title_map' ) ) {
 				continue;
 			}
 
-			$post_id_placeholders = implode( ', ', array_fill( 0, count( $this_post_id_chunk ), '%d' ) );
+			$prepared_sql = ai4seo_prepare_database_query(
+				'SELECT ID, post_title FROM {{posts_table}} WHERE ID IN ({{post_ids}})',
+				array(
+					'posts_table' => ai4seo_database_identifier_binding( 'table.posts' ),
+					'post_ids'    => ai4seo_database_list_binding( '%d', $this_post_id_chunk ),
+				)
+			);
 
-			// Dynamic query with placeholders is prepared immediately below.
-            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-			$prepared_sql = $wpdb->prepare( "SELECT ID, post_title FROM {$wpdb->posts} WHERE ID IN ($post_id_placeholders)", ...$this_post_id_chunk );
+			if ( false === $prepared_sql ) {
+				ai4seo_debug_message( 984321703, 'Could not prepare the content-list title-map query.', true );
+				continue;
+			}
 
-			// Prepared above.
-            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler prepared this bounded title batch; rows are consumed by the caller's versioned list sort cache.
 			$post_title_rows = $wpdb->get_results( $prepared_sql, ARRAY_A );
 
 			if ( $wpdb->last_error ) {
@@ -2668,7 +2759,6 @@ if ( ! function_exists( 'ai4seo_get_content_type_remove_filters_button_html' ) )
 	}
 }
 
-// =========================================================================================== \\
 
 if ( ! function_exists( 'ai4seo_filter_post_ids_by_status' ) ) {
 	/**

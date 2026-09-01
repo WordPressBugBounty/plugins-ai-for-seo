@@ -2,6 +2,7 @@
 /**
  * Renders the content of the submenu page for the AI for SEO overview page.
  *
+ * @package AI_For_SEO
  * @since 1.0
  */
 
@@ -9,23 +10,47 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! ai4seo_can_manage_this_plugin() ) {
-	return;
-}
-
-
 // ___________________________________________________________________________________________ \\
 // === PREPARE =============================================================================== \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
+// Resolve route permissions before building any URLs or loading page-specific account data.
+$ai4seo_can_use_plugin_content = ai4seo_can_use_plugin_content();
+$ai4seo_can_administer_plugin  = ai4seo_can_administer_plugin();
+$ai4seo_can_recover_incognito  = ai4seo_can_recover_incognito_mode();
+$ai4seo_active_plugin_page     = ai4seo_get_active_subpage();
+
+// Administrators outside the configured content roles land on Account instead of an inaccessible dashboard.
+if ( ! $ai4seo_can_use_plugin_content && 'dashboard' === $ai4seo_active_plugin_page
+	&& ( $ai4seo_can_administer_plugin || $ai4seo_can_recover_incognito ) ) {
+	$ai4seo_active_plugin_page = 'account';
+}
+
+// Default content routes to the configured-role boundary, then override the two administrative subpages explicitly.
+$ai4seo_requested_page_is_allowed = $ai4seo_can_use_plugin_content;
+
+if ( 'account' === $ai4seo_active_plugin_page ) {
+	$ai4seo_requested_page_is_allowed = $ai4seo_can_administer_plugin || $ai4seo_can_recover_incognito;
+} elseif ( 'settings' === $ai4seo_active_plugin_page ) {
+	$ai4seo_requested_page_is_allowed = $ai4seo_can_administer_plugin;
+}
+
+if ( ! $ai4seo_requested_page_is_allowed ) {
+	wp_die(
+		esc_html__( 'You are not allowed to access this page.', 'ai-for-seo' ),
+		esc_html__( 'Access denied', 'ai-for-seo' ),
+		array( 'response' => 403 )
+	);
+}
+
 $ai4seo_dashboard_url     = ai4seo_get_subpage_url( 'dashboard' );
-$ai4seo_is_dashboard_open = ai4seo_is_plugin_page_active( 'dashboard' );
+$ai4seo_is_dashboard_open = 'dashboard' === $ai4seo_active_plugin_page;
 $ai4seo_settings_page_url = ai4seo_get_subpage_url( 'settings' );
 $ai4seo_media_page_url    = ai4seo_get_subpage_url( 'media' );
 $ai4seo_account_page_url  = ai4seo_get_subpage_url( 'account' );
 $ai4seo_help_page_url     = ai4seo_get_subpage_url( 'help' );
+$ai4seo_plugin_home_url   = $ai4seo_can_use_plugin_content ? $ai4seo_dashboard_url : $ai4seo_account_page_url;
 
-$ai4seo_active_plugin_page = ai4seo_get_active_subpage();
 $ai4seo_current_post_type  = ai4seo_get_active_post_type_subpage();
 $ai4seo_menu_registry      = ai4seo_get_plugins_menu_registry();
 
@@ -49,7 +74,7 @@ if ( $ai4seo_is_dashboard_open ) {
 }
 
 // maybe perform a performance analysis, do it here as we rely on a fully loaded WP environment.
-if ( $ai4seo_is_dashboard_open ) {
+if ( $ai4seo_is_dashboard_open && $ai4seo_can_administer_plugin ) {
 	ai4seo_check_for_performance_analysis();
 }
 
@@ -57,15 +82,44 @@ if ( $ai4seo_is_dashboard_open ) {
 // === OUTPUT: JUST PURCHASED MODAL ========================================================== \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
-// workaround: amp; is added to the url when the user is redirected from stripe.
-if ( isset( $_GET['ai4seo-just-purchased'] ) || isset( $_GET['amp;ai4seo-just-purchased'] ) ) {
-	ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_JUST_PURCHASED_SOMETHING_TIME, time() );
+// Remove every recognized return shape, but render success only after one-time state is consumed.
+$ai4seo_has_purchase_return_query_parameters = $ai4seo_can_administer_plugin && ai4seo_has_purchase_return_query_parameters();
+$ai4seo_did_process_purchase_return          = $ai4seo_has_purchase_return_query_parameters && ai4seo_process_purchase_return_request();
 
+if ( $ai4seo_has_purchase_return_query_parameters ) {
 	// --- JAVASCRIPT --------------------------------------------------------- \\
 	?>
 	<script type="text/javascript">
+		// Remove all purchase-return fields before refreshes or browser history can replay the completed return.
+		if (window.history && typeof window.history.replaceState === 'function') {
+			try {
+				const purchaseReturnUrl = new URL( window.location.href );
+				const purchaseReturnQueryParameters = [
+					"<?php echo esc_js( AI4SEO_PURCHASE_RETURN_QUERY_PARAMETER ); ?>",
+					"amp;<?php echo esc_js( AI4SEO_PURCHASE_RETURN_QUERY_PARAMETER ); ?>",
+					"<?php echo esc_js( AI4SEO_PURCHASE_RETURN_TOKEN_QUERY_PARAMETER ); ?>",
+					"amp;<?php echo esc_js( AI4SEO_PURCHASE_RETURN_TOKEN_QUERY_PARAMETER ); ?>",
+				];
+
+				Array.from( purchaseReturnUrl.searchParams.keys() ).forEach( queryParameter => {
+					const isPurchaseReturnParameter = purchaseReturnQueryParameters.some(
+						purchaseReturnQueryParameter => queryParameter === purchaseReturnQueryParameter
+							|| queryParameter.startsWith( purchaseReturnQueryParameter + '[' )
+					);
+
+					if (isPurchaseReturnParameter) {
+						purchaseReturnUrl.searchParams.delete( queryParameter );
+					}
+				} );
+				window.history.replaceState( window.history.state, '', purchaseReturnUrl.toString() );
+			} catch (error) {
+				// History access can be restricted by the browser; token consumption has already completed server-side.
+			}
+		}
+
+		<?php if ( $ai4seo_did_process_purchase_return ) { ?>
 		jQuery(function() {
-			// open modal
+			// Keep the modal open until the delayed credits refresh can observe the completed purchase.
 			ai4seo_open_generic_success_notification_modal(
 				"<?php echo esc_js( esc_html__( 'Your Credits will appear on your dashboard shortly.', 'ai-for-seo' ) ); ?>"
 				+ "<br><br><?php echo esc_js( esc_html__( 'Please wait a moment and then click the button below to refresh your Credits balance.', 'ai-for-seo' ) ); ?>",
@@ -79,9 +133,16 @@ if ( isset( $_GET['ai4seo-just-purchased'] ) || isset( $_GET['amp;ai4seo-just-pu
 				}
 			);
 		});
+		<?php } else { ?>
+		jQuery(function() {
+			// Keep unverifiable legacy or expired returns informative without claiming that a payment completed.
+			ai4seo_show_warning_toast(
+				"<?php echo esc_js( esc_html__( 'Checkout return could not be verified. Refresh your account if your Credits balance has not updated yet.', 'ai-for-seo' ) ); ?>"
+			);
+		});
+		<?php } ?>
 	</script>
 	<?php
-	// ------------------------------------------------------------------------ \\
 }
 
 
@@ -105,7 +166,7 @@ echo "<div class='ai4seo-mobile-top-bar'>";
 
 	// Main logo.
 	echo "<div class='ai4seo-top-bar-headline'>";
-		echo "<a href='" . esc_url( $ai4seo_dashboard_url ) . "' >";
+		echo "<a href='" . esc_url( $ai4seo_plugin_home_url ) . "' >";
 			ai4seo_echo_wp_kses( ai4seo_get_sooz_logo_image_tag() );
 		echo '</a>';
 
@@ -126,7 +187,7 @@ echo "<div class='wrap ai4seo-wrap'>";
 
 		// Main logo.
 		echo "<div class='ai4seo-sidebar-headline'>";
-			echo "<a href='" . esc_url( $ai4seo_dashboard_url ) . "'>";
+			echo "<a href='" . esc_url( $ai4seo_plugin_home_url ) . "'>";
 				ai4seo_echo_wp_kses( ai4seo_get_sooz_logo_image_tag( 'sooz-with-ai-for-seo' ) );
 			echo '</a>';
 
@@ -136,6 +197,7 @@ if ( ai4seo_robhub_api()->are_we_using_local_api() ) {
 		echo '</div>';
 
 		echo "<nav class='nav-tab-wrapper ai4seo-menu-items-wrapper'>";
+if ( $ai4seo_can_use_plugin_content ) {
 			// Dashboard page.
 			echo "<a href='" . esc_url( $ai4seo_dashboard_url ) . "'"
 				. " class='nav-tab ai4seo-menu-item"
@@ -189,10 +251,12 @@ if ( $ai4seo_active_attachment_attributes ) {
 			echo esc_html( ai4seo_get_media_menu_label() );
 		echo '</span>';
 	echo '</a>';
+	}
 }
 
-			// Account page.
-			echo "<a href='" . esc_url( $ai4seo_account_page_url ) . "'"
+			// Account and Settings contain site-wide administrative state.
+if ( $ai4seo_can_administer_plugin || $ai4seo_can_recover_incognito ) {
+				echo "<a href='" . esc_url( $ai4seo_account_page_url ) . "'"
 				. " class='nav-tab ai4seo-menu-item"
 				. ( 'account' === $ai4seo_active_plugin_page ? ' nav-tab-active ai4seo-active-menu-item' : '' )
 				. "'"
@@ -202,10 +266,11 @@ if ( $ai4seo_active_attachment_attributes ) {
 				echo '<span>';
 					echo esc_html__( 'Account', 'ai-for-seo' );
 				echo '</span>';
-			echo '</a>';
+				echo '</a>';
+}
 
-			// Settings page.
-			echo "<a href='" . esc_url( $ai4seo_settings_page_url ) . "'"
+if ( $ai4seo_can_administer_plugin ) {
+				echo "<a href='" . esc_url( $ai4seo_settings_page_url ) . "'"
 				. " class='nav-tab ai4seo-menu-item"
 				. ( 'settings' === $ai4seo_active_plugin_page ? ' nav-tab-active ai4seo-active-menu-item' : '' )
 				. "'"
@@ -215,9 +280,11 @@ if ( $ai4seo_active_attachment_attributes ) {
 				echo '<span>';
 					echo esc_html__( 'Settings', 'ai-for-seo' );
 				echo '</span>';
-			echo '</a>';
+				echo '</a>';
+}
 
 			// Help page.
+if ( $ai4seo_can_use_plugin_content ) {
 			echo "<a href='" . esc_url( $ai4seo_help_page_url ) . "'"
 				. " class='nav-tab ai4seo-menu-item"
 				. ( 'help' === $ai4seo_active_plugin_page ? ' nav-tab-active ai4seo-active-menu-item' : '' )
@@ -229,23 +296,9 @@ if ( $ai4seo_active_attachment_attributes ) {
 					echo esc_html__( 'Help', 'ai-for-seo' );
 				echo '</span>';
 			echo '</a>';
+}
 
 		echo '</nav>';
-
-		// STATUS BOX.
-		/*
-		echo "<div class='ai4seo-status-box'>";
-			echo "<h5>" . esc_html__("Credits", "ai-for-seo") . "</h5>";
-			echo "<div class='ai4seo-status-box-credits'>";
-				echo esc_html(123);
-			echo "</div>";
-
-			echo "<h5>" . esc_html__("Bulk Generation", "ai-for-seo") . "</h5>";
-			echo "<div class='ai4seo-status-box-bulk-generation'>";
-				echo "Working hard...";
-			echo "</div>";
-		echo "</div>";*/
-
 		echo "<div class='ai4seo-sidebar-version-number'>" . esc_html( AI4SEO_PLUGIN_VERSION_NUMBER ) . '</div>';
 
 	echo '</div>';
@@ -263,12 +316,16 @@ if ( $ai4seo_active_attachment_attributes ) {
 		// === CHECK FOR NEW TOS ===================================================================== \\
 
 		// set parameter to false, so we definitely don't output anything, if tos was not accepted.
-if ( ai4seo_does_user_need_to_accept_tos_toc_and_pp() ) {
+if ( ai4seo_does_user_need_to_accept_tos_toc_and_pp() && ! $ai4seo_can_recover_incognito ) {
 	// show message to accept tos and offer a reload button.
 	echo '<center>';
 		echo "<div class='ai4seo-tos-notice'>";
+	if ( $ai4seo_can_administer_plugin ) {
 			echo '<p>' . esc_html__( 'Please accept our Terms of Service to proceed with using this plugin.', 'ai-for-seo' ) . '</p>';
 			ai4seo_echo_wp_kses( ai4seo_get_a_tag_icon_button_tag( ai4seo_get_subpage_url(), '', '', '', esc_html__( 'Show terms of service', 'ai-for-seo' ), 'ai4seo-primary-button' ) );
+	} else {
+			echo '<p>' . esc_html__( 'A site administrator must accept the Terms of Service before content generation can continue.', 'ai-for-seo' ) . '</p>';
+	}
 		echo '</div>';
 	echo '</div>';
 	return;

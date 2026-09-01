@@ -18,12 +18,24 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return array
  */
 function ai4seo_get_all_settings(): array {
+	global $ai4seo_are_settings_initialized;
 	global $ai4seo_settings;
+
+	if ( ! ai4seo_prepare_settings_request_cache_for_current_site() ) {
+		return AI4SEO_DEFAULT_SETTINGS;
+	}
+
+	if ( ! $ai4seo_are_settings_initialized ) {
+		ai4seo_init_settings();
+	}
+
+	if ( ! $ai4seo_are_settings_initialized || ! is_array( $ai4seo_settings ) ) {
+		return AI4SEO_DEFAULT_SETTINGS;
+	}
+
 	return $ai4seo_settings;
 }
 
-// phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Project section separator.
-// =========================================================================================== \\
 
 /**
  * Retrieve all settings that may be exported/imported via JSON.
@@ -43,8 +55,6 @@ function ai4seo_get_all_exportable_settings(): array {
 	);
 }
 
-// phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Project section separator.
-// =========================================================================================== \\
 
 /**
  * Retrieve all currently stored settings that are allowed to be exported.
@@ -64,8 +74,6 @@ function ai4seo_get_exportable_settings(): array {
 	return $ai4seo_exportable_settings;
 }
 
-// phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Project section separator.
-// =========================================================================================== \\
 
 /**
  * Retrieve value of a setting
@@ -78,6 +86,11 @@ function ai4seo_get_setting( string $setting_name ) {
 
 	if ( ai4seo_prevent_loops( __FUNCTION__, 5, 99999 ) ) {
 		ai4seo_debug_message( 739593453, 'Prevented loop', true );
+		return '';
+	}
+
+	if ( ! ai4seo_prepare_settings_request_cache_for_current_site() ) {
+		ai4seo_debug_message( 7122825, 'Settings site identity is unavailable.', true );
 		return '';
 	}
 
@@ -104,7 +117,6 @@ function ai4seo_get_setting( string $setting_name ) {
 	return $ai4seo_settings[ $setting_name ];
 }
 
-// =========================================================================================== \\
 
 /**
  * Return whether incognito mode is enabled.
@@ -121,8 +133,6 @@ function ai4seo_is_incognito_mode_enabled(): bool {
 	return (bool) ai4seo_get_setting( AI4SEO_SETTING_ENABLE_INCOGNITO_MODE );
 }
 
-// phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Project section separator.
-// =========================================================================================== \\
 
 /**
  * Retrieve the configured default view mode for both entry editors.
@@ -140,8 +150,6 @@ function ai4seo_get_editor_default_view_mode(): string {
 	return $view_mode;
 }
 
-// phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Project section separator.
-// =========================================================================================== \\
 
 /**
  * Retrieve translated editor view-mode options for settings controls.
@@ -156,8 +164,6 @@ function ai4seo_get_editor_view_mode_options(): array {
 	);
 }
 
-// phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Project section separator.
-// =========================================================================================== \\
 
 /**
  * Determine whether a setting with a pre-2.4.4 default needs a compatibility value.
@@ -178,8 +184,6 @@ function ai4seo_should_migrate_pre_244_setting_default(
 		&& ! array_key_exists( $setting_name, $raw_settings );
 }
 
-// phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Project section separator.
-// =========================================================================================== \\
 
 /**
  * Determine whether an upgraded site needs the compatibility editor-mode default.
@@ -200,8 +204,6 @@ function ai4seo_should_migrate_default_editor_view_mode(
 	);
 }
 
-// phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Project section separator.
-// =========================================================================================== \\
 
 /**
  * Determine whether an upgraded site needs the compatibility third-party SEO sync selection.
@@ -222,8 +224,6 @@ function ai4seo_should_migrate_default_third_party_seo_plugin_sync(
 	);
 }
 
-// phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Project section separator.
-// =========================================================================================== \\
 
 /**
  * Normalize supported representations for settings whose declared default is boolean.
@@ -274,7 +274,27 @@ function ai4seo_normalize_boolean_setting_value( string $setting_name, $setting_
 	return $setting_value;
 }
 
-// =========================================================================================== \\
+
+/**
+ * Canonicalize valid incognito-owner representations before validation and storage.
+ *
+ * Invalid values remain unchanged so callers can either reject a new write or preserve an
+ * explicit fail-closed sentinel while hydrating persisted state.
+ *
+ * @param string $setting_name  Setting name.
+ * @param mixed  $setting_value Setting value.
+ * @return mixed Canonical owner integer or the unchanged value for another setting or invalid owner.
+ */
+function ai4seo_normalize_incognito_mode_user_id_setting_value( string $setting_name, $setting_value ) {
+	if ( AI4SEO_SETTING_INCOGNITO_MODE_USER_ID !== $setting_name ) {
+		return $setting_value;
+	}
+
+	$normalized_user_id = ai4seo_normalize_incognito_mode_user_id( $setting_value );
+
+	return null === $normalized_user_id ? $setting_value : $normalized_user_id;
+}
+
 
 /**
  * Update value a setting
@@ -289,6 +309,10 @@ function ai4seo_update_setting( string $setting_name, $new_setting_value ): bool
 
 	if ( ai4seo_prevent_loops( __FUNCTION__, 5 ) ) {
 		ai4seo_debug_message( 341531855, 'Prevented loop', true );
+		return false;
+	}
+
+	if ( ! ai4seo_prepare_settings_request_cache_for_current_site() ) {
 		return false;
 	}
 
@@ -307,6 +331,9 @@ function ai4seo_update_setting( string $setting_name, $new_setting_value ): bool
 	// Normalize checkbox, API, and compatibility representations before strict boolean validation.
 	$new_setting_value = ai4seo_normalize_boolean_setting_value( $setting_name, $new_setting_value );
 
+	// Canonicalize every supported incognito-owner representation before it reaches storage.
+	$new_setting_value = ai4seo_normalize_incognito_mode_user_id_setting_value( $setting_name, $new_setting_value );
+
 	// Keep slider values as strings across form saves and imported integer values.
 	$new_setting_value = ai4seo_normalize_prompt_slider_setting_value( $setting_name, $new_setting_value );
 
@@ -319,18 +346,34 @@ function ai4seo_update_setting( string $setting_name, $new_setting_value ): bool
 	// Compare against the effective default when a setting has not been stored explicitly yet.
 	$current_setting_value = $ai4seo_settings[ $setting_name ] ?? AI4SEO_DEFAULT_SETTINGS[ $setting_name ] ?? '';
 
-	// no change at all?
-	if ( $current_setting_value == $new_setting_value ) {
+	// Invalid owner sentinels must never compare as equivalent to the canonical missing-owner zero.
+	if ( AI4SEO_SETTING_INCOGNITO_MODE_USER_ID === $setting_name ) {
+		$current_incognito_mode_user_id = ai4seo_normalize_incognito_mode_user_id( $current_setting_value );
+		$value_is_unchanged             = null !== $current_incognito_mode_user_id
+			&& $current_incognito_mode_user_id === $new_setting_value;
+	} else {
+		$value_is_unchanged = ai4seo_are_persisted_state_values_equivalent( $current_setting_value, $new_setting_value );
+	}
+
+	// Preserve the current representation and avoid a redundant option write when only storage type differs.
+	if ( $value_is_unchanged ) {
 		return true;
 	}
+
+	$settings_before_update = $ai4seo_settings;
 
 	// Overwrite entry in $ai4seo_settings-array.
 	$ai4seo_settings[ $setting_name ] = $new_setting_value;
 
-	return ai4seo_push_local_setting_changes_to_database();
+	if ( ai4seo_push_local_setting_changes_to_database() ) {
+		return true;
+	}
+
+	$ai4seo_settings = $settings_before_update;
+	ai4seo_store_settings_request_cache_for_current_site();
+	return false;
 }
 
-// =========================================================================================== \\
 
 /**
  * Update values of given settings
@@ -339,10 +382,23 @@ function ai4seo_update_setting( string $setting_name, $new_setting_value ): bool
  * @return bool True if the setting was updated successfully, false if not
  */
 function ai4seo_bulk_update_settings( array $setting_changes ): bool {
+	global $ai4seo_are_settings_initialized;
 	global $ai4seo_settings;
 
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 796348328, 'Prevented loop', true );
+		return false;
+	}
+
+	if ( ! ai4seo_prepare_settings_request_cache_for_current_site() ) {
+		return false;
+	}
+
+	if ( ! $ai4seo_are_settings_initialized ) {
+		ai4seo_init_settings();
+	}
+
+	if ( ! $ai4seo_are_settings_initialized ) {
 		return false;
 	}
 
@@ -354,6 +410,9 @@ function ai4seo_bulk_update_settings( array $setting_changes ): bool {
 
 		// Keep bulk updates aligned with single-setting and form-save boolean normalization.
 		$this_setting_value = ai4seo_normalize_boolean_setting_value( $this_setting_name, $this_setting_value );
+
+		// Apply the same incognito-owner canonicalization used by single-setting updates and hydration.
+		$this_setting_value = ai4seo_normalize_incognito_mode_user_id_setting_value( $this_setting_name, $this_setting_value );
 
 		// Apply the same string normalization used by single-setting updates before validating the batch.
 		$this_setting_value = ai4seo_normalize_prompt_slider_setting_value( $this_setting_name, $this_setting_value );
@@ -368,12 +427,18 @@ function ai4seo_bulk_update_settings( array $setting_changes ): bool {
 		$ai4seo_new_settings[ $this_setting_name ] = $this_setting_value;
 	}
 
-	$ai4seo_settings = $ai4seo_new_settings;
+	$settings_before_update = $ai4seo_settings;
+	$ai4seo_settings        = $ai4seo_new_settings;
 
-	return ai4seo_push_local_setting_changes_to_database();
+	if ( ai4seo_push_local_setting_changes_to_database() ) {
+		return true;
+	}
+
+	$ai4seo_settings = $settings_before_update;
+	ai4seo_store_settings_request_cache_for_current_site();
+	return false;
 }
 
-// =========================================================================================== \\
 
 /**
  * Function to update the wp_options table with the current settings, by removing default values
@@ -381,6 +446,7 @@ function ai4seo_bulk_update_settings( array $setting_changes ): bool {
  * @return bool
  */
 function ai4seo_push_local_setting_changes_to_database(): bool {
+	global $ai4seo_are_settings_initialized;
 	global $ai4seo_settings;
 
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
@@ -388,20 +454,59 @@ function ai4seo_push_local_setting_changes_to_database(): bool {
 		return false;
 	}
 
-	$ai4seo_settings_copy = $ai4seo_settings;
+	if ( ! ai4seo_prepare_settings_request_cache_for_current_site()
+		|| ! $ai4seo_are_settings_initialized
+		|| ! is_array( $ai4seo_settings )
+	) {
+		return false;
+	}
+
+	$ai4seo_settings_copy      = $ai4seo_settings;
+	$incognito_mode_is_enabled = true === ai4seo_normalize_boolean_setting_value(
+		AI4SEO_SETTING_ENABLE_INCOGNITO_MODE,
+		$ai4seo_settings_copy[ AI4SEO_SETTING_ENABLE_INCOGNITO_MODE ] ?? AI4SEO_DEFAULT_SETTINGS[ AI4SEO_SETTING_ENABLE_INCOGNITO_MODE ]
+	);
 
 	foreach ( $ai4seo_settings_copy as $ai4seo_setting_name => $ai4seo_setting_value ) {
-		// if the setting is equal to the default setting, set it to null to prevent overhead.
-		if ( isset( AI4SEO_DEFAULT_SETTINGS[ $ai4seo_setting_name ] ) && AI4SEO_DEFAULT_SETTINGS[ $ai4seo_setting_name ] == $ai4seo_setting_value ) {
+		if ( AI4SEO_SETTING_INCOGNITO_MODE_USER_ID === $ai4seo_setting_name ) {
+			$incognito_mode_user_id = ai4seo_normalize_incognito_mode_user_id( $ai4seo_setting_value );
+
+			// Retain malformed owner state only while mode is enabled so unrelated writes remain fail closed.
+			if ( null === $incognito_mode_user_id ) {
+				if ( ! $incognito_mode_is_enabled ) {
+					unset( $ai4seo_settings_copy[ $ai4seo_setting_name ] );
+				}
+
+				continue;
+			}
+
+			if ( ! $incognito_mode_is_enabled ) {
+				unset( $ai4seo_settings_copy[ $ai4seo_setting_name ] );
+			} else {
+				// Preserve an explicit zero while mode is enabled so administrators continue to receive the recovery path.
+				$ai4seo_settings_copy[ $ai4seo_setting_name ] = $incognito_mode_user_id;
+			}
+
+			continue;
+		}
+
+		// Omit default-equivalent values so the option stores overrides only.
+		if ( isset( AI4SEO_DEFAULT_SETTINGS[ $ai4seo_setting_name ] )
+			&& ai4seo_are_persisted_state_values_equivalent( AI4SEO_DEFAULT_SETTINGS[ $ai4seo_setting_name ], $ai4seo_setting_value ) ) {
 			unset( $ai4seo_settings_copy[ $ai4seo_setting_name ] );
 		}
 	}
 
-	// Save updated settings to database.
-	return ai4seo_update_option( AI4SEO_SETTINGS_OPTION_NAME, $ai4seo_settings_copy, true );
+	// Save updated settings to database, then publish only the verified current-site view.
+	$settings_persisted = ai4seo_update_option( AI4SEO_SETTINGS_OPTION_NAME, $ai4seo_settings_copy, true );
+
+	if ( $settings_persisted ) {
+		ai4seo_store_settings_request_cache_for_current_site();
+	}
+
+	return $settings_persisted;
 }
 
-// =========================================================================================== \\
 
 /**
  * Validate prefix and suffix setting arrays.
@@ -436,7 +541,6 @@ function ai4seo_validate_prefix_suffix_setting_values( string $setting_name, $se
 	return true;
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns whether the setting is backed by the staged prompt slider component.
@@ -448,7 +552,6 @@ function ai4seo_is_prompt_slider_setting( string $setting_name ): bool {
 	return isset( AI4SEO_PROMPT_SLIDER_SETTING_STAGE_COUNTS[ $setting_name ] );
 }
 
-// =========================================================================================== \\
 
 /**
  * Normalize a staged slider value while leaving unrelated setting types untouched.
@@ -466,7 +569,6 @@ function ai4seo_normalize_prompt_slider_setting_value( string $setting_name, $se
 	return $setting_value;
 }
 
-// =========================================================================================== \\
 
 /**
  * Return whether a staged setting controls one generated field's target length.
@@ -478,7 +580,6 @@ function ai4seo_is_generation_length_slider_setting( string $setting_name ): boo
 	return isset( AI4SEO_GENERATION_LENGTH_SETTING_DETAILS[ $setting_name ] );
 }
 
-// =========================================================================================== \\
 
 /**
  * Return the declarative generation-length details for one setting.
@@ -493,7 +594,6 @@ function ai4seo_get_generation_length_setting_details( string $setting_name ): a
 	return is_array( $setting_details ) ? $setting_details : array();
 }
 
-// =========================================================================================== \\
 
 /**
  * Return the minimum subscription plan for one generation-length stage.
@@ -510,7 +610,6 @@ function ai4seo_get_generation_length_stage_minimum_plan( $setting_value ): stri
 	return AI4SEO_GENERATION_LENGTH_STAGE_MINIMUM_PLANS[ $setting_value ] ?? '';
 }
 
-// =========================================================================================== \\
 
 /**
  * Determine whether the synchronized subscription can use a paid length stage.
@@ -555,7 +654,6 @@ function ai4seo_user_has_active_generation_length_subscription( string $required
 	return (bool) ( $ai4seo_user_has_active_generation_length_subscription[ $required_plan ] ?? false );
 }
 
-// =========================================================================================== \\
 
 /**
  * Determine whether the current account may use a generation-length stage.
@@ -591,7 +689,6 @@ function ai4seo_user_can_use_generation_length_stage( string $setting_name, $set
 	return ai4seo_user_has_active_generation_length_subscription( $minimum_plan );
 }
 
-// =========================================================================================== \\
 
 /**
  * Resolve the generation-length stage currently allowed to affect generation.
@@ -629,7 +726,6 @@ function ai4seo_get_effective_generation_length_stage( string $setting_name, $se
 	return $setting_value;
 }
 
-// =========================================================================================== \\
 
 /**
  * Resolve the effective quality window for a generated field.
@@ -670,7 +766,6 @@ function ai4seo_get_generation_length_quality_window( string $context, string $f
 	return $fixed_quality_window;
 }
 
-// =========================================================================================== \\
 
 /**
  * Validate a prompt slider stage value against the configured number of stages.
@@ -706,7 +801,6 @@ function ai4seo_validate_prompt_slider_setting_value( string $setting_name, $set
 		&& (int) $setting_value <= $stage_count;
 }
 
-// =========================================================================================== \\
 
 /**
  * Reads a raw boolean setting value from stored or imported data.
@@ -743,7 +837,6 @@ function ai4seo_get_raw_boolean_setting_value( array $raw_settings, string $sett
 	return $normalized_setting_value;
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the pre-2.4.0 migration values for prompt slider settings.
@@ -786,7 +879,6 @@ function ai4seo_get_prompt_slider_setting_pre_240_migration_values( array $raw_s
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Validate value of a setting
@@ -843,30 +935,8 @@ function ai4seo_validate_setting_value( string $setting_name, $setting_value ): 
 			return is_string( $setting_value ) && in_array( $setting_value, $allowed_fallback_values, true );
 
 		case AI4SEO_SETTING_ALLOWED_USER_ROLES:
-			// Make sure that the new setting-value is an array.
-			if ( ! is_array( $setting_value ) ) {
-				ai4seo_debug_message( 45146824, 'Invalid setting value for setting "' . $setting_name . '" is not an array.', true );
-				return false;
-			}
-
-			$allowed_user_roles            = ai4seo_get_all_possible_user_roles();
-			$allowed_user_role_identifiers = array_keys( $allowed_user_roles );
-
-			// check if all values are proper user roles.
-			foreach ( $setting_value as $user_role_identifier ) {
-				if ( ! in_array( $user_role_identifier, $allowed_user_role_identifiers ) ) {
-					ai4seo_debug_message( 44146824, 'Invalid user role in the allowed user roles.', true );
-					return false;
-				}
-			}
-
-			// Make sure that the administrator-role exists in the array.
-			if ( ! in_array( 'administrator', $setting_value ) ) {
-				ai4seo_debug_message( 43146824, 'Administrator role is missing in the allowed user roles', true );
-				return false;
-			}
-
-			return true;
+			// Reuse the permission boundary so imports, settings saves, and runtime access accept exactly the same shape.
+			return ai4seo_validate_allowed_user_roles( $setting_value );
 
 		case AI4SEO_SETTING_DISABLED_POST_TYPES:
 			if ( ! is_array( $setting_value ) ) {
@@ -955,9 +1025,9 @@ function ai4seo_validate_setting_value( string $setting_name, $setting_value ): 
 				return false;
 			}
 
-			// Make sure the keys consist of alphanumeric strings, with - and _ allowed and the values should be "1" or "0" only.
+			// Retain legacy integer identifiers while rejecting values that would match only through scalar coercion.
 			foreach ( $setting_value as $value ) {
-				if ( ! preg_match( '/^[a-zA-Z0-9_-]+$/', $value ) ) {
+				if ( ( ! is_string( $value ) && ! is_int( $value ) ) || ! preg_match( '/^[a-zA-Z0-9_-]+$/', (string) $value ) ) {
 					ai4seo_debug_message( 2188824, 'Invalid value in the enabled bulk generations post types setting.', true );
 					return false;
 				}
@@ -966,7 +1036,8 @@ function ai4seo_validate_setting_value( string $setting_name, $setting_value ): 
 			return true;
 
 		case AI4SEO_SETTING_BULK_GENERATION_ORDER:
-			if ( ! defined( 'AI4SEO_AVAILABLE_BULK_GENERATION_ORDER_OPTIONS' ) || ! in_array( $setting_value, AI4SEO_AVAILABLE_BULK_GENERATION_ORDER_OPTIONS ) ) {
+			// Store only canonical order identifiers from the declared closed domain.
+			if ( ! defined( 'AI4SEO_AVAILABLE_BULK_GENERATION_ORDER_OPTIONS' ) || ! is_string( $setting_value ) || ! in_array( $setting_value, AI4SEO_AVAILABLE_BULK_GENERATION_ORDER_OPTIONS, true ) ) {
 				ai4seo_debug_message( 2911171224, 'Invalid value in the bulk generations order setting "' . $setting_value . '"', true );
 				return false;
 			}
@@ -974,7 +1045,8 @@ function ai4seo_validate_setting_value( string $setting_name, $setting_value ): 
 			return true;
 
 		case AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER:
-			if ( ! defined( 'AI4SEO_AVAILABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_OPTIONS' ) || ! in_array( $setting_value, AI4SEO_AVAILABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_OPTIONS ) ) {
+			// Store only canonical scope identifiers from the declared closed domain.
+			if ( ! defined( 'AI4SEO_AVAILABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_OPTIONS' ) || ! is_string( $setting_value ) || ! in_array( $setting_value, AI4SEO_AVAILABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_OPTIONS, true ) ) {
 				ai4seo_debug_message( 3211171224, 'Invalid value in the automated generations new or existing filter setting.', true );
 				return false;
 			}
@@ -997,7 +1069,8 @@ function ai4seo_validate_setting_value( string $setting_name, $setting_value ): 
 					return false;
 				}
 
-				if ( ! in_array( $value, $allowed_third_party_seo_plugin_identifier ) ) {
+				// Keep selected plugins constrained to the current integration registry.
+				if ( ! in_array( $value, $allowed_third_party_seo_plugin_identifier, true ) ) {
 					ai4seo_debug_message( 181523924, 'Invalid third party seo plugin name in the apply changes to third party seo plugin setting.', true );
 					return false;
 				}
@@ -1059,7 +1132,8 @@ function ai4seo_validate_setting_value( string $setting_name, $setting_value ): 
 			return true;
 
 		case AI4SEO_SETTING_SHOW_ADVANCED_SETTINGS:
-			return in_array( $setting_value, array( 'show', 'hide' ) );
+			// Preserve the two canonical display states used by the settings UI.
+			return is_string( $setting_value ) && in_array( $setting_value, array( 'show', 'hide' ), true );
 
 		case AI4SEO_SETTING_GENERATE_METADATA_FOR_FULLY_COVERED_ENTRIES:
 		case AI4SEO_SETTING_GENERATE_ATTACHMENT_ATTRIBUTES_FOR_FULLY_COVERED_ENTRIES:
@@ -1121,8 +1195,8 @@ function ai4seo_validate_setting_value( string $setting_name, $setting_value ): 
 			return ai4seo_validate_prefix_suffix_setting_values( $setting_name, $setting_value );
 
 		case AI4SEO_SETTING_INCOGNITO_MODE_USER_ID:
-			// Make sure that setting-value is 0 or numeric.
-			if ( '0' !== $setting_value && ! is_numeric( $setting_value ) ) {
+			// Store only user-ID representations accepted by the fail-closed permission boundary.
+			if ( null === ai4seo_normalize_incognito_mode_user_id( $setting_value ) ) {
 				ai4seo_debug_message( 385825155, 'Invalid value for setting "' . $setting_name . '"', true );
 				return false;
 			}
@@ -1184,7 +1258,8 @@ function ai4seo_validate_setting_value( string $setting_name, $setting_value ): 
 		case AI4SEO_SETTING_PREFERRED_CURRENCY:
 			$allowed_currencies = ai4seo_get_allowed_currencies();
 
-			if ( ! in_array( strtoupper( $setting_value ), $allowed_currencies ) ) {
+			// Compare normalized case without admitting non-string scalar lookalikes.
+			if ( ! is_string( $setting_value ) || ! in_array( strtoupper( $setting_value ), $allowed_currencies, true ) ) {
 				ai4seo_debug_message( 341016325, 'Invalid currency for setting "' . $setting_name . '"', true );
 				return false;
 			}
@@ -1214,14 +1289,15 @@ function ai4seo_validate_setting_value( string $setting_name, $setting_value ): 
 
 		case AI4SEO_SETTING_IMAGE_UPLOAD_METHOD:
 			$allowed_values = array( 'auto', 'url', 'base64' );
-			return in_array( $setting_value, $allowed_values );
+
+			// Restrict transport selection to the identifiers handled by the API client.
+			return is_string( $setting_value ) && in_array( $setting_value, $allowed_values, true );
 
 		default:
 			return false;
 	}
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the allowed values for the debug output mode setting.
@@ -1239,7 +1315,6 @@ function ai4seo_get_debug_output_mode_options(): array {
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the allowed values for the setting for the meta tag output modes
@@ -1263,7 +1338,6 @@ function ai4seo_get_setting_meta_tag_output_mode_allowed_values(): array {
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the allowed values for the render level image title injection setting
@@ -1280,7 +1354,6 @@ function ai4seo_get_setting_render_level_title_injection_allowed_values(): array
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the allowed values for the WooCommerce price inclusion setting.
@@ -1295,7 +1368,6 @@ function ai4seo_get_setting_include_product_price_in_metadata_allowed_values(): 
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the options for the Focus Keyphrase behavior when metadata already exists.

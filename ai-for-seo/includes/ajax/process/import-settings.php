@@ -1,7 +1,8 @@
 <?php
 /**
- * AJAX handler for validating and importing settings file
+ * AJAX handler for validating and importing settings file.
  *
+ * @package AI_For_SEO
  * @since 2.1.0
  */
 
@@ -10,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Check user permissions.
-if ( ! ai4seo_can_manage_this_plugin() ) {
+if ( ! ai4seo_can_administer_plugin() ) {
 	return;
 }
 
@@ -27,7 +28,7 @@ $ai4seo_import_settings_request = $_REQUEST;
 // Import payloads are transported as JSON so empty arrays from exported settings are not dropped by form encoding.
 if ( isset( $_REQUEST['ai4seo_import_settings_payload'] ) ) {
 	// The import JSON is decoded first so exported text values are not altered before the settings validator runs.
-    // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- The decoded settings array is sanitized before use.
+	// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- The decoded settings array is sanitized before use.
 	$ai4seo_raw_import_settings_payload      = wp_unslash( $_REQUEST['ai4seo_import_settings_payload'] );
 	$ai4seo_import_settings_payload_encoding = sanitize_key( wp_unslash( (string) ( $_REQUEST['ai4seo_import_settings_payload_encoding'] ?? '' ) ) );
 
@@ -36,6 +37,7 @@ if ( isset( $_REQUEST['ai4seo_import_settings_payload'] ) ) {
 	}
 
 	if ( 'base64_json' === $ai4seo_import_settings_payload_encoding ) {
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode -- Strict decoding preserves the declared JSON transport and rejects malformed input.
 		$ai4seo_raw_import_settings_payload = base64_decode( $ai4seo_raw_import_settings_payload, true );
 
 		if ( ! is_string( $ai4seo_raw_import_settings_payload ) ) {
@@ -86,22 +88,44 @@ if ( ! $ai4seo_new_settings_raw ) {
 // === FUNCTIONS ============================================================================= \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
+/**
+ * Return the import category for a setting name.
+ *
+ * @param mixed $setting_name Setting identifier.
+ * @return string Import category identifier.
+ */
 function ai4seo_get_setting_category( $setting_name ): string {
-	if ( in_array( $setting_name, AI4SEO_EXPORTABLE_SETTING_PAGE_SETTINGS ) ) {
-		return 'settings';
-	} elseif ( in_array( $setting_name, AI4SEO_EXPORTABLE_SEO_AUTOPILOT_SETTINGS ) ) {
-		return 'seo_autopilot';
-	} elseif ( in_array( $setting_name, AI4SEO_EXPORTABLE_ACCOUNT_PAGE_SETTINGS ) ) {
-		return 'account';
-	} elseif ( in_array( $setting_name, AI4SEO_EXPORTABLE_GET_MORE_CREDITS_MODAL_SETTINGS ) ) {
-		return 'get_more_credits';
-	} else {
+	// Non-string import keys cannot match the canonical setting registries.
+	if ( ! is_string( $setting_name ) ) {
 		return 'unknown';
 	}
+
+	if ( in_array( $setting_name, AI4SEO_EXPORTABLE_SETTING_PAGE_SETTINGS, true ) ) {
+		return 'settings';
+	}
+
+	if ( in_array( $setting_name, AI4SEO_EXPORTABLE_SEO_AUTOPILOT_SETTINGS, true ) ) {
+		return 'seo_autopilot';
+	}
+
+	if ( in_array( $setting_name, AI4SEO_EXPORTABLE_ACCOUNT_PAGE_SETTINGS, true ) ) {
+		return 'account';
+	}
+
+	if ( in_array( $setting_name, AI4SEO_EXPORTABLE_GET_MORE_CREDITS_MODAL_SETTINGS, true ) ) {
+		return 'get_more_credits';
+	}
+
+	return 'unknown';
 }
 
-// =========================================================================================== \\
 
+/**
+ * Convert a setting identifier to a readable label.
+ *
+ * @param string $setting_name Setting identifier.
+ * @return string Readable setting label.
+ */
 function ai4seo_make_nicer_setting_name( $setting_name ): string {
 	// Convert setting name to a more readable format.
 	$setting_name = str_replace( '_', ' ', $setting_name );
@@ -109,8 +133,13 @@ function ai4seo_make_nicer_setting_name( $setting_name ): string {
 	return $setting_name;
 }
 
-// =========================================================================================== \\
 
+/**
+ * Format a setting value for the import preview.
+ *
+ * @param mixed $setting_value Setting value to format.
+ * @return string Readable setting value.
+ */
 function ai4seo_make_nicer_setting_value( $setting_value ): string {
 	// Import previews can contain nested setting arrays, so format each level before output escaping.
 	if ( is_array( $setting_value ) ) {
@@ -174,7 +203,6 @@ function ai4seo_get_active_selection_from_disabled_values( array $available_valu
 	return array_values( array_diff( $available_values, $disabled_values ) );
 }
 
-// =========================================================================================== \\
 
 /**
  * Converts disabled taxonomy terms from import storage into active UI checkbox selections.
@@ -210,7 +238,6 @@ function ai4seo_get_active_taxonomy_terms_from_disabled_taxonomy_terms( $disable
 	return $ai4seo_active_taxonomy_terms;
 }
 
-// =========================================================================================== \\
 
 /**
  * Converts import values from stored setting format into save-anything's UI input format.
@@ -267,7 +294,6 @@ function ai4seo_prepare_import_settings_for_save_anything( array $setting_change
 	return $setting_changes;
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the preview label for settings whose stored name is inverted from the UI label.
@@ -299,7 +325,6 @@ function ai4seo_get_import_setting_preview_name( string $setting_name ): string 
 	return ai4seo_make_nicer_setting_name( $setting_name );
 }
 
-// =========================================================================================== \\
 
 /**
  * Converts stored disabled values into the active values admins expect in the import preview.
@@ -378,13 +403,13 @@ $ai4seo_got_unknown_category_entries = false;
 
 foreach ( $ai4seo_new_settings_raw as $ai4seo_this_setting_name => $ai4seo_this_setting_new_value ) {
 	// can't import these settings ->.
-	if ( in_array( $ai4seo_this_setting_name, AI4SEO_NOT_IMPORTABLE_SETTINGS ) ) {
+	if ( in_array( $ai4seo_this_setting_name, AI4SEO_NOT_IMPORTABLE_SETTINGS, true ) ) {
 		continue;
 	}
 
 	$ai4seo_this_setting_category = ai4seo_get_setting_category( $ai4seo_this_setting_name );
 
-	if ( in_array( $ai4seo_this_setting_category, $ai4seo_import_categories ) ) {
+	if ( in_array( $ai4seo_this_setting_category, $ai4seo_import_categories, true ) ) {
 		$ai4seo_categorized_new_settings[ $ai4seo_this_setting_category ][ $ai4seo_this_setting_name ] = $ai4seo_this_setting_new_value;
 	}
 
@@ -426,7 +451,7 @@ foreach ( $ai4seo_categorized_new_settings as $ai4seo_this_category => $ai4seo_t
 		// Validate the normalized value so preview and execute mode agree on what can be imported.
 		if ( ai4seo_validate_setting_value( $ai4seo_this_setting_name, $ai4seo_this_setting_new_value ) ) {
 			// these settings are valid and can be imported.
-			if ( in_array( $ai4seo_this_category, $ai4seo_import_categories ) ) {
+			if ( in_array( $ai4seo_this_category, $ai4seo_import_categories, true ) ) {
 				$ai4seo_validated_new_settings[ $ai4seo_this_setting_name ] = $ai4seo_this_setting_new_value;
 			} else {
 				// If the setting is valid but not in the selected categories, store it for later.
@@ -510,7 +535,7 @@ if ( 'preview' === $ai4seo_import_mode ) {
 			continue; // Skip empty categories.
 		}
 
-		if ( $ai4seo_this_category && ! in_array( $ai4seo_this_category, $ai4seo_import_categories ) ) {
+		if ( $ai4seo_this_category && ! in_array( $ai4seo_this_category, $ai4seo_import_categories, true ) ) {
 			continue; // Skip categories not selected for import.
 		}
 
@@ -518,25 +543,25 @@ if ( 'preview' === $ai4seo_import_mode ) {
 
 		switch ( $ai4seo_this_category ) {
 			case 'settings':
-				$this_label = esc_html__( 'Settings (This Page)', 'ai-for-seo' );
+				$ai4seo_import_category_label = esc_html__( 'Settings (This Page)', 'ai-for-seo' );
 				break;
 			case 'account':
-				$this_label = esc_html__( 'Account Settings (Without Credentials)', 'ai-for-seo' );
+				$ai4seo_import_category_label = esc_html__( 'Account Settings (Without Credentials)', 'ai-for-seo' );
 				break;
 			case 'seo_autopilot':
-				$this_label = esc_html__( 'SEO Autopilot Settings', 'ai-for-seo' );
+				$ai4seo_import_category_label = esc_html__( 'SEO Autopilot Settings', 'ai-for-seo' );
 				break;
 			case 'get_more_credits':
-				$this_label = esc_html__( 'Get More Credits Settings', 'ai-for-seo' );
+				$ai4seo_import_category_label = esc_html__( 'Get More Credits Settings', 'ai-for-seo' );
 				break;
 			default:
-				$ai4seo_is_unknown_category = true;
-				$this_label                 = ai4seo_get_svg_tag( 'triangle-exclamation' ) . ' ' . esc_html__( 'Unknown Settings (Cannot be imported)', 'ai-for-seo' );
+				$ai4seo_is_unknown_category   = true;
+				$ai4seo_import_category_label = ai4seo_get_svg_tag( 'triangle-exclamation' ) . ' ' . esc_html__( 'Unknown Settings (Cannot be imported)', 'ai-for-seo' );
 				break;
 		}
 
 		echo "<h3 class='ai4seo-import-settings-preview-heading'>";
-			ai4seo_echo_wp_kses( $this_label );
+			ai4seo_echo_wp_kses( $ai4seo_import_category_label );
 		echo '</h3>';
 		echo '<ul>';
 

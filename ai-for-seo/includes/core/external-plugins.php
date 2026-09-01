@@ -1,4 +1,10 @@
 <?php
+/**
+ * Provides compatibility with external plugins.
+ *
+ * @package AI_For_SEO
+ */
+
 // Keep extracted core modules inaccessible when WordPress has not loaded the plugin environment.
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -6,6 +12,104 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 // region EXTERNAL PLUGINS ======================================================================= \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
+
+/**
+ * Activates the plugin/theme detection cache for the current site identity.
+ *
+ * @return bool Whether the current site identity was available.
+ */
+function ai4seo_prepare_active_plugins_and_themes_request_cache_for_current_site(): bool {
+	global $ai4seo_active_plugins_and_themes_request_cache_by_site;
+	global $ai4seo_active_plugins_and_themes_request_cache_scope;
+	global $ai4seo_cached_active_plugins_and_themes;
+
+	$current_scope = ai4seo_get_site_options_request_cache_scope();
+
+	if ( '' === $current_scope ) {
+		return false;
+	}
+
+	if ( ! is_array( $ai4seo_active_plugins_and_themes_request_cache_by_site ) ) {
+		$ai4seo_active_plugins_and_themes_request_cache_by_site = array();
+	}
+
+	if ( ! is_string( $ai4seo_active_plugins_and_themes_request_cache_scope ) ) {
+		$ai4seo_active_plugins_and_themes_request_cache_scope = '';
+	}
+
+	if ( ! is_array( $ai4seo_cached_active_plugins_and_themes ) ) {
+		$ai4seo_cached_active_plugins_and_themes = array();
+	}
+
+	if ( $current_scope === $ai4seo_active_plugins_and_themes_request_cache_scope ) {
+		return true;
+	}
+
+	if ( '' !== $ai4seo_active_plugins_and_themes_request_cache_scope ) {
+		$ai4seo_active_plugins_and_themes_request_cache_by_site[ $ai4seo_active_plugins_and_themes_request_cache_scope ] = $ai4seo_cached_active_plugins_and_themes;
+	} elseif ( $ai4seo_cached_active_plugins_and_themes ) {
+		// Adopt a legacy/test flat cache on its first scoped access.
+		$ai4seo_active_plugins_and_themes_request_cache_scope                     = $current_scope;
+		$ai4seo_active_plugins_and_themes_request_cache_by_site[ $current_scope ] = $ai4seo_cached_active_plugins_and_themes;
+		return true;
+	}
+
+	$ai4seo_active_plugins_and_themes_request_cache_scope = $current_scope;
+	$current_cache                                        = $ai4seo_active_plugins_and_themes_request_cache_by_site[ $current_scope ] ?? array();
+	$ai4seo_cached_active_plugins_and_themes              = is_array( $current_cache ) ? $current_cache : array();
+
+	return true;
+}
+
+
+/**
+ * Stores the current flat plugin/theme detection view in its exact site record.
+ *
+ * @return bool Whether the current scoped record was stored.
+ */
+function ai4seo_store_active_plugins_and_themes_request_cache_for_current_site(): bool {
+	global $ai4seo_active_plugins_and_themes_request_cache_by_site;
+	global $ai4seo_cached_active_plugins_and_themes;
+
+	if ( ! ai4seo_prepare_active_plugins_and_themes_request_cache_for_current_site() ) {
+		return false;
+	}
+
+	$current_scope = ai4seo_get_site_options_request_cache_scope();
+	$ai4seo_active_plugins_and_themes_request_cache_by_site[ $current_scope ] = $ai4seo_cached_active_plugins_and_themes;
+
+	return true;
+}
+
+
+/**
+ * Clears only the current site's plugin/theme detection cache.
+ *
+ * @return bool Whether the current site identity was available and reset.
+ */
+function ai4seo_reset_active_plugins_and_themes_request_cache_for_current_site(): bool {
+	global $ai4seo_active_plugins_and_themes_request_cache_by_site;
+	global $ai4seo_active_plugins_and_themes_request_cache_scope;
+	global $ai4seo_cached_active_plugins_and_themes;
+
+	$current_scope = ai4seo_get_site_options_request_cache_scope();
+
+	if ( '' === $current_scope ) {
+		return false;
+	}
+
+	if ( is_array( $ai4seo_active_plugins_and_themes_request_cache_by_site ) ) {
+		unset( $ai4seo_active_plugins_and_themes_request_cache_by_site[ $current_scope ] );
+	} else {
+		$ai4seo_active_plugins_and_themes_request_cache_by_site = array();
+	}
+
+	if ( $current_scope === $ai4seo_active_plugins_and_themes_request_cache_scope ) {
+		$ai4seo_cached_active_plugins_and_themes = array();
+	}
+
+	return true;
+}
 
 /**
  * Returns weather a plugin or theme is active
@@ -18,6 +122,10 @@ function ai4seo_is_plugin_or_theme_active( $identifier ): bool {
 
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 406909321, 'Prevented loop', true );
+		return false;
+	}
+
+	if ( ! ai4seo_prepare_active_plugins_and_themes_request_cache_for_current_site() ) {
 		return false;
 	}
 
@@ -157,6 +265,7 @@ function ai4seo_is_plugin_or_theme_active( $identifier ): bool {
 
 	// update cache.
 	$ai4seo_cached_active_plugins_and_themes[ $identifier ] = $is_active;
+	ai4seo_store_active_plugins_and_themes_request_cache_for_current_site();
 
 	return $is_active;
 }
@@ -199,7 +308,6 @@ function ai4seo_purge_frontend_cache_for_post( int $post_id ): void {
 	ai4seo_purge_frontend_cache_for_url( $permalink );
 }
 
-// =========================================================================================== \\
 
 /**
  * Best-effort purge for a single URL across common caching plugins.
@@ -218,6 +326,7 @@ function ai4seo_purge_frontend_cache_for_url( string $url ): void {
 
 	// LiteSpeed Cache.
 	if ( function_exists( 'do_action' ) ) {
+		// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- LiteSpeed defines this public integration hook.
 		do_action( 'litespeed_purge_url', $url );
 	}
 

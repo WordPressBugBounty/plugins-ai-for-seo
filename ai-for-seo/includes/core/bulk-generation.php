@@ -1,4 +1,10 @@
 <?php
+/**
+ * Manages bulk-generation and SEO Autopilot queues.
+ *
+ * @package AI_For_SEO
+ */
+
 // Keep extracted core modules inaccessible when WordPress has not loaded the plugin environment.
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -8,15 +14,111 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 /**
+ * Normalize enabled bulk-generation post types to their canonical string domain.
+ *
+ * @param mixed $enabled_bulk_generation_post_types Candidate post-type collection.
+ * @return array Canonical enabled post-type identifiers.
+ */
+function ai4seo_normalize_enabled_bulk_generation_post_types( $enabled_bulk_generation_post_types ): array {
+	if ( ! is_array( $enabled_bulk_generation_post_types ) ) {
+		return array();
+	}
+
+	$normalized_post_types = array();
+
+	foreach ( $enabled_bulk_generation_post_types as $post_type ) {
+		if ( ! is_string( $post_type ) && ! is_int( $post_type ) ) {
+			continue;
+		}
+
+		$post_type = (string) $post_type;
+
+		if ( preg_match( '/^[a-zA-Z0-9_-]+$/', $post_type ) ) {
+			$normalized_post_types[] = $post_type;
+		}
+	}
+
+	return array_values( array_unique( $normalized_post_types ) );
+}
+
+
+/**
+ * Return enabled bulk-generation post types in their canonical string domain.
+ *
+ * String and integer values are retained so legacy numeric post-type representations remain
+ * equivalent without allowing booleans, floats, arrays, or objects into membership checks.
+ *
+ * @return array Canonical enabled post-type identifiers.
+ */
+function ai4seo_get_enabled_bulk_generation_post_types(): array {
+	// Read through the settings accessor while preserving legacy integer post-type representations below.
+	$enabled_bulk_generation_post_types = ai4seo_get_setting( AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES );
+
+	return ai4seo_normalize_enabled_bulk_generation_post_types( $enabled_bulk_generation_post_types );
+}
+
+
+/**
+ * Read enabled bulk-generation post types from authoritative option storage.
+ *
+ * Queue admission and paid generation cannot rely on a request cache that predates an admin save.
+ * Missing storage or a missing setting key uses the declared disabled-by-default value. Malformed or
+ * unreadable storage fails closed so callers can preserve the queue and request a checked repair.
+ *
+ * @param bool|null  $read_succeeded Receives whether authoritative storage was decoded and validated.
+ * @param array|null $settings_snapshot Receives the exact raw Settings option snapshot.
+ * @return array Canonical persisted enabled post-type identifiers, or an empty array on failure.
+ */
+function ai4seo_read_persisted_enabled_bulk_generation_post_types(
+	?bool &$read_succeeded = null,
+	?array &$settings_snapshot = null
+): array {
+	$read_succeeded    = false;
+	$settings_snapshot = ai4seo_get_raw_option_snapshot( AI4SEO_SETTINGS_OPTION_NAME );
+
+	if ( null === $settings_snapshot ) {
+		return array();
+	}
+
+	$persisted_settings = $settings_snapshot['exists'] ? $settings_snapshot['value'] : array();
+
+	// Retain compatibility with the legacy extra-serialization and JSON shapes accepted by settings hydration.
+	$persisted_settings = ai4seo_safe_maybe_unserialize( $persisted_settings );
+
+	if ( ! is_array( $persisted_settings ) && is_string( $persisted_settings ) && ai4seo_is_json( $persisted_settings ) ) {
+		$persisted_settings = json_decode( $persisted_settings, true );
+	}
+
+	if ( ! is_array( $persisted_settings ) ) {
+		return array();
+	}
+
+	$enabled_bulk_generation_post_types = array_key_exists(
+		AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES,
+		$persisted_settings
+	)
+		? $persisted_settings[ AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES ]
+		: AI4SEO_DEFAULT_SETTINGS[ AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES ];
+
+	if ( ! ai4seo_validate_setting_value( AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES, $enabled_bulk_generation_post_types ) ) {
+		return array();
+	}
+
+	$read_succeeded = true;
+	return ai4seo_normalize_enabled_bulk_generation_post_types( $enabled_bulk_generation_post_types );
+}
+
+
+/**
  * Check if the auto generation is enabled for a specific context
  *
  * @param string $post_type The context of the auto generation (post, page, product, attachment, keyphrase etc.).
  * @return bool True if the auto generation is enabled, false if not
  */
 function ai4seo_is_bulk_generation_enabled( string $post_type ): bool {
-	$enabled_bulk_generation_post_types = ai4seo_get_setting( AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES ) ?: array();
+	$enabled_bulk_generation_post_types = ai4seo_get_enabled_bulk_generation_post_types();
 
-	return is_array( $enabled_bulk_generation_post_types ) && in_array( $post_type, $enabled_bulk_generation_post_types );
+	return in_array( $post_type, $enabled_bulk_generation_post_types, true );
 }
 
 /**
@@ -25,9 +127,9 @@ function ai4seo_is_bulk_generation_enabled( string $post_type ): bool {
  * @return bool True if any auto generation is enabled, false if not
  */
 function ai4seo_is_any_bulk_generation_enabled(): bool {
-	$enabled_bulk_generations_post_types = ai4seo_get_setting( AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES ) ?: array();
+	$enabled_bulk_generation_post_types = ai4seo_get_enabled_bulk_generation_post_types();
 
-	return count( $enabled_bulk_generations_post_types ) > 0;
+	return count( $enabled_bulk_generation_post_types ) > 0;
 }
 
 /**
@@ -188,7 +290,6 @@ function ai4seo_get_invalid_bulk_generation_date_filter_message(): string {
 	return __( "SEO Autopilot cannot automatically queue entries because the 'New or existing entries' filter has an invalid reference date. Open the SEO Autopilot settings and save this filter again.", 'ai-for-seo' );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns available bulk generation queue actions.
@@ -375,7 +476,6 @@ function ai4seo_get_bulk_generation_queue_actions( string $surface = 'all', stri
 	return array_merge( $queue_actions, $related_attachment_queue_actions, $custom_instructions_actions, $auto_queue_actions, $data_removal_actions, $hide_actions );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns a bulk generation queue action label.
@@ -402,7 +502,6 @@ function ai4seo_get_bulk_generation_queue_action_label( string $action, bool $in
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns a tooltip icon that explains the available bulk generation queue actions.
@@ -427,7 +526,6 @@ function ai4seo_get_bulk_generation_queue_action_help_icon_html( string $surface
 	. '</span>';
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns tooltip content for the available bulk generation queue actions.
@@ -467,7 +565,6 @@ function ai4seo_get_bulk_generation_queue_action_tooltip_html( string $surface =
 	return implode( '<br><br>', $tooltip_parts );
 }
 
-// =========================================================================================== \\
 
 /**
  * Checks whether a bulk generation queue action exists.
@@ -482,7 +579,6 @@ function ai4seo_is_bulk_generation_queue_action( string $action ): bool {
 	return isset( $bulk_generation_queue_actions[ $action ] );
 }
 
-// =========================================================================================== \\
 
 /**
  * Checks whether a bulk generation queue action is available on a specific surface.
@@ -501,7 +597,6 @@ function ai4seo_is_bulk_generation_queue_action_available_for_surface( string $a
 	return isset( $bulk_generation_queue_actions[ $action ] );
 }
 
-// =========================================================================================== \\
 
 /**
  * Checks whether a bulk generation queue action needs a modal before it can be processed.
@@ -518,7 +613,6 @@ function ai4seo_is_bulk_generation_queue_action_modal_required( string $action )
 	return ! empty( $bulk_generation_queue_actions[ $action ]['requires_modal'] );
 }
 
-// =========================================================================================== \\
 
 /**
  * Checks whether an action queues related attachment images from selected source posts.
@@ -544,7 +638,6 @@ function ai4seo_is_related_attachment_bulk_generation_queue_action( string $acti
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Checks whether a related-image bulk action removes discovered attachments from Pending.
@@ -559,7 +652,6 @@ function ai4seo_is_related_attachment_remove_bulk_generation_queue_action( strin
 	return ( AI4SEO_BULK_GENERATION_QUEUE_ACTION_REMOVE_RELATED_ATTACHMENTS_FROM_QUEUE === $action );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the queue contexts supported by all bulk-generation routing helpers.
@@ -574,7 +666,6 @@ function ai4seo_get_bulk_generation_queue_contexts(): array {
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Checks whether a bulk generation queue context exists.
@@ -589,7 +680,6 @@ function ai4seo_is_bulk_generation_queue_context( string $context ): bool {
 	return in_array( $context, ai4seo_get_bulk_generation_queue_contexts(), true );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the entry-level custom-instruction postmeta key for a bulk generation queue context.
@@ -612,7 +702,6 @@ function ai4seo_get_custom_instructions_postmeta_key_by_bulk_generation_queue_co
 	return '';
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the queue option names for a bulk generation queue context.
@@ -650,7 +739,6 @@ function ai4seo_get_bulk_generation_queue_options_by_context( string $context ):
 	return array();
 }
 
-// =========================================================================================== \\
 
 /**
  * Checks whether a pending bulk generation queue entry should be processed in force-overwrite mode.
@@ -674,7 +762,6 @@ function ai4seo_is_bulk_generation_queue_entry_force_overwrite( int $post_id, st
 		&& in_array( $post_id, $force_overwrite_post_ids, true );
 }
 
-// =========================================================================================== \\
 
 /**
  * Returns the default result shape for bulk generation queue actions.
@@ -704,7 +791,6 @@ function ai4seo_get_bulk_generation_queue_action_result_defaults( string $action
 	);
 }
 
-// =========================================================================================== \\
 
 /**
  * Applies the bulk custom-instructions action to selected valid entries.
@@ -757,18 +843,19 @@ function ai4seo_process_bulk_custom_instructions_action( array $post_ids, string
 	return $result;
 }
 
-// =========================================================================================== \\
 
 /**
  * Applies a related-image bulk action from selected source posts to the attachment queue.
  *
- * @param string $action Queue action.
- * @param array  $source_post_ids Selected source post IDs.
+ * @param string    $action Queue action.
+ * @param array     $source_post_ids Selected source post IDs.
+ * @param bool|null $queue_transition_failed Receives whether a requested queue-state transition failed.
  * @return array Result counts.
  */
-function ai4seo_process_related_attachment_bulk_generation_queue_action( string $action, array $source_post_ids ): array {
-	$action          = sanitize_key( $action );
-	$source_post_ids = array_values( array_unique( array_filter( array_map( 'absint', $source_post_ids ) ) ) );
+function ai4seo_process_related_attachment_bulk_generation_queue_action( string $action, array $source_post_ids, ?bool &$queue_transition_failed = null ): array {
+	$action                  = sanitize_key( $action );
+	$source_post_ids         = array_values( array_unique( array_filter( array_map( 'absint', $source_post_ids ) ) ) );
+	$queue_transition_failed = false;
 
 	// Remove actions share the scanner but intentionally skip add-only fallback writes and cron injection.
 	$is_related_attachment_remove_queue_action = ai4seo_is_related_attachment_remove_bulk_generation_queue_action( $action );
@@ -836,8 +923,9 @@ function ai4seo_process_related_attachment_bulk_generation_queue_action( string 
 		}
 	}
 
+	// Use the deduplicated discovery set for both the result count and the per-attachment authorization pass.
 	$discovered_related_attachment_post_ids = array_values( $related_attachment_post_id_lookup );
-	$result['related_images_found']          = count( $discovered_related_attachment_post_ids );
+	$result['related_images_found']         = count( $discovered_related_attachment_post_ids );
 
 	// Source-post access does not grant access to media owned by another user, so authorize every discovered target.
 	$related_attachment_post_ids = ai4seo_filter_editable_post_ids( $discovered_related_attachment_post_ids );
@@ -901,9 +989,13 @@ function ai4seo_process_related_attachment_bulk_generation_queue_action( string 
 	);
 
 	// Pending and Force mode are shared by all related-image queue mutations.
-	$pending_attachment_post_ids         = array_values( ai4seo_get_post_ids_from_option( $attachment_queue_options['pending'] ) );
-	$force_overwrite_attachment_post_ids = array_values( ai4seo_get_post_ids_from_option( $attachment_queue_options['force_overwrite'] ) );
-	$changed_attachment_post_ids         = array();
+	$pending_attachment_post_ids          = array_values( ai4seo_get_post_ids_from_option( $attachment_queue_options['pending'] ) );
+	$force_overwrite_attachment_post_ids  = array_values( ai4seo_get_post_ids_from_option( $attachment_queue_options['force_overwrite'] ) );
+	$changed_attachment_post_ids          = array();
+	$transition_additions                 = array();
+	$transition_removals                  = array();
+	$should_schedule_bulk_generation      = false;
+	$should_filter_processing_memberships = false;
 
 	switch ( $action ) {
 		case AI4SEO_BULK_GENERATION_QUEUE_ACTION_ADD_RELATED_ATTACHMENTS_TO_QUEUE:
@@ -935,23 +1027,15 @@ function ai4seo_process_related_attachment_bulk_generation_queue_action( string 
 			);
 
 			if ( $changed_attachment_post_ids ) {
-				$new_failed_attachment_post_ids          = array_values( array_diff( $failed_attachment_post_ids, $changed_attachment_post_ids ) );
-				$new_force_overwrite_attachment_post_ids = array_values( array_diff( $force_overwrite_attachment_post_ids, $changed_attachment_post_ids ) );
-				$new_pending_attachment_post_ids         = array_values( array_unique( array_merge( $pending_attachment_post_ids, $changed_attachment_post_ids ) ) );
-
-				if ( $new_failed_attachment_post_ids !== $failed_attachment_post_ids ) {
-					ai4seo_update_option( $attachment_queue_options['failed'], $new_failed_attachment_post_ids );
-				}
-
-				if ( $new_force_overwrite_attachment_post_ids !== $force_overwrite_attachment_post_ids ) {
-					ai4seo_update_option( $attachment_queue_options['force_overwrite'], $new_force_overwrite_attachment_post_ids );
-				}
-
-				if ( $new_pending_attachment_post_ids !== $pending_attachment_post_ids ) {
-					ai4seo_update_option( $attachment_queue_options['pending'], $new_pending_attachment_post_ids );
-				}
-
-				ai4seo_inject_additional_cronjob_call( AI4SEO_BULK_GENERATION_CRON_JOB_NAME );
+				$transition_additions                 = array(
+					$attachment_queue_options['pending'] => $changed_attachment_post_ids,
+				);
+				$transition_removals                  = array(
+					$attachment_queue_options['failed'] => $changed_attachment_post_ids,
+					$attachment_queue_options['force_overwrite'] => $changed_attachment_post_ids,
+				);
+				$should_schedule_bulk_generation      = true;
+				$should_filter_processing_memberships = true;
 			}
 			break;
 
@@ -982,23 +1066,15 @@ function ai4seo_process_related_attachment_bulk_generation_queue_action( string 
 			);
 
 			if ( $changed_attachment_post_ids ) {
-				$new_failed_attachment_post_ids          = array_values( array_diff( $failed_attachment_post_ids, $changed_attachment_post_ids ) );
-				$new_pending_attachment_post_ids         = array_values( array_unique( array_merge( $pending_attachment_post_ids, $changed_attachment_post_ids ) ) );
-				$new_force_overwrite_attachment_post_ids = array_values( array_unique( array_merge( $force_overwrite_attachment_post_ids, $changed_attachment_post_ids ) ) );
-
-				if ( $new_failed_attachment_post_ids !== $failed_attachment_post_ids ) {
-					ai4seo_update_option( $attachment_queue_options['failed'], $new_failed_attachment_post_ids );
-				}
-
-				if ( $new_pending_attachment_post_ids !== $pending_attachment_post_ids ) {
-					ai4seo_update_option( $attachment_queue_options['pending'], $new_pending_attachment_post_ids );
-				}
-
-				if ( $new_force_overwrite_attachment_post_ids !== $force_overwrite_attachment_post_ids ) {
-					ai4seo_update_option( $attachment_queue_options['force_overwrite'], $new_force_overwrite_attachment_post_ids );
-				}
-
-				ai4seo_inject_additional_cronjob_call( AI4SEO_BULK_GENERATION_CRON_JOB_NAME );
+				$transition_additions                 = array(
+					$attachment_queue_options['pending'] => $changed_attachment_post_ids,
+					$attachment_queue_options['force_overwrite'] => $changed_attachment_post_ids,
+				);
+				$transition_removals                  = array(
+					$attachment_queue_options['failed'] => $changed_attachment_post_ids,
+				);
+				$should_schedule_bulk_generation      = true;
+				$should_filter_processing_memberships = true;
 			}
 			break;
 
@@ -1012,18 +1088,49 @@ function ai4seo_process_related_attachment_bulk_generation_queue_action( string 
 			);
 
 			if ( $changed_attachment_post_ids ) {
-				$new_pending_attachment_post_ids         = array_values( array_diff( $pending_attachment_post_ids, $changed_attachment_post_ids ) );
-				$new_force_overwrite_attachment_post_ids = array_values( array_diff( $force_overwrite_attachment_post_ids, $changed_attachment_post_ids ) );
-
-				if ( $new_pending_attachment_post_ids !== $pending_attachment_post_ids ) {
-					ai4seo_update_option( $attachment_queue_options['pending'], $new_pending_attachment_post_ids );
-				}
-
-				if ( $new_force_overwrite_attachment_post_ids !== $force_overwrite_attachment_post_ids ) {
-					ai4seo_update_option( $attachment_queue_options['force_overwrite'], $new_force_overwrite_attachment_post_ids );
-				}
+				$transition_removals = array(
+					$attachment_queue_options['pending'] => $changed_attachment_post_ids,
+					$attachment_queue_options['force_overwrite'] => $changed_attachment_post_ids,
+				);
 			}
 			break;
+	}
+
+	if ( $changed_attachment_post_ids && ( $transition_additions || $transition_removals ) ) {
+		$transition_did_change = false;
+		$transition_succeeded  = false;
+
+		if ( $should_filter_processing_memberships ) {
+			$admitted_attachment_post_ids = array();
+			$transition_succeeded         = ai4seo_apply_post_id_option_admission_transition(
+				$transition_additions,
+				$transition_removals,
+				array(
+					$attachment_queue_options['processing'],
+					$attachment_queue_options['hidden'],
+				),
+				$admitted_attachment_post_ids,
+				$transition_did_change
+			);
+			$changed_attachment_post_ids  = $transition_succeeded ? $admitted_attachment_post_ids : array();
+		} else {
+			$transition_succeeded = ai4seo_apply_post_id_option_transition(
+				$transition_additions,
+				$transition_removals,
+				$transition_did_change
+			);
+		}
+
+		if ( ! $transition_succeeded ) {
+			$queue_transition_failed         = true;
+			$changed_attachment_post_ids     = array();
+			$should_schedule_bulk_generation = false;
+
+			ai4seo_debug_message( 836122082, 'Could not apply the selected related-image queue transition.', true );
+		} elseif ( $should_schedule_bulk_generation && $changed_attachment_post_ids ) {
+			// Schedule generation only after every related-image membership is verified in fresh storage.
+			ai4seo_inject_additional_cronjob_call( AI4SEO_BULK_GENERATION_CRON_JOB_NAME );
+		}
 	}
 
 	// Return both generic queue counts and related-image-specific counts for native notices and AJAX toasts.
@@ -1036,27 +1143,35 @@ function ai4seo_process_related_attachment_bulk_generation_queue_action( string 
 	return $result;
 }
 
-// =========================================================================================== \\
 
 /**
  * Applies a bulk generation queue action to selected post IDs.
  *
- * @param string $action Queue action.
- * @param array  $post_ids Selected post IDs.
- * @param string $context Queue context.
+ * @param string    $action Queue action.
+ * @param array     $post_ids Selected post IDs.
+ * @param string    $context Queue context.
+ * @param bool|null $queue_transition_failed Receives whether a requested queue-state transition failed.
  * @return array Result counts.
  */
-function ai4seo_process_bulk_generation_queue_action( string $action, array $post_ids, string $context ): array {
-	$action                              = sanitize_key( $action );
-	$context                             = sanitize_key( $context );
-	$post_ids                            = array_values( array_unique( array_filter( array_map( 'absint', $post_ids ) ) ) );
-	$selected_entries                    = count( $post_ids );
-	$result                              = ai4seo_get_bulk_generation_queue_action_result_defaults( $action, $selected_entries );
-	$changed_post_ids                    = array();
-	$not_applicable_entries              = 0;
-	$generated_data_deleted_entries      = 0;
-	$active_metadata_deleted_entries     = 0;
-	$should_refresh_posts_table_analysis = false;
+function ai4seo_process_bulk_generation_queue_action( string $action, array $post_ids, string $context, ?bool &$queue_transition_failed = null ): array {
+	$action                                  = sanitize_key( $action );
+	$context                                 = sanitize_key( $context );
+	$post_ids                                = array_values( array_unique( array_filter( array_map( 'absint', $post_ids ) ) ) );
+	$selected_entries                        = count( $post_ids );
+	$result                                  = ai4seo_get_bulk_generation_queue_action_result_defaults( $action, $selected_entries );
+	$changed_post_ids                        = array();
+	$not_applicable_entries                  = 0;
+	$generated_data_deleted_entries          = 0;
+	$active_metadata_deleted_entries         = 0;
+	$should_refresh_posts_table_analysis     = false;
+	$should_schedule_bulk_generation         = false;
+	$should_filter_processing_memberships    = false;
+	$transition_additions                    = array();
+	$transition_removals                     = array();
+	$queue_transition_failed                 = false;
+	$irreversible_postmeta_deletion_post_ids = array();
+	$postmeta_read_failed                    = false;
+	$postmeta_deletion_failed                = false;
 
 	if ( ! ai4seo_is_bulk_generation_queue_action( $action ) || ! ai4seo_is_bulk_generation_queue_context( $context ) ) {
 		$result['queue_count'] = ai4seo_get_bulk_generation_queue_count();
@@ -1070,7 +1185,7 @@ function ai4seo_process_bulk_generation_queue_action( string $action, array $pos
 			return $result;
 		}
 
-		return ai4seo_process_related_attachment_bulk_generation_queue_action( $action, $post_ids );
+		return ai4seo_process_related_attachment_bulk_generation_queue_action( $action, $post_ids, $queue_transition_failed );
 	}
 
 	$queue_options = ai4seo_get_bulk_generation_queue_options_by_context( $context );
@@ -1092,14 +1207,19 @@ function ai4seo_process_bulk_generation_queue_action( string $action, array $pos
 			$applicable_post_ids    = ai4seo_get_applicable_bulk_generation_queue_post_ids( $valid_post_ids, $context );
 			$not_applicable_entries = count( array_diff( $valid_post_ids, $applicable_post_ids ) );
 
-			// Do not pass Processing IDs to ai4seo_add_post_ids_to_option(), because that helper removes contradictory Processing state.
+			// Processing entries are active work and must never be moved back to Pending by a manual safe action.
 			$changed_post_ids = array_values( array_diff( $applicable_post_ids, $pending_post_ids, $processing_post_ids ) );
 
 			if ( $changed_post_ids ) {
-				ai4seo_remove_post_ids_from_option( $queue_options['force_overwrite'], $changed_post_ids );
-				ai4seo_remove_post_ids_from_option( $queue_options['failed'], $changed_post_ids );
-				ai4seo_add_post_ids_to_option( $queue_options['pending'], $changed_post_ids );
-				ai4seo_inject_additional_cronjob_call( AI4SEO_BULK_GENERATION_CRON_JOB_NAME );
+				$transition_additions                 = array(
+					$queue_options['pending'] => $changed_post_ids,
+				);
+				$transition_removals                  = array(
+					$queue_options['force_overwrite'] => $changed_post_ids,
+					$queue_options['failed']          => $changed_post_ids,
+				);
+				$should_schedule_bulk_generation      = true;
+				$should_filter_processing_memberships = true;
 			}
 			break;
 
@@ -1117,10 +1237,15 @@ function ai4seo_process_bulk_generation_queue_action( string $action, array $pos
 			);
 
 			if ( $changed_post_ids ) {
-				ai4seo_remove_post_ids_from_option( $queue_options['failed'], $changed_post_ids );
-				ai4seo_add_post_ids_to_option( $queue_options['pending'], $changed_post_ids );
-				ai4seo_add_post_ids_to_option( $queue_options['force_overwrite'], $changed_post_ids );
-				ai4seo_inject_additional_cronjob_call( AI4SEO_BULK_GENERATION_CRON_JOB_NAME );
+				$transition_additions                 = array(
+					$queue_options['pending']         => $changed_post_ids,
+					$queue_options['force_overwrite'] => $changed_post_ids,
+				);
+				$transition_removals                  = array(
+					$queue_options['failed'] => $changed_post_ids,
+				);
+				$should_schedule_bulk_generation      = true;
+				$should_filter_processing_memberships = true;
 			}
 			break;
 
@@ -1128,8 +1253,10 @@ function ai4seo_process_bulk_generation_queue_action( string $action, array $pos
 			$changed_post_ids = array_values( array_intersect( $valid_post_ids, $pending_post_ids ) );
 
 			if ( $changed_post_ids ) {
-				ai4seo_remove_post_ids_from_option( $queue_options['pending'], $changed_post_ids );
-				ai4seo_remove_post_ids_from_option( $queue_options['force_overwrite'], $changed_post_ids );
+				$transition_removals = array(
+					$queue_options['pending']         => $changed_post_ids,
+					$queue_options['force_overwrite'] => $changed_post_ids,
+				);
 			}
 			break;
 
@@ -1137,11 +1264,14 @@ function ai4seo_process_bulk_generation_queue_action( string $action, array $pos
 			$changed_post_ids = array_values( array_diff( $valid_post_ids, $hidden_post_ids ) );
 
 			if ( $changed_post_ids ) {
-				ai4seo_add_post_ids_to_option( $queue_options['hidden'], $changed_post_ids );
-				ai4seo_remove_post_ids_from_option( $queue_options['pending'], $changed_post_ids );
-				ai4seo_remove_post_ids_from_option( $queue_options['force_overwrite'], $changed_post_ids );
-				ai4seo_remove_post_ids_from_option( $queue_options['missing'], $changed_post_ids );
-				ai4seo_remove_post_ids_from_generation_status_summary_option( $changed_post_ids, $queue_options['missing'] );
+				$transition_additions = array(
+					$queue_options['hidden'] => $changed_post_ids,
+				);
+				$transition_removals  = array(
+					$queue_options['pending']         => $changed_post_ids,
+					$queue_options['force_overwrite'] => $changed_post_ids,
+					$queue_options['missing']         => $changed_post_ids,
+				);
 			}
 			break;
 
@@ -1149,7 +1279,9 @@ function ai4seo_process_bulk_generation_queue_action( string $action, array $pos
 			$changed_post_ids = array_values( array_intersect( $valid_post_ids, $hidden_post_ids ) );
 
 			if ( $changed_post_ids ) {
-				ai4seo_remove_post_ids_from_option( $queue_options['hidden'], $changed_post_ids );
+				$transition_removals                 = array(
+					$queue_options['hidden'] => $changed_post_ids,
+				);
 				$should_refresh_posts_table_analysis = true;
 			}
 			break;
@@ -1158,11 +1290,14 @@ function ai4seo_process_bulk_generation_queue_action( string $action, array $pos
 			$changed_post_ids = array_values( array_diff( $valid_post_ids, $auto_queue_disallowed_post_ids ) );
 
 			if ( $changed_post_ids ) {
-				ai4seo_add_post_ids_to_option( $queue_options['auto_queue_disallowed'], $changed_post_ids );
-				ai4seo_remove_post_ids_from_option( $queue_options['pending'], $changed_post_ids );
-				ai4seo_remove_post_ids_from_option( $queue_options['force_overwrite'], $changed_post_ids );
-				ai4seo_remove_post_ids_from_option( $queue_options['missing'], $changed_post_ids );
-				ai4seo_remove_post_ids_from_generation_status_summary_option( $changed_post_ids, $queue_options['missing'] );
+				$transition_additions = array(
+					$queue_options['auto_queue_disallowed'] => $changed_post_ids,
+				);
+				$transition_removals  = array(
+					$queue_options['pending']         => $changed_post_ids,
+					$queue_options['force_overwrite'] => $changed_post_ids,
+					$queue_options['missing']         => $changed_post_ids,
+				);
 			}
 			break;
 
@@ -1170,24 +1305,43 @@ function ai4seo_process_bulk_generation_queue_action( string $action, array $pos
 			$changed_post_ids = array_values( array_intersect( $valid_post_ids, $auto_queue_disallowed_post_ids ) );
 
 			if ( $changed_post_ids ) {
-				ai4seo_remove_post_ids_from_option( $queue_options['auto_queue_disallowed'], $changed_post_ids );
+				$transition_removals                 = array(
+					$queue_options['auto_queue_disallowed'] => $changed_post_ids,
+				);
 				$should_refresh_posts_table_analysis = true;
 			}
 			break;
 
 		case AI4SEO_BULK_GENERATION_QUEUE_ACTION_REMOVE_GENERATED_DATA:
-			$generated_data_post_ids    = ai4seo_read_post_ids_with_postmeta_key( $valid_post_ids, AI4SEO_POST_META_GENERATED_DATA_META_KEY );
+			$generated_data_post_ids    = ai4seo_read_post_ids_with_postmeta_key( $valid_post_ids, AI4SEO_POST_META_GENERATED_DATA_META_KEY, $postmeta_read_failed );
 			$generated_data_option_name = ( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA === $context )
 				? AI4SEO_GENERATED_METADATA_POST_IDS_OPTION_NAME
 				: AI4SEO_GENERATED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME;
 
-			if ( $generated_data_post_ids && ai4seo_delete_postmeta_for_post_ids_and_meta_key( $generated_data_post_ids, AI4SEO_POST_META_GENERATED_DATA_META_KEY ) ) {
-				$changed_post_ids                    = $generated_data_post_ids;
-				$generated_data_deleted_entries      = count( $generated_data_post_ids );
-				$should_refresh_posts_table_analysis = true;
+			if ( $postmeta_read_failed ) {
+				break;
+			}
 
-				ai4seo_remove_post_ids_from_option( $generated_data_option_name, $generated_data_post_ids );
-				ai4seo_remove_post_ids_from_generation_status_summary_option( $generated_data_post_ids, $generated_data_option_name );
+			if ( $generated_data_post_ids ) {
+				$possibly_deleted_post_ids = array();
+				$deletion_succeeded        = ai4seo_delete_postmeta_for_post_ids_and_meta_key(
+					$generated_data_post_ids,
+					AI4SEO_POST_META_GENERATED_DATA_META_KEY,
+					$possibly_deleted_post_ids
+				);
+
+				$changed_post_ids                        = $possibly_deleted_post_ids;
+				$irreversible_postmeta_deletion_post_ids = $possibly_deleted_post_ids;
+				$generated_data_deleted_entries          = count( $possibly_deleted_post_ids );
+
+				if ( $deletion_succeeded ) {
+					$should_refresh_posts_table_analysis = true;
+					$transition_removals                 = array(
+						$generated_data_option_name => $possibly_deleted_post_ids,
+					);
+				} else {
+					$postmeta_deletion_failed = true;
+				}
 			}
 			break;
 
@@ -1196,19 +1350,118 @@ function ai4seo_process_bulk_generation_queue_action( string $action, array $pos
 				break;
 			}
 
-			$active_metadata_post_ids = ai4seo_read_post_ids_with_postmeta_key( $valid_post_ids, AI4SEO_POST_META_ACTIVE_METADATA_META_KEY );
+			$active_metadata_post_ids = ai4seo_read_post_ids_with_postmeta_key( $valid_post_ids, AI4SEO_POST_META_ACTIVE_METADATA_META_KEY, $postmeta_read_failed );
 
-			if ( $active_metadata_post_ids && ai4seo_delete_postmeta_for_post_ids_and_meta_key( $active_metadata_post_ids, AI4SEO_POST_META_ACTIVE_METADATA_META_KEY ) ) {
-				$changed_post_ids                    = $active_metadata_post_ids;
-				$active_metadata_deleted_entries     = count( $active_metadata_post_ids );
-				$should_refresh_posts_table_analysis = true;
+			if ( $postmeta_read_failed ) {
+				break;
+			}
+
+			if ( $active_metadata_post_ids ) {
+				$possibly_deleted_post_ids = array();
+				$deletion_succeeded        = ai4seo_delete_postmeta_for_post_ids_and_meta_key(
+					$active_metadata_post_ids,
+					AI4SEO_POST_META_ACTIVE_METADATA_META_KEY,
+					$possibly_deleted_post_ids
+				);
+
+				$changed_post_ids                        = $possibly_deleted_post_ids;
+				$irreversible_postmeta_deletion_post_ids = $possibly_deleted_post_ids;
+				$active_metadata_deleted_entries         = count( $possibly_deleted_post_ids );
+
+				if ( $deletion_succeeded ) {
+					$should_refresh_posts_table_analysis = true;
+				} else {
+					$postmeta_deletion_failed = true;
+				}
 			}
 			break;
 	}
 
+	if ( $postmeta_read_failed || $postmeta_deletion_failed ) {
+		$queue_transition_failed             = true;
+		$should_refresh_posts_table_analysis = false;
+		$should_schedule_bulk_generation     = false;
+		$transition_additions                = array();
+		$transition_removals                 = array();
+
+		if (
+			$irreversible_postmeta_deletion_post_ids
+			&& ! ai4seo_schedule_generation_status_summary_rebuild()
+		) {
+			ai4seo_debug_message( 836122086, 'Could not durably schedule generation-status repair after a partial postmeta deletion.', true );
+		}
+
+		if ( $postmeta_read_failed ) {
+			ai4seo_debug_message( 836122088, 'Could not identify the selected postmeta owners; no deletion was attempted.', true );
+		} else {
+			ai4seo_debug_message( 836122087, 'Could not complete the selected postmeta deletion; conservative affected IDs require repair.', true );
+		}
+	}
+
+	if ( $changed_post_ids && ( $transition_additions || $transition_removals ) ) {
+		$transition_did_change = false;
+		$transition_succeeded  = false;
+
+		if ( $should_filter_processing_memberships ) {
+			$admitted_post_ids    = array();
+			$transition_succeeded = ai4seo_apply_post_id_option_admission_transition(
+				$transition_additions,
+				$transition_removals,
+				array(
+					$queue_options['processing'],
+					$queue_options['hidden'],
+				),
+				$admitted_post_ids,
+				$transition_did_change
+			);
+			$changed_post_ids     = $transition_succeeded ? $admitted_post_ids : array();
+		} else {
+			$transition_succeeded = ai4seo_apply_post_id_option_transition(
+				$transition_additions,
+				$transition_removals,
+				$transition_did_change
+			);
+		}
+
+		if ( ! $transition_succeeded ) {
+			$queue_transition_failed             = true;
+			$should_refresh_posts_table_analysis = false;
+			$should_schedule_bulk_generation     = false;
+
+			if ( $irreversible_postmeta_deletion_post_ids ) {
+				// The source mutation cannot be rolled back; persist a full rebuild request for authoritative repair.
+				if ( ! ai4seo_schedule_generation_status_summary_rebuild() ) {
+					ai4seo_debug_message( 836122084, 'Could not durably schedule generation-status repair after postmeta deletion.', true );
+				}
+			} else {
+				$changed_post_ids                = array();
+				$generated_data_deleted_entries  = 0;
+				$active_metadata_deleted_entries = 0;
+			}
+
+			ai4seo_debug_message( 836122081, 'Could not apply the selected bulk-generation queue transition.', true );
+		} elseif ( $should_schedule_bulk_generation && $changed_post_ids ) {
+			ai4seo_inject_additional_cronjob_call( AI4SEO_BULK_GENERATION_CRON_JOB_NAME );
+		}
+	}
+
 	if ( $should_refresh_posts_table_analysis ) {
 		// Refresh the generation status summary after the already-authorized bulk queue mutation.
-		ai4seo_force_posts_table_analysis_refresh_after_admin_mutation();
+		if ( ! ai4seo_force_posts_table_analysis_refresh_after_admin_mutation() ) {
+			$queue_transition_failed = true;
+
+			if ( $irreversible_postmeta_deletion_post_ids ) {
+				if ( ! ai4seo_schedule_generation_status_summary_rebuild() ) {
+					ai4seo_debug_message( 836122085, 'Could not durably schedule generation-status repair after an admin refresh failure.', true );
+				}
+			} else {
+				$changed_post_ids                = array();
+				$generated_data_deleted_entries  = 0;
+				$active_metadata_deleted_entries = 0;
+			}
+
+			ai4seo_debug_message( 836122083, 'Could not refresh posts-table analysis after the selected bulk-generation mutation.', true );
+		}
 	}
 
 	$changed_entries = count( $changed_post_ids );
@@ -1223,7 +1476,6 @@ function ai4seo_process_bulk_generation_queue_action( string $action, array $pos
 	return $result;
 }
 
-// =========================================================================================== \\
 
 /**
  * Filters selected post IDs to entries that can be handled by the queue context.
@@ -1262,7 +1514,6 @@ function ai4seo_get_valid_bulk_generation_queue_post_ids( array $post_ids, strin
 	return array_values( array_unique( $valid_post_ids ) );
 }
 
-// =========================================================================================== \\
 
 /**
  * Filters selected queue IDs to entries that are applicable for normal queueing.
@@ -1305,7 +1556,6 @@ function ai4seo_get_applicable_bulk_generation_queue_post_ids( array $post_ids, 
 	return array_values( array_intersect( $post_ids, $applicable_post_ids ) );
 }
 
-// =========================================================================================== \\
 
 /**
  * Counts bulk generation entries for one queue status across metadata and attachment contexts.
@@ -1314,8 +1564,10 @@ function ai4seo_get_applicable_bulk_generation_queue_post_ids( array $post_ids, 
  * @return int
  */
 function ai4seo_get_bulk_generation_entry_count_by_status( string $status ): int {
+	global $wpdb;
+
 	// Reuse the context-to-option map so queue counters stay aligned with bulk action routing.
-	$entry_count = 0;
+	$option_names = array();
 
 	foreach ( ai4seo_get_bulk_generation_queue_contexts() as $context ) {
 		$queue_options = ai4seo_get_bulk_generation_queue_options_by_context( $context );
@@ -1325,13 +1577,55 @@ function ai4seo_get_bulk_generation_entry_count_by_status( string $status ): int
 			continue;
 		}
 
-		$entry_count += count( ai4seo_get_post_ids_from_option( $queue_options[ $status ] ) );
+		$option_names[] = $queue_options[ $status ];
+	}
+
+	// An unmapped status has no authoritative queue rows and must not trigger option reads.
+	if ( ! $option_names ) {
+		return 0;
+	}
+
+	// Counts and fallback reads require one exact active options-table scope.
+	if ( ! is_object( $wpdb ) || ! isset( $wpdb->options ) || ! ai4seo_is_valid_database_identifier( $wpdb->options ) ) {
+		return 0;
+	}
+
+	// Prefer one strict batch while preserving independent reads below as the transient-failure fallback.
+	$options_table    = $wpdb->options;
+	$option_snapshots = ai4seo_get_raw_option_snapshots( $option_names );
+
+	// A site switch during the batch invalidates both its rows and any sequential fallback opportunity.
+	if ( ! isset( $wpdb->options ) || ! is_string( $wpdb->options ) || $options_table !== $wpdb->options ) {
+		return 0;
+	}
+
+	if ( is_array( $option_snapshots ) ) {
+		$entry_count = 0;
+
+		foreach ( $option_names as $option_name ) {
+			$entry_count += count( ai4seo_normalize_option_post_id_collection( $option_snapshots[ $option_name ]['value'] ) );
+		}
+
+		return $entry_count;
+	}
+
+	// Preserve the established independent-read fallback after a transient batch failure.
+	$entry_count = 0;
+
+	foreach ( $option_names as $option_name ) {
+		$post_ids = ai4seo_get_post_ids_from_option( $option_name );
+
+		// Stop before accumulating a row or querying the next context after a fallback-site switch.
+		if ( ! isset( $wpdb->options ) || ! is_string( $wpdb->options ) || $options_table !== $wpdb->options ) {
+			return 0;
+		}
+
+		$entry_count += count( $post_ids );
 	}
 
 	return $entry_count;
 }
 
-// =========================================================================================== \\
 
 /**
  * Count all entries currently queued for SEO Autopilot.
@@ -1343,7 +1637,6 @@ function ai4seo_get_bulk_generation_queue_count(): int {
 	return ai4seo_get_bulk_generation_entry_count_by_status( 'pending' );
 }
 
-// =========================================================================================== \\
 
 /**
  * Count all SEO Autopilot entries currently being processed.
@@ -1358,12 +1651,11 @@ function ai4seo_get_bulk_generation_processing_count(): int {
 	return ai4seo_get_bulk_generation_entry_count_by_status( 'processing' );
 }
 
-// =========================================================================================== \\
 
 /**
  * Excavates queue entries for the currently enabled SEO Autopilot post types.
  *
- * @param bool $debug
+ * @param bool $debug Whether to emit debug details.
  * @return bool
  */
 function ai4seo_try_excavate_bulk_generation_entries_for_enabled_post_types( bool $debug = false ): bool {
@@ -1371,9 +1663,14 @@ function ai4seo_try_excavate_bulk_generation_entries_for_enabled_post_types( boo
 		return false;
 	}
 
-	$enabled_bulk_generation_post_types = ai4seo_get_setting( AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES ) ?: array();
+	$enabled_bulk_generation_post_types = array();
 
-	if ( ! is_array( $enabled_bulk_generation_post_types ) || ! $enabled_bulk_generation_post_types ) {
+	// Every excavation path must first remove queue intent no longer allowed by persisted settings.
+	if ( ! ai4seo_reconcile_disabled_bulk_generation_queue_entries( $enabled_bulk_generation_post_types ) ) {
+		return false;
+	}
+
+	if ( ! $enabled_bulk_generation_post_types ) {
 		return false;
 	}
 

@@ -2,6 +2,7 @@
 /**
  * Displays the bulk custom-instructions modal. Called via AJAX.
  *
+ * @package AI_For_SEO
  * @since 2.4.0
  */
 
@@ -9,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! ai4seo_can_manage_this_plugin() ) {
+if ( ! ai4seo_can_use_plugin_content() ) {
 	return;
 }
 
