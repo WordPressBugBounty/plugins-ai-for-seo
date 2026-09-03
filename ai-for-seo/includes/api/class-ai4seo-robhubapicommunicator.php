@@ -5038,8 +5038,8 @@ class Ai4Seo_RobHubApiCommunicator {
 			$merged_environmental_variables = apply_filters(
 				'pre_update_option',
 				$merged_environmental_variables,
-				$filter_old_environmental_variables,
-				$this->environmental_variables_option_name
+				$this->environmental_variables_option_name,
+				$filter_old_environmental_variables
 			);
 			// phpcs:enable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound
 			$merged_environmental_variables = $this->normalize_environmental_variables( $merged_environmental_variables );

@@ -816,42 +816,6 @@ function ai4seo_can_run_dashboard_or_cron_tasks(): bool {
 
 
 /**
- * Returns whether the current request may start a posts table analysis.
- *
- * @param bool $allow_trusted_admin_mutation Whether trusted admin mutation requests may start analysis.
- * @return bool
- */
-function ai4seo_can_start_posts_table_analysis( bool $allow_trusted_admin_mutation = false ): bool {
-	// Keep the original dashboard/cron gate as the normal automatic analysis start path.
-	if ( ai4seo_can_run_dashboard_or_cron_tasks() ) {
-		return true;
-	}
-
-	// Admin mutation starts are opt-in so background work stays dashboard/cron-scoped by default.
-	if ( ! $allow_trusted_admin_mutation ) {
-		return false;
-	}
-
-	// Reuse the plugin's existing management capability check before trusting an admin mutation.
-	if ( ! ai4seo_can_administer_plugin() ) {
-		return false;
-	}
-
-	// Mutation-triggered starts should only happen from wp-admin, including admin AJAX.
-	if ( ! ai4seo_is_function_usable( 'is_admin' ) || ! is_admin() ) {
-		return false;
-	}
-
-	// AJAX mutation callers pass through the global AI4SEO nonce gate before reaching this helper.
-	if ( wp_doing_ajax() && wp_verify_nonce( $GLOBALS['ai4seo_ajax_nonce'] ?? '', AI4SEO_GLOBAL_NONCE_IDENTIFIER ) === false ) {
-		return false;
-	}
-
-	return true;
-}
-
-
-/**
  * Checks, if the current post type is the given post type
  *
  * @param string $post_type The post type to check.

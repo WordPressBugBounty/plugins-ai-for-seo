@@ -815,25 +815,13 @@ if ( ! $ai4seo_latest_activity ) {
 			echo ' ';
 		}
 
-					// if details given, output them else the action.
-		if ( isset( $ai4seo_this_latest_activity_entry['details'] ) && $ai4seo_this_latest_activity_entry['details'] ) {
-				echo esc_html( ai4seo_mb_substr( $ai4seo_this_latest_activity_entry['details'], 0, 160 ) );
-		} else {
-					// metadata-manually-generated", "metadata-bulk-generated", "attachment-attributes-manually-generated", "attachment-attributes-bulk-generated.
-			switch ( $ai4seo_this_latest_activity_entry['action'] ) {
-				case 'metadata-manually-generated':
-					echo esc_html__( 'Metadata manually generated', 'ai-for-seo' );
-					break;
-				case 'metadata-bulk-generated':
-					echo esc_html__( 'Metadata generated (by SEO Autopilot)', 'ai-for-seo' );
-					break;
-				case 'attachment-attributes-manually-generated':
-					echo esc_html__( 'Media attributes manually generated', 'ai-for-seo' );
-					break;
-				case 'attachment-attributes-bulk-generated':
-					echo esc_html__( 'Media attributes generated (by SEO Autopilot)', 'ai-for-seo' );
-					break;
-			}
+		// Keep the compact action bounded while rendering operational diagnostics completely on their own line.
+		$ai4seo_this_latest_activity_message_parts = ai4seo_get_latest_activity_message_parts( $ai4seo_this_latest_activity_entry );
+		echo esc_html( ai4seo_mb_substr( $ai4seo_this_latest_activity_message_parts['summary'], 0, 160 ) );
+
+		if ( '' !== $ai4seo_this_latest_activity_message_parts['details'] ) {
+			echo '<br>';
+			echo "<span class='ai4seo-latest-activity-item-details'>" . esc_html( $ai4seo_this_latest_activity_message_parts['details'] ) . '</span>';
 		}
 								echo '</div>';
 

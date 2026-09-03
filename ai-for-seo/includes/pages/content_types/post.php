@@ -814,14 +814,16 @@ foreach ( $ai4seo_all_posts as $ai4seo_this_post ) {
 
 			// Post-Edit-Link.
 			echo '<td>';
-			// Keep metadata and related-media row actions in the shared button wrapper so options stay on one line.
+			// Keep plugin and WordPress row actions in one wrapper so the options stay on one line.
 			echo "<div class='ai4seo-buttons-wrapper ai4seo-row-action-buttons'>";
-				// Edit-Link.
+				// Metadata editor.
 	if ( $ai4seo_active_meta_tags ) {
 		ai4seo_echo_wp_kses( ai4seo_get_edit_metadata_button( $ai4seo_this_post_id, $ai4seo_current_post_ids ) );
 	}
 
+				// Keep related-media discovery and native editing available independently of active metadata.
 				ai4seo_echo_wp_kses( ai4seo_get_related_attachments_button( $ai4seo_this_post_id ) );
+				ai4seo_echo_wp_kses( ai4seo_get_wordpress_post_edit_link_button( $ai4seo_this_post_id ) );
 				echo '</div>';
 				echo '</td>';
 				echo '</tr>';

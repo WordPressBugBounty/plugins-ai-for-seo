@@ -1,4 +1,12 @@
 == Changelog ==
+= 2.5.2 =
+* Improved account recovery and purchase setup so license credentials are refreshed safely and subscription or credit checkout starts more reliably.
+* Added clearer Latest Activity details that show which metadata or media fields were generated, with direct WordPress edit links from content lists.
+* Improved the Metadata Editor so drafts can save manual changes and field removals reliably before publication.
+* Improved Settings and bulk-action controls so actions activate only after meaningful changes and valid selections, with a simpler accessible Advanced Settings toggle.
+* Improved automatic repair of legacy generation queues and saved data so older site state no longer interrupts analysis.
+* Bug Fixes & Maintenance: Fixed 4 minor bugs and addressed 2 security issues.
+
 = 2.5.1 =
 * Added direct SOOZ metadata-editor controls for Elementor and the WordPress Block Editor, with more reliable initialization for dynamically loaded editor fields.
 * Added AVIF support for media attribute generation, including automatic preparation of compatible image data.

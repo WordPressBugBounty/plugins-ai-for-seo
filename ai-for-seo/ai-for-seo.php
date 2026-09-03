@@ -3,7 +3,7 @@
  * Plugin Name: SOOZ - AI for SEO
  * Plugin URI: https://sooz.ai
  * Description: One-Click SEO solution. *SOOZ - AI for SEO* helps your website to rank higher in Web Search results.
- * Version: 2.5.1
+ * Version: 2.5.2
  * Author: spacecodes
  * Author URI: https://spa.ce.codes
  * Text Domain: ai-for-seo

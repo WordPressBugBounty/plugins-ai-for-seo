@@ -66,22 +66,37 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 		ai4seo_echo_wp_kses( ai4seo_get_small_icon_button_tag( 'rotate', esc_html__( 'Restore Default', 'ai-for-seo' ), 'ai4seo-lockable', 'ai4seo_restore_default_settings();' ) );
 
 
-		// === SHOW ADVANCED SETTINGS =============================================================================== \\
+		// === ADVANCED SETTINGS TOGGLE ============================================================================= \\
 
-		$ai4seo_this_setting_name        = AI4SEO_SETTING_SHOW_ADVANCED_SETTINGS;
-		$ai4seo_this_setting_input_name  = ai4seo_get_prefixed_input_name( $ai4seo_this_setting_name );
-		$ai4seo_this_setting_input_value = ai4seo_get_setting( $ai4seo_this_setting_name );
+		// Derive the no-JavaScript presentation from the saved preference so the first paint is accurate.
+		$ai4seo_this_setting_name           = AI4SEO_SETTING_SHOW_ADVANCED_SETTINGS;
+		$ai4seo_this_setting_input_name     = ai4seo_get_prefixed_input_name( $ai4seo_this_setting_name );
+		$ai4seo_this_setting_input_value    = ai4seo_get_setting( $ai4seo_this_setting_name );
+		$ai4seo_are_advanced_settings_shown = 'show' === $ai4seo_this_setting_input_value;
+		$ai4seo_show_advanced_label         = __( 'Show Advanced Settings', 'ai-for-seo' );
+		$ai4seo_hide_advanced_label         = __( 'Hide Advanced Settings', 'ai-for-seo' );
+		$ai4seo_advanced_toggle_label       = $ai4seo_are_advanced_settings_shown ? $ai4seo_hide_advanced_label : $ai4seo_show_advanced_label;
+		$ai4seo_advanced_toggle_classes     = 'ai4seo-button ai4seo-lockable ai4seo-small-button';
+		$ai4seo_advanced_toggle_classes    .= $ai4seo_are_advanced_settings_shown ? ' ai4seo-advanced-settings-highlight' : '';
+		$ai4seo_show_advanced_icon_classes  = 'ai4seo-button-icon-left ai4seo-advanced-settings-show-icon';
+		$ai4seo_show_advanced_icon_classes .= $ai4seo_are_advanced_settings_shown ? ' ai4seo-display-none' : '';
+		$ai4seo_hide_advanced_icon_classes  = 'ai4seo-button-icon-left ai4seo-advanced-settings-hide-icon';
+		$ai4seo_hide_advanced_icon_classes .= $ai4seo_are_advanced_settings_shown ? '' : ' ai4seo-display-none';
+		$ai4seo_show_advanced_icon          = ai4seo_get_svg_tag( 'eye', '', $ai4seo_show_advanced_icon_classes, true );
+		$ai4seo_hide_advanced_icon          = ai4seo_get_svg_tag( 'eye-slash', '', $ai4seo_hide_advanced_icon_classes, true );
 
+		// Keep both icon states in one disclosure so scripts can update labels and ARIA without replacing the control.
 		echo "<input type='hidden' value='" . esc_attr( $ai4seo_this_setting_input_value ) . "' id='ai4seo-advanced-setting-state' name='" . esc_attr( $ai4seo_this_setting_input_name ) . "' />";
-		echo '<div'
-			. ( 'show' === $ai4seo_this_setting_input_value ? " class='ai4seo-display-none'" : '' )
-			. " id='ai4seo-show-advanced-settings-container'>";
-			ai4seo_echo_wp_kses( ai4seo_get_small_icon_button_tag( 'eye', esc_html__( 'Show Advanced Settings', 'ai-for-seo' ), '', 'ai4seo_show_advanced_settings(true);' ) );
-		echo '</div>';
-		echo '<div'
-			. ( 'show' === $ai4seo_this_setting_input_value ? '' : " class='ai4seo-display-none'" )
-			. " id='ai4seo-hide-advanced-settings-container'>";
-			ai4seo_echo_wp_kses( ai4seo_get_small_icon_button_tag( 'eye-slash', esc_html__( 'Hide Advanced Settings', 'ai-for-seo' ), 'ai4seo-advanced-settings-highlight', 'ai4seo_hide_advanced_settings(true);' ) );
+		echo "<div id='ai4seo-advanced-settings-toggle-container'>";
+			echo "<button type='button' class='" . esc_attr( $ai4seo_advanced_toggle_classes ) . "' id='ai4seo-toggle-advanced-settings-button'";
+			echo " aria-expanded='" . esc_attr( $ai4seo_are_advanced_settings_shown ? 'true' : 'false' ) . "'";
+			echo " data-ai4seo-show-label='" . esc_attr( $ai4seo_show_advanced_label ) . "'";
+			echo " data-ai4seo-hide-label='" . esc_attr( $ai4seo_hide_advanced_label ) . "'";
+			echo " title='" . esc_attr( $ai4seo_advanced_toggle_label ) . "'>";
+				ai4seo_echo_wp_kses( $ai4seo_show_advanced_icon );
+				ai4seo_echo_wp_kses( $ai4seo_hide_advanced_icon );
+				echo "<span class='ai4seo-advanced-settings-toggle-label'>" . esc_html( $ai4seo_advanced_toggle_label ) . '</span>';
+			echo '</button>';
 		echo '</div>';
 	echo '</div>';
 

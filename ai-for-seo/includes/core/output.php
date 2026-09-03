@@ -907,6 +907,44 @@ function ai4seo_get_editor_field_source_message_details( array $source_details )
 
 
 /**
+ * Returns the HTML for a native WordPress post editor link.
+ *
+ * @param int $post_id The post ID to edit.
+ * @return string The HTML for the link, or an empty string when the post cannot be edited.
+ */
+function ai4seo_get_wordpress_post_edit_link_button( int $post_id ): string {
+	// Let WordPress reject unavailable records and build the canonical editor URL for the current installation.
+	$edit_post_link = get_edit_post_link( $post_id );
+
+	if ( ! $edit_post_link ) {
+		return '';
+	}
+
+	// Use the registered singular label so custom post types receive an accurate accessible button name.
+	$post_type        = get_post_type( $post_id );
+	$post_type_object = $post_type ? get_post_type_object( $post_type ) : null;
+	$post_type_label  = $post_type_object && isset( $post_type_object->labels->singular_name )
+		? $post_type_object->labels->singular_name
+		: __( 'Entry', 'ai-for-seo' );
+
+	/* translators: %s: Singular post type label, such as Post or Page. */
+	$button_label = sprintf( __( 'Edit %s in WordPress (opens in a new tab)', 'ai-for-seo' ), $post_type_label );
+
+	// Reuse the shared link-button renderer so external-tab safety and icon-only accessibility stay centralized.
+	return ai4seo_get_a_tag_icon_button_tag(
+		$edit_post_link,
+		'',
+		'_blank',
+		'arrow-up-right-from-square',
+		'',
+		'',
+		'',
+		$button_label
+	);
+}
+
+
+/**
  * Returns the HTML for the edit metadata button
  *
  * @param int   $post_id The post id to get the button for.
@@ -1415,13 +1453,20 @@ function ai4seo_get_contact_us_button( string $a_css_class = '', $button_css_cla
 /**
  * Return a text button using the shared icon-button renderer.
  *
- * @param string $text Button text.
- * @param string $css_class Additional CSS classes.
- * @param string $onclick Optional inline click handler.
+ * @param string $text        Button text.
+ * @param string $css_class   Additional CSS classes.
+ * @param string $onclick     Optional inline click handler.
+ * @param bool   $is_disabled Whether the button starts disabled.
  * @return string Button HTML.
  */
-function ai4seo_get_button_tag( string $text, string $css_class = '', string $onclick = '' ): string {
-	return ai4seo_get_icon_button_tag( '', $text, $css_class, $onclick );
+function ai4seo_get_button_tag(
+	string $text,
+	string $css_class = '',
+	string $onclick = '',
+	bool $is_disabled = false
+): string {
+	// Forward native state through the shared renderer so text and icon buttons build identical attributes.
+	return ai4seo_get_icon_button_tag( '', $text, $css_class, $onclick, '', $is_disabled );
 }
 
 
@@ -1462,15 +1507,23 @@ function ai4seo_get_collapsible_tag( string $summary, string $content, string $c
 /**
  * Function to output a button tag with icon and text.
  *
- * @param string $icon      The icon name.
- * @param string $text      The text to display.
- * @param string $css_class Additional CSS classes.
- * @param string $onclick   The onclick event.
- * @param string $title     The title attribute.
+ * @param string $icon        The icon name.
+ * @param string $text        The text to display.
+ * @param string $css_class   Additional CSS classes.
+ * @param string $onclick     The onclick event.
+ * @param string $title       The title attribute.
+ * @param bool   $is_disabled Whether the button starts disabled.
  *
  * @return string HTML.
  */
-function ai4seo_get_icon_button_tag( string $icon, string $text, string $css_class = '', string $onclick = '', string $title = '' ): string {
+function ai4seo_get_icon_button_tag(
+	string $icon,
+	string $text,
+	string $css_class = '',
+	string $onclick = '',
+	string $title = '',
+	bool $is_disabled = false
+): string {
 	// Base classes.
 	$css_class = 'ai4seo-button ai4seo-lockable' . ( '' !== $css_class ? ' ' . $css_class : '' );
 
@@ -1502,6 +1555,11 @@ function ai4seo_get_icon_button_tag( string $icon, string $text, string $css_cla
 		if ( '' === $text ) {
 			$attributes['aria-label'] = $title;
 		}
+	}
+
+	// Emit native disabled state so the control is inert before any JavaScript enhancement runs.
+	if ( $is_disabled ) {
+		$attributes['disabled'] = 'disabled';
 	}
 
 	// Convert attributes to string.
@@ -2934,12 +2992,14 @@ function ai4seo_get_bulk_generation_queue_action_controls( string $context, stri
 		$this_action_description = trim( (string) ( $this_action_details['description'] ?? '' ) );
 		$output                 .= "<option value='" . esc_attr( $this_action_identifier ) . "' data-ai4seo-description='" . esc_attr( $this_action_description ) . "'>" . esc_html( $this_action_label ) . '</option>';
 	}
-		$output     .= '</select>';
-		$output     .= $bulk_action_help_icon_html;
+		$output .= '</select>';
+		$output .= $bulk_action_help_icon_html;
+		// Keep Apply unavailable until the client validates both an action and at least one selected entry.
 		$output     .= ai4seo_get_button_tag(
 			esc_html__( 'Apply', 'ai-for-seo' ),
-			'ai4seo-bulk-generation-queue-action-submit',
-			''
+			'ai4seo-bulk-generation-queue-action-submit ai4seo-inactive-button',
+			'',
+			true
 		);
 		$output     .= "<p id='" . esc_attr( $bulk_action_description_id ) . "' class='ai4seo-bulk-generation-queue-action-selected-description ai4seo-sub-info' aria-live='polite' aria-atomic='true' hidden>";
 			$output .= '<strong>' . esc_html__( 'Selected:', 'ai-for-seo' ) . "</strong> <span class='ai4seo-bulk-generation-queue-action-selected-description-text'></span>";

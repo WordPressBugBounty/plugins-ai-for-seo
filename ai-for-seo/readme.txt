@@ -4,7 +4,7 @@ Contributors: spacecodes
 Donate link: https://spa.ce.codes
 Requires at least: 6.6
 Tested up to: 7.1
-Stable tag: 2.5.1
+Stable tag: 2.5.2
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -225,6 +225,14 @@ It depends on how the generated data is stored and used. If *SOOZ - AI for SEO* 
 We welcome feature requests, editor integration ideas, page builder compatibility requests, and SEO workflow feedback. Please email [support@sooz.ai](mailto:support@sooz.ai) with your suggestions.
 
 == Changelog ==
+
+= 2.5.2 =
+* Improved account recovery and purchase setup so license credentials are refreshed safely and subscription or credit checkout starts more reliably.
+* Added clearer Latest Activity details that show which metadata or media fields were generated, with direct WordPress edit links from content lists.
+* Improved the Metadata Editor so drafts can save manual changes and field removals reliably before publication.
+* Improved Settings and bulk-action controls so actions activate only after meaningful changes and valid selections, with a simpler accessible Advanced Settings toggle.
+* Improved automatic repair of legacy generation queues and saved data so older site state no longer interrupts analysis.
+* Bug Fixes & Maintenance: Fixed 4 minor bugs and addressed 2 security issues.
 
 = 2.5.1 =
 * Added direct SOOZ metadata-editor controls for Elementor and the WordPress Block Editor, with more reliable initialization for dynamically loaded editor fields.

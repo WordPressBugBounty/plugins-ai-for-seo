@@ -308,14 +308,16 @@ if ( ! $ai4seo_this_success ) {
 
 // === ADD LATEST ACTIVITY ENTRY ======================================================================= \\
 
-// Normalize unavailable usage once so activity history and the AJAX response report the same credit value.
+// Normalize unavailable usage and record only persisted fields so activity history matches the AJAX response.
 $ai4seo_credits_consumed = (int) ( $ai4seo_results['credits-consumed'] ?? 0 );
 
 ai4seo_add_latest_activity_entry(
 	$ai4seo_this_attachment_post_id,
 	'success',
 	'attachment-attributes-manually-generated',
-	$ai4seo_credits_consumed
+	$ai4seo_credits_consumed,
+	'',
+	array_keys( $ai4seo_new_attachment_attributes )
 );
 
 

@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 // Centralize plugin identity and asset-cache declarations consumed throughout bootstrap.
-const AI4SEO_PLUGIN_VERSION_NUMBER              = '2.5.1';
+const AI4SEO_PLUGIN_VERSION_NUMBER              = '2.5.2';
 const AI4SEO_PLUGIN_NAME                        = 'SOOZ - AI for SEO';
 const AI4SEO_SHORT_PLUGIN_NAME                  = 'SOOZ';
 const AI4SEO_PLUGIN_DESCRIPTION                 = 'One-Click SEO solution. *SOOZ - AI for SEO* helps your website to rank higher in Web Search results.';
@@ -224,6 +224,19 @@ const AI4SEO_METADATA_KEYWORDS_RECOMMENDED_MAX_ITEMS = 10;
  */
 function ai4seo_get_change_log(): array {
 	return array(
+		array(
+			'date'      => 'September 3rd, 2026',
+			'version'   => '2.5.2',
+			'important' => false,
+			'updates'   => array(
+				'Improved account recovery and purchase setup so license credentials are refreshed safely and subscription or credit checkout starts more reliably.',
+				'Added clearer Latest Activity details that show which metadata or media fields were generated, with direct WordPress edit links from content lists.',
+				'Improved the Metadata Editor so drafts can save manual changes and field removals reliably before publication.',
+				'Improved Settings and bulk-action controls so actions activate only after meaningful changes and valid selections, with a simpler accessible Advanced Settings toggle.',
+				'Improved automatic repair of legacy generation queues and saved data so older site state no longer interrupts analysis.',
+				'Bug Fixes & Maintenance: Fixed 4 minor bugs and addressed 2 security issues.',
+			),
+		),
 		array(
 			'date'      => 'August 26th, 2026',
 			'version'   => '2.5.1',

@@ -3575,9 +3575,15 @@ function ai4seo_automated_metadata_generation(
 			$failed_plugin_names = ai4seo_get_third_party_seo_plugin_names(
 				array_keys( $metadata_update_details['failed_third_party_syncs'] ?? array() )
 			);
-			$failed_plugin_list  = $failed_plugin_names ? implode( ', ', $failed_plugin_names ) : 'selected third-party SEO integrations';
+			$failed_plugin_list  = $failed_plugin_names
+				? wp_sprintf_l( '%l', $failed_plugin_names )
+				: __( 'selected third-party SEO integrations', 'ai-for-seo' );
 
-			$third_party_sync_failure_activity_details = 'Generated metadata was saved in SOOZ, but synchronization failed for: ' . $failed_plugin_list;
+			$third_party_sync_failure_activity_details = sprintf(
+				/* translators: %s: List of third-party SEO integrations that failed to synchronize. */
+				__( 'Generated metadata was saved in SOOZ, but synchronization failed for: %s', 'ai-for-seo' ),
+				$failed_plugin_list
+			);
 
 			ai4seo_debug_message(
 				693318905,
@@ -3685,13 +3691,14 @@ function ai4seo_automated_metadata_generation(
 		return false;
 	}
 
-	// Record usable partial responses as successful; unresolved eligibility is represented by coverage above.
+	// Record returned field identifiers for activity details; unresolved eligibility remains represented by coverage above.
 	ai4seo_add_latest_activity_entry(
 		$post_id,
 		'success',
 		'metadata-bulk-generated',
 		(int) ( $results['credits-consumed'] ?? 0 ),
-		$third_party_sync_failure_activity_details
+		$third_party_sync_failure_activity_details,
+		array_keys( $new_generated_metadata )
 	);
 
 	if ( $debug ) {
@@ -4473,12 +4480,14 @@ function ai4seo_automated_attachment_attributes_generation(
 		return false;
 	}
 
-	// Record usable partial responses as successful; unresolved eligibility is represented by coverage above.
+	// Record returned field identifiers for activity details; unresolved eligibility remains represented by coverage above.
 	ai4seo_add_latest_activity_entry(
 		$attachment_post_id,
 		'success',
 		'attachment-attributes-bulk-generated',
-		(int) ( $results['credits-consumed'] ?? 0 )
+		(int) ( $results['credits-consumed'] ?? 0 ),
+		'',
+		array_keys( $new_attachment_attributes )
 	);
 
 	if ( $debug ) {
