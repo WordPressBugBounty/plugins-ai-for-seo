@@ -1216,6 +1216,9 @@ function ai4seo_call_attachment_attributes_generation_api(
 		);
 	}
 
+	// Only URL requests started in Auto mode contribute to the persistent recovery history.
+	$should_track_url_recovery = 'auto' === ai4seo_get_setting( AI4SEO_SETTING_IMAGE_UPLOAD_METHOD );
+
 	// Send both identities so RobHub can analyze the delivery variant while retaining full-image context.
 	$robhub_api_call_parameters['attachment_url']           = $delivery_url;
 	$robhub_api_call_parameters['reference_attachment_url'] = $original_url;
@@ -1225,8 +1228,13 @@ function ai4seo_call_attachment_attributes_generation_api(
 	$url_response       = ai4seo_robhub_api()->call( 'ai4seo/generate-all-attachment-attributes', $robhub_api_call_parameters );
 	$continuation_token = ai4seo_get_attachment_base64_recovery_token( $url_response );
 
-	// Return every ordinary failure unchanged, including direct-base64, auth, credit, and model errors.
+	// Both URL success and failures without an authorized continuation break a recovery streak.
 	if ( ! $continuation_token ) {
+		// Manual URL mode must not alter the history reserved for automatic transport selection.
+		if ( $should_track_url_recovery ) {
+			ai4seo_record_attachment_url_generation_result( false );
+		}
+
 		return $url_response;
 	}
 
@@ -1235,10 +1243,119 @@ function ai4seo_call_attachment_attributes_generation_api(
 	unset( $robhub_api_call_parameters['attachment_url'] );
 	$robhub_api_call_parameters['attachment_recovery_token'] = $continuation_token;
 
-	return ai4seo_generate_attachment_attributes_using_base64(
+	$base64_response = ai4seo_generate_attachment_attributes_using_base64(
 		$attachment_image_source,
 		$robhub_api_call_parameters
 	);
+
+	// Count only a successful URL-to-Base64 pair; preparation and continuation failures reset history.
+	if ( $should_track_url_recovery ) {
+		ai4seo_record_attachment_url_generation_result( ai4seo_robhub_api()->was_call_successful( $base64_response ) );
+	}
+
+	return $base64_response;
+}
+
+
+/**
+ * Prefer direct image data after three consecutive successful URL-to-Base64 recoveries.
+ *
+ * @param bool $recovered Whether a server-authorized Base64 continuation succeeded.
+ * @return void
+ */
+function ai4seo_record_attachment_url_generation_result( bool $recovered ): void {
+	// A manual transport preference must not accumulate history or trigger an automatic switch.
+	if ( 'auto' !== ai4seo_get_setting( AI4SEO_SETTING_IMAGE_UPLOAD_METHOD ) ) {
+		return;
+	}
+
+	// Recalculate inside the existing CAS retry so concurrent generations cannot lose increments.
+	if (
+		! ai4seo_mutate_environmental_variable_value(
+			AI4SEO_ENVIRONMENTAL_VARIABLE_ATTACHMENT_BASE64_RECOVERY_STREAK,
+			static function ( $current_streak ) use ( $recovered ): int {
+				// Bound retries at the switch threshold until the preference write succeeds.
+				return $recovered ? min( 3, (int) $current_streak + 1 ) : 0;
+			},
+			false
+		)
+	) {
+		ai4seo_debug_message( 709071001, 'Could not persist the attachment Base64 recovery streak.', true );
+		return;
+	}
+
+	// Saturate at three so a failed preference write can be retried by the next successful recovery.
+	if ( ! $recovered || 3 !== (int) ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ATTACHMENT_BASE64_RECOVERY_STREAK ) ) {
+		return;
+	}
+
+	// Generation can outlive a settings save; refresh both caches before changing the current preference.
+	ai4seo_invalidate_option_cache( AI4SEO_SETTINGS_OPTION_NAME );
+
+	if ( ! ai4seo_reset_settings_request_cache_for_current_site() ) {
+		ai4seo_debug_message( 709071002, 'Could not refresh image upload settings after Base64 recovery.', true );
+		return;
+	}
+
+	// A failed read must never become a default settings snapshot that can overwrite saved configuration.
+	$settings_snapshot = ai4seo_get_raw_option_snapshot( AI4SEO_SETTINGS_OPTION_NAME );
+
+	if ( null === $settings_snapshot ) {
+		ai4seo_debug_message( 709071007, 'Could not read authoritative image upload settings after Base64 recovery.', true );
+		return;
+	}
+
+	// Retain the extra-serialization and JSON formats already supported by settings hydration.
+	$persisted_settings = $settings_snapshot['exists'] ? $settings_snapshot['value'] : array();
+	$persisted_settings = ai4seo_safe_maybe_unserialize( $persisted_settings );
+
+	// Decode JSON only when the serialization pass still leaves a textual settings value.
+	if ( is_string( $persisted_settings ) && ai4seo_is_json( $persisted_settings ) ) {
+		$persisted_settings = json_decode( $persisted_settings, true );
+	}
+
+	// Preserve malformed storage for its owner instead of replacing it during image generation.
+	if ( ! is_array( $persisted_settings ) ) {
+		ai4seo_debug_message( 709071008, 'Invalid stored settings prevented the automatic image upload switch.', true );
+		return;
+	}
+
+	// Only an absent key inherits Auto; explicit preferences and malformed values must remain untouched.
+	$image_upload_method = array_key_exists( AI4SEO_SETTING_IMAGE_UPLOAD_METHOD, $persisted_settings )
+		? $persisted_settings[ AI4SEO_SETTING_IMAGE_UPLOAD_METHOD ]
+		: AI4SEO_DEFAULT_SETTINGS[ AI4SEO_SETTING_IMAGE_UPLOAD_METHOD ];
+
+	if ( 'auto' !== $image_upload_method ) {
+		return;
+	}
+
+	// Change only the transport field and let any concurrent settings save win the exact snapshot comparison.
+	$persisted_settings[ AI4SEO_SETTING_IMAGE_UPLOAD_METHOD ] = 'base64';
+	$settings_were_updated                                    = ai4seo_compare_and_swap_option_snapshot(
+		AI4SEO_SETTINGS_OPTION_NAME,
+		$settings_snapshot,
+		$persisted_settings,
+		true
+	);
+
+	// Discard request-local state after either outcome without publishing an older settings snapshot.
+	ai4seo_invalidate_option_cache( AI4SEO_SETTINGS_OPTION_NAME );
+	ai4seo_reset_settings_request_cache_for_current_site();
+
+	// Keep the saturated streak for a later recovery; a lost race is an ordinary administrative save.
+	if ( true !== $settings_were_updated ) {
+		// Only a persistence failure needs a diagnostic; losing the snapshot race is expected.
+		if ( null === $settings_were_updated ) {
+			ai4seo_debug_message( 709071003, 'Could not switch image uploads to Base64 after repeated successful recovery.', true );
+		}
+
+		return;
+	}
+
+	// Clear the completed streak only after the new transport preference has been stored.
+	if ( ! ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ATTACHMENT_BASE64_RECOVERY_STREAK, 0 ) ) {
+		ai4seo_debug_message( 709071004, 'Could not clear the attachment recovery streak after switching to Base64.', true );
+	}
 }
 
 

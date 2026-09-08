@@ -51,8 +51,8 @@ $ai4seo_account_page_url  = ai4seo_get_subpage_url( 'account' );
 $ai4seo_help_page_url     = ai4seo_get_subpage_url( 'help' );
 $ai4seo_plugin_home_url   = $ai4seo_can_use_plugin_content ? $ai4seo_dashboard_url : $ai4seo_account_page_url;
 
-$ai4seo_current_post_type  = ai4seo_get_active_post_type_subpage();
-$ai4seo_menu_registry      = ai4seo_get_plugins_menu_registry();
+$ai4seo_current_post_type = ai4seo_get_active_post_type_subpage();
+$ai4seo_menu_registry     = ai4seo_get_plugins_menu_registry();
 
 $ai4seo_page_heading_label = '';
 
@@ -210,22 +210,22 @@ if ( $ai4seo_can_use_plugin_content ) {
 					echo esc_html__( 'Dashboard', 'ai-for-seo' );
 
 					// unread notifications count.
-if ( $ai4seo_unread_notifications_count > 0 ) {
-	echo "<span class='ai4seo-menu-counter'>" . esc_html( ai4seo_format_number_i18n( $ai4seo_unread_notifications_count ) ) . '</span>';
-}
+	if ( $ai4seo_unread_notifications_count > 0 ) {
+		echo "<span class='ai4seo-menu-counter'>" . esc_html( ai4seo_format_number_i18n( $ai4seo_unread_notifications_count ) ) . '</span>';
+	}
 
 				echo '</span>';
 			echo '</a>';
 
 			// Pages for supported post-types.
-foreach ( $ai4seo_supported_post_types as $ai4seo_this_post_type ) {
-	$ai4seo_this_menu_item_label = ai4seo_get_post_type_translation( $ai4seo_this_post_type, true );
-	$ai4seo_this_menu_item_label = ai4seo_get_nice_label( $ai4seo_this_menu_item_label );
-	$ai4seo_this_menu_item_icon  = ai4seo_get_dashicon_tag_for_navigation( $ai4seo_this_post_type );
-	$ai4seo_this_page_is_active  = ( $ai4seo_current_post_type === $ai4seo_this_post_type );
-	$ai4seo_this_page_url        = ai4seo_get_post_type_page_url( $ai4seo_this_post_type );
+	foreach ( $ai4seo_supported_post_types as $ai4seo_this_post_type ) {
+		$ai4seo_this_menu_item_label = ai4seo_get_post_type_translation( $ai4seo_this_post_type, true );
+		$ai4seo_this_menu_item_label = ai4seo_get_nice_label( $ai4seo_this_menu_item_label );
+		$ai4seo_this_menu_item_icon  = ai4seo_get_dashicon_tag_for_navigation( $ai4seo_this_post_type );
+		$ai4seo_this_page_is_active  = ( $ai4seo_current_post_type === $ai4seo_this_post_type );
+		$ai4seo_this_page_url        = ai4seo_get_post_type_page_url( $ai4seo_this_post_type );
 
-	echo "<a href='" . esc_url( $ai4seo_this_page_url ) . "'"
+		echo "<a href='" . esc_url( $ai4seo_this_page_url ) . "'"
 		. " class='nav-tab ai4seo-menu-item"
 		. ( $ai4seo_this_page_is_active ? ' nav-tab-active ai4seo-active-menu-item' : '' )
 		. "'"
@@ -235,12 +235,12 @@ foreach ( $ai4seo_supported_post_types as $ai4seo_this_post_type ) {
 		echo '<div>';
 			echo esc_html( $ai4seo_this_menu_item_label );
 		echo '</div>';
-	echo '</a>';
-}
+		echo '</a>';
+	}
 
-if ( $ai4seo_active_attachment_attributes ) {
-	// Media page.
-	echo "<a href='" . esc_url( $ai4seo_media_page_url ) . "'"
+	if ( $ai4seo_active_attachment_attributes ) {
+		// Media page.
+		echo "<a href='" . esc_url( $ai4seo_media_page_url ) . "'"
 		. " class='nav-tab ai4seo-menu-item"
 		. ( 'media' === $ai4seo_active_plugin_page ? ' nav-tab-active ai4seo-active-menu-item' : '' )
 		. "'"
@@ -250,7 +250,7 @@ if ( $ai4seo_active_attachment_attributes ) {
 		echo '<span>';
 			echo esc_html( ai4seo_get_media_menu_label() );
 		echo '</span>';
-	echo '</a>';
+		echo '</a>';
 	}
 }
 

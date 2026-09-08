@@ -251,6 +251,7 @@ function ai4seo_expire_purchase_return_token( string $option_name ): void {
 	}
 
 	if ( delete_option( $option_name ) ) {
+		ai4seo_reconcile_credit_purchase_attempts( $token_state );
 		wp_clear_scheduled_hook( AI4SEO_PURCHASE_RETURN_TOKEN_EXPIRY_CRON_HOOK, array( $option_name ) );
 		return;
 	}
@@ -295,9 +296,10 @@ function ai4seo_reconcile_purchase_return_tokens( int $limit = 100 ): void {
 /**
  * Create a site- and user-bound purchase-return token.
  *
+ * @param bool $reconcile_expired_tokens Whether to run cleanup now; locked callers must defer it until after release.
  * @return string Raw token, or an empty string when it could not be stored.
  */
-function ai4seo_create_purchase_return_token(): string {
+function ai4seo_create_purchase_return_token( bool $reconcile_expired_tokens = true ): string {
 	$current_user_id = get_current_user_id();
 
 	// Checkout can only start for a site administrator within the active Incognito boundary.
@@ -306,7 +308,9 @@ function ai4seo_create_purchase_return_token(): string {
 	}
 
 	// Recover expired rows and missing events left by disabled cron or a temporarily inactive plugin.
-	ai4seo_reconcile_purchase_return_tokens();
+	if ( $reconcile_expired_tokens ) {
+		ai4seo_reconcile_purchase_return_tokens();
+	}
 
 	// Keep only a hash-derived option name in storage while the raw token travels through the checkout redirect.
 	$token       = wp_generate_password( 32, false, false );
@@ -373,6 +377,11 @@ function ai4seo_consume_purchase_return_token( string $token ): bool {
 
 	if ( get_current_blog_id() !== $token_state['blog_id'] || get_current_user_id() !== $token_state['user_id'] ) {
 		return false;
+	}
+
+	// Credit Checkout uses the same success/cancel URL; a valid return alone is not completion.
+	if ( array_key_exists( 'credit_purchase_option_name', $token_state ) || array_key_exists( 'credit_purchase_attempt_id', $token_state ) ) {
+		return ai4seo_confirm_credit_purchase_return( $token_state, $token );
 	}
 
 	// Core option deletion is database-authoritative, so concurrent requests have one storage-level winner.
@@ -471,16 +480,15 @@ function ai4seo_has_purchase_return_query_parameters(): bool {
 }
 
 /**
- * Record purchase activity and make any pending credential transition immediately retryable.
+ * Record checkout activity so account polling can discover a confirmed purchase.
  *
- * Checkout initialization, pricing visits, and verified returns share this signal so account
- * polling and password-rotation recovery always move onto the same fast reconciliation cadence.
+ * Checkout initialization, pricing visits, and verified returns share the polling signal.
+ * Authenticated account state, rather than opening checkout, authorizes password rotation.
  *
  * @return void
  */
 function ai4seo_record_purchase_activity(): void {
 	ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_JUST_PURCHASED_SOMETHING_TIME, time() );
-	ai4seo_robhub_api()->accelerate_pending_api_password_rotation_reconciliation();
 }
 
 /**
@@ -541,13 +549,16 @@ function ai4seo_prepare_first_purchase_api_password_rotation_claim(): string {
  * @param string $stripe_price_id Stripe price identifier selected by the administrator.
  * @param string $redirect_url Secure site-local return URL.
  * @param string $rotation_claim_token Optional signed first-purchase rotation claim.
+ * @param string $purchase_attempt_id Optional stable UUID for checkout resumption.
  * @return array RobHub init-purchase parameters.
  */
 function ai4seo_build_credit_pack_purchase_parameters(
 	string $stripe_price_id,
 	string $redirect_url,
-	string $rotation_claim_token = ''
+	string $rotation_claim_token = '',
+	string $purchase_attempt_id = ''
 ): array {
+	// Keep the legacy request shape unchanged unless the caller supplies the newer protection fields.
 	$endpoint_parameters = array(
 		'stripe_price_id' => $stripe_price_id,
 		'redirect_url'    => $redirect_url,
@@ -557,7 +568,406 @@ function ai4seo_build_credit_pack_purchase_parameters(
 		$endpoint_parameters['rotation_claim_token'] = $rotation_claim_token;
 	}
 
+	// A stable identifier lets RobHub resume this request without minting another checkout.
+	if ( '' !== $purchase_attempt_id ) {
+		$endpoint_parameters['purchase_attempt_id'] = $purchase_attempt_id;
+	}
+
 	return $endpoint_parameters;
+}
+
+/**
+ * Derive the same purchase identity for initialization and return reconciliation.
+ *
+ * @param string $stripe_price_id Selected credit-pack price.
+ * @param string $api_username Current RobHub account identity.
+ * @return string Site- and administrator-scoped durable option name.
+ */
+function ai4seo_get_credit_purchase_attempt_option_name( string $stripe_price_id, string $api_username ): string {
+	// Preserve field order because existing pending options depend on this exact identity hash.
+	$identity = array( get_current_blog_id(), get_current_user_id(), $api_username, $stripe_price_id );
+	return AI4SEO_CREDIT_PURCHASE_ATTEMPT_OPTION_PREFIX . hash( 'sha256', wp_json_encode( $identity ) );
+}
+
+/**
+ * Check a saved purchase before its return token or immutable parameters are reused.
+ *
+ * @param mixed  $attempt Untrusted stored option value.
+ * @param string $option_name Expected identity-derived option name.
+ * @param string $stripe_price_id Expected credit-pack price.
+ * @return bool Whether the saved state has the existing resumable shape.
+ */
+function ai4seo_is_credit_purchase_attempt_state_valid( $attempt, string $option_name, string $stripe_price_id ): bool {
+	// Corrupt state cannot be treated as an absent attempt or grant permission for a new checkout.
+	if (
+		! is_array( $attempt ) || ( $attempt['option_name'] ?? '' ) !== $option_name
+		|| ! is_int( $attempt['retained_until'] ?? null ) || ! is_bool( $attempt['ready'] ?? null )
+		|| ! is_string( $attempt['id'] ?? null ) || ! is_string( $attempt['return_token'] ?? null )
+		|| ! is_array( $attempt['parameters'] ?? null )
+	) {
+		return false;
+	}
+
+	// An unfinished local preparation may omit its UUID parameter, but a ready request must match it.
+	if (
+		( $attempt['parameters']['stripe_price_id'] ?? '' ) !== $stripe_price_id
+		|| ! is_string( $attempt['parameters']['redirect_url'] ?? null )
+		|| ( $attempt['ready'] && ( $attempt['parameters']['purchase_attempt_id'] ?? '' ) !== $attempt['id'] )
+	) {
+		return false;
+	}
+
+	// Keep the original strict UUID and return-token contracts without coercing stored values.
+	return 1 === preg_match( '/\A[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}\z/', $attempt['id'] )
+		&& 1 === preg_match( '/\A[A-Za-z0-9]{32}\z/', $attempt['return_token'] );
+}
+
+/**
+ * Read an existing purchase for a transition that must never create replacement state.
+ *
+ * @param string $option_name Exact durable option name.
+ * @return mixed Stored value, or null when missing or unreadable; callers still validate its shape.
+ */
+function ai4seo_read_credit_purchase_attempt( string $option_name ) {
+	// Reuse the authoritative option reader; initialization separately distinguishes missing from failed reads.
+	$snapshot = ai4seo_get_raw_option_snapshot( $option_name );
+	return is_array( $snapshot ) && $snapshot['exists'] ? $snapshot['value'] : null;
+}
+
+/**
+ * Validate the shared link used by checkout returns and bounded expiry cleanup.
+ *
+ * @param array $return_state Stored return-token state.
+ * @return bool Whether the link identifies a purchase option and a string attempt ID.
+ */
+function ai4seo_is_credit_purchase_return_link_valid( array $return_state ): bool {
+	// Limit both paths to purchase-owned options; each caller separately matches the saved attempt ID.
+	$option_name = $return_state['credit_purchase_option_name'] ?? '';
+	$attempt_id  = $return_state['credit_purchase_attempt_id'] ?? '';
+	return is_string( $option_name ) && is_string( $attempt_id )
+		&& 1 === preg_match( '/\A' . preg_quote( AI4SEO_CREDIT_PURCHASE_ATTEMPT_OPTION_PREFIX, '/' ) . '[a-f0-9]{64}\z/', $option_name );
+}
+
+/**
+ * Preserve a checkout's exact return and attribution parameters across uncertain failures.
+ *
+ * @param string $stripe_price_id Validated credit-pack price.
+ * @return array Durable attempt, or an empty array when safe preparation is unavailable.
+ */
+function ai4seo_prepare_credit_purchase_attempt( string $stripe_price_id ): array {
+	// Preserve the administrator and known-price boundary before any state lookup or mutation.
+	if ( ! ai4seo_can_administer_plugin() || ! isset( ai4seo_get_credits_packs()[ $stripe_price_id ] ) ) {
+		return array();
+	}
+
+	// Bind pending purchases to the account that will authenticate the later RobHub request.
+	$api_username = ai4seo_robhub_api()->get_api_username();
+	if ( '' === $api_username || get_current_user_id() <= 0 ) {
+		return array();
+	}
+
+	// Serialize local preparation within this site, administrator, account, and price identity.
+	$option_name = ai4seo_get_credit_purchase_attempt_option_name( $stripe_price_id, $api_username );
+	if ( ! ai4seo_acquire_semaphore( $option_name ) ) {
+		return array();
+	}
+
+	// Token cleanup can acquire this same lock, so defer it until preparation releases ownership.
+	$reconcile_return_tokens = false;
+
+	// Only a confirmed missing row may start a purchase; a failed read must leave the attempt untouched.
+	try {
+		$snapshot = ai4seo_get_raw_option_snapshot( $option_name );
+		if ( null === $snapshot ) {
+			return array();
+		}
+
+		// Resume previously prepared state only while its original return capability remains usable.
+		$attempt = $snapshot['exists'] ? $snapshot['value'] : null;
+		if ( null !== $attempt ) {
+			// Corrupt state is not permission to replace an uncertain purchase.
+			if ( ! ai4seo_is_credit_purchase_attempt_state_valid( $attempt, $option_name, $stripe_price_id ) ) {
+				return array();
+			}
+
+			// Read return state before expiry handling so a database failure cannot authorize replacement.
+			$return_snapshot = ai4seo_get_raw_option_snapshot( ai4seo_get_purchase_return_token_option_name( $attempt['return_token'] ) );
+			if ( null === $return_snapshot ) {
+				return array();
+			}
+
+			// Keep the original retention cutoff and ownership checks ahead of the ready-state fast path.
+			if ( $attempt['retained_until'] <= time() ) {
+				if ( ! delete_option( $option_name ) ) {
+					return array();
+				}
+				$attempt = null;
+			} elseif ( ! $return_snapshot['exists'] || ! ai4seo_is_purchase_return_token_state_valid( $return_snapshot['value'] )
+				|| get_current_blog_id() !== $return_snapshot['value']['blog_id']
+				|| get_current_user_id() !== $return_snapshot['value']['user_id'] ) {
+				return array();
+			} elseif ( $attempt['ready'] ) {
+				return $attempt;
+			}
+		}
+
+		// Persist the return capability before network-based claim preparation can begin.
+		if ( null === $attempt ) {
+			$reconcile_return_tokens = true;
+			$return_token            = ai4seo_create_purchase_return_token( false );
+			$redirect_url            = '' === $return_token ? '' : ai4seo_get_purchase_return_url( $return_token );
+			if ( '' === $redirect_url ) {
+				return array();
+			}
+
+			// The unfinished snapshot lets later clicks continue preparation without replacing its UUID.
+			$attempt = array(
+				'option_name'    => $option_name,
+				'id'             => wp_generate_uuid4(),
+				'return_token'   => $return_token,
+				'retained_until' => time() + AI4SEO_PURCHASE_RETURN_TOKEN_TTL_SECONDS,
+				'ready'          => false,
+				'parameters'     => ai4seo_build_credit_pack_purchase_parameters( $stripe_price_id, $redirect_url ),
+			);
+
+			// Link expiry and successful return to this exact attempt, including after account rotation.
+			$return_option   = ai4seo_get_purchase_return_token_option_name( $return_token );
+			$return_snapshot = ai4seo_get_raw_option_snapshot( $return_option );
+			if ( null === $return_snapshot || ! $return_snapshot['exists'] || ! ai4seo_is_purchase_return_token_state_valid( $return_snapshot['value'] ) ) {
+				return array();
+			}
+
+			// Verify the link before saving the attempt; both rows are required for safe resumption.
+			$return_state                                = $return_snapshot['value'];
+			$return_state['credit_purchase_option_name'] = $option_name;
+			$return_state['credit_purchase_attempt_id']  = $attempt['id'];
+			update_option( $return_option, $return_state, false );
+			$return_snapshot = ai4seo_get_raw_option_snapshot( $return_option );
+			if ( null === $return_snapshot || ! $return_snapshot['exists'] || $return_snapshot['value'] !== $return_state
+				|| ! ai4seo_store_credit_purchase_attempt( $attempt ) ) {
+				return array();
+			}
+		}
+	} finally {
+		// Every early return releases its local lease before the caller can retry.
+		ai4seo_release_semaphore( $option_name );
+		if ( $reconcile_return_tokens ) {
+			ai4seo_reconcile_purchase_return_tokens();
+		}
+	}
+
+	// Claim preparation can contact RobHub; never hold the short local lease across network work.
+	$has_purchased_something = (bool) ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_HAS_PURCHASED_SOMETHING );
+	$rotation_claim_token    = ai4seo_prepare_first_purchase_api_password_rotation_claim();
+	if ( ! $has_purchased_something && '' === $rotation_claim_token ) {
+		return array();
+	}
+
+	// A concurrent preparer may finish during the network call, so reacquire and reread before committing.
+	if ( ! ai4seo_acquire_semaphore( $option_name ) ) {
+		return array();
+	}
+	try {
+		$stored_attempt = ai4seo_read_credit_purchase_attempt( $option_name );
+		if ( ! is_array( $stored_attempt ) || ( $stored_attempt['id'] ?? '' ) !== $attempt['id'] ) {
+			return array();
+		}
+
+		// The first saved ready snapshot wins, including its exact signed claim and return URL.
+		if ( $stored_attempt['ready'] ) {
+			return $stored_attempt;
+		}
+
+		// Freeze the complete request before the AJAX entrypoint is allowed to call RobHub.
+		$attempt['parameters'] = ai4seo_build_credit_pack_purchase_parameters(
+			$stripe_price_id,
+			$attempt['parameters']['redirect_url'],
+			$rotation_claim_token,
+			$attempt['id']
+		);
+		$attempt['ready']      = true;
+		return ai4seo_store_credit_purchase_attempt( $attempt ) ? $attempt : array();
+	} finally {
+		// The prepared attempt outlives this lease; no lock may survive the request boundary.
+		ai4seo_release_semaphore( $option_name );
+	}
+}
+
+/**
+ * Verify durable state before a purchase request or state transition can proceed.
+ *
+ * @param array $attempt Validated attempt owned by the caller's held semaphore.
+ * @return bool Whether storage contains the exact snapshot.
+ */
+function ai4seo_store_credit_purchase_attempt( array $attempt ): bool {
+	// A cache-backed update result alone cannot confirm that a pending purchase was durably preserved.
+	update_option( $attempt['option_name'], $attempt, false );
+	$snapshot = ai4seo_get_raw_option_snapshot( $attempt['option_name'] );
+	return is_array( $snapshot ) && $snapshot['exists'] && $snapshot['value'] === $attempt;
+}
+
+/**
+ * Update pending state only for confirmed success or a definitive terminal outcome.
+ *
+ * @param array $attempt Exact attempt sent to RobHub.
+ * @param array $response Normalized RobHub response.
+ * @return bool Whether state was preserved or the requested transition succeeded.
+ */
+function ai4seo_update_credit_purchase_attempt( array $attempt, array $response ): bool {
+	// Serialize remote outcomes with local preparation and expiry cleanup for this exact identity.
+	$option_name = $attempt['option_name'];
+	if ( ! ai4seo_acquire_semaphore( $option_name ) ) {
+		return false;
+	}
+
+	// A late response must never replace or retire a newer attempt under the same option name.
+	try {
+		$stored_attempt = ai4seo_read_credit_purchase_attempt( $option_name );
+		if ( ! is_array( $stored_attempt ) || ( $stored_attempt['id'] ?? '' ) !== $attempt['id'] ) {
+			return false;
+		}
+
+		// Only these confirmed terminal errors permit a later click to begin a different checkout.
+		$code           = ai4seo_get_credit_purchase_response_code( $response );
+		$terminal_codes = array( AI4SEO_CREDIT_PURCHASE_EXPIRED, AI4SEO_CREDIT_PURCHASE_COMPLETED, AI4SEO_CREDIT_PURCHASE_REJECTED );
+		if ( ! ai4seo_robhub_api()->was_call_successful( $response ) && in_array( $code, $terminal_codes, true ) ) {
+			if ( ! delete_option( $option_name ) ) {
+				return false;
+			}
+			ai4seo_delete_purchase_return_token( $stored_attempt['return_token'] );
+			return true;
+		}
+
+		// An open checkout remains pending while retaining its server-reported expiry for diagnostics.
+		if ( ai4seo_robhub_api()->was_call_successful( $response ) && is_int( $response['data']['expires_at'] ?? null ) ) {
+			$stored_attempt['expires_at'] = $response['data']['expires_at'];
+			return ai4seo_store_credit_purchase_attempt( $stored_attempt );
+		}
+
+		// Timeouts, malformed responses, conflicts, and storage errors cannot prove non-creation.
+		return true;
+	} finally {
+		// Keep both failed and successful outcomes retryable once this transition has ended.
+		ai4seo_release_semaphore( $option_name );
+	}
+}
+
+/**
+ * Confirm a linked credit purchase before consuming its return, preserving cancelled or uncertain sessions.
+ *
+ * @param array  $return_state Validated site- and administrator-bound return state.
+ * @param string $token Exact return token received by the administrator.
+ * @return bool Whether RobHub confirmed completion and this caller retired its pending state.
+ */
+function ai4seo_confirm_credit_purchase_return( array $return_state, string $token ): bool {
+	// Return-token ownership was checked by the entrypoint; constrain its link before reading state.
+	if ( ! ai4seo_is_credit_purchase_return_link_valid( $return_state ) ) {
+		return false;
+	}
+
+	// A valid link still needs the original token, UUID, and ready request to confirm this purchase.
+	$option_name = $return_state['credit_purchase_option_name'] ?? '';
+	$attempt_id  = $return_state['credit_purchase_attempt_id'] ?? '';
+	$attempt     = ai4seo_read_credit_purchase_attempt( $option_name );
+	if ( ! is_array( $attempt ) || ( $attempt['id'] ?? '' ) !== $attempt_id || ( $attempt['option_name'] ?? '' ) !== $option_name
+		|| ( $attempt['return_token'] ?? '' ) !== $token || true !== ( $attempt['ready'] ?? false )
+		|| ! is_array( $attempt['parameters'] ?? null ) || ( $attempt['parameters']['purchase_attempt_id'] ?? '' ) !== $attempt_id
+		|| ! is_string( $attempt['parameters']['stripe_price_id'] ?? null ) ) {
+		return false;
+	}
+
+	// An administrator switching RobHub accounts cannot reconcile an older account's checkout.
+	$expected_option_name = ai4seo_get_credit_purchase_attempt_option_name( $attempt['parameters']['stripe_price_id'], ai4seo_robhub_api()->get_api_username() );
+	if ( $expected_option_name !== $option_name ) {
+		return false;
+	}
+
+	// The immutable request retrieves a known Session, or recovers its previously lost response.
+	$response = ai4seo_robhub_api()->call( 'client/init-purchase', $attempt['parameters'] );
+	if ( ! is_array( $response ) || ! ai4seo_update_credit_purchase_attempt( $attempt, $response )
+		|| ai4seo_robhub_api()->was_call_successful( $response )
+		|| AI4SEO_CREDIT_PURCHASE_COMPLETED !== ai4seo_get_credit_purchase_response_code( $response ) ) {
+		return false;
+	}
+
+	// Only the winner that retired a confirmed completed attempt advances account reconciliation.
+	ai4seo_sync_robhub_account( 'credit-checkout-return-completed' );
+	return true;
+}
+
+/**
+ * Remove pending state through the existing bounded return-token expiry cleanup.
+ *
+ * @param mixed $return_state Expired token state.
+ * @return void
+ */
+function ai4seo_reconcile_credit_purchase_attempts( $return_state ): void {
+	// Legacy return tokens have no purchase link and must retain their existing cleanup behavior.
+	if ( ! is_array( $return_state ) || ! ai4seo_is_credit_purchase_return_link_valid( $return_state ) ) {
+		return;
+	}
+
+	// Coordinate expiry with any preparation or response still using this identity.
+	$option_name = $return_state['credit_purchase_option_name'] ?? '';
+	$attempt_id  = $return_state['credit_purchase_attempt_id'] ?? '';
+	if ( ! ai4seo_acquire_semaphore( $option_name ) ) {
+		return;
+	}
+
+	// A stale expiry event may delete only the attempt named by its own return token.
+	try {
+		$stored_attempt = ai4seo_read_credit_purchase_attempt( $option_name );
+		if ( is_array( $stored_attempt ) && ( $stored_attempt['id'] ?? '' ) === $attempt_id ) {
+			delete_option( $option_name );
+		}
+	} finally {
+		// Cleanup must not leave the price identity locked when deletion fails or no longer applies.
+		ai4seo_release_semaphore( $option_name );
+	}
+}
+
+/**
+ * Translate only known outcomes; raw provider messages never reach the purchase UI.
+ *
+ * @param int $code RobHub purchase error code.
+ * @return string Actionable administrator message.
+ */
+function ai4seo_get_credit_purchase_error_message( int $code ): string {
+	// Completed purchases need reconciliation rather than another checkout attempt.
+	if ( AI4SEO_CREDIT_PURCHASE_COMPLETED === $code ) {
+		return __( 'This checkout is already complete. Your account is being refreshed.', 'ai-for-seo' );
+	}
+
+	// A confirmed terminal session is the only outcome that invites creating a new checkout.
+	if ( AI4SEO_CREDIT_PURCHASE_EXPIRED === $code || AI4SEO_CREDIT_PURCHASE_REJECTED === $code ) {
+		return __( 'This checkout could not proceed. Select the credit pack again to start a new checkout.', 'ai-for-seo' );
+	}
+
+	// Identity conflicts require account verification while preserving the uncertain attempt.
+	if ( AI4SEO_CREDIT_PURCHASE_CONFLICT === $code || AI4SEO_CREDIT_PURCHASE_INVALID === $code ) {
+		return __( 'The saved purchase could not be verified. Please refresh your account or contact support before starting another purchase.', 'ai-for-seo' );
+	}
+
+	// Unknown provider and transport outcomes always guide the administrator back to safe resumption.
+	return __( 'Checkout could not be confirmed. Select the same credit pack again to resume your pending purchase.', 'ai-for-seo' );
+}
+
+/**
+ * Accept only exact integer codes before deciding whether a pending purchase can be retired.
+ *
+ * @param array $response Normalized API response.
+ * @return int Exact code, or zero for absent/malformed values.
+ */
+function ai4seo_get_credit_purchase_response_code( array $response ): int {
+	// Loose numeric conversion could accidentally turn a malformed response into a terminal outcome.
+	$code = $response['code'] ?? null;
+	if ( ! is_int( $code ) && ! is_string( $code ) ) {
+		return 0;
+	}
+
+	// Preserve the existing integer-string support while rejecting partial or non-integer values.
+	$validated = filter_var( $code, FILTER_VALIDATE_INT );
+	return false === $validated ? 0 : $validated;
 }
 
 /**

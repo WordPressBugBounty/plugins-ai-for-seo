@@ -520,6 +520,33 @@ function ai4seo_on_activation() {
 
 
 /**
+ * Deactivates AI for SEO for an authorized administrator.
+ *
+ * @return bool Whether the deactivation request completed.
+ */
+function ai4seo_deactivate_plugin(): bool {
+	// Prevent repeated deactivation attempts when multiple request paths reach the same command.
+	if ( ! ai4seo_singleton( __FUNCTION__ ) ) {
+		return false;
+	}
+
+	// Check if the user has the required permissions.
+	if ( ! current_user_can( 'activate_plugins' ) ) {
+		return false;
+	}
+
+	// Deactivate the plugin.
+	try {
+		deactivate_plugins( ai4seo_get_plugin_basename() );
+	} catch ( Exception $e ) {
+		return false;
+	}
+
+	return true;
+}
+
+
+/**
  * Things to do on plugin deactivation
  *
  * @return void
@@ -1810,7 +1837,7 @@ function ai4seo_add_menu_entries() {
 	// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- Base64 is the required transport encoding for the benign SVG data URI.
 	$encoded_svg = 'data:image/svg+xml;base64,' . base64_encode( $svg_tags['ai-for-seo-main-menu-icon'] );
 
-	// Top-level title with notification bubble.
+	// Append the unread-notification count to the normal menu title.
 	$menu_title         = AI4SEO_PLUGIN_NAME;
 	$notification_count = ai4seo_get_num_unread_notification();
 

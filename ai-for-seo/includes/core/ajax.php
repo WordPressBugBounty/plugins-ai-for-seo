@@ -540,6 +540,35 @@ function ai4seo_save_anything( $additional_upcoming_updates = array() ) {
 		return;
 	}
 
+	// Validate an explicit cutoff before settings can change its filter or reconcile a fresh reference time.
+	if ( array_key_exists( AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME, $upcoming_save_anything_updates ) ) {
+		$ai4seo_reference_value = $upcoming_save_anything_updates[ AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME ];
+		$ai4seo_filter_value    = $upcoming_save_anything_updates[ AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER ]
+			?? ai4seo_get_setting( AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER );
+
+		if ( is_string( $ai4seo_reference_value ) && false !== strpos( $ai4seo_reference_value, 'T' ) ) {
+			$ai4seo_reference_datetime = str_replace( 'T', ' ', $ai4seo_reference_value );
+			if ( 16 === strlen( $ai4seo_reference_datetime ) ) {
+				$ai4seo_reference_datetime .= ':00';
+			}
+			$ai4seo_reference_value = ai4seo_is_valid_mysql_datetime( $ai4seo_reference_datetime )
+				? ai4seo_convert_datetime_local_to_timestamp( $ai4seo_reference_value )
+				: false;
+		}
+
+		$ai4seo_reference_state = ai4seo_get_bulk_generation_date_filter_state( $ai4seo_filter_value, $ai4seo_reference_value );
+		if ( ! ai4seo_validate_environmental_variable_value( AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME, $ai4seo_reference_value )
+			|| empty( $ai4seo_reference_state['is_valid'] ) ) {
+			ai4seo_send_ajax_error(
+				esc_html__( 'Please enter a valid reference date and time.', 'ai-for-seo' ),
+				461219225
+			);
+			return;
+		}
+
+		$upcoming_save_anything_updates[ AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME ] = $ai4seo_reference_value;
+	}
+
 	// Keep each processor declaration paired with its callback so category additions have one registration point.
 	$save_anything_processors = array(
 		'save-anything-categories/save-settings.php' => 'ai4seo_process_save_anything_settings',
@@ -1176,8 +1205,16 @@ function ai4seo_refresh_dashboard_statistics() {
 		return;
 	}
 
-	ai4seo_analyze_plugin_performance( false, true );
+	// The browser may display refreshed statistics only after a complete successful analysis.
+	if ( ! ai4seo_analyze_plugin_performance( false, true ) ) {
+		ai4seo_send_ajax_error(
+			esc_html__( 'Statistics could not be refreshed. Please try again.', 'ai-for-seo' ),
+			44129003
+		);
+		return;
+	}
 
+	// Acknowledge completion so the browser can reload with its one-time filter notice.
 	ai4seo_send_ajax_success();
 }
 
@@ -1206,10 +1243,6 @@ function ai4seo_refresh_robhub_account() {
 	$check_for_purchase                        = (bool) sanitize_text_field( wp_unslash( $_POST['check_for_purchase'] ?? false ) );
 	$robhub_api                                = ai4seo_robhub_api();
 	$had_api_password_rotation_recovery_intent = $robhub_api->has_api_password_rotation_recovery_intent();
-
-	if ( $check_for_purchase ) {
-		$robhub_api->accelerate_pending_api_password_rotation_reconciliation();
-	}
 
 	$robhub_api->set_auth_data_locked( false );
 	$robhub_api->reset_last_account_sync();
@@ -1485,57 +1518,32 @@ function ai4seo_init_purchase() {
 		return;
 	}
 
-	// Build a user-bound return URL so only the initiated checkout can confirm the purchase return.
-	$purchase_return_token = ai4seo_create_purchase_return_token();
-
-	if ( '' === $purchase_return_token ) {
-		ai4seo_debug_message( 571818325, 'Could not store purchase-return state.', true );
-		ai4seo_send_ajax_error( esc_html__( 'Could not initialize the secure purchase return. Please try again.', 'ai-for-seo' ), 571818325 );
+	// Resume the administrator's saved attempt so another click retains its return token and claim.
+	$attempt = ai4seo_prepare_credit_purchase_attempt( $stripe_price_id );
+	if ( ! $attempt ) {
+		ai4seo_send_ajax_error( esc_html__( 'Could not prepare secure purchase state. Please retry the same credit pack.', 'ai-for-seo' ), 571818325 );
 		return;
 	}
 
-	$redirect_url = ai4seo_get_purchase_return_url( $purchase_return_token );
+	// Preserve the remote outcome before exposing a checkout URL or an actionable retry message.
+	$response    = ai4seo_robhub_api()->call( 'client/init-purchase', $attempt['parameters'] );
+	$response    = is_array( $response ) ? $response : array();
+	$state_saved = ai4seo_update_credit_purchase_attempt( $attempt, $response );
 
-	if ( '' === $redirect_url ) {
-		ai4seo_delete_purchase_return_token( $purchase_return_token );
-		ai4seo_debug_message( 571818325, 'Could not store purchase-return state.', true );
-		ai4seo_send_ajax_error( esc_html__( 'Could not initialize the secure purchase return. Please try again.', 'ai-for-seo' ), 571818325 );
-		return;
-	}
-
-	$has_purchased_something = (bool) ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_HAS_PURCHASED_SOMETHING );
-	$rotation_claim_token    = ai4seo_prepare_first_purchase_api_password_rotation_claim();
-
-	// Never open an unattributed first checkout: possession of the free password alone must not
-	// be enough to claim the replacement paid-account credential.
-	if ( ! $has_purchased_something && '' === $rotation_claim_token ) {
-		ai4seo_delete_purchase_return_token( $purchase_return_token );
-		ai4seo_debug_message( 601818325, 'Could not prepare the first-purchase API-password rotation claim.', true );
-		ai4seo_send_ajax_error( esc_html__( 'Could not initialize secure account protection for this purchase. Please try again.', 'ai-for-seo' ), 601818325 );
-		return;
-	}
-
-	// Keep return state and the optional rotation claim together in one checkout request.
-	$endpoint_parameters = ai4seo_build_credit_pack_purchase_parameters(
-		$stripe_price_id,
-		$redirect_url,
-		$rotation_claim_token
-	);
-
-	$response = ai4seo_robhub_api()->call( 'client/init-purchase', $endpoint_parameters );
-
-	// Reject the complete initialization when RobHub did not confirm checkout creation.
+	// Completed sessions refresh the account; uncertain failures keep their saved purchase for resumption.
 	if ( ! ai4seo_robhub_api()->was_call_successful( $response ) ) {
-		ai4seo_delete_purchase_return_token( $purchase_return_token );
-		ai4seo_debug_message( 561818325, 'Invalid response from RobHub API.', true );
-		ai4seo_send_ajax_error( esc_html__( 'Invalid response from RobHub API', 'ai-for-seo' ), 561818325 );
+		$code = ai4seo_get_credit_purchase_response_code( $response );
+		if ( AI4SEO_CREDIT_PURCHASE_COMPLETED === $code ) {
+			ai4seo_record_purchase_activity();
+			ai4seo_sync_robhub_account( 'credit-checkout-completed' );
+		}
+		ai4seo_send_ajax_error( esc_html( ai4seo_get_credit_purchase_error_message( $code ) ), $code ? $code : 561818325 );
 		return;
 	}
 
-	if ( ! isset( $response['data']['purchase_url'] ) || ! $response['data']['purchase_url'] ) {
-		ai4seo_delete_purchase_return_token( $purchase_return_token );
-		ai4seo_debug_message( 581818325, 'Invalid response from RobHub API.', true );
-		ai4seo_send_ajax_error( esc_html__( 'Invalid response from RobHub API', 'ai-for-seo' ), 581818325 );
+	// Even a successful API envelope must not navigate without durable state and a usable URL field.
+	if ( ! $state_saved || ! is_string( $response['data']['purchase_url'] ?? null ) ) {
+		ai4seo_send_ajax_error( esc_html( ai4seo_get_credit_purchase_error_message( AI4SEO_CREDIT_PURCHASE_PENDING ) ), 581818325 );
 		return;
 	}
 
@@ -1543,9 +1551,7 @@ function ai4seo_init_purchase() {
 	$purchase_url = ai4seo_normalize_purchase_url( $response['data']['purchase_url'] );
 
 	if ( '' === $purchase_url ) {
-		ai4seo_delete_purchase_return_token( $purchase_return_token );
-		ai4seo_debug_message( 591818325, 'Invalid response from RobHub API.', true );
-		ai4seo_send_ajax_error( esc_html__( 'Invalid response from RobHub API', 'ai-for-seo' ), 591818325 );
+		ai4seo_send_ajax_error( esc_html( ai4seo_get_credit_purchase_error_message( AI4SEO_CREDIT_PURCHASE_PENDING ) ), 591818325 );
 		return;
 	}
 
@@ -3834,6 +3840,16 @@ function ai4seo_reset_plugin_data() {
 		$ai4seo_settings                 = AI4SEO_DEFAULT_SETTINGS;
 		$ai4seo_are_settings_initialized = true;
 		ai4seo_store_settings_request_cache_for_current_site();
+
+		// Resetting settings restores Auto, so its recovery history must restart even when internal data is retained.
+		if ( ! ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ATTACHMENT_BASE64_RECOVERY_STREAK, 0 ) ) {
+			ai4seo_debug_message( 709071006, 'Could not clear the attachment recovery streak after resetting settings.', true );
+			ai4seo_send_ajax_error(
+				esc_html__( 'Settings were reset, but the image recovery history could not be reset. Please try again.', 'ai-for-seo' ),
+				709071006
+			);
+			return;
+		}
 	}
 
 	// remove existing generated metadata.

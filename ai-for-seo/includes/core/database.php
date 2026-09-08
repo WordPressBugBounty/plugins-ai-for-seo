@@ -5,6 +5,11 @@
  * @package AI_For_SEO
  */
 
+// Database helpers rely on the WordPress runtime and must not be loaded through a direct request.
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
 /**
  * Returns the maximum number of values that one prepared query may bind.
  *

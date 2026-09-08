@@ -14,6 +14,84 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 /**
+ * Contains the cache-addition suspension leaked by Fix Alt Text 1.9.1 save callbacks.
+ *
+ * Run immediately before the vendor's priority 999 callbacks. Only replace the
+ * known registration in place, retaining its identity, position and argument count
+ * so has_action() and remove_action() continue to recognize the original callback.
+ * The vendor's background scanner and previously active suspensions remain untouched.
+ *
+ * @return void
+ */
+function ai4seo_prepare_fix_alt_text_cache_scope(): void {
+	global $wp_filter;
+
+	// Limit ownership of the leaked suspension to the verified vendor implementation without autoloading it.
+	if ( ! defined( 'FIXALTTEXT_VERSION' ) || '1.9.1' !== FIXALTTEXT_VERSION || ! class_exists( 'FixAltText\\Scan', false ) ) {
+		return;
+	}
+
+	// Match each supported WordPress action to the vendor's original method and argument contract.
+	$hook_name = current_filter();
+	switch ( $hook_name ) {
+		case 'save_post':
+		case 'attachment_updated':
+		case 'add_attachment':
+			$method_name   = 'save_post_scan';
+			$accepted_args = 1;
+			break;
+		case 'saved_term':
+			$method_name   = 'save_term_scan';
+			$accepted_args = 3;
+			break;
+		case 'delete_term':
+			$method_name   = 'delete_term_scan';
+			$accepted_args = 3;
+			break;
+		default:
+			return;
+	}
+
+	// Only native hook containers expose the registration structure that can be replaced in place.
+	if ( ! isset( $wp_filter[ $hook_name ] ) || ! $wp_filter[ $hook_name ] instanceof WP_Hook ) {
+		return;
+	}
+
+	// An existing wrapper or any third-party registration change falls outside the verified contract.
+	$original_callback = array( 'FixAltText\\Scan', $method_name );
+	$callback_id       = 'FixAltText\\Scan::' . $method_name;
+	$registration      = $wp_filter[ $hook_name ]->callbacks[999][ $callback_id ] ?? null;
+
+	if (
+		! is_array( $registration )
+		|| ( $registration['function'] ?? null ) !== $original_callback
+		|| ( $registration['accepted_args'] ?? null ) !== $accepted_args
+		|| ! is_callable( $original_callback )
+	) {
+		return;
+	}
+
+	// Replacing only the callable also avoids reordering other callbacks at priority 999.
+	$wp_filter[ $hook_name ]->callbacks[999][ $callback_id ]['function'] = static function ( ...$args ) use ( $original_callback ): void {
+		// Capture ownership before the scan so an outer caller's suspension survives nested callbacks.
+		$was_suspended = wp_suspend_cache_addition();
+		$guard_existed = defined( 'FIXALTTEXT_HELPERSLIBRARY_DONOTCACHE_WP' );
+
+		// Always restore an owned leak while allowing the original exception to reach its caller.
+		try {
+			call_user_func_array( $original_callback, $args );
+		} finally {
+			// The vendor sets this request-wide guard exactly when it first suspends additions.
+			// Nested scans and later independent suspensions must retain their existing state.
+			if ( ! $was_suspended && ! $guard_existed && defined( 'FIXALTTEXT_HELPERSLIBRARY_DONOTCACHE_WP' ) && wp_suspend_cache_addition() ) {
+				wp_suspend_cache_addition( false );
+			}
+		}
+	};
+}
+
+
+/**
  * Activates the plugin/theme detection cache for the current site identity.
  *
  * @return bool Whether the current site identity was available.

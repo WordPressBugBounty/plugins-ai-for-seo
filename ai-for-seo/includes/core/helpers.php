@@ -40,7 +40,7 @@ function ai4seo_ensure_wp_locale_number_format(): void {
 
 	// Trigger WPML/Core lazy locale initialization before applying this plugin's fallback defaults.
 	if ( is_callable( array( $wp_locale, 'get_list_item_separator' ) ) ) {
-        /** @noinspection PhpExpressionResultUnusedInspection */
+		/* @noinspection PhpExpressionResultUnusedInspection */
 		$wp_locale->get_list_item_separator();
 	}
 
@@ -1545,32 +1545,6 @@ function ai4seo_convert_datetime_local_to_timestamp( string $datetime_local, str
 
 
 /**
- * Function to deactivate AI for SEO
- *
- * @return bool Whether the plugin was deactivated
- */
-function ai4seo_deactivate_plugin(): bool {
-	if ( ! ai4seo_singleton( __FUNCTION__ ) ) {
-		return false;
-	}
-
-	// Check if the user has the required permissions.
-	if ( ! current_user_can( 'activate_plugins' ) ) {
-		return false;
-	}
-
-	// Deactivate the plugin.
-	try {
-		deactivate_plugins( ai4seo_get_plugin_basename() );
-	} catch ( Exception $e ) {
-		return false;
-	}
-
-	return true;
-}
-
-
-/**
  * Function to return the clients ip
  *
  * @return string The clients ip
@@ -1891,8 +1865,9 @@ function ai4seo_safe_maybe_unserialize( $value ) {
 		return false;
 	}
 
-	// Validate every decoded node while bounding recursive or adversarial reference structures.
-	$remaining_nodes = 10000;
+	// Allow large legitimate collections while bounding reference expansion by the stored input size.
+	// Every non-reference value consumes serialized bytes; depth and node limits still reject cycles.
+	$remaining_nodes = max( 10000, strlen( $serialized_value ) );
 
 	if ( ! ai4seo_is_safe_unserialized_value( $decoded_value, 0, $remaining_nodes ) ) {
 		return false;
@@ -3102,6 +3077,24 @@ function ai4seo_mb_substr( string $string, int $start, ?int $length = null, ?str
 	}
 
 	return substr( $string, $start, $length );
+}
+
+
+/**
+ * Trims a string to the provided maximum length.
+ *
+ * @param string $value      The string to trim.
+ * @param int    $max_length The maximum length.
+ * @return string
+ */
+function ai4seo_trim_string_to_length( string $value, int $max_length ): string {
+	// Non-positive limits represent an uncapped field in the shared editor contract.
+	if ( $max_length <= 0 ) {
+		return $value;
+	}
+
+	// Keep the cap usable on installations where the mbstring extension is unavailable.
+	return ai4seo_mb_substr( $value, 0, $max_length );
 }
 
 

@@ -25,6 +25,13 @@ add_action( 'init', 'ai4seo_init_settings', 8 );
 // Invalidate content type list caches when the posts table changes.
 ai4seo_add_content_type_list_cache_invalidation_hooks();
 
+// Scope the known Fix Alt Text 1.9.1 cache leak for saves in admin, REST, cron and frontend requests.
+add_action( 'save_post', 'ai4seo_prepare_fix_alt_text_cache_scope', 998, 0 );
+add_action( 'attachment_updated', 'ai4seo_prepare_fix_alt_text_cache_scope', 998, 0 );
+add_action( 'add_attachment', 'ai4seo_prepare_fix_alt_text_cache_scope', 998, 0 );
+add_action( 'saved_term', 'ai4seo_prepare_fix_alt_text_cache_scope', 998, 0 );
+add_action( 'delete_term', 'ai4seo_prepare_fix_alt_text_cache_scope', 998, 0 );
+
 // Keep the verified notification request view coherent with ordinary WordPress option writers.
 add_action( 'added_option', 'ai4seo_handle_notification_option_change', PHP_INT_MIN, 1 );
 add_action( 'updated_option', 'ai4seo_handle_notification_option_change', PHP_INT_MIN, 1 );

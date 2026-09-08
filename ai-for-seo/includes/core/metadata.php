@@ -4547,22 +4547,6 @@ function ai4seo_sanitize_editor_field_value( $value ): string {
 
 
 /**
- * Trims a string to the provided maximum length.
- *
- * @param string $value      The string to trim.
- * @param int    $max_length The maximum length.
- * @return string
- */
-function ai4seo_trim_string_to_length( string $value, int $max_length ): string {
-	if ( $max_length <= 0 ) {
-		return $value;
-	}
-
-	return ai4seo_mb_substr( $value, 0, $max_length );
-}
-
-
-/**
  * Join field declarations, immutable storage caps, and soft API quality windows for all save paths.
  *
  * @param string $context Generation context.
@@ -6738,6 +6722,28 @@ function ai4seo_get_posts_language( int $post_id ): string {
 
 
 /**
+ * Normalize metadata identifiers to the canonical string domain.
+ *
+ * @param array $metadata_identifiers Raw metadata identifiers.
+ * @return array Canonical string identifiers.
+ */
+function ai4seo_normalize_metadata_identifier_list( array $metadata_identifiers ): array {
+	// Retain only exact identifier strings so later strict comparisons cannot coerce scalar lookalikes.
+	$normalized_metadata_identifiers = array();
+
+	foreach ( $metadata_identifiers as $metadata_identifier ) {
+		if ( ! is_string( $metadata_identifier ) || '' === $metadata_identifier ) {
+			continue;
+		}
+
+		$normalized_metadata_identifiers[] = $metadata_identifier;
+	}
+
+	return array_values( array_unique( $normalized_metadata_identifiers ) );
+}
+
+
+/**
  * Retrieves the active meta tags
  *
  * @return array The active meta tags
@@ -6755,6 +6761,63 @@ function ai4seo_get_active_meta_tags(): array {
 	}
 
 	return $active_meta_tags;
+}
+
+
+/**
+ * Calculate the metadata generation credit cost for one post.
+ *
+ * @param array|null $only_this_meta_tags Optional metadata identifiers to include.
+ * @return int Credit cost per post.
+ */
+function ai4seo_calculate_metadata_credits_cost_per_post( $only_this_meta_tags = null ): int {
+	// check all active meta tags.
+	$metadata_price_table = ai4seo_get_metadata_price_table( $only_this_meta_tags );
+
+	if ( empty( $metadata_price_table ) ) {
+		return 1;
+	}
+
+	// calculate total costs.
+	return array_sum( $metadata_price_table );
+}
+
+
+/**
+ * Return credit prices for active metadata fields.
+ *
+ * @param array|null $only_this_meta_tags Optional metadata identifiers to include.
+ * @return array Metadata identifiers mapped to credit costs.
+ */
+function ai4seo_get_metadata_price_table( $only_this_meta_tags = null ): array {
+	// Keep a non-empty caller filter restrictive even when all submitted identifiers normalize away.
+	$active_meta_tags                = ai4seo_normalize_metadata_identifier_list( ai4seo_get_active_meta_tags() );
+	$restrict_to_requested_meta_tags = is_array( $only_this_meta_tags ) && ! empty( $only_this_meta_tags );
+
+	if ( is_array( $only_this_meta_tags ) ) {
+		$only_this_meta_tags = ai4seo_normalize_metadata_identifier_list( $only_this_meta_tags );
+	}
+
+	if ( empty( $active_meta_tags ) ) {
+		return array();
+	}
+
+	$price_table = array();
+
+	foreach ( $active_meta_tags as $this_active_meta_tag ) {
+		if ( $restrict_to_requested_meta_tags && ! in_array( $this_active_meta_tag, $only_this_meta_tags, true ) ) {
+			continue;
+		}
+
+		if ( ! defined( 'AI4SEO_METADATA_DETAILS' ) || ! is_array( AI4SEO_METADATA_DETAILS ) ) {
+			$price_table[ $this_active_meta_tag ] = 1; // fallback to 1 credit per meta tag.
+			continue;
+		}
+
+		$price_table[ $this_active_meta_tag ] = AI4SEO_METADATA_DETAILS[ $this_active_meta_tag ]['flat-credits-cost'] ?? 1;
+	}
+
+	return $price_table;
 }
 
 

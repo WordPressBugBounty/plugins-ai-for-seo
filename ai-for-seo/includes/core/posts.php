@@ -1685,6 +1685,29 @@ function ai4seo_get_post_type_translation( $post_type, $count_or_plural = false 
 
 
 /**
+ * Returns the registered singular label for a post type.
+ *
+ * Registered labels preserve custom-post-type and locale-specific wording,
+ * while the existing translation helper remains the fallback for incomplete
+ * registrations and identifiers that WordPress no longer recognizes.
+ *
+ * @param string $post_type WordPress post-type identifier.
+ * @return string Sanitized singular post-type label.
+ */
+function ai4seo_get_post_type_singular_label( string $post_type ): string {
+	$post_type        = sanitize_key( $post_type );
+	$post_type_object = '' !== $post_type ? get_post_type_object( $post_type ) : null;
+
+	if ( $post_type_object && ! empty( $post_type_object->labels->singular_name ) ) {
+		return sanitize_text_field( $post_type_object->labels->singular_name );
+	}
+
+	// Preserve the established built-in and unknown-type fallback when no registration is available.
+	return sanitize_text_field( ai4seo_get_post_type_translation( $post_type ) );
+}
+
+
+/**
  * Return builder postmeta keys that can contribute required local generation content.
  *
  * @param string $editor_identifier Optional single builder identifier.
@@ -2834,85 +2857,6 @@ function ai4seo_extract_acf_content( $post_content ): string {
 
 	// Return the extracted content as a plain text string.
 	return implode( ' ', $extracted_content );
-}
-
-
-/**
- * Normalize metadata identifiers to the canonical string domain.
- *
- * @param array $metadata_identifiers Raw metadata identifiers.
- * @return array Canonical string identifiers.
- */
-function ai4seo_normalize_metadata_identifier_list( array $metadata_identifiers ): array {
-	// Retain only exact identifier strings so later strict comparisons cannot coerce scalar lookalikes.
-	$normalized_metadata_identifiers = array();
-
-	foreach ( $metadata_identifiers as $metadata_identifier ) {
-		if ( ! is_string( $metadata_identifier ) || '' === $metadata_identifier ) {
-			continue;
-		}
-
-		$normalized_metadata_identifiers[] = $metadata_identifier;
-	}
-
-	return array_values( array_unique( $normalized_metadata_identifiers ) );
-}
-
-
-/**
- * Calculate the metadata generation credit cost for one post.
- *
- * @param array|null $only_this_meta_tags Optional metadata identifiers to include.
- * @return int Credit cost per post.
- */
-function ai4seo_calculate_metadata_credits_cost_per_post( $only_this_meta_tags = null ): int {
-	// check all active meta tags.
-	$metadata_price_table = ai4seo_get_metadata_price_table( $only_this_meta_tags );
-
-	if ( empty( $metadata_price_table ) ) {
-		return 1;
-	}
-
-	// calculate total costs.
-	return array_sum( $metadata_price_table );
-}
-
-
-/**
- * Return credit prices for active metadata fields.
- *
- * @param array|null $only_this_meta_tags Optional metadata identifiers to include.
- * @return array Metadata identifiers mapped to credit costs.
- */
-function ai4seo_get_metadata_price_table( $only_this_meta_tags = null ): array {
-	// Keep a non-empty caller filter restrictive even when all submitted identifiers normalize away.
-	$active_meta_tags                = ai4seo_normalize_metadata_identifier_list( ai4seo_get_active_meta_tags() );
-	$restrict_to_requested_meta_tags = is_array( $only_this_meta_tags ) && ! empty( $only_this_meta_tags );
-
-	if ( is_array( $only_this_meta_tags ) ) {
-		$only_this_meta_tags = ai4seo_normalize_metadata_identifier_list( $only_this_meta_tags );
-	}
-
-	if ( empty( $active_meta_tags ) ) {
-		return array();
-	}
-
-	$price_table = array();
-
-	foreach ( $active_meta_tags as $this_active_meta_tag ) {
-		if ( $restrict_to_requested_meta_tags && ! in_array( $this_active_meta_tag, $only_this_meta_tags, true ) ) {
-			continue;
-		}
-
-		if ( ! defined( 'AI4SEO_METADATA_DETAILS' ) || ! is_array( AI4SEO_METADATA_DETAILS ) ) {
-			$price_table[ $this_active_meta_tag ] = 1; // fallback to 1 credit per meta tag.
-			continue;
-		}
-
-		$price_table[ $this_active_meta_tag ] = AI4SEO_METADATA_DETAILS[ $this_active_meta_tag ]['flat-credits-cost'] ?? 1;
-	}
-
-	return $price_table;
 }
 
 

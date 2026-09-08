@@ -115,6 +115,84 @@ $ai4seo_supported_attachment_post_types = ai4seo_get_supported_attachment_post_t
 
 $ai4seo_all_supported_post_types = array_merge( $ai4seo_supported_post_types, $ai4seo_supported_attachment_post_types );
 
+// Explain configured exclusions only on the page load following a successful manual refresh.
+$ai4seo_statistics_filter_labels = array();
+
+if (
+	$ai4seo_can_administer_plugin
+	&& ! wp_doing_ajax()
+	&& ! wp_doing_cron()
+	&& isset( $_GET['ai4seo-statistics-refreshed'] )
+	&& is_string( $_GET['ai4seo-statistics-refreshed'] )
+	&& '1' === sanitize_text_field( wp_unslash( $_GET['ai4seo-statistics-refreshed'] ) )
+) {
+	// Date guidance is meaningful only when a valid filter applies to at least one supported content type.
+	if ( $ai4seo_all_supported_post_types && ! empty( $ai4seo_bulk_generation_date_filter_state['is_valid'] ) ) {
+		if ( 'new' === $ai4seo_bulk_generation_date_filter_state['filter'] ) {
+			$ai4seo_statistics_filter_labels[] = sprintf(
+				/* translators: %s: reference date and time. */
+				__( 'New or existing entries: New only, after %s', 'ai-for-seo' ),
+				ai4seo_format_unix_timestamp( (int) $ai4seo_bulk_generation_date_filter_state['reference_timestamp'] )
+			);
+		} elseif ( 'existing' === $ai4seo_bulk_generation_date_filter_state['filter'] ) {
+			$ai4seo_statistics_filter_labels[] = sprintf(
+				/* translators: %s: reference date and time. */
+				__( 'New or existing entries: Existing only, on or before %s', 'ai-for-seo' ),
+				ai4seo_format_unix_timestamp( (int) $ai4seo_bulk_generation_date_filter_state['reference_timestamp'] )
+			);
+		}
+	}
+
+	// Reuse cached type discovery while distinguishing disabled types from disabled metadata fields.
+	$ai4seo_unfiltered_post_types = ai4seo_get_supported_post_types( false );
+	$ai4seo_disabled_post_types   = ai4seo_get_setting( AI4SEO_SETTING_DISABLED_POST_TYPES );
+
+	// Ignore disabled type names that do not occur in this site's supported content.
+	if (
+		is_array( $ai4seo_disabled_post_types )
+		&& array_intersect( $ai4seo_unfiltered_post_types, ai4seo_deep_sanitize( $ai4seo_disabled_post_types, 'sanitize_key' ) )
+	) {
+		$ai4seo_statistics_filter_labels[] = __( 'Active Post Types', 'ai-for-seo' );
+	}
+
+	// Distinguish an empty metadata selection from an absence of supported post types.
+	if ( $ai4seo_unfiltered_post_types && ! ai4seo_get_active_meta_tags() ) {
+		$ai4seo_statistics_filter_labels[] = __( 'Active Meta Tags: None selected', 'ai-for-seo' );
+	}
+
+	// Attachment type availability already incorporates the active media-attribute selection.
+	if ( ! $ai4seo_supported_attachment_post_types ) {
+		$ai4seo_statistics_filter_labels[] = __( 'Active Media Attributes: None selected', 'ai-for-seo' );
+	}
+
+	// Author exclusions use separate settings for metadata and media statistics.
+	if ( $ai4seo_supported_post_types && ai4seo_get_disabled_post_author_ids() ) {
+		$ai4seo_statistics_filter_labels[] = __( 'Active Authors', 'ai-for-seo' );
+	}
+
+	// Media author restrictions matter only while attachment generation is available.
+	if ( $ai4seo_supported_attachment_post_types && ai4seo_get_disabled_attachment_post_author_ids() ) {
+		$ai4seo_statistics_filter_labels[] = __( 'Active Media Authors', 'ai-for-seo' );
+	}
+
+	// Match the queue's any-term versus all-terms exclusion rule in the displayed explanation.
+	if ( $ai4seo_supported_post_types && ai4seo_get_enforced_disabled_taxonomy_terms() ) {
+		$ai4seo_statistics_filter_labels[] = ai4seo_should_exclude_posts_if_any_disabled_taxonomy_term_matches()
+			? __( 'Active Categories (taxonomy terms): Exclude when any assigned category is disabled', 'ai-for-seo' )
+			: __( 'Active Categories (taxonomy terms): Exclude when all assigned categories covered by the filter are disabled', 'ai-for-seo' );
+	}
+
+	// Metadata language restrictions apply only to supported metadata content.
+	if ( $ai4seo_supported_post_types && ai4seo_get_disabled_metadata_wpml_language_codes() ) {
+		$ai4seo_statistics_filter_labels[] = __( 'Active Languages (metadata)', 'ai-for-seo' );
+	}
+
+	// Media languages have their own selection and must be explained independently.
+	if ( $ai4seo_supported_attachment_post_types && ai4seo_get_disabled_attachment_attributes_wpml_language_codes() ) {
+		$ai4seo_statistics_filter_labels[] = __( 'Active Languages (media)', 'ai-for-seo' );
+	}
+}
+
 
 // === CHANGE LOG ============================================================================ \\
 
@@ -159,7 +237,8 @@ echo "<div class='ai4seo-cards-container ai4seo-dashboard'>";
 
 	// === STATISTICS ============================================================================ \\
 
-if ( $ai4seo_all_supported_post_types ) {
+// Keep the statistics card available for filter guidance even when every content type is excluded.
+if ( $ai4seo_all_supported_post_types || $ai4seo_statistics_filter_labels ) {
 	$ai4seo_total_num_pending_posts            = 0;
 	$ai4seo_total_num_pending_metadata_posts   = 0;
 	$ai4seo_total_num_pending_attachment_posts = 0;
@@ -340,29 +419,19 @@ if ( $ai4seo_all_supported_post_types ) {
 				echo esc_html( ai4seo_get_invalid_bulk_generation_date_filter_message() );
 			echo '</div>';
 		echo '</div>';
-	} elseif ( 'both' !== $ai4seo_bulk_generation_date_filter_state['filter'] ) {
-		// echo message about the existing filter and that maybe entries are not shown in the stats.
-		$ai4seo_new_or_existing_filter_text = '';
+	}
 
-		if ( 'new' === $ai4seo_bulk_generation_date_filter_state['filter'] ) {
-			$ai4seo_new_or_existing_filter_text = sprintf(
-				/* translators: %s: reference timestamp */
-				esc_html__( 'The SEO Autopilot is currently set to only generate data for new content created after %s. Therefore, existing content before this date is not included in the above statistics.', 'ai-for-seo' ),
-				'<strong>' . esc_html( ai4seo_format_unix_timestamp( (int) $ai4seo_bulk_generation_date_filter_state['reference_timestamp'] ) ) . '</strong>'
-			);
-		} elseif ( 'existing' === $ai4seo_bulk_generation_date_filter_state['filter'] ) {
-			$ai4seo_new_or_existing_filter_text = sprintf(
-				/* translators: %s: reference timestamp */
-				esc_html__( 'The SEO Autopilot is currently set to only generate data for existing content created before %s. Therefore, new content after this date is not included in the above statistics.', 'ai-for-seo' ),
-				'<strong>' . esc_html( ai4seo_format_unix_timestamp( (int) $ai4seo_bulk_generation_date_filter_state['reference_timestamp'] ) ) . '</strong>'
-			);
-		}
-
-		echo "<div class='ai4seo-dashboard-new-or-existing-filter-note ai4seo-dashboard-statistics-message-row ai4seo-red-message'>";
-			echo "<div class='ai4seo-dashboard-statistics-message-content ai4seo-red-message'>";
-				echo '<strong>' . esc_html__( 'Note:', 'ai-for-seo' ) . '</strong> ';
-				ai4seo_echo_wp_kses( $ai4seo_new_or_existing_filter_text );
-				ai4seo_echo_wp_kses( ' ' . esc_html__( 'You can change this setting in the SEO Autopilot settings.', 'ai-for-seo' ) );
+	// Escape each setting label before combining it with the notice's allowed emphasis markup.
+	if ( $ai4seo_statistics_filter_labels ) {
+		echo "<div class='ai4seo-dashboard-statistics-filter-note ai4seo-dashboard-statistics-message-row ai4seo-ignore-during-dashboard-refresh'>";
+			echo "<div class='ai4seo-dashboard-statistics-message-content'>";
+				ai4seo_echo_wp_kses(
+					sprintf(
+						/* translators: %s: list of active settings that may exclude entries, with each label in bold. */
+						__( 'Some entries may be excluded from these statistics by: %s.', 'ai-for-seo' ),
+						'<strong>' . implode( '</strong>; <strong>', array_map( 'esc_html', $ai4seo_statistics_filter_labels ) ) . '</strong>'
+					)
+				);
 			echo '</div>';
 		echo '</div>';
 	}
@@ -499,12 +568,12 @@ if ( $ai4seo_current_credits_balance < $ai4seo_free_plan_credits_amount ) {
 if ( $ai4seo_can_administer_plugin ) {
 		echo "<div class='ai4seo-how-to-get-credits-container'>";
 
-if ( $ai4seo_is_robhub_account_synced ) {
-	// current discount.
-	ai4seo_echo_current_discount();
+	if ( $ai4seo_is_robhub_account_synced ) {
+		// current discount.
+		ai4seo_echo_current_discount();
 
-	// Turn Buy credits button.
-	echo "<div class='ai4seo-buy-credits-button-container'>";
+		// Turn Buy credits button.
+		echo "<div class='ai4seo-buy-credits-button-container'>";
 		ai4seo_echo_wp_kses(
 			ai4seo_get_icon_button_tag(
 				'circle-plus',
@@ -513,16 +582,16 @@ if ( $ai4seo_is_robhub_account_synced ) {
 				'ai4seo_open_get_more_credits_modal();'
 			)
 		);
-	echo '</div>';
+		echo '</div>';
 
-} else {
-	// go to Account Settings.
-	echo "<div class='ai4seo-gap'></div>";
+	} else {
+		// go to Account Settings.
+		echo "<div class='ai4seo-gap'></div>";
 
-	ai4seo_echo_wp_kses(
-		ai4seo_get_a_tag_icon_button_tag( ai4seo_get_subpage_url( 'account' ), '', '', 'key', esc_html__( 'Account Settings', 'ai-for-seo' ), 'ai4seo-primary-button' )
-	);
-}
+		ai4seo_echo_wp_kses(
+			ai4seo_get_a_tag_icon_button_tag( ai4seo_get_subpage_url( 'account' ), '', '', 'key', esc_html__( 'Account Settings', 'ai-for-seo' ), 'ai4seo-primary-button' )
+		);
+	}
 		echo '</div>';
 }
 
@@ -737,10 +806,10 @@ if ( $ai4seo_is_robhub_account_synced ) {
 			// Bulk Generation controls change site-wide automation settings.
 			echo "<div class='ai4seo-bulk-generation-button-container'>";
 			echo "<div class='ai4seo-buttons-wrapper'>";
-	if ( $ai4seo_is_any_bulk_generation_enabled ) {
-		// stop SEO Autopilot.
-		ai4seo_echo_wp_kses( ai4seo_get_abort_button_tag( 'stop-circle', esc_html__( 'Stop SEO Autopilot', 'ai-for-seo' ), '', 'ai4seo_stop_bulk_generation(this);' ) );
-	}
+		if ( $ai4seo_is_any_bulk_generation_enabled ) {
+			// stop SEO Autopilot.
+			ai4seo_echo_wp_kses( ai4seo_get_abort_button_tag( 'stop-circle', esc_html__( 'Stop SEO Autopilot', 'ai-for-seo' ), '', 'ai4seo_stop_bulk_generation(this);' ) );
+		}
 
 				// setup SEO Autopilot.
 				ai4seo_echo_wp_kses( ai4seo_get_icon_button_tag( 'paper-plane', esc_html__( 'Set up SEO Autopilot', 'ai-for-seo' ), '', 'ai4seo_open_modal_from_schema("seo-autopilot", {modal_size: "small", unsaved_changes_warnings: true});' ) );

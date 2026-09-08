@@ -575,7 +575,7 @@ function ai4seo_try_create_lock( string $option_key, string $token ): bool {
 		return false;
 	}
 
-	ai4seo_invalidate_semaphore_option_cache( $option_key );
+	ai4seo_invalidate_semaphore_option_cache( $option_key, 'no' );
 
 	// Only successful inserts publish WordPress' post-write option hooks.
 	// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Mirror WordPress' dynamic option hook after a successful CAS insert.
@@ -622,16 +622,24 @@ function ai4seo_is_lock_stale( $payload ): bool {
 
 
 /**
- * Invalidate every WordPress option-cache bucket that can retain semaphore state.
+ * Invalidate WordPress option-cache buckets that can retain semaphore state.
  *
  * Deleting notoptions rather than writing a missing marker keeps a concurrent replacement visible.
  *
- * @param string $option_key Semaphore option key.
+ * @param string      $option_key       Semaphore option key.
+ * @param string|null $written_autoload Known committed autoload value, or null for full invalidation.
  * @return void
  */
-function ai4seo_invalidate_semaphore_option_cache( string $option_key ): void {
+function ai4seo_invalidate_semaphore_option_cache( string $option_key, ?string $written_autoload = null ): void {
+	// The individual entry may predate the direct semaphore write.
 	wp_cache_delete( $option_key, 'options' );
-	wp_cache_delete( 'alloptions', 'options' );
+
+	// Reuse the option writer's native-cache safety check without resetting unrelated plugin request caches.
+	if ( ai4seo_should_invalidate_alloptions_cache( $option_key, $written_autoload ) ) {
+		wp_cache_delete( 'alloptions', 'options' );
+	}
+
+	// A missing marker must not hide a concurrent replacement of the lock.
 	wp_cache_delete( 'notoptions', 'options' );
 }
 

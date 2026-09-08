@@ -127,7 +127,25 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 	// Render native links so browser hash/history behavior remains available when JavaScript is unavailable.
 	echo "<nav class='ai4seo-settings-section-navigation'";
 	echo " aria-label='" . esc_attr__( 'Settings sections', 'ai-for-seo' ) . "'>";
-		echo "<div class='ai4seo-settings-section-navigation-links'>";
+		// Reserve the first navigator slot for the progressively enhanced magnifier and replacement field.
+		echo "<div class='ai4seo-settings-section-navigation-row'>";
+			echo "<div class='ai4seo-settings-search ai4seo-display-none'>";
+				echo "<button class='ai4seo-button ai4seo-small-button ai4seo-icon-only-button ai4seo-settings-search-toggle' id='ai4seo-settings-search-toggle' type='button'";
+				echo " aria-controls='ai4seo-settings-search-panel' aria-expanded='false'";
+				echo " aria-label='" . esc_attr__( 'Find a setting', 'ai-for-seo' ) . "' title='" . esc_attr__( 'Find a setting', 'ai-for-seo' ) . "'>";
+					ai4seo_echo_wp_kses( ai4seo_get_svg_tag( 'magnifying-glass', '', 'ai4seo-button-icon-left', true ) );
+				echo '</button>';
+				// Keep one labelled input node so opening search preserves its accessible relationships.
+				echo "<div class='ai4seo-settings-search-panel ai4seo-display-none' id='ai4seo-settings-search-panel' hidden>";
+					echo "<label class='screen-reader-text' for='ai4seo-settings-search-input'>" . esc_html__( 'Find a setting', 'ai-for-seo' ) . '</label>';
+					echo "<input class='ai4seo-textfield ai4seo-settings-search-input' id='ai4seo-settings-search-input' type='search'";
+					echo " autocomplete='off' placeholder='" . esc_attr__( 'Find a setting…', 'ai-for-seo' ) . "'";
+					echo " aria-controls='ai4seo-settings-search-results' aria-expanded='false' />";
+				echo '</div>';
+			echo '</div>';
+
+			// Native section links stay usable independently of the optional search interface.
+			echo "<div class='ai4seo-settings-section-navigation-links'>";
 	foreach ( $ai4seo_settings_section_navigation_items as $ai4seo_this_settings_section_id => $ai4seo_this_settings_section_navigation_item ) {
 		// Reuse the established Advanced Settings class so navigator links hide and show with their sections.
 		$ai4seo_this_settings_section_navigation_link_classes = 'ai4seo-settings-section-navigation-link' . ( $ai4seo_this_settings_section_navigation_item['is_advanced'] ? ' ai4seo-is-advanced-setting' : '' );
@@ -137,6 +155,14 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 			echo esc_html( $ai4seo_this_settings_section_navigation_item['label'] );
 		echo '</a>';
 	}
+			echo '</div>';
+		echo '</div>';
+
+		// Keep live result announcements and selectable matches inside the same navigation landmark.
+		echo "<div class='ai4seo-settings-search-results ai4seo-display-none' id='ai4seo-settings-search-results'>";
+			echo "<p class='screen-reader-text ai4seo-settings-search-status' aria-live='polite'></p>";
+			echo "<p class='ai4seo-settings-search-empty-message ai4seo-display-none'></p>";
+			echo "<ul class='ai4seo-settings-search-results-list'></ul>";
 		echo '</div>';
 
 		// Keep a hidden recovery path available when a shared hash names an Advanced Settings section that is currently hidden.
@@ -187,7 +213,6 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 		echo "<hr class='ai4seo-form-item-divider'>";
 		echo "<div class='ai4seo-form-item'>";
 			echo "<label for='" . esc_attr( $ai4seo_this_setting_input_name ) . "'>";
-				echo "<span class='ai4seo-green-bubble'>" . esc_html__( 'NEW', 'ai-for-seo' ) . '</span> ';
 				echo esc_html__( 'Default editor mode:', 'ai-for-seo' );
 			echo '</label>';
 			echo "<div class='ai4seo-form-item-input-wrapper'>";
@@ -2195,6 +2220,12 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 				$ai4seo_this_setting_input_value  = ai4seo_get_setting( $ai4seo_this_setting_name );
 				$ai4seo_this_setting_description  = __( 'Choose how images are sent to our server: <strong>Auto (recommended)</strong>: Selects method based on accessibility. <strong>URL</strong>: Always sends image URL. <strong>Data</strong>: Always sends full image data.', 'ai-for-seo' );
 				$ai4seo_this_setting_description .= '<br><br>';
+
+				// Explain why generation can change Auto to Data while preserving an explicit URL preference.
+				$ai4seo_this_setting_description .= __( 'Auto switches to Data after three consecutive URL requests fail and each retry with image data succeeds. You can change the method again at any time. A manually selected URL method stays unchanged.', 'ai-for-seo' );
+				$ai4seo_this_setting_description .= '<br><br>';
+
+				// Keep the manual recovery advice alongside the automatic transport explanation.
 				$ai4seo_this_setting_description .= __( "Try 'Data' if you experience generation issues. Slower but more reliable in some situations.", 'ai-for-seo' );
 
 				// Divider.

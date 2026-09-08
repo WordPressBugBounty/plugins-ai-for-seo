@@ -1726,9 +1726,10 @@ function ai4seo_get_generation_status_summary_persistence_attempt_limit(): int {
  * Decodes legacy full-summary storage into its normalized public representation.
  *
  * @param mixed $stored_value Raw decoded option value.
- * @return array Normalized full summary, or an empty summary for malformed storage.
+ * @return array|null Normalized full summary, or null when the stored value cannot be decoded.
  */
-function ai4seo_decode_generation_status_summary_storage_value( $stored_value ): array {
+function ai4seo_decode_generation_status_summary_storage_value( $stored_value ): ?array {
+	// Read both serialized option values and the legacy JSON representation through the same decoder.
 	$generation_status_summary = ai4seo_safe_maybe_unserialize( $stored_value );
 
 	if ( ! is_array( $generation_status_summary )
@@ -1738,10 +1739,12 @@ function ai4seo_decode_generation_status_summary_storage_value( $stored_value ):
 		$generation_status_summary = json_decode( $generation_status_summary, true );
 	}
 
+	// Preserve decode failure as a distinct state so incremental writers cannot erase stored evidence.
 	if ( ! is_array( $generation_status_summary ) ) {
-		return array();
+		return null;
 	}
 
+	// Valid decoded summaries retain the shared membership-normalization contract.
 	return ai4seo_normalize_generation_status_summary_storage(
 		ai4seo_deep_sanitize( $generation_status_summary, 'absint' )
 	);
@@ -2049,13 +2052,15 @@ function ai4seo_reconcile_generation_status_summary_pair( array $generation_stat
  * @param bool     $require_valid_existing_summary Whether missing or malformed full storage must fail closed.
  * @param mixed    $did_change Receives the successful callback's semantic-change flag.
  * @param mixed    $persisted_summary Receives the exact verified full summary.
+ * @param bool     $allow_invalid_existing_summary Whether an explicit replacement may discard undecodable storage.
  * @return bool Whether a complete matching pair was verified.
  */
 function ai4seo_mutate_generation_status_summary(
 	callable $mutation_callback,
 	bool $require_valid_existing_summary = false,
 	&$did_change = null,
-	&$persisted_summary = null
+	&$persisted_summary = null,
+	bool $allow_invalid_existing_summary = false
 ): bool {
 	$did_change        = false;
 	$persisted_summary = null;
@@ -2083,6 +2088,18 @@ function ai4seo_mutate_generation_status_summary(
 			$current_summary = $full_snapshot['exists']
 				? ai4seo_decode_generation_status_summary_storage_value( $full_snapshot['value'] )
 				: array();
+
+			// A failed decode must never become the empty base of an incremental summary write.
+			if ( null === $current_summary ) {
+				if ( ! $allow_invalid_existing_summary ) {
+					// Preserve the damaged pair while requesting the reset that ordinary analysis resumes cannot perform.
+					ai4seo_schedule_generation_status_summary_rebuild();
+					return false;
+				}
+
+				// Only the explicit replacement path may discard an undecodable base.
+				$current_summary = array();
+			}
 		}
 
 		$summary_mutation = $mutation_callback( $current_summary );
@@ -2144,6 +2161,11 @@ function ai4seo_mutate_generation_status_summary(
  * @return bool Whether a complete matching pair was verified.
  */
 function ai4seo_persist_generation_status_summary( array $generation_status_summary ): bool {
+	// Supply the shared mutator's output slots even though this caller only needs its success flag.
+	$did_change        = false;
+	$persisted_summary = null;
+
+	// Full replacements, including analysis resets, may repair storage that incremental writes reject.
 	return ai4seo_mutate_generation_status_summary(
 		static function ( array $current_summary ) use ( $generation_status_summary ): array {
 			return array(
@@ -2151,7 +2173,11 @@ function ai4seo_persist_generation_status_summary( array $generation_status_summ
 				'changed' => ai4seo_get_comparable_generation_status_summary( $current_summary )
 					!== ai4seo_get_comparable_generation_status_summary( $generation_status_summary ),
 			);
-		}
+		},
+		false,
+		$did_change,
+		$persisted_summary,
+		true
 	);
 }
 

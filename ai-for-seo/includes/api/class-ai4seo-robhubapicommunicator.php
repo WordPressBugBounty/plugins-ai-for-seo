@@ -137,6 +137,48 @@ class Ai4Seo_RobHubApiCommunicator {
 	private bool $is_reconciling_api_password_rotation = false;
 
 	/**
+	 * Whether an authenticated rotation-state check owns the current preflight.
+	 *
+	 * @var bool
+	 */
+	private bool $is_checking_api_password_rotation_state = false;
+
+	/**
+	 * Exact durable scheduling claim shared by a state check and its rotation attempt.
+	 *
+	 * @var array
+	 */
+	private array $claimed_pending_api_password_rotation = array();
+
+	/**
+	 * Preserve a failed preflight across subsequent ordinary calls in this request.
+	 *
+	 * @var array
+	 */
+	private array $pending_api_password_rotation_check_response = array();
+
+	/**
+	 * Connection-owned lock shared by nested steps of one bounded rotation workflow.
+	 *
+	 * @var string
+	 */
+	private string $api_password_rotation_lock_name = '';
+
+	/**
+	 * Number of nested workflow steps owned by this communicator.
+	 *
+	 * @var int
+	 */
+	private int $api_password_rotation_lock_depth = 0;
+
+	/**
+	 * Prevent a nested sync from starting another bounded round on this communicator.
+	 *
+	 * @var bool
+	 */
+	private bool $is_syncing_account = false;
+
+	/**
 	 * Whether the communicator is replaying server-side credential recovery.
 	 *
 	 * @var bool
@@ -170,6 +212,8 @@ class Ai4Seo_RobHubApiCommunicator {
 	 * @var string[]
 	 */
 	private const SINGLE_ATTEMPT_ENDPOINTS = array(
+		// Checkout resumption is an explicit administrator action using the saved attempt, not a transport retry.
+		'client/init-purchase',
 		'client/get-free-account',
 		'client/send-licence-data',
 		self::ROTATE_API_PASSWORD_ENDPOINT,
@@ -869,19 +913,14 @@ class Ai4Seo_RobHubApiCommunicator {
 			}
 		}
 
-		// Recover a server-confirmed credential transition before selecting Basic authentication
-		// for any ordinary client-specific request. The public rotation call itself bypasses this
-		// branch to prevent recursion.
-		if ( ! $this->is_isolated_service_client_call && ! $fallback_to_public_client_operation_credentials && self::ROTATE_API_PASSWORD_ENDPOINT !== $endpoint && ! $this->is_reconciling_api_password_rotation && $this->should_automatically_reconcile_api_password_rotation() ) {
-			$this->reconcile_pending_api_password_rotation();
-			// Rotation intentionally returns the same conflict for a missing/unpaid checkout and a
-			// genuine marker mismatch. Before any ordinary operation continues, authenticate sync's
-			// non-secret state so only `none` may resume and `required|completed|conflict` stay closed.
-			if ( self::API_PASSWORD_ROTATION_RECONCILIATION_CONFLICT === $this->last_api_password_rotation_reconciliation_outcome && ! in_array( $endpoint, array( 'client/sync', 'client/changed-api-user' ), true ) ) {
-				$rotation_state_response = $this->sync_account( 'rotation-conflict-verification' );
-				if ( ! $this->was_call_successful( $rotation_state_response ) ) {
-					return $rotation_state_response;
-				}
+		// A checkout claim is not proof of payment. Authenticate server state before rotating;
+		// sync itself owns its response reconciliation and must never recurse into this preflight.
+		if ( ! $this->is_isolated_service_client_call && ! $fallback_to_public_client_operation_credentials
+			&& ! in_array( $endpoint, array( 'client/sync', 'client/changed-api-user', self::ROTATE_API_PASSWORD_ENDPOINT ), true )
+			&& ! $this->is_reconciling_api_password_rotation && ! $this->is_checking_api_password_rotation_state ) {
+			$rotation_state_response = $this->check_pending_api_password_rotation_state();
+			if ( $rotation_state_response && ! $this->was_call_successful( $rotation_state_response ) ) {
+				return $rotation_state_response;
 			}
 		}
 
@@ -941,6 +980,8 @@ class Ai4Seo_RobHubApiCommunicator {
 		}
 
 		$normalized_response = null;
+		$sync_api_username   = $this->api_username;
+		$sync_api_password   = $this->api_password;
 
 		while ( $attempt < $max_api_attempts_for_endpoint ) {
 			++$attempt;
@@ -970,6 +1011,15 @@ class Ai4Seo_RobHubApiCommunicator {
 					ai4seo_debug_message( 675323313, 'Exception while making API call to ' . $api_url . ': ' . $e->getMessage(), true );
 					$normalized_response = $this->respond_error( 'Exception while making API call: ' . $e->getMessage(), 2413111223 );
 				}
+			}
+
+			// A manual replacement during HTTP must win before any account-response side effects.
+			if ( 'client/sync' === $endpoint && $this->is_syncing_account
+				&& ( ! hash_equals( $sync_api_username, $this->api_username )
+					|| ! hash_equals( $sync_api_password, $this->api_password )
+					|| ! $this->do_runtime_credentials_match_fresh_persisted_credentials()
+					|| ! ai4seo_is_database_advisory_lock_owned_by_current_connection( $this->api_password_rotation_lock_name ) ) ) {
+				return $this->respond_error( esc_html__( 'Account credentials changed during synchronization. Please refresh licence status.', 'ai-for-seo' ), 27082721 );
 			}
 
 			// success.
@@ -1010,7 +1060,7 @@ class Ai4Seo_RobHubApiCommunicator {
 				}
 
 				// Retire recovery state only after the replacement pair has authenticated an ordinary request.
-				if ( ! $this->is_isolated_service_client_call && ! $fallback_to_public_client_operation_credentials && ! $this->maybe_finalize_api_password_rotation_after_authenticated_success() ) {
+				if ( ! $this->is_isolated_service_client_call && ! $fallback_to_public_client_operation_credentials && 'client/sync' !== $endpoint && ! $this->maybe_finalize_api_password_rotation_after_authenticated_success() ) {
 					ai4seo_debug_message( 613008261, 'Could not remove verified API-password rotation recovery state.', true );
 				}
 
@@ -3032,36 +3082,36 @@ class Ai4Seo_RobHubApiCommunicator {
 					return $this->does_pending_api_password_rotation_match_persisted_credentials( $pending_rotation ) ? $pending_rotation['rotation_claim_token'] : '';
 				}
 
-				// Give every retained claim one chance to recover a late paid webhook before issuing
-				// another. Claim creation is rate-limited so abandoned checkouts converge without
-				// permitting unbounded signed-token churn.
-				if ( $this->reconcile_pending_api_password_rotation( true ) ) {
+				// Authenticate whether a late webhook requires rotation before refreshing an unpaid
+				// checkout. Uncertain or paid states must not replace the retained claim generation.
+				$rotation_state_response = $this->check_pending_api_password_rotation_state( true );
+				if ( ! $this->was_call_successful( $rotation_state_response )
+					|| 'none' !== ( $rotation_state_response['data']['api_password_rotation']['state'] ?? '' ) ) {
 					return '';
 				}
 
-				// The failed attempt durably advanced its backoff. Refresh from that exact generation
-				// before preserving the old claim and compare-and-swapping a replacement token.
+				// Refresh from the checked generation before retaining the old claim and replacing it.
 				$reconciled_pending_rotation = $this->read_pending_api_password_rotation();
 
-				if ( ! $reconciled_pending_rotation
-				|| ! hash_equals(
+				if ( $reconciled_pending_rotation && ( ! hash_equals(
 					$pending_rotation['new_api_password'],
 					$reconciled_pending_rotation['new_api_password']
-				)
-				|| ! hash_equals(
+				) || ! hash_equals(
 					$pending_rotation['rotation_claim_token'],
 					$reconciled_pending_rotation['rotation_claim_token']
-				) ) {
+				) ) ) {
 					return '';
 				}
 
 				$pending_rotation = $reconciled_pending_rotation;
 
-				if ( (int) $pending_rotation['claim_created_at'] + self::API_PASSWORD_ROTATION_CLAIM_REFRESH_INTERVAL > time() ) {
+				if ( $pending_rotation && (int) $pending_rotation['claim_created_at'] + self::API_PASSWORD_ROTATION_CLAIM_REFRESH_INTERVAL > time() ) {
 					return '';
 				}
 			}
-		} else {
+		}
+
+		if ( ! $pending_rotation ) {
 			// Create a candidate only from a fresh, complete pair that still matches this request's
 			// runtime generation. A concurrent Account save wins and aborts this checkout attempt.
 			$fresh_environmental_variables = $this->read_fresh_environmental_variables();
@@ -3278,6 +3328,26 @@ class Ai4Seo_RobHubApiCommunicator {
 	 * @return bool Whether no complete transition was pending or reconciliation completed.
 	 */
 	public function reconcile_pending_api_password_rotation( bool $force = false ): bool {
+		$this->last_api_password_rotation_reconciliation_outcome = self::API_PASSWORD_ROTATION_RECONCILIATION_UNAVAILABLE;
+		if ( ! $this->acquire_api_password_rotation_lock() ) {
+			return false;
+		}
+
+		try {
+			return $this->reconcile_pending_api_password_rotation_while_locked( $force );
+		} finally {
+			$this->release_api_password_rotation_lock();
+		}
+	}
+
+
+	/**
+	 * Re-read and reconcile pending credentials while this workflow owns the account lock.
+	 *
+	 * @param bool $force Whether authenticated state may bypass the durable due time.
+	 * @return bool Whether no complete transition was pending or reconciliation completed.
+	 */
+	private function reconcile_pending_api_password_rotation_while_locked( bool $force ): bool {
 		$pending_rotation = $this->read_pending_api_password_rotation();
 		if ( ! $pending_rotation || '' === $pending_rotation['rotation_claim_token'] ) {
 			$this->last_api_password_rotation_reconciliation_outcome = self::API_PASSWORD_ROTATION_RECONCILIATION_NOT_PENDING;
@@ -3290,7 +3360,15 @@ class Ai4Seo_RobHubApiCommunicator {
 
 		$this->last_api_password_rotation_reconciliation_outcome = self::API_PASSWORD_ROTATION_RECONCILIATION_UNAVAILABLE;
 
-		if ( ! $force
+		// Public recovery may restore entirely missing credentials, but never a temporary account.
+		$this->check_credentials();
+		if ( ! $this->are_api_password_rotation_credentials_entirely_missing()
+			&& ( ! $this->do_runtime_credentials_match_fresh_persisted_credentials()
+				|| ! $this->does_pending_api_password_rotation_match_runtime_credentials( $pending_rotation ) ) ) {
+			return false;
+		}
+
+		if ( ! $force && $pending_rotation !== $this->claimed_pending_api_password_rotation
 		&& (int) $pending_rotation['next_reconciliation_at'] > time()
 		&& ! $this->are_api_password_rotation_credentials_entirely_missing() ) {
 			return false;
@@ -3298,19 +3376,9 @@ class Ai4Seo_RobHubApiCommunicator {
 
 		$this->has_attempted_api_password_rotation_reconciliation = true;
 
-		// Claim the network attempt with one exact durable transition. Concurrent PHP requests that
-		// read the same due record cannot both probe all retained claims, and a lost response remains
-		// retryable after the newly persisted cadence.
-		$claimed_pending_rotation                            = $pending_rotation;
-		$claimed_pending_rotation['reconciliation_attempts'] = (string) min(
-			1000000,
-			(int) $pending_rotation['reconciliation_attempts'] + 1
-		);
-		$claimed_pending_rotation['next_reconciliation_at']  = (string) (
-		time() + $this->get_api_password_rotation_reconciliation_delay()
-		);
-
-		if ( ! $this->write_pending_api_password_rotation( $claimed_pending_rotation, $pending_rotation ) ) {
+		// Reuse this preflight's scheduling claim so checking and rotating count as one attempt.
+		$claimed_pending_rotation = $this->claim_pending_api_password_rotation_check( $pending_rotation );
+		if ( ! $claimed_pending_rotation ) {
 			return false;
 		}
 
@@ -3327,6 +3395,11 @@ class Ai4Seo_RobHubApiCommunicator {
 
 		try {
 			foreach ( $rotation_claim_tokens as $rotation_claim_token ) {
+				if ( ! ai4seo_is_database_advisory_lock_owned_by_current_connection( $this->api_password_rotation_lock_name )
+					|| $pending_rotation !== $this->read_pending_api_password_rotation() ) {
+					return false;
+				}
+
 				$api_response = $this->call(
 					self::ROTATE_API_PASSWORD_ENDPOINT,
 					array(
@@ -3338,6 +3411,12 @@ class Ai4Seo_RobHubApiCommunicator {
 					'POST',
 					true
 				);
+
+				// A response cannot complete a round whose ownership or exact pending state was lost.
+				if ( ! ai4seo_is_database_advisory_lock_owned_by_current_connection( $this->api_password_rotation_lock_name )
+					|| $pending_rotation !== $this->read_pending_api_password_rotation() ) {
+					return false;
+				}
 
 				if ( $this->was_call_successful( $api_response )
 					&& isset( $api_response['data'] )
@@ -3379,7 +3458,148 @@ class Ai4Seo_RobHubApiCommunicator {
 
 
 	/**
-	 * Make the next reconciliation immediately due after a verified local purchase action/return.
+	 * Check authenticated payment state before an ordinary request or an expiring-claim refresh.
+	 *
+	 * @param bool $force Whether explicit claim refresh requires fresh server state despite backoff.
+	 * @return array Empty when no check is due, otherwise the normalized sync result.
+	 */
+	private function check_pending_api_password_rotation_state( bool $force = false ): array {
+		// Only the matching durable credential generation may enter automatic reconciliation.
+		$pending_rotation = $this->read_pending_api_password_rotation();
+		if ( $this->is_checking_api_password_rotation_state || ! $pending_rotation
+			|| '' === $pending_rotation['rotation_claim_token'] || ! $this->has_applicable_pending_api_password_rotation() ) {
+			return array();
+		}
+
+		// Repeated calls in this request share the result, including a failure that must stay closed.
+		if ( $pending_rotation === $this->claimed_pending_api_password_rotation && $this->pending_api_password_rotation_check_response ) {
+			return $this->pending_api_password_rotation_check_response;
+		}
+
+		// Explicit claim refresh bypasses backoff but still needs exclusive scheduling ownership.
+		if ( ! $force && ! $this->should_automatically_reconcile_api_password_rotation() ) {
+			return array();
+		}
+
+		if ( ! $this->acquire_api_password_rotation_lock() ) {
+			return $this->respond_error( esc_html__( 'Credential rotation state is awaiting secure reconciliation.', 'ai-for-seo' ), 27082721 );
+		}
+
+		// Sync owns the bounded promotion workflow; its nested calls must bypass ordinary preflight.
+		$this->is_checking_api_password_rotation_state = true;
+		try {
+			if ( $pending_rotation !== $this->read_pending_api_password_rotation()
+				|| ! $this->claim_pending_api_password_rotation_check( $pending_rotation ) ) {
+				return $this->respond_error( esc_html__( 'Credential rotation state is awaiting secure reconciliation.', 'ai-for-seo' ), 27082721 );
+			}
+
+			$this->pending_api_password_rotation_check_response = $this->sync_account( 'rotation-state-verification' );
+			return $this->pending_api_password_rotation_check_response;
+		} finally {
+			$this->is_checking_api_password_rotation_state = false;
+			$this->release_api_password_rotation_lock();
+		}
+	}
+
+
+	/**
+	 * Own the complete sync/rotation round without an expiring lease during HTTP requests.
+	 *
+	 * @return bool Whether this communicator owns the site-local rotation lock.
+	 */
+	private function acquire_api_password_rotation_lock(): bool {
+		global $wpdb;
+
+		if ( $this->api_password_rotation_lock_depth > 0 ) {
+			if ( ! ai4seo_is_database_advisory_lock_owned_by_current_connection( $this->api_password_rotation_lock_name ) ) {
+				return false;
+			}
+			++$this->api_password_rotation_lock_depth;
+			return true;
+		}
+
+		if ( ! ai4seo_database_supports_multiple_advisory_locks() || ! isset( $wpdb->options ) ) {
+			return false;
+		}
+
+		// Pending credentials are site-wide, including communicators with different option names.
+		$site_scope = ( defined( 'DB_NAME' ) ? DB_NAME : '' ) . '|' . $wpdb->options . '|' . get_current_blog_id();
+		$lock_name  = 'ai4seo-api-rotation-' . md5( $site_scope );
+
+		// GET_LOCK is reentrant on one connection; another communicator must not borrow ownership.
+		if ( ai4seo_is_database_advisory_lock_owned_by_current_connection( $lock_name )
+			|| ! ai4seo_acquire_database_advisory_lock( $lock_name ) ) {
+			return false;
+		}
+
+		$this->api_password_rotation_lock_name  = $lock_name;
+		$this->api_password_rotation_lock_depth = 1;
+		return true;
+	}
+
+
+	/**
+	 * Release the connection lock when the outermost workflow step finishes.
+	 *
+	 * @return void
+	 */
+	private function release_api_password_rotation_lock(): void {
+		--$this->api_password_rotation_lock_depth;
+		if ( 0 === $this->api_password_rotation_lock_depth ) {
+			ai4seo_release_database_advisory_lock( $this->api_password_rotation_lock_name );
+			$this->api_password_rotation_lock_name = '';
+		}
+	}
+
+
+	/**
+	 * Claim one exact pending generation for a state check and any resulting rotation round.
+	 *
+	 * @param array $pending_rotation Expected durable pending state.
+	 * @return array Claimed state, or an empty array after a competing write or storage failure.
+	 */
+	private function claim_pending_api_password_rotation_check( array $pending_rotation ): array {
+		// A state check and its rotation executor must keep ownership of the same exact snapshot.
+		if ( $this->claimed_pending_api_password_rotation ) {
+			return $pending_rotation === $this->claimed_pending_api_password_rotation ? $pending_rotation : array();
+		}
+
+		// Persist the existing retry cadence before the network request, including lost responses.
+		$claimed_pending_rotation                            = $pending_rotation;
+		$claimed_pending_rotation['reconciliation_attempts'] = (string) min( 1000000, (int) $pending_rotation['reconciliation_attempts'] + 1 );
+		$claimed_pending_rotation['next_reconciliation_at']  = (string) ( time() + $this->get_api_password_rotation_reconciliation_delay() );
+
+		// Validate the raw snapshot without normalizing away a competing write or autoload change.
+		$snapshot = ai4seo_get_raw_option_snapshot( self::PENDING_API_PASSWORD_ROTATION_OPTION_NAME );
+		if ( ! is_array( $snapshot ) || ! $snapshot['exists'] || $pending_rotation !== $snapshot['value']
+			|| ! $this->is_pending_api_password_rotation_state_valid( $pending_rotation )
+			|| ! $this->is_non_autoload_option_value( $snapshot['autoload'] ) ) {
+			return array();
+		}
+
+		// Scheduling requires winning the write, not observing another request's identical value.
+		// The general idempotent state writer deliberately accepts that latter case for recovery.
+		if ( true !== ai4seo_compare_and_swap_option_snapshot(
+			self::PENDING_API_PASSWORD_ROTATION_OPTION_NAME,
+			$snapshot,
+			$claimed_pending_rotation,
+			false
+		) ) {
+			return array();
+		}
+
+		// Publish request ownership only while storage still contains the generation we claimed.
+		if ( $claimed_pending_rotation !== $this->read_pending_api_password_rotation() ) {
+			return array();
+		}
+
+		$this->claimed_pending_api_password_rotation = $claimed_pending_rotation;
+		return $claimed_pending_rotation;
+	}
+
+
+	/**
+	 * Make reconciliation immediately due after an interrupted credential transition.
 	 *
 	 * @return bool Whether no pending claim exists or its exact due time was accelerated.
 	 */
@@ -3421,6 +3641,10 @@ class Ai4Seo_RobHubApiCommunicator {
 			$accelerated_rotation['reconciliation_attempts'] = '0';
 
 			if ( $this->write_pending_api_password_rotation( $accelerated_rotation, $pending_rotation ) ) {
+				// Keep this request's existing claim aligned with its successful scheduling update.
+				if ( $pending_rotation === $this->claimed_pending_api_password_rotation ) {
+					$this->claimed_pending_api_password_rotation = $accelerated_rotation;
+				}
 				return true;
 			}
 		}
@@ -4118,9 +4342,35 @@ class Ai4Seo_RobHubApiCommunicator {
 	 * Function to sync with client's RobHub Account
 	 *
 	 * @param string $sync_reason The reason for the sync (optional).
-	 * @return array $api_response if the RobHub Account was synced, false on error
+	 * @return array Normalized account response, including an error when sync cannot complete.
 	 */
 	public function sync_account( string $sync_reason = 'unknown' ): array {
+		// Account sync persists site state, so temporary credentials must use isolated transport.
+		$this->check_credentials();
+		if ( $this->is_syncing_account || $this->is_isolated_service_client_call
+			|| ( ! $this->do_runtime_credentials_match_fresh_persisted_credentials()
+				&& ! $this->are_api_password_rotation_credentials_entirely_missing() )
+			|| ! $this->acquire_api_password_rotation_lock() ) {
+			return $this->respond_error( esc_html__( 'Account synchronization is awaiting secure reconciliation.', 'ai-for-seo' ), 27082721 );
+		}
+
+		$this->is_syncing_account = true;
+		try {
+			return $this->sync_account_while_rotation_locked( $sync_reason );
+		} finally {
+			$this->is_syncing_account = false;
+			$this->release_api_password_rotation_lock();
+		}
+	}
+
+
+	/**
+	 * Synchronize the local account while owning its bounded credential-recovery workflow.
+	 *
+	 * @param string $sync_reason The reason for the sync.
+	 * @return array Normalized account response, including an error when sync cannot complete.
+	 */
+	private function sync_account_while_rotation_locked( string $sync_reason ): array {
 		$sync_reason = sanitize_key( $sync_reason );
 
 		// Send WordPress' native underscore locale so RobHub can resolve exact regional mappings.
@@ -4134,42 +4384,79 @@ class Ai4Seo_RobHubApiCommunicator {
 		$client_sync_report_parameters = $this->build_client_sync_report_parameters();
 		$parameters                    = array_merge( $parameters, $client_context_parameters, $client_sync_report_parameters );
 
-		// Submit the complete sync context through the communicator's established request path.
-		$api_response = self::call( 'client/sync', $parameters );
+		// An explicit sync supersedes any cached preflight result from this request.
+		$this->pending_api_password_rotation_check_response = array();
 
-		// Interpret response & check data payload.
-		if ( ! self::was_call_successful( $api_response ) || ! isset( $api_response['data'] ) || ! is_array( $api_response['data'] ) || ! $api_response['data'] ) {
-			$is_auth_lock_response = is_array( $api_response )
-			&& isset( $api_response['code'] )
-			&& $this->is_auth_lock_error_code( $api_response['code'] );
+		// An entirely missing credential option cannot authenticate sync. Only its matching,
+		// valid pending pair may use the existing public replay before the first sync request.
+		$pending_rotation = $this->read_pending_api_password_rotation();
+		if ( $pending_rotation && '' !== $pending_rotation['rotation_claim_token']
+			&& $this->has_applicable_pending_api_password_rotation() && $this->are_api_password_rotation_credentials_entirely_missing()
+			&& ! $this->reconcile_pending_api_password_rotation( true ) ) {
+			return $this->respond_error( 'Credential rotation is awaiting secure reconciliation.', 27082721 );
+		}
 
-			// Authentication failures already reset sync state in their atomic credential-and-lock update.
-			if ( ! $is_auth_lock_response ) {
-				self::update_environmental_variable( self::ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED, false );
+		// Only a confirmed promotion permits a second sync. Never resubmit an ordinary operation
+		// that was already sent, or turn a transport error into permission to rotate credentials.
+		for ( $sync_pass = 0; $sync_pass < 2; ++$sync_pass ) {
+			// Change the reason so the confirmation pass cannot reuse the first request's checksum.
+			if ( 1 === $sync_pass ) {
+				$parameters['reason'] = 'rotation-confirmation';
 			}
 
-			return is_array( $api_response ) ? $api_response : array(
-				'success' => false,
-				'message' => 'Failed to sync account: ' . ( is_string( $api_response ) ? $api_response : 'Unknown error' ),
-				'code'    => 461220825,
-			);
-		}
+			$api_response = self::call( 'client/sync', $parameters );
 
-		$synced_account_data = $api_response['data'];
-		$rotation_state      = $this->validate_synced_api_password_rotation_state(
-			$synced_account_data['api_password_rotation'] ?? null
-		);
+			// Also cover cached transport results and replacements made by another local writer.
+			if ( ! $this->do_runtime_credentials_match_fresh_persisted_credentials()
+				|| ! ai4seo_is_database_advisory_lock_owned_by_current_connection( $this->api_password_rotation_lock_name ) ) {
+				return $this->was_call_successful( $api_response )
+					? $this->respond_error( esc_html__( 'Account credentials changed during synchronization. Please refresh licence status.', 'ai-for-seo' ), 27082721 )
+					: $api_response;
+			}
 
-		if ( ! $rotation_state ) {
-			self::update_environmental_variable( self::ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED, false );
-			return $this->respond_error( 'API password rotation state is unavailable or invalid.', 27082720 );
-		}
+			// Only explicit authentication rejection can authorize replay of a matching pending pair.
+			if ( ! self::was_call_successful( $api_response ) || empty( $api_response['data'] ) || ! is_array( $api_response['data'] ) ) {
+				$is_auth_lock_response = is_array( $api_response ) && isset( $api_response['code'] )
+					&& $this->is_auth_lock_error_code( $api_response['code'] );
+				$pending_rotation      = $this->read_pending_api_password_rotation();
 
-		$rotation_reconciliation_error = $this->reconcile_synced_api_password_rotation_state( $rotation_state );
+				if ( 0 === $sync_pass && $is_auth_lock_response && $pending_rotation
+					&& '' !== $pending_rotation['rotation_claim_token']
+					&& $this->does_pending_api_password_rotation_match_runtime_credentials( $pending_rotation )
+					&& $this->does_pending_api_password_rotation_match_persisted_credentials( $pending_rotation ) ) {
+					if ( $this->reconcile_pending_api_password_rotation( true ) ) {
+						continue;
+					}
+					$this->accelerate_matching_pending_api_password_rotation_reconciliation( $pending_rotation );
+				}
 
-		if ( $rotation_reconciliation_error ) {
-			self::update_environmental_variable( self::ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED, false );
-			return $rotation_reconciliation_error;
+				// Preserve the failed response and leave later requests responsible for recovery.
+				self::update_environmental_variable( self::ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED, false );
+				return is_array( $api_response ) ? $api_response : array(
+					'success' => false,
+					'message' => 'Failed to sync account: ' . ( is_string( $api_response ) ? $api_response : 'Unknown error' ),
+					'code'    => 461220825,
+				);
+			}
+
+			// A successful HTTP response must still satisfy the closed rotation-state contract.
+			$synced_account_data = $api_response['data'];
+			$rotation_state      = $this->validate_synced_api_password_rotation_state( $synced_account_data['api_password_rotation'] ?? null );
+			if ( ! $rotation_state ) {
+				self::update_environmental_variable( self::ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED, false );
+				return $this->respond_error( 'API password rotation state is unavailable or invalid.', 27082720 );
+			}
+
+			// Confirm a first-pass promotion once; every other unresolved state keeps sync closed.
+			$rotation_reconciliation_error = $this->reconcile_synced_api_password_rotation_state( $rotation_state );
+			if ( $rotation_reconciliation_error ) {
+				self::update_environmental_variable( self::ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED, false );
+				if ( 0 === $sync_pass && 27082722 === ( $rotation_reconciliation_error['code'] ?? 0 ) ) {
+					continue;
+				}
+				return $rotation_reconciliation_error;
+			}
+			break;
 		}
 
 		// next free credits.
@@ -4287,6 +4574,10 @@ class Ai4Seo_RobHubApiCommunicator {
 	 * @return array Empty on safe continuation, otherwise a normalized error response.
 	 */
 	private function reconcile_synced_api_password_rotation_state( array $rotation_state ): array {
+		if ( ! $this->do_runtime_credentials_match_fresh_persisted_credentials() ) {
+			return $this->respond_error( 'api password rotation conflict', 27082706 );
+		}
+
 		$server_state = $rotation_state['state'];
 
 		if ( 'conflict' === $server_state ) {
@@ -4298,6 +4589,11 @@ class Ai4Seo_RobHubApiCommunicator {
 		$inspection = $this->inspect_pending_api_password_rotation();
 
 		if ( in_array( $inspection['state'], array( 'unavailable', 'repairable' ), true ) ) {
+			return $this->respond_error( 'api password rotation conflict', 27082706 );
+		}
+
+		if ( 'valid' === $inspection['state']
+			&& ! $this->does_pending_api_password_rotation_match_runtime_credentials( $inspection['value'] ) ) {
 			return $this->respond_error( 'api password rotation conflict', 27082706 );
 		}
 
@@ -4358,7 +4654,15 @@ class Ai4Seo_RobHubApiCommunicator {
 				return $this->respond_error( 'Credential rotation is awaiting secure reconciliation.', 27082721 );
 			}
 
-			if ( ! $this->transition_pending_rotation_to_server_recovery( $inspection['value'] ) ) {
+			// Reconciliation advanced the scheduling fields. Retire only that exact owned snapshot,
+			// never the pre-sync snapshot or a replacement written during the remote claim request.
+			$pending_rotation = $this->read_pending_api_password_rotation();
+			$expected_pending = '' === $inspection['value']['rotation_claim_token']
+				? $inspection['value'] : $this->claimed_pending_api_password_rotation;
+			if ( ! $pending_rotation || $expected_pending !== $pending_rotation
+				|| ! $this->are_pending_api_password_rotations_same_generation( $inspection['value'], $pending_rotation )
+				|| ! $this->do_runtime_credentials_match_fresh_persisted_credentials()
+				|| ! $this->transition_pending_rotation_to_server_recovery( $pending_rotation ) ) {
 				return $this->respond_error( 'Credential recovery is awaiting secure confirmation. Please check your licence email before reconnecting.', 27082721 );
 			}
 

@@ -3007,8 +3007,8 @@ function ai4seo_resolve_seopress_metadata_variables( string $metadata_value, int
 			}
 		}
 
-        /** @noinspection PhpUndefinedClassInspection */
-        $context_page   = new \SEOPress\Services\Context\ContextPage();
+		/* @noinspection PhpUndefinedClassInspection */
+		$context_page   = new \SEOPress\Services\Context\ContextPage();
 		$context        = $context_page->buildContextWithCurrentId( $post_id )->getContext();
 		$resolved_value = $tags_to_string->replace( $metadata_value, $context );
 	} catch ( Throwable $throwable ) {

@@ -214,7 +214,7 @@ function ai4seo_get_next_post_id_from_ordered_post_ids( int $current_post_id, ar
 
 
 /**
- * Returns the shared editor button that saves the current entry and opens the next entry.
+ * Returns the shared editor button that opens the next entry, saving only when changed.
  *
  * @param int    $next_post_id         Next post ID.
  * @param string $validation_function  JavaScript validation function name.
@@ -264,15 +264,15 @@ function ai4seo_get_editor_save_next_button_tag(
 		$ai4seo_encoded_arguments[] = $ai4seo_encoded_argument;
 	}
 
-	// Reuse the existing save-anything flow while swapping only the success callback target per editor.
-	$ai4seo_save_success_javascript = $save_success_function ? $save_success_function . '(response, false); ' : '';
-	$ai4seo_onclick                 = 'ai4seo_save_anything(jQuery(this), ' . $validation_function . ', function(response) { '
-		. $ai4seo_save_success_javascript . $open_modal_function . '(' . implode( ', ', $ai4seo_encoded_arguments ) . '); });';
+	// Let the shared handler choose navigation or validated saving from the current persistent values.
+	$ai4seo_onclick = 'ai4seo_handle_editor_next_action(jQuery(this), ' . $validation_function . ', '
+		. $open_modal_function . ', [' . implode( ', ', $ai4seo_encoded_arguments ) . '], '
+		. ( $save_success_function ? $save_success_function : 'null' ) . ');';
 
 	// Render through the shared button helper so the footer action keeps the existing classes and escaping path.
 	return ai4seo_get_button_tag(
-		esc_html__( 'Save & edit next', 'ai-for-seo' ),
-		'ai4seo-big-button ai4seo-lockable ai4seo-save-button ai4seo-start-inactive',
+		esc_html__( 'Next item', 'ai-for-seo' ),
+		'ai4seo-big-button ai4seo-lockable ai4seo-save-button ai4seo-editor-next-button',
 		$ai4seo_onclick
 	);
 }
@@ -907,6 +907,33 @@ function ai4seo_get_editor_field_source_message_details( array $source_details )
 
 
 /**
+ * Returns the singular content-type label used by accessible row controls.
+ *
+ * @param int    $post_id           WordPress post ID represented by the control.
+ * @param string $content_type_label Optional caller-provided label for list contexts such as Media.
+ * @return string Sanitized singular content-type label.
+ */
+function ai4seo_get_accessible_content_type_label( int $post_id, string $content_type_label = '' ): string {
+	// Prefer the list's visible wording because Media intentionally differs from WordPress' attachment label.
+	$content_type_label = trim( sanitize_text_field( $content_type_label ) );
+	if ( '' !== $content_type_label ) {
+		return $content_type_label;
+	}
+
+	// Use the registered singular label when the caller has only the row ID.
+	$post_type       = get_post_type( $post_id );
+	$post_type_label = $post_type ? ai4seo_get_post_type_singular_label( $post_type ) : '';
+
+	if ( '' !== $post_type_label ) {
+		return $post_type_label;
+	}
+
+	// Keep controls understandable when the row no longer resolves to a registered post type.
+	return __( 'Entry', 'ai-for-seo' );
+}
+
+
+/**
  * Returns the HTML for a native WordPress post editor link.
  *
  * @param int $post_id The post ID to edit.
@@ -915,17 +942,12 @@ function ai4seo_get_editor_field_source_message_details( array $source_details )
 function ai4seo_get_wordpress_post_edit_link_button( int $post_id ): string {
 	// Let WordPress reject unavailable records and build the canonical editor URL for the current installation.
 	$edit_post_link = get_edit_post_link( $post_id );
-
 	if ( ! $edit_post_link ) {
 		return '';
 	}
 
-	// Use the registered singular label so custom post types receive an accurate accessible button name.
-	$post_type        = get_post_type( $post_id );
-	$post_type_object = $post_type ? get_post_type_object( $post_type ) : null;
-	$post_type_label  = $post_type_object && isset( $post_type_object->labels->singular_name )
-		? $post_type_object->labels->singular_name
-		: __( 'Entry', 'ai-for-seo' );
+	// Resolve the registered label because this native action can render outside plugin list contexts.
+	$post_type_label = ai4seo_get_accessible_content_type_label( $post_id );
 
 	/* translators: %s: Singular post type label, such as Post or Page. */
 	$button_label = sprintf( __( 'Edit %s in WordPress (opens in a new tab)', 'ai-for-seo' ), $post_type_label );
@@ -945,16 +967,19 @@ function ai4seo_get_wordpress_post_edit_link_button( int $post_id ): string {
 
 
 /**
- * Returns the HTML for the edit metadata button
+ * Returns the HTML for the edit metadata button.
  *
- * @param int   $post_id The post id to get the button for.
- * @param array $all_post_ids all post ids in this current list.
- * @return string The HTML for the button
+ * @param int    $post_id            The post ID to get the button for.
+ * @param array  $all_post_ids       All post IDs in this current list.
+ * @param string $content_type_label Optional singular content-type label.
+ * @return string The HTML for the button.
  */
 function ai4seo_get_edit_metadata_button(
 	int $post_id,
-	array $all_post_ids = array()
+	array $all_post_ids = array(),
+	string $content_type_label = ''
 ): string {
+	// Preserve the visible list sequence when the editor opens with previous and next controls.
 	$all_post_ids = ai4seo_deep_sanitize( $all_post_ids, 'absint' );
 	$onclick      = 'ai4seo_open_metadata_editor_modal(' . esc_js( $post_id ) . ', false';
 
@@ -964,24 +989,30 @@ function ai4seo_get_edit_metadata_button(
 
 	$onclick .= ');';
 
-	/* translators: %d: WordPress post ID. */
-	$button_label = sprintf( esc_html__( 'Open Metadata Editor for post ID %d', 'ai-for-seo' ), $post_id );
+	// Match the accessible name to the content-type wording visible in the current list.
+	$content_type_label = ai4seo_get_accessible_content_type_label( $post_id, $content_type_label );
+	/* translators: 1: Singular content-type label, such as Post or Page. 2: WordPress post ID. */
+	$button_label = sprintf( __( 'Open Metadata Editor for %1$s ID %2$d', 'ai-for-seo' ), $content_type_label, $post_id );
 
+	// Reuse the shared renderer so icon-only controls retain consistent title and ARIA attributes.
 	return ai4seo_get_icon_button_tag( 'pen-to-square', '', '', $onclick, $button_label );
 }
 
 
 /**
- * Returns the HTML for the edit attachment attributes button
+ * Returns the HTML for the edit attachment attributes button.
  *
- * @param int   $attachment_post_id The post id to get the button for.
- * @param array $all_attachment_post_ids all post ids in this current list.
- * @return string The HTML for the button
+ * @param int    $attachment_post_id      The attachment post ID to get the button for.
+ * @param array  $all_attachment_post_ids All attachment post IDs in this current list.
+ * @param string $content_type_label      Optional singular content-type label.
+ * @return string The HTML for the button.
  */
 function ai4seo_get_edit_attachment_attributes_button(
 	int $attachment_post_id,
-	array $all_attachment_post_ids = array()
+	array $all_attachment_post_ids = array(),
+	string $content_type_label = ''
 ): string {
+	// Preserve the visible list sequence when the editor opens with previous and next controls.
 	$all_attachment_post_ids = ai4seo_deep_sanitize( $all_attachment_post_ids, 'absint' );
 	$onclick                 = 'ai4seo_open_attachment_attributes_editor_modal(' . esc_js( $attachment_post_id );
 
@@ -991,9 +1022,13 @@ function ai4seo_get_edit_attachment_attributes_button(
 
 	$onclick .= ');';
 
-	/* translators: %d: WordPress attachment post ID. */
-	$button_label = sprintf( esc_html__( 'Open Media Attributes Editor for post ID %d', 'ai-for-seo' ), $attachment_post_id );
+	// Default to the user-facing Media term instead of WordPress' internal attachment post type.
+	$content_type_label = '' !== trim( $content_type_label ) ? $content_type_label : __( 'Media', 'ai-for-seo' );
+	$content_type_label = ai4seo_get_accessible_content_type_label( $attachment_post_id, $content_type_label );
+	/* translators: 1: Singular content-type label, such as Media. 2: WordPress attachment post ID. */
+	$button_label = sprintf( __( 'Open Media Attributes Editor for %1$s ID %2$d', 'ai-for-seo' ), $content_type_label, $attachment_post_id );
 
+	// Reuse the shared renderer so icon-only controls retain consistent title and ARIA attributes.
 	return ai4seo_get_icon_button_tag( 'pen-to-square', '', '', $onclick, $button_label );
 }
 
@@ -1060,16 +1095,24 @@ function ai4seo_get_accordion_element( string $headline, string $content ): stri
 /**
  * Returns the accessible SEO coverage progress bar shared by post and attachment lists.
  *
- * @param int       $post_id WordPress post ID represented by the row.
- * @param int|float $coverage_percentage Current SEO coverage percentage.
- * @param string    $animation_class Optional animation class, including its leading space.
+ * @param int       $post_id                 WordPress post ID represented by the row.
+ * @param int|float $coverage_percentage      Current SEO coverage percentage.
+ * @param string    $animation_class          Optional animation class, including its leading space.
  * @param bool      $is_generation_incomplete Whether generation is still pending or processing.
+ * @param string    $content_type_label       Optional singular content-type label.
  * @return string Progress element HTML.
  */
-function ai4seo_get_seo_coverage_progress_bar_tag( int $post_id, $coverage_percentage, string $animation_class, bool $is_generation_incomplete ): string {
+function ai4seo_get_seo_coverage_progress_bar_tag(
+	int $post_id,
+	$coverage_percentage,
+	string $animation_class,
+	bool $is_generation_incomplete,
+	string $content_type_label = ''
+): string {
 	// Give assistive technology both the row relationship and a localized completion value.
-	/* translators: %d: WordPress post ID. */
-	$aria_label = sprintf( __( 'SEO coverage for post ID %d', 'ai-for-seo' ), $post_id );
+	$content_type_label = ai4seo_get_accessible_content_type_label( $post_id, $content_type_label );
+	/* translators: 1: Singular content-type label, such as Post, Page, or Media. 2: WordPress post ID. */
+	$aria_label = sprintf( __( 'SEO coverage for %1$s ID %2$d', 'ai-for-seo' ), $content_type_label, $post_id );
 	/* translators: %s: SEO coverage percentage. */
 	$aria_value_text = sprintf( __( '%s%% complete', 'ai-for-seo' ), ai4seo_stringify( $coverage_percentage ) );
 
@@ -2994,13 +3037,28 @@ function ai4seo_get_bulk_generation_queue_action_controls( string $context, stri
 	}
 		$output .= '</select>';
 		$output .= $bulk_action_help_icon_html;
+
 		// Keep Apply unavailable until the client validates both an action and at least one selected entry.
-		$output     .= ai4seo_get_button_tag(
+		$output .= "<div class='ai4seo-bulk-generation-queue-action-submit-group'>";
+		$output .= ai4seo_get_button_tag(
 			esc_html__( 'Apply', 'ai-for-seo' ),
 			'ai4seo-bulk-generation-queue-action-submit ai4seo-inactive-button',
 			'',
 			true
 		);
+
+		// Match the client-side count format and retain a live node for updates without moving focus.
+		$output .= "<p class='ai4seo-bulk-generation-queue-selection-count ai4seo-sub-info' aria-live='polite' aria-atomic='true'>";
+		$output .= esc_html(
+			sprintf(
+				/* translators: %s: Number of selected entries. */
+				_n( '%s selected', '%s selected', 0, 'ai-for-seo' ),
+				number_format_i18n( 0 )
+			)
+		);
+		$output .= '</p></div>';
+
+		// Keep the selected-action guidance below the submission controls as the count changes.
 		$output     .= "<p id='" . esc_attr( $bulk_action_description_id ) . "' class='ai4seo-bulk-generation-queue-action-selected-description ai4seo-sub-info' aria-live='polite' aria-atomic='true' hidden>";
 			$output .= '<strong>' . esc_html__( 'Selected:', 'ai-for-seo' ) . "</strong> <span class='ai4seo-bulk-generation-queue-action-selected-description-text'></span>";
 		$output     .= '</p>';

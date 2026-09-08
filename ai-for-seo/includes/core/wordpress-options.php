@@ -325,18 +325,110 @@ function ai4seo_is_valid_raw_option_snapshot( string $option_name, array $option
 
 
 /**
- * Invalidates every WordPress cache bucket that can resolve one option.
+ * Identifies the native, request-local WordPress object cache and its API.
+ *
+ * Only immutable implementation checks are memoized. The active cache object
+ * and external-cache flag are checked on every call, including after site switches.
+ *
+ * @return bool Whether skipping unrelated aggregate-cache invalidation is safe.
+ */
+function ai4seo_is_native_request_object_cache(): bool {
+	global $wp_object_cache;
+	static $native_cache_api = null;
+
+	// Cache objects and the external-cache flag can change after a previous successful check.
+	if (
+		! is_object( $wp_object_cache )
+		|| 'WP_Object_Cache' !== get_class( $wp_object_cache )
+		|| ! function_exists( 'wp_using_ext_object_cache' )
+		|| wp_using_ext_object_cache()
+	) {
+		return false;
+	}
+
+	// Loaded implementation identities are stable for the rest of this request.
+	if ( null !== $native_cache_api ) {
+		return $native_cache_api;
+	}
+
+	// A drop-in makes aggregate-cache retention unsafe even if its public class matches WordPress.
+	$native_cache_api = false;
+	if ( ! defined( 'WPINC' ) || ! defined( 'WP_CONTENT_DIR' ) || file_exists( WP_CONTENT_DIR . '/object-cache.php' ) ) {
+		return false;
+	}
+
+	// Resolve canonical files so path aliases cannot be mistaken for a replacement implementation.
+	$core_cache_file = realpath( ABSPATH . WPINC . '/cache.php' );
+	$core_class_file = realpath( ABSPATH . WPINC . '/class-wp-object-cache.php' );
+
+	if ( false === $core_cache_file || false === $core_class_file ) {
+		return false;
+	}
+
+	// Both the object and the procedural entry points must come from WordPress core.
+	try {
+		$cache_class = new ReflectionClass( 'WP_Object_Cache' );
+		if ( realpath( (string) $cache_class->getFileName() ) !== $core_class_file ) {
+			return false;
+		}
+
+		// Matching the class alone cannot rule out replaced cache API functions.
+		foreach ( array( 'wp_cache_get', 'wp_cache_add', 'wp_cache_set', 'wp_cache_delete' ) as $function_name ) {
+			$cache_function = new ReflectionFunction( $function_name );
+			if ( realpath( (string) $cache_function->getFileName() ) !== $core_cache_file ) {
+				return false;
+			}
+		}
+	} catch ( ReflectionException $exception ) {
+		// Missing reflection metadata must retain conservative invalidation.
+		return false;
+	}
+
+	// Memoize only the verified implementation; mutable cache state is still checked on every call.
+	$native_cache_api = true;
+
+	return true;
+}
+
+
+/**
+ * Determines whether a direct option write requires aggregate-cache invalidation.
+ *
+ * The hint must describe a successful write's actual autoload bytes. Unknown
+ * states remain conservative. WordPress' autoload filter can only remove enabled
+ * values, so explicitly disabled values do not require executing that filter.
+ *
+ * @param string      $option_name      Exact option name.
+ * @param string|null $written_autoload Known committed autoload value, or null.
+ * @return bool Whether alloptions must be invalidated.
+ */
+function ai4seo_should_invalidate_alloptions_cache( string $option_name, ?string $written_autoload = null ): bool {
+	// Only a known non-autoload write on the native cache can leave an unrelated aggregate intact.
+	if ( ! in_array( $written_autoload, array( 'no', 'off', 'auto-off' ), true ) || ! ai4seo_is_native_request_object_cache() ) {
+		return true;
+	}
+
+	// Reading this array does not copy or rewrite its contents or bypass cache-addition suspension.
+	$alloptions = wp_cache_get( 'alloptions', 'options' );
+
+	return ! is_array( $alloptions ) || array_key_exists( $option_name, $alloptions );
+}
+
+
+/**
+ * Invalidates WordPress cache buckets that can resolve one option.
  *
  * Direct compare-and-swap writers must not publish their owned snapshot after
  * the database mutation. Another writer can commit and cache a newer value
- * between the mutation and cache repair. Invalidating every possible bucket
+ * between the mutation and cache repair. Invalidating every affected bucket
  * makes the next public read resolve authoritative storage without replacing a
  * later writer's cache entry with stale bytes.
  *
- * @param string $option_name Exact option name.
+ * @param string      $option_name      Exact option name.
+ * @param string|null $written_autoload Known committed autoload value, or null for full invalidation.
  * @return void
  */
-function ai4seo_invalidate_option_cache( string $option_name ): void {
+function ai4seo_invalidate_option_cache( string $option_name, ?string $written_autoload = null ): void {
 	$option_name = trim( $option_name );
 
 	if ( '' === $option_name ) {
@@ -346,7 +438,13 @@ function ai4seo_invalidate_option_cache( string $option_name ): void {
 	// Clear every WordPress option bucket that may contain the authoritative value or its absence marker.
 	if ( function_exists( 'wp_cache_delete' ) ) {
 		wp_cache_delete( $option_name, 'options' );
-		wp_cache_delete( 'alloptions', 'options' );
+
+		// Retain unrelated autoload values only when the committed write and active cache make that safe.
+		if ( ai4seo_should_invalidate_alloptions_cache( $option_name, $written_autoload ) ) {
+			wp_cache_delete( 'alloptions', 'options' );
+		}
+
+		// Never let a cached absence hide this write or a concurrent replacement.
 		wp_cache_delete( 'notoptions', 'options' );
 	}
 
@@ -457,7 +555,7 @@ function ai4seo_compare_and_swap_option_snapshot(
 		return false;
 	}
 
-	ai4seo_invalidate_option_cache( $option_name );
+	ai4seo_invalidate_option_cache( $option_name, $new_autoload );
 	ai4seo_maybe_reset_generation_status_summary_request_cache( $option_name );
 	ai4seo_maybe_bump_content_type_list_cache_version( $option_name );
 
@@ -1019,7 +1117,7 @@ function ai4seo_update_option( string $option_name, $option_value, $autoload = f
 
 		// Never publish the locally written value after direct SQL. A later writer may already own
 		// newer bytes, so authoritative invalidation is the only race-safe cache reconciliation.
-		ai4seo_invalidate_option_cache( $option_name );
+		ai4seo_invalidate_option_cache( $option_name, $result > 0 ? $autoload : null );
 		ai4seo_maybe_reset_generation_status_summary_request_cache( $option_name );
 		ai4seo_maybe_bump_content_type_list_cache_version( $option_name );
 

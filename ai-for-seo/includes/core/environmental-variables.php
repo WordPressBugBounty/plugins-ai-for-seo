@@ -827,6 +827,10 @@ function ai4seo_validate_environmental_variable_value( string $environmental_var
 	}
 
 	switch ( $environmental_variable_name ) {
+		case AI4SEO_ENVIRONMENTAL_VARIABLE_ATTACHMENT_BASE64_RECOVERY_STREAK:
+			// The sanitizer stores scalar integers as strings; accept only the four canonical values.
+			return in_array( $environmental_variable_value, array( 0, 1, 2, 3, '0', '1', '2', '3' ), true );
+
 		case AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_KNOWN_PLUGIN_VERSION:
 			// contains only of numbers and dots.
 			return is_string( $environmental_variable_value ) && preg_match( '/^[0-9.]+$/', $environmental_variable_value );

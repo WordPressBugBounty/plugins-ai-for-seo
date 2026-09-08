@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 // Centralize plugin identity and asset-cache declarations consumed throughout bootstrap.
-const AI4SEO_PLUGIN_VERSION_NUMBER              = '2.5.2';
+const AI4SEO_PLUGIN_VERSION_NUMBER              = '2.5.3';
 const AI4SEO_PLUGIN_NAME                        = 'SOOZ - AI for SEO';
 const AI4SEO_SHORT_PLUGIN_NAME                  = 'SOOZ';
 const AI4SEO_PLUGIN_DESCRIPTION                 = 'One-Click SEO solution. *SOOZ - AI for SEO* helps your website to rank higher in Web Search results.';
@@ -106,11 +106,21 @@ const AI4SEO_MAX_DISPLAYABLE_ALREADY_READ_NOTIFICATIONS = 2;
 const AI4SEO_ANALYZE_PERFORMANCE_INTERVAL               = 7200; // 2h
 const AI4SEO_GLOBAL_NONCE_IDENTIFIER                    = 'ai4seo_ajax_nonce';
 // These values form the single-use checkout-return handshake shared by URL generation and validation.
-const AI4SEO_PURCHASE_RETURN_QUERY_PARAMETER               = 'ai4seo-just-purchased';
-const AI4SEO_PURCHASE_RETURN_TOKEN_QUERY_PARAMETER         = 'ai4seo_purchase_return_token';
-const AI4SEO_PURCHASE_RETURN_TOKEN_OPTION_PREFIX           = 'ai4seo_purchase_return_token_';
-const AI4SEO_PURCHASE_RETURN_TOKEN_EXPIRY_CRON_HOOK        = 'ai4seo_expire_purchase_return_token';
-const AI4SEO_PURCHASE_RETURN_TOKEN_TTL_SECONDS             = 604800; // 7 days.
+const AI4SEO_PURCHASE_RETURN_QUERY_PARAMETER        = 'ai4seo-just-purchased';
+const AI4SEO_PURCHASE_RETURN_TOKEN_QUERY_PARAMETER  = 'ai4seo_purchase_return_token';
+const AI4SEO_PURCHASE_RETURN_TOKEN_OPTION_PREFIX    = 'ai4seo_purchase_return_token_';
+const AI4SEO_PURCHASE_RETURN_TOKEN_EXPIRY_CRON_HOOK = 'ai4seo_expire_purchase_return_token';
+const AI4SEO_PURCHASE_RETURN_TOKEN_TTL_SECONDS      = 604800; // 7 days.
+// Keep the durable purchase namespace and stable RobHub outcomes shared by AJAX and return handling.
+const AI4SEO_CREDIT_PURCHASE_ATTEMPT_OPTION_PREFIX         = '_ai4seo_credit_purchase_v1_';
+const AI4SEO_CREDIT_PURCHASE_BUSY                          = 5092601;
+const AI4SEO_CREDIT_PURCHASE_EXPIRED                       = 5092602;
+const AI4SEO_CREDIT_PURCHASE_COMPLETED                     = 5092603;
+const AI4SEO_CREDIT_PURCHASE_CONFLICT                      = 5092604;
+const AI4SEO_CREDIT_PURCHASE_PENDING                       = 5092605;
+const AI4SEO_CREDIT_PURCHASE_REJECTED                      = 5092606;
+const AI4SEO_CREDIT_PURCHASE_STORAGE_ERROR                 = 5092607;
+const AI4SEO_CREDIT_PURCHASE_INVALID                       = 5092608;
 const AI4SEO_PAYG_CREDITS_THRESHOLD                        = 100;
 const AI4SEO_ALLOWED_PAYG_STATUS                           = array( 'idle', 'budget-limit-reached', 'processing', 'payment-pending', 'payment-received', 'payment-failed', 'payment-method-failed', 'error' );
 const AI4SEO_SEMAPHORE_MAX_WAIT_SECONDS                    = 5; // 5 seconds
@@ -224,6 +234,21 @@ const AI4SEO_METADATA_KEYWORDS_RECOMMENDED_MAX_ITEMS = 10;
  */
 function ai4seo_get_change_log(): array {
 	return array(
+		array(
+			'date'      => '2026-09-08',
+			'version'   => '2.5.3',
+			'important' => false,
+			'updates'   => array(
+				'Added Settings search to find options by name or description, including advanced settings, without changing saved preferences.',
+				'Added Next item and Save & edit next controls to move through metadata and media editors while preserving the selected view and detecting edits reliably.',
+				'Improved image generation so Auto switches to Data after three successful recoveries from failed image URL requests, while respecting a manually selected upload method.',
+				'Improved account synchronization and credit checkout recovery so interrupted or repeated requests can resume reliably.',
+				'Added the site timezone and a live clock to SEO Autopilot date controls, with validation that prevents invalid cutoffs from partially saving settings.',
+				'Added dashboard guidance explaining which settings exclude entries from refreshed statistics.',
+				'Added selection counts to bulk actions so you can confirm how many entries will be affected.',
+				'Bug Fixes & Maintenance: Fixed 4 minor bugs and implemented 1 performance improvement.',
+			),
+		),
 		array(
 			'date'      => 'September 3rd, 2026',
 			'version'   => '2.5.2',
@@ -1769,6 +1794,7 @@ const AI4SEO_ENVIRONMENTAL_VARIABLE_CACHE_TTL_SUFFIX = '__ttl_time';
 // region ENVIRONMENTAL VARIABLES ==============================================================================.
 
 const AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_KNOWN_PLUGIN_VERSION                             = 'last_known_plugin_version';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_ATTACHMENT_BASE64_RECOVERY_STREAK                     = 'attachment_base64_recovery_streak';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_CRON_JOB_CALL                                    = 'last_cronjob_call';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_SPECIFIC_CRON_JOB_CALLS                          = 'last_specific_cronjob_call';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_CRON_JOB_STATUS_LIST                                  = 'cron_job_status_list';
@@ -1815,6 +1841,7 @@ const AI4SEO_ENVIRONMENTAL_VARIABLE_MAX_POST_ID_CACHE                           
 const AI4SEO_ENVIRONMENTAL_VARIABLE_CLAIMED_FEEDBACK_OFFER                           = 'claimed_feedback_offer';
 
 const AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES = array(
+	AI4SEO_ENVIRONMENTAL_VARIABLE_ATTACHMENT_BASE64_RECOVERY_STREAK => 0,
 	AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_KNOWN_PLUGIN_VERSION => '0.0.0',
 	AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_CRON_JOB_CALL       => 0,
 	AI4SEO_ENVIRONMENTAL_VARIABLE_CRON_JOB_STATUS_LIST     => array(),

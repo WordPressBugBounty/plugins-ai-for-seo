@@ -277,6 +277,15 @@ if ( $ai4seo_found_any_all_done_post_types ) {
 
 						$ai4seo_datetime_value = ai4seo_format_unix_timestamp( $ai4seo_reference_timestamp, 'Y-m-d', 'H:i', '\T' );
 
+						// Name the same effective zone as the displayed cutoff, including the formatter's UTC fallback.
+						$ai4seo_datetime_timezone       = ai4seo_format_unix_timestamp( $ai4seo_reference_timestamp, 'e', '' );
+						$ai4seo_datetime_description_id = $ai4seo_this_datetime_input_name . '-timezone-description';
+						$ai4seo_datetime_description    = sprintf(
+							/* translators: %s: Effective time zone used to display and interpret the cutoff, for example Europe/Berlin or UTC. */
+							__( 'Time zone: %s', 'ai-for-seo' ),
+							$ai4seo_datetime_timezone
+						);
+
 						$ai4seo_is_datetime_visible = ( 'new' === $ai4seo_current_automated_generation_new_or_existing_filter || 'existing' === $ai4seo_current_automated_generation_new_or_existing_filter );
 
 						echo "<div class='ai4seo-datetime-picker-container" . ( ! $ai4seo_is_datetime_visible ? ' ai4seo-display-none' : '' ) . "'>";
@@ -289,7 +298,11 @@ if ( $ai4seo_found_any_all_done_post_types ) {
 							echo esc_html__( 'Reference time:', 'ai-for-seo' ); // fallback.
 						}
 							echo '</label>';
-							echo "<input type='datetime-local' id='" . esc_attr( $ai4seo_this_datetime_input_name ) . "' name='" . esc_attr( $ai4seo_this_datetime_input_name ) . "' value='" . esc_attr( $ai4seo_datetime_value ) . "' class='ai4seo-datetime-picker-input' data-stored-timestamp='" . esc_attr( $ai4seo_reference_timestamp ) . "'>";
+							echo "<input type='datetime-local' id='" . esc_attr( $ai4seo_this_datetime_input_name ) . "' name='" . esc_attr( $ai4seo_this_datetime_input_name ) . "' value='" . esc_attr( $ai4seo_datetime_value ) . "' class='ai4seo-datetime-picker-input' data-stored-timestamp='" . esc_attr( $ai4seo_reference_timestamp ) . "' aria-describedby='" . esc_attr( $ai4seo_datetime_description_id ) . "'>";
+							// Reuse one associated description for the server label and the scoped client-side clock.
+							echo "<p id='" . esc_attr( $ai4seo_datetime_description_id ) . "' class='ai4seo-form-item-description ai4seo-datetime-picker-timezone' data-time-zone='" . esc_attr( $ai4seo_datetime_timezone ) . "'>";
+							echo esc_html( $ai4seo_datetime_description );
+							echo '</p>';
 						echo '</div>';
 
 						echo '</div>';

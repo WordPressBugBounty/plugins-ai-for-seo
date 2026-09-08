@@ -4,7 +4,7 @@ Contributors: spacecodes
 Donate link: https://spa.ce.codes
 Requires at least: 6.6
 Tested up to: 7.1
-Stable tag: 2.5.2
+Stable tag: 2.5.3
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -225,6 +225,16 @@ It depends on how the generated data is stored and used. If *SOOZ - AI for SEO* 
 We welcome feature requests, editor integration ideas, page builder compatibility requests, and SEO workflow feedback. Please email [support@sooz.ai](mailto:support@sooz.ai) with your suggestions.
 
 == Changelog ==
+
+= 2.5.3 =
+* Added Settings search to find options by name or description, including advanced settings, without changing saved preferences.
+* Added Next item and Save & edit next controls to move through metadata and media editors while preserving the selected view and detecting edits reliably.
+* Improved image generation so Auto switches to Data after three successful recoveries from failed image URL requests, while respecting a manually selected upload method.
+* Improved account synchronization and credit checkout recovery so interrupted or repeated requests can resume reliably.
+* Added the site timezone and a live clock to SEO Autopilot date controls, with validation that prevents invalid cutoffs from partially saving settings.
+* Added dashboard guidance explaining which settings exclude entries from refreshed statistics.
+* Added selection counts to bulk actions so you can confirm how many entries will be affected.
+* Bug Fixes & Maintenance: Fixed 4 minor bugs and implemented 1 performance improvement.
 
 = 2.5.2 =
 * Improved account recovery and purchase setup so license credentials are refreshed safely and subscription or credit checkout starts more reliably.

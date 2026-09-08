@@ -252,8 +252,18 @@ function ai4seo_process_save_anything_settings( array &$upcoming_save_anything_u
 		$ai4seo_recent_setting_changes[ $ai4seo_this_setting_name ] = array( $ai4seo_this_old_setting_value, $ai4seo_this_new_setting_value );
 	}
 
-	// Persist the shared settings snapshot once after every submitted value has passed validation.
-	if ( $ai4seo_recent_setting_changes && ! ai4seo_push_local_setting_changes_to_database() ) {
+	// Reset history before committing a new transport preference so a failed reset remains retryable.
+	$ai4seo_recovery_history_is_ready = ! isset( $ai4seo_recent_setting_changes[ AI4SEO_SETTING_IMAGE_UPLOAD_METHOD ] )
+		|| ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ATTACHMENT_BASE64_RECOVERY_STREAK, 0 );
+
+	if ( ! $ai4seo_recovery_history_is_ready ) {
+		ai4seo_debug_message( 709071005, 'Could not clear the attachment recovery streak before saving image upload settings.', true );
+	}
+
+	// Use the same cache rollback for a failed history reset or settings write.
+	if ( $ai4seo_recent_setting_changes
+		&& ( ! $ai4seo_recovery_history_is_ready || ! ai4seo_push_local_setting_changes_to_database() )
+	) {
 		// Restore the request-local cache so later code cannot observe values that the database rejected.
 		foreach ( $ai4seo_recent_setting_changes as $ai4seo_setting_name => $ai4seo_setting_values ) {
 			$ai4seo_settings[ $ai4seo_setting_name ] = $ai4seo_setting_values[0];

@@ -1693,238 +1693,238 @@ foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_
 
 
 		if ( $ai4seo_can_administer_plugin ) {
-		// ___________________________________________________________________________________________ \\
-		// === TROUBLESHOOTING ====================================================================== \\
-		// ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
+			// ___________________________________________________________________________________________ \\
+			// === TROUBLESHOOTING ====================================================================== \\
+			// ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
-		$ai4seo_bulk_generation_duration               = (int) ai4seo_get_setting( AI4SEO_SETTING_BULK_GENERATION_DURATION );
-		$ai4seo_disable_heavy_db_operations_input_name = ai4seo_get_prefixed_input_name( AI4SEO_SETTING_DISABLE_HEAVY_DB_OPERATIONS );
-		$ai4seo_disable_heavy_db_operations_value      = (bool) ai4seo_get_setting( AI4SEO_SETTING_DISABLE_HEAVY_DB_OPERATIONS );
-		$ai4seo_debug_output_mode_input_name           = ai4seo_get_prefixed_input_name( AI4SEO_SETTING_DEBUG_OUTPUT_MODE );
-		$ai4seo_debug_output_mode_value                = ai4seo_get_setting( AI4SEO_SETTING_DEBUG_OUTPUT_MODE );
-		$ai4seo_debug_output_mode_options              = ai4seo_get_debug_output_mode_options();
-		$ai4seo_debug_message_entries                  = get_option( AI4SEO_DEBUG_MESSAGES_OPTION_NAME, array() );
+			$ai4seo_bulk_generation_duration               = (int) ai4seo_get_setting( AI4SEO_SETTING_BULK_GENERATION_DURATION );
+			$ai4seo_disable_heavy_db_operations_input_name = ai4seo_get_prefixed_input_name( AI4SEO_SETTING_DISABLE_HEAVY_DB_OPERATIONS );
+			$ai4seo_disable_heavy_db_operations_value      = (bool) ai4seo_get_setting( AI4SEO_SETTING_DISABLE_HEAVY_DB_OPERATIONS );
+			$ai4seo_debug_output_mode_input_name           = ai4seo_get_prefixed_input_name( AI4SEO_SETTING_DEBUG_OUTPUT_MODE );
+			$ai4seo_debug_output_mode_value                = ai4seo_get_setting( AI4SEO_SETTING_DEBUG_OUTPUT_MODE );
+			$ai4seo_debug_output_mode_options              = ai4seo_get_debug_output_mode_options();
+			$ai4seo_debug_message_entries                  = get_option( AI4SEO_DEBUG_MESSAGES_OPTION_NAME, array() );
 
-		// Normalize stored debug entries because older or corrupted option values should render as an empty log.
-		if ( ! is_array( $ai4seo_debug_message_entries ) ) {
-			$ai4seo_debug_message_entries = array();
-		}
+			// Normalize stored debug entries because older or corrupted option values should render as an empty log.
+			if ( ! is_array( $ai4seo_debug_message_entries ) ) {
+				$ai4seo_debug_message_entries = array();
+			}
 
-		// Troubleshooting visibility is decided before the browser paints to avoid refresh flicker after selecting this tile.
-		echo "<div class='" . esc_attr( $ai4seo_help_sections['troubleshooting']['content_class'] ) . "' id='" . esc_attr( $ai4seo_help_sections['troubleshooting']['target_id'] ) . "'>";
-		// Headline.
-		echo "<h1 id='ai4seo-troubleshooting-section'>";
-		echo esc_html__( 'Troubleshooting', 'ai-for-seo' );
-		echo '</h1>';
+			// Troubleshooting visibility is decided before the browser paints to avoid refresh flicker after selecting this tile.
+			echo "<div class='" . esc_attr( $ai4seo_help_sections['troubleshooting']['content_class'] ) . "' id='" . esc_attr( $ai4seo_help_sections['troubleshooting']['target_id'] ) . "'>";
+			// Headline.
+			echo "<h1 id='ai4seo-troubleshooting-section'>";
+			echo esc_html__( 'Troubleshooting', 'ai-for-seo' );
+			echo '</h1>';
 
-		// WARNING.
-		echo esc_html__( 'ATTENTION: The following tools are for advanced users only or if you are advised to use them by our support team.', 'ai-for-seo' );
-		echo "<div class='ai4seo-gap'></div>";
+			// WARNING.
+			echo esc_html__( 'ATTENTION: The following tools are for advanced users only or if you are advised to use them by our support team.', 'ai-for-seo' );
+			echo "<div class='ai4seo-gap'></div>";
 
-		// Show the result of nonce-protected operations after redirect without replaying the submitted POST.
-		if ( ! empty( $ai4seo_debug_operation_result['message'] ) ) {
-			echo '<p><strong>' . esc_html( $ai4seo_debug_operation_result['message'] ) . '</strong></p>';
-		}
+			// Show the result of nonce-protected operations after redirect without replaying the submitted POST.
+			if ( ! empty( $ai4seo_debug_operation_result['message'] ) ) {
+				echo '<p><strong>' . esc_html( $ai4seo_debug_operation_result['message'] ) . '</strong></p>';
+			}
 
-		// === RESET PLUGIN DATA ===================================================================== \\
+			// === RESET PLUGIN DATA ===================================================================== \\
 
-		echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
-		echo "<div class='card ai4seo-form-section ai4seo-troubleshooting-settings-card'>";
+			echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
+			echo "<div class='card ai4seo-form-section ai4seo-troubleshooting-settings-card'>";
 
-		// Headline.
-		echo '<h2>';
-		echo '<i class="dashicons dashicons-image-rotate"></i>';
-		echo esc_html__( 'Reset plugin data', 'ai-for-seo' );
-		echo '</h2>';
+			// Headline.
+			echo '<h2>';
+			echo '<i class="dashicons dashicons-image-rotate"></i>';
+			echo esc_html__( 'Reset plugin data', 'ai-for-seo' );
+			echo '</h2>';
 
-		echo "<div class='ai4seo-form-item'>";
-		echo "<label for='ai4seo-troubleshooting-reset-cache'>";
-		echo esc_html__( 'Choose the data you want to reset:', 'ai-for-seo' );
-		echo '</label>';
+			echo "<div class='ai4seo-form-item'>";
+			echo "<label for='ai4seo-troubleshooting-reset-cache'>";
+			echo esc_html__( 'Choose the data you want to reset:', 'ai-for-seo' );
+			echo '</label>';
 
-		echo "<div class='ai4seo-form-item-input-wrapper'>";
+			echo "<div class='ai4seo-form-item-input-wrapper'>";
 
-		// checkboxes for reset cache, resent environmental variables (you have to re-enter license data), reset plugin settings, reset generated data.
+			// checkboxes for reset cache, resent environmental variables (you have to re-enter license data), reset plugin settings, reset generated data.
 
-		// select all button.
-		ai4seo_echo_wp_kses( ai4seo_get_select_all_checkbox( 'ai4seo-troubleshooting-reset-checkbox' ) );
-		echo "<div class='ai4seo-medium-gap'></div>";
+			// select all button.
+			ai4seo_echo_wp_kses( ai4seo_get_select_all_checkbox( 'ai4seo-troubleshooting-reset-checkbox' ) );
+			echo "<div class='ai4seo-medium-gap'></div>";
 
-		// Reset cache.
-		echo "<div class='ai4seo-form-multiple-inputs'>";
+			// Reset cache.
+			echo "<div class='ai4seo-form-multiple-inputs'>";
 			echo "<input type='checkbox' id='ai4seo-troubleshooting-reset-cache' name='ai4seo-troubleshooting-reset-checkbox[]' />";
 			echo "<label for='ai4seo-troubleshooting-reset-cache'>" . esc_html__( 'Reset cache', 'ai-for-seo' ) . '</label>';
-		echo '</div>';
+			echo '</div>';
 
-		// Reset notifications.
-		echo "<div class='ai4seo-form-multiple-inputs'>";
+			// Reset notifications.
+			echo "<div class='ai4seo-form-multiple-inputs'>";
 			echo "<input type='checkbox' id='ai4seo-troubleshooting-reset-notifications' name='ai4seo-troubleshooting-reset-checkbox[]' />";
 			echo "<label for='ai4seo-troubleshooting-reset-notifications'>" . esc_html__( 'Reset notifications', 'ai-for-seo' ) . '</label>';
 			$ai4seo_notifications_tooltip = __( 'Dismissed notifications will be reset and eventually reappear in the notifications section of the plugin.', 'ai-for-seo' );
 			ai4seo_echo_wp_kses( ai4seo_get_icon_with_tooltip_tag( $ai4seo_notifications_tooltip ) );
-		echo '</div>';
+			echo '</div>';
 
-		// Reset environmental variables.
-		echo "<div class='ai4seo-form-multiple-inputs'>";
+			// Reset environmental variables.
+			echo "<div class='ai4seo-form-multiple-inputs'>";
 			echo "<input type='checkbox' id='ai4seo-troubleshooting-reset-env' name='ai4seo-troubleshooting-reset-checkbox[]' />";
 			echo "<label for='ai4seo-troubleshooting-reset-env'>" . esc_html__( 'Reset environmental variables', 'ai-for-seo' ) . '</label>';
 			$ai4seo_environmental_variables_tooltip = __( '<strong>This will reset all environmental variables.</strong><br>Use this option if you are advised to do so by our support team.<br><br><strong>Note:</strong> You will need to re-enter your license data after using this option.', 'ai-for-seo' );
 			ai4seo_echo_wp_kses( ai4seo_get_icon_with_tooltip_tag( $ai4seo_environmental_variables_tooltip ) );
-		echo '</div>';
+			echo '</div>';
 
-		// Reset plugin settings.
-		echo "<div class='ai4seo-form-multiple-inputs'>";
+			// Reset plugin settings.
+			echo "<div class='ai4seo-form-multiple-inputs'>";
 			echo "<input type='checkbox' id='ai4seo-troubleshooting-reset-settings' name='ai4seo-troubleshooting-reset-checkbox[]' />";
 			echo "<label for='ai4seo-troubleshooting-reset-settings'>" . esc_html__( 'Reset plugin settings', 'ai-for-seo' ) . '</label>';
 			$ai4seo_settings_tooltip = __( '<strong>This will reset all settings across the following pages:</strong><br>Settings Page, Account Page (license data will be kept), Pay-As-You-Go Settings, and Autopilot Settings.<br><br>To reset only the Settings Page, please use the "Restore Default" button on that page.', 'ai-for-seo' );
 			ai4seo_echo_wp_kses( ai4seo_get_icon_with_tooltip_tag( $ai4seo_settings_tooltip ) );
-		echo '</div>';
-
-		// Reset generated data.
-		if ( $ai4seo_generated_data_reset_post_type_counts ) {
-			echo "<div class='ai4seo-form-multiple-inputs'>";
-				echo '<span>' . esc_html__( 'Remove AI-generated data for:', 'ai-for-seo' ) . '</span>';
-				ai4seo_echo_wp_kses( ai4seo_get_icon_with_tooltip_tag( $ai4seo_reset_generated_data_tooltip ) );
 			echo '</div>';
 
+			// Reset generated data.
+			if ( $ai4seo_generated_data_reset_post_type_counts ) {
+				echo "<div class='ai4seo-form-multiple-inputs'>";
+				echo '<span>' . esc_html__( 'Remove AI-generated data for:', 'ai-for-seo' ) . '</span>';
+				ai4seo_echo_wp_kses( ai4seo_get_icon_with_tooltip_tag( $ai4seo_reset_generated_data_tooltip ) );
+				echo '</div>';
+
+				ai4seo_echo_wp_kses(
+					ai4seo_get_generated_data_reset_post_type_checkboxes_html(
+						'ai4seo-troubleshooting-reset-checkbox',
+						'ai4seo-troubleshooting-reset-generated-data-post-type-checkbox',
+						'ai4seo-troubleshooting-reset-generated-data',
+						$ai4seo_generated_data_reset_post_type_counts
+					)
+				);
+			}
+
+			echo "<div class='ai4seo-medium-gap'></div>";
+
+			// needed for extra information in the upcoming notification modal.
+			echo "<div id='ai4seo-reset-generated-data-tooltip-text' class='ai4seo-display-none'>";
+			ai4seo_echo_wp_kses( $ai4seo_reset_generated_data_tooltip );
+			echo '</div>';
+			echo '</div>';
+			echo '</div>';
+			echo '</div>';
+
+			// Reset button.
+			ai4seo_echo_wp_kses( ai4seo_get_submit_button_tag( esc_html__( 'Reset selected data', 'ai-for-seo' ), 'ai4seo-start-inactive ai4seo-lockable ai4seo-troubleshooting-reset-button', 'ai4seo_confirm_reset_plugin_data();' ) );
+			echo '</div>';
+
+
+			// === TROUBLESHOOTING FAQ ================================================================== \\
+
+			echo '<h1>';
+			echo esc_html__( 'Troubleshooting FAQ', 'ai-for-seo' );
+			echo '</h1>';
+
+			// Input for the search.
+			echo "<div class='ai4seo-help-search-wrapper'>";
+			ai4seo_echo_wp_kses( ai4seo_get_svg_tag( 'magnifying-glass' ) );
+			echo "<input type='text' class='ai4seo-help-search' id='ai4seo-help-search-troubleshooting' placeholder='" . esc_attr__( 'Search F.A.Q. (enter min.3 characters)', 'ai-for-seo' ) . "' />";
+			echo '</div>';
+
+			// Container with the message that no entries could be found based on the search-input.
+			echo "<div class='ai4seo-help-search-notice ai4seo-help-faq-search-notice ai4seo-display-none' id='ai4seo-help-troubleshooting-search-notice'>";
+			echo '<p>' . esc_html__( 'No results could be found based on your search. Please try a different search term.', 'ai-for-seo' ) . '</p>';
+			echo '</div>';
+
+			echo "<div class='ai4seo-gap'></div>";
+
+			echo "<div class='ai4seo-faq-section-holder'>";
+			$ai4seo_this_accordion_content = __( 'If you want to revert the plugin settings to their default state: Use the Reset Settings option under Help > Troubleshooting > Reset Plugin. This will restore all settings to their original values but will not delete generated metadata or media attributes.', 'ai-for-seo' );
+			/* translators: %s: plugin name */
+			ai4seo_echo_wp_kses( ai4seo_get_accordion_element( '> ' . sprintf( esc_html__( 'How do I reset *%s* settings to default values?', 'ai-for-seo' ), esc_html( AI4SEO_PLUGIN_NAME ) ), $ai4seo_this_accordion_content ) );
+
+			$ai4seo_this_accordion_content  = __( 'If you want to fully remove all generated metadata and plugin data before uninstalling:', 'ai-for-seo' ) . '<br /><br />';
+			$ai4seo_this_accordion_content .= __( '1. Go to Help > Troubleshooting > Reset Plugin and select every checkbox.', 'ai-for-seo' ) . '<br />';
+			$ai4seo_this_accordion_content .= __( '2. Deactivate and uninstall the plugin.', 'ai-for-seo' ) . '<br /><br />';
+			$ai4seo_this_accordion_content .= __( 'Note: Media Attributes and synced metadata (to third-party SEO plugins) cannot be removed or undone by the reset. You will need to manually update or remove them in their respective editors.', 'ai-for-seo' );
+			/* translators: %s: plugin name */
+			ai4seo_echo_wp_kses( ai4seo_get_accordion_element( '> ' . sprintf( esc_html__( 'How do I uninstall *%s* and remove generated metadata or plugin data?', 'ai-for-seo' ), esc_html( AI4SEO_PLUGIN_NAME ) ), $ai4seo_this_accordion_content ) );
+
+			$ai4seo_this_accordion_content  = __( 'If you generated metadata or media attributes with incorrect settings, follow these steps:', 'ai-for-seo' ) . '<br /><br />';
+			$ai4seo_this_accordion_content .= __( '1. Use "Reset Generated Data" under Help > Troubleshooting > Reset Plugin to remove all generated metadata. Media files are marked as "not generated" and can be reprocessed again.', 'ai-for-seo' ) . '<br />';
+			$ai4seo_this_accordion_content .= __( '2. If the generated metadata was already synced with a third-party SEO plugin, consider enabling: "Include Complete Entries When Overwriting (SEO Autopilot Only)" in the Metadata section.', 'ai-for-seo' ) . '<br />';
+			$ai4seo_this_accordion_content .= __( '3. If you generated media attributes, consider enabling: "Include Complete Entries When Overwriting (SEO Autopilot Only)" in the Media Attributes section.', 'ai-for-seo' ) . '<br />';
+			$ai4seo_this_accordion_content .= __( 'These settings will allow the plugin to regenerate and overwrite metadata and media attributes, even for entries that were previously marked as complete.', 'ai-for-seo' );
+			ai4seo_echo_wp_kses( ai4seo_get_accordion_element( '> ' . esc_html__( 'I generated metadata or image attributes with the wrong settings. How do I fix it?', 'ai-for-seo' ), $ai4seo_this_accordion_content ) );
+
+			$ai4seo_this_accordion_content  = __( 'Enable "Pause pages and media files analysis" under Help > Troubleshooting.', 'ai-for-seo' );
+			$ai4seo_this_accordion_content .= '<br /><br />' . __( 'Switch the setting off after debugging to resume normal data analysis.', 'ai-for-seo' );
+			ai4seo_echo_wp_kses( ai4seo_get_accordion_element( '> ' . esc_html__( 'The analysis of pages or media files is slowing down my site. How can I pause it?', 'ai-for-seo' ), $ai4seo_this_accordion_content ) );
+
+			$ai4seo_this_accordion_content = __( 'Use Help > Troubleshooting > Preferred Debug Output to send ai4seo_debug_message() diagnostics to the PHP/WP debug log, an uploads log file, the Debug Message Log below, an admin notice, or inline printouts. Turn output back to None when finished. You can also open the Debug Message Log at the bottom of this section to review stored entries (max. 1000), and enable WP_DEBUG_LOG if you prefer writing to wp-content/debug.log.', 'ai-for-seo' );
+			/* translators: %s: plugin name */
+			ai4seo_echo_wp_kses( ai4seo_get_accordion_element( '> ' . sprintf( esc_html__( 'How do I debug unexpected plugin behavior or find the *%s* debug log?', 'ai-for-seo' ), esc_html( AI4SEO_PLUGIN_NAME ) ), $ai4seo_this_accordion_content ) );
+
+			$ai4seo_this_accordion_content  = __( "WordPress's internal cron system (WP-Cron) may not run reliably in every hosting setup, which can delay tasks such as SEO Autopilot jobs.", 'ai-for-seo' ) . '<br /><br />';
+			$ai4seo_this_accordion_content .= __( 'Recommended setup:', 'ai-for-seo' ) . '<br />';
+			$ai4seo_this_accordion_content .= __( '1. Disable WP-Cron in your wp-config.php file (set DISABLE_WP_CRON to true).', 'ai-for-seo' ) . '<br />';
+			$ai4seo_this_accordion_content .= __( '2. Create an external cron job on your server or hosting panel that calls wp-cron.php every minute.', 'ai-for-seo' ) . '<br />';
+			$ai4seo_this_accordion_content .= __( '3. Save and test the cron job to confirm it runs regularly.', 'ai-for-seo' ) . '<br /><br />';
+			$ai4seo_this_accordion_content .= sprintf(
+			/* translators: %s: YouTube tutorial link for setting up an external cron job */
+				__( "For a detailed step-by-step walkthrough, watch this tutorial: <a href='%s' target='_blank' rel='noopener noreferrer'>How to set up an external WordPress cron job (YouTube)</a>.", 'ai-for-seo' ),
+				esc_url( 'https://youtu.be/YzPup-6NgQQ?si=yzcAve9lpA3Aepap' )
+			);
+			ai4seo_echo_wp_kses( ai4seo_get_accordion_element( '> ' . esc_html__( 'WP-Cron is not running reliably. How do I switch to an external WordPress cron job?', 'ai-for-seo' ), $ai4seo_this_accordion_content ) );
+
+			// === FAQ: Alt Text Injection not visible ================================== \\
+
+			$ai4seo_this_accordion_content  = __( 'If generated alt text is saved but does not appear on the frontend, front page, product page, or page-builder output, try:', 'ai-for-seo' ) . '<br /><br />';
+			$ai4seo_this_accordion_content .= __( '1. Go to Settings > Show Advanced Settings > Troubleshooting. Enable "Alt Text Injection", save, then check again.', 'ai-for-seo' ) . '<br />';
+			$ai4seo_this_accordion_content .= __( '2. Optionally enable "Image Title Injection" to add a tooltip on hover.', 'ai-for-seo' ) . '<br />';
+			$ai4seo_this_accordion_content .= __( '3. Clear caches (plugin/theme cache, page cache, CDN) so updated attributes render on cached pages.', 'ai-for-seo' ) . '<br />';
+			$ai4seo_this_accordion_content .= __( '4. Ensure images are real &lt;img&gt; tags. Background images set via CSS cannot have alt text.', 'ai-for-seo' );
+
 			ai4seo_echo_wp_kses(
-				ai4seo_get_generated_data_reset_post_type_checkboxes_html(
-					'ai4seo-troubleshooting-reset-checkbox',
-					'ai4seo-troubleshooting-reset-generated-data-post-type-checkbox',
-					'ai4seo-troubleshooting-reset-generated-data',
-					$ai4seo_generated_data_reset_post_type_counts
+				ai4seo_get_accordion_element(
+					'> ' . esc_html__( 'I do not see generated alt text on the frontend. How do I make it appear?', 'ai-for-seo' ),
+					$ai4seo_this_accordion_content
 				)
 			);
-		}
 
-		echo "<div class='ai4seo-medium-gap'></div>";
+			// === FAQ: Image Upload Method = Data ====================================== \\
 
-		// needed for extra information in the upcoming notification modal.
-		echo "<div id='ai4seo-reset-generated-data-tooltip-text' class='ai4seo-display-none'>";
-			ai4seo_echo_wp_kses( $ai4seo_reset_generated_data_tooltip );
-		echo '</div>';
-		echo '</div>';
-		echo '</div>';
-		echo '</div>';
+			$ai4seo_this_accordion_content  = __( 'If alt text, image title, caption, or media attribute generation fails because the image URL cannot be fetched, switch the upload method:', 'ai-for-seo' ) . '<br /><br />';
+			$ai4seo_this_accordion_content .= __( '1. Go to Settings > Show Advanced Settings > Troubleshooting. Set "Image Upload Method" to "Data".', 'ai-for-seo' ) . '<br />';
+			$ai4seo_this_accordion_content .= __( '2. Save settings and retry generation (Alt Text, Title, Caption).', 'ai-for-seo' ) . '<br />';
+			$ai4seo_this_accordion_content .= __( '3. Why this helps: Some CDNs, firewalls, hosts, Cloudflare rules, signed URLs, hotlink protection, or private media paths block direct URL fetching. "Data" sends the image bytes instead of a public URL and is often more reliable.', 'ai-for-seo' ) . '<br />';
+			$ai4seo_this_accordion_content .= __( '4. If issues persist, clear all caches and confirm the image is a real &lt;img&gt; tag, not a CSS background.', 'ai-for-seo' );
 
-		// Reset button.
-		ai4seo_echo_wp_kses( ai4seo_get_submit_button_tag( esc_html__( 'Reset selected data', 'ai-for-seo' ), 'ai4seo-start-inactive ai4seo-lockable ai4seo-troubleshooting-reset-button', 'ai4seo_confirm_reset_plugin_data();' ) );
-		echo '</div>';
+			ai4seo_echo_wp_kses(
+				ai4seo_get_accordion_element(
+					'> ' . esc_html__( 'Alt text or image generation fails. Should I switch Image Upload Method to Data?', 'ai-for-seo' ),
+					$ai4seo_this_accordion_content
+				)
+			);
 
+			// === FAQ: Generated metadata is not visible on the frontend =============================================== \\
 
-		// === TROUBLESHOOTING FAQ ================================================================== \\
+			$ai4seo_this_accordion_content  = __( 'If generated SEO title, meta description, or other metadata does not appear on the frontend, in page source, or in a Google snippet preview, try the following steps:', 'ai-for-seo' ) . '<br /><br />';
+			$ai4seo_this_accordion_content .= __( '1. If you use a caching plugin (e.g., WP Rocket, W3 Total Cache, etc.), enable "Purge caches after saving metadata" under Settings > Show Advanced Settings > Frontend Cache Purge, then save settings and test again.', 'ai-for-seo' ) . '<br />';
+			$ai4seo_this_accordion_content .= __( '2. Check whether another SEO plugin is controlling frontend meta tag output, or switch Meta Tag Output Mode if needed.', 'ai-for-seo' ) . '<br />';
+			$ai4seo_this_accordion_content .= __( '3. If you do not use a caching plugin or the issue persists, please contact our support team for further assistance.', 'ai-for-seo' );
+			ai4seo_echo_wp_kses( ai4seo_get_accordion_element( '> ' . esc_html__( 'Generated metadata is not visible on the frontend or Google snippet. What can I do?', 'ai-for-seo' ), $ai4seo_this_accordion_content ) );
 
-		echo '<h1>';
-		echo esc_html__( 'Troubleshooting FAQ', 'ai-for-seo' );
-		echo '</h1>';
+			$ai4seo_this_accordion_content = sprintf(
+			/* translators: %1$s plugin name, %2$s plugin name */
+				__( 'Changes made later in Yoast SEO, Rank Math, or another third-party SEO plugin may not be visible because *%1$s* handles the frontend output of your meta tags.<br><br>You have two options:<br>1. Apply your updates in the *%2$s* metadata editor and let them sync to your third-party SEO plugin.<br>2. Go to Settings > Show Advanced Settings > Meta Tag Output Mode and set it to "Complementary".', 'ai-for-seo' ),
+				esc_html( AI4SEO_PLUGIN_NAME ),
+				esc_html( AI4SEO_PLUGIN_NAME )
+			);
+			ai4seo_echo_wp_kses( ai4seo_get_accordion_element( '> ' . esc_html__( 'Why are changes in Yoast, Rank Math, or another SEO plugin not showing on the frontend?', 'ai-for-seo' ), $ai4seo_this_accordion_content ) );
 
-		// Input for the search.
-		echo "<div class='ai4seo-help-search-wrapper'>";
-		ai4seo_echo_wp_kses( ai4seo_get_svg_tag( 'magnifying-glass' ) );
-		echo "<input type='text' class='ai4seo-help-search' id='ai4seo-help-search-troubleshooting' placeholder='" . esc_attr__( 'Search F.A.Q. (enter min.3 characters)', 'ai-for-seo' ) . "' />";
-		echo '</div>';
+			echo '</div>';
 
-		// Container with the message that no entries could be found based on the search-input.
-		echo "<div class='ai4seo-help-search-notice ai4seo-help-faq-search-notice ai4seo-display-none' id='ai4seo-help-troubleshooting-search-notice'>";
-		echo '<p>' . esc_html__( 'No results could be found based on your search. Please try a different search term.', 'ai-for-seo' ) . '</p>';
-		echo '</div>';
-
-		echo "<div class='ai4seo-gap'></div>";
-
-		echo "<div class='ai4seo-faq-section-holder'>";
-		$ai4seo_this_accordion_content = __( 'If you want to revert the plugin settings to their default state: Use the Reset Settings option under Help > Troubleshooting > Reset Plugin. This will restore all settings to their original values but will not delete generated metadata or media attributes.', 'ai-for-seo' );
-		/* translators: %s: plugin name */
-		ai4seo_echo_wp_kses( ai4seo_get_accordion_element( '> ' . sprintf( esc_html__( 'How do I reset *%s* settings to default values?', 'ai-for-seo' ), esc_html( AI4SEO_PLUGIN_NAME ) ), $ai4seo_this_accordion_content ) );
-
-		$ai4seo_this_accordion_content  = __( 'If you want to fully remove all generated metadata and plugin data before uninstalling:', 'ai-for-seo' ) . '<br /><br />';
-		$ai4seo_this_accordion_content .= __( '1. Go to Help > Troubleshooting > Reset Plugin and select every checkbox.', 'ai-for-seo' ) . '<br />';
-		$ai4seo_this_accordion_content .= __( '2. Deactivate and uninstall the plugin.', 'ai-for-seo' ) . '<br /><br />';
-		$ai4seo_this_accordion_content .= __( 'Note: Media Attributes and synced metadata (to third-party SEO plugins) cannot be removed or undone by the reset. You will need to manually update or remove them in their respective editors.', 'ai-for-seo' );
-		/* translators: %s: plugin name */
-		ai4seo_echo_wp_kses( ai4seo_get_accordion_element( '> ' . sprintf( esc_html__( 'How do I uninstall *%s* and remove generated metadata or plugin data?', 'ai-for-seo' ), esc_html( AI4SEO_PLUGIN_NAME ) ), $ai4seo_this_accordion_content ) );
-
-		$ai4seo_this_accordion_content  = __( 'If you generated metadata or media attributes with incorrect settings, follow these steps:', 'ai-for-seo' ) . '<br /><br />';
-		$ai4seo_this_accordion_content .= __( '1. Use "Reset Generated Data" under Help > Troubleshooting > Reset Plugin to remove all generated metadata. Media files are marked as "not generated" and can be reprocessed again.', 'ai-for-seo' ) . '<br />';
-		$ai4seo_this_accordion_content .= __( '2. If the generated metadata was already synced with a third-party SEO plugin, consider enabling: "Include Complete Entries When Overwriting (SEO Autopilot Only)" in the Metadata section.', 'ai-for-seo' ) . '<br />';
-		$ai4seo_this_accordion_content .= __( '3. If you generated media attributes, consider enabling: "Include Complete Entries When Overwriting (SEO Autopilot Only)" in the Media Attributes section.', 'ai-for-seo' ) . '<br />';
-		$ai4seo_this_accordion_content .= __( 'These settings will allow the plugin to regenerate and overwrite metadata and media attributes, even for entries that were previously marked as complete.', 'ai-for-seo' );
-		ai4seo_echo_wp_kses( ai4seo_get_accordion_element( '> ' . esc_html__( 'I generated metadata or image attributes with the wrong settings. How do I fix it?', 'ai-for-seo' ), $ai4seo_this_accordion_content ) );
-
-		$ai4seo_this_accordion_content  = __( 'Enable "Pause pages and media files analysis" under Help > Troubleshooting.', 'ai-for-seo' );
-		$ai4seo_this_accordion_content .= '<br /><br />' . __( 'Switch the setting off after debugging to resume normal data analysis.', 'ai-for-seo' );
-		ai4seo_echo_wp_kses( ai4seo_get_accordion_element( '> ' . esc_html__( 'The analysis of pages or media files is slowing down my site. How can I pause it?', 'ai-for-seo' ), $ai4seo_this_accordion_content ) );
-
-		$ai4seo_this_accordion_content = __( 'Use Help > Troubleshooting > Preferred Debug Output to send ai4seo_debug_message() diagnostics to the PHP/WP debug log, an uploads log file, the Debug Message Log below, an admin notice, or inline printouts. Turn output back to None when finished. You can also open the Debug Message Log at the bottom of this section to review stored entries (max. 1000), and enable WP_DEBUG_LOG if you prefer writing to wp-content/debug.log.', 'ai-for-seo' );
-		/* translators: %s: plugin name */
-		ai4seo_echo_wp_kses( ai4seo_get_accordion_element( '> ' . sprintf( esc_html__( 'How do I debug unexpected plugin behavior or find the *%s* debug log?', 'ai-for-seo' ), esc_html( AI4SEO_PLUGIN_NAME ) ), $ai4seo_this_accordion_content ) );
-
-		$ai4seo_this_accordion_content  = __( "WordPress's internal cron system (WP-Cron) may not run reliably in every hosting setup, which can delay tasks such as SEO Autopilot jobs.", 'ai-for-seo' ) . '<br /><br />';
-		$ai4seo_this_accordion_content .= __( 'Recommended setup:', 'ai-for-seo' ) . '<br />';
-		$ai4seo_this_accordion_content .= __( '1. Disable WP-Cron in your wp-config.php file (set DISABLE_WP_CRON to true).', 'ai-for-seo' ) . '<br />';
-		$ai4seo_this_accordion_content .= __( '2. Create an external cron job on your server or hosting panel that calls wp-cron.php every minute.', 'ai-for-seo' ) . '<br />';
-		$ai4seo_this_accordion_content .= __( '3. Save and test the cron job to confirm it runs regularly.', 'ai-for-seo' ) . '<br /><br />';
-		$ai4seo_this_accordion_content .= sprintf(
-		/* translators: %s: YouTube tutorial link for setting up an external cron job */
-			__( "For a detailed step-by-step walkthrough, watch this tutorial: <a href='%s' target='_blank' rel='noopener noreferrer'>How to set up an external WordPress cron job (YouTube)</a>.", 'ai-for-seo' ),
-			esc_url( 'https://youtu.be/YzPup-6NgQQ?si=yzcAve9lpA3Aepap' )
-		);
-		ai4seo_echo_wp_kses( ai4seo_get_accordion_element( '> ' . esc_html__( 'WP-Cron is not running reliably. How do I switch to an external WordPress cron job?', 'ai-for-seo' ), $ai4seo_this_accordion_content ) );
-
-		// === FAQ: Alt Text Injection not visible ================================== \\
-
-		$ai4seo_this_accordion_content  = __( 'If generated alt text is saved but does not appear on the frontend, front page, product page, or page-builder output, try:', 'ai-for-seo' ) . '<br /><br />';
-		$ai4seo_this_accordion_content .= __( '1. Go to Settings > Show Advanced Settings > Troubleshooting. Enable "Alt Text Injection", save, then check again.', 'ai-for-seo' ) . '<br />';
-		$ai4seo_this_accordion_content .= __( '2. Optionally enable "Image Title Injection" to add a tooltip on hover.', 'ai-for-seo' ) . '<br />';
-		$ai4seo_this_accordion_content .= __( '3. Clear caches (plugin/theme cache, page cache, CDN) so updated attributes render on cached pages.', 'ai-for-seo' ) . '<br />';
-		$ai4seo_this_accordion_content .= __( '4. Ensure images are real &lt;img&gt; tags. Background images set via CSS cannot have alt text.', 'ai-for-seo' );
-
-		ai4seo_echo_wp_kses(
-			ai4seo_get_accordion_element(
-				'> ' . esc_html__( 'I do not see generated alt text on the frontend. How do I make it appear?', 'ai-for-seo' ),
-				$ai4seo_this_accordion_content
-			)
-		);
-
-		// === FAQ: Image Upload Method = Data ====================================== \\
-
-		$ai4seo_this_accordion_content  = __( 'If alt text, image title, caption, or media attribute generation fails because the image URL cannot be fetched, switch the upload method:', 'ai-for-seo' ) . '<br /><br />';
-		$ai4seo_this_accordion_content .= __( '1. Go to Settings > Show Advanced Settings > Troubleshooting. Set "Image Upload Method" to "Data".', 'ai-for-seo' ) . '<br />';
-		$ai4seo_this_accordion_content .= __( '2. Save settings and retry generation (Alt Text, Title, Caption).', 'ai-for-seo' ) . '<br />';
-		$ai4seo_this_accordion_content .= __( '3. Why this helps: Some CDNs, firewalls, hosts, Cloudflare rules, signed URLs, hotlink protection, or private media paths block direct URL fetching. "Data" sends the image bytes instead of a public URL and is often more reliable.', 'ai-for-seo' ) . '<br />';
-		$ai4seo_this_accordion_content .= __( '4. If issues persist, clear all caches and confirm the image is a real &lt;img&gt; tag, not a CSS background.', 'ai-for-seo' );
-
-		ai4seo_echo_wp_kses(
-			ai4seo_get_accordion_element(
-				'> ' . esc_html__( 'Alt text or image generation fails. Should I switch Image Upload Method to Data?', 'ai-for-seo' ),
-				$ai4seo_this_accordion_content
-			)
-		);
-
-		// === FAQ: Generated metadata is not visible on the frontend =============================================== \\
-
-		$ai4seo_this_accordion_content  = __( 'If generated SEO title, meta description, or other metadata does not appear on the frontend, in page source, or in a Google snippet preview, try the following steps:', 'ai-for-seo' ) . '<br /><br />';
-		$ai4seo_this_accordion_content .= __( '1. If you use a caching plugin (e.g., WP Rocket, W3 Total Cache, etc.), enable "Purge caches after saving metadata" under Settings > Show Advanced Settings > Frontend Cache Purge, then save settings and test again.', 'ai-for-seo' ) . '<br />';
-		$ai4seo_this_accordion_content .= __( '2. Check whether another SEO plugin is controlling frontend meta tag output, or switch Meta Tag Output Mode if needed.', 'ai-for-seo' ) . '<br />';
-		$ai4seo_this_accordion_content .= __( '3. If you do not use a caching plugin or the issue persists, please contact our support team for further assistance.', 'ai-for-seo' );
-		ai4seo_echo_wp_kses( ai4seo_get_accordion_element( '> ' . esc_html__( 'Generated metadata is not visible on the frontend or Google snippet. What can I do?', 'ai-for-seo' ), $ai4seo_this_accordion_content ) );
-
-		$ai4seo_this_accordion_content = sprintf(
-		/* translators: %1$s plugin name, %2$s plugin name */
-			__( 'Changes made later in Yoast SEO, Rank Math, or another third-party SEO plugin may not be visible because *%1$s* handles the frontend output of your meta tags.<br><br>You have two options:<br>1. Apply your updates in the *%2$s* metadata editor and let them sync to your third-party SEO plugin.<br>2. Go to Settings > Show Advanced Settings > Meta Tag Output Mode and set it to "Complementary".', 'ai-for-seo' ),
-			esc_html( AI4SEO_PLUGIN_NAME ),
-			esc_html( AI4SEO_PLUGIN_NAME )
-		);
-		ai4seo_echo_wp_kses( ai4seo_get_accordion_element( '> ' . esc_html__( 'Why are changes in Yoast, Rank Math, or another SEO plugin not showing on the frontend?', 'ai-for-seo' ), $ai4seo_this_accordion_content ) );
-
-		echo '</div>';
-
-		echo "<div class='ai4seo-troubleshooting-section-gap'></div>";
+			echo "<div class='ai4seo-troubleshooting-section-gap'></div>";
 
 
-		// === DEBUG SETTINGS ================================================================================= \\
+			// === DEBUG SETTINGS ================================================================================= \\
 
-		echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
-		echo "<div class='card ai4seo-form-section ai4seo-troubleshooting-settings-card'>";
+			echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
+			echo "<div class='card ai4seo-form-section ai4seo-troubleshooting-settings-card'>";
 			// Headline.
 			echo '<h2>';
 				echo '<i class="dashicons dashicons-sos"></i>';
@@ -1961,9 +1961,9 @@ foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_
 
 				echo "<div class='ai4seo-form-item-input-wrapper'>";
 					echo "<select class='ai4seo-editor-select ai4seo-lockable' id='" . esc_attr( $ai4seo_debug_output_mode_input_name ) . "' name='" . esc_attr( $ai4seo_debug_output_mode_input_name ) . "'>";
-		foreach ( $ai4seo_debug_output_mode_options as $ai4seo_this_output_mode_value => $ai4seo_this_output_mode_label ) {
-			echo "<option value='" . esc_attr( $ai4seo_this_output_mode_value ) . "'" . selected( $ai4seo_debug_output_mode_value, $ai4seo_this_output_mode_value, false ) . '>' . esc_html( $ai4seo_this_output_mode_label ) . '</option>';
-		}
+			foreach ( $ai4seo_debug_output_mode_options as $ai4seo_this_output_mode_value => $ai4seo_this_output_mode_label ) {
+				echo "<option value='" . esc_attr( $ai4seo_this_output_mode_value ) . "'" . selected( $ai4seo_debug_output_mode_value, $ai4seo_this_output_mode_value, false ) . '>' . esc_html( $ai4seo_this_output_mode_label ) . '</option>';
+			}
 					echo '</select>';
 
 					$ai4seo_debug_output_mode_description = sprintf(
@@ -2006,10 +2006,10 @@ foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_
 								echo "<select class='ai4seo-editor-select ai4seo-lockable ai4seo-debug-operation-select' id='ai4seo_debug_operation' name='ai4seo_debug_operation'>";
 									// Start with a server-rejected placeholder so loading the page never preselects an executable operation.
 									echo "<option value=''>" . esc_html__( 'Select a debug operation', 'ai-for-seo' ) . '</option>';
-					foreach ( $ai4seo_debug_operations as $ai4seo_this_debug_operation_key => $ai4seo_this_debug_operation ) {
-						// Operation keys are server-owned; labels are the only registry field needed in the UI.
-						echo "<option value='" . esc_attr( $ai4seo_this_debug_operation_key ) . "'>" . esc_html( $ai4seo_this_debug_operation['label'] ) . '</option>';
-					}
+			foreach ( $ai4seo_debug_operations as $ai4seo_this_debug_operation_key => $ai4seo_this_debug_operation ) {
+				// Operation keys are server-owned; labels are the only registry field needed in the UI.
+				echo "<option value='" . esc_attr( $ai4seo_this_debug_operation_key ) . "'>" . esc_html( $ai4seo_this_debug_operation['label'] ) . '</option>';
+			}
 								echo '</select>';
 								echo "<p class='ai4seo-form-item-description'>";
 									echo esc_html__( 'Choose a support-only debug operation. Required fields appear after selecting an operation.', 'ai-for-seo' );
@@ -2080,48 +2080,48 @@ foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_
 					echo '</h2>';
 
 					echo "<div id='ai4seo-debug-message-log-entries' class='ai4seo-debug-message-log-entries'>";
-					if ( empty( $ai4seo_debug_message_entries ) ) {
-						// Render the same empty state used after clearing the log through JavaScript.
-						echo "<p class='ai4seo-debug-message-log-empty-message'>" . esc_html__( 'No debug messages recorded yet. Entries stored with "Store in the database" will appear here.', 'ai-for-seo' ) . '</p>';
-					} else {
-						// Keep the visual log and clipboard export in sync from the same stored entries.
-						foreach ( $ai4seo_debug_message_entries as $ai4seo_this_debug_entry ) {
-							$ai4seo_this_time       = $ai4seo_this_debug_entry['time'] && is_int( $ai4seo_this_debug_entry['time'] ) ? date_i18n( 'Y-m-d H:i:s', $ai4seo_this_debug_entry['time'] ) : '???';
-							$ai4seo_this_code       = (int) ( $ai4seo_this_debug_entry['code'] ?? 2123126 );
-							$ai4seo_this_message    = $ai4seo_this_debug_entry['message'] ?? esc_html__( 'No message', 'ai-for-seo' );
-							$ai4seo_this_backtrace  = $ai4seo_this_debug_entry['backtrace'] ?? '';
-							$ai4seo_no_br_backtrace = '';
+			if ( empty( $ai4seo_debug_message_entries ) ) {
+				// Render the same empty state used after clearing the log through JavaScript.
+				echo "<p class='ai4seo-debug-message-log-empty-message'>" . esc_html__( 'No debug messages recorded yet. Entries stored with "Store in the database" will appear here.', 'ai-for-seo' ) . '</p>';
+			} else {
+				// Keep the visual log and clipboard export in sync from the same stored entries.
+				foreach ( $ai4seo_debug_message_entries as $ai4seo_this_debug_entry ) {
+					$ai4seo_this_time       = $ai4seo_this_debug_entry['time'] && is_int( $ai4seo_this_debug_entry['time'] ) ? date_i18n( 'Y-m-d H:i:s', $ai4seo_this_debug_entry['time'] ) : '???';
+					$ai4seo_this_code       = (int) ( $ai4seo_this_debug_entry['code'] ?? 2123126 );
+					$ai4seo_this_message    = $ai4seo_this_debug_entry['message'] ?? esc_html__( 'No message', 'ai-for-seo' );
+					$ai4seo_this_backtrace  = $ai4seo_this_debug_entry['backtrace'] ?? '';
+					$ai4seo_no_br_backtrace = '';
 
-							ai4seo_echo_wp_kses( '> <strong>[' . $ai4seo_this_time . ']</strong> ' . $ai4seo_this_message . ' Code: #' . $ai4seo_this_code );
+					ai4seo_echo_wp_kses( '> <strong>[' . $ai4seo_this_time . ']</strong> ' . $ai4seo_this_message . ' Code: #' . $ai4seo_this_code );
 
-							if ( $ai4seo_this_backtrace ) {
-								ai4seo_echo_wp_kses( '<br />' . $ai4seo_this_backtrace );
-								$ai4seo_no_br_backtrace = str_replace( array( "\n", "\r", '<br>', '<br />' ), ' > ', $ai4seo_this_backtrace );
-							}
-
-							$ai4seo_debug_messages_container_for_clipboard[] = '[' . $ai4seo_this_time . '] ' . $ai4seo_this_message . ' Code: #' . $ai4seo_this_code . ( $ai4seo_no_br_backtrace ? '. Backtrace: ' . esc_html( $ai4seo_no_br_backtrace ) : '' );
-
-							echo "<div class='ai4seo-medium-gap'></div>";
-						}
+					if ( $ai4seo_this_backtrace ) {
+						ai4seo_echo_wp_kses( '<br />' . $ai4seo_this_backtrace );
+						$ai4seo_no_br_backtrace = str_replace( array( "\n", "\r", '<br>', '<br />' ), ' > ', $ai4seo_this_backtrace );
 					}
+
+					$ai4seo_debug_messages_container_for_clipboard[] = '[' . $ai4seo_this_time . '] ' . $ai4seo_this_message . ' Code: #' . $ai4seo_this_code . ( $ai4seo_no_br_backtrace ? '. Backtrace: ' . esc_html( $ai4seo_no_br_backtrace ) : '' );
+
+					echo "<div class='ai4seo-medium-gap'></div>";
+				}
+			}
 					echo '</div>';
 					echo '</div>';
 
 					echo "<div class='ai4seo-buttons-wrapper ai4seo-help-debug-log-buttons'>";
-					if ( ! empty( $ai4seo_debug_message_entries ) ) {
+			if ( ! empty( $ai4seo_debug_message_entries ) ) {
 
-						// Offer clipboard and clear actions only when there is stored database output to act on.
-						echo "<button type='button' class='ai4seo-button ai4seo-copy-to-clipboard ai4seo-debug-log-copy-button' data-clipboard-text='" . esc_attr( implode( "\n", $ai4seo_debug_messages_container_for_clipboard ) ) . "' title='" . esc_attr__( 'Copy debug log to clipboard', 'ai-for-seo' ) . "'>";
-							ai4seo_echo_wp_kses( ai4seo_get_svg_tag( 'copy' ) . ' ' . esc_html__( 'Copy debug log to clipboard', 'ai-for-seo' ) );
-							echo " <span class='ai4seo-debug-log-copy-to-clipboard-tooltip ai4seo-copied-to-clipboard'>👍 " . esc_html__( 'Copied!', 'ai-for-seo' ) . '</span>';
-						echo '</button>';
+				// Offer clipboard and clear actions only when there is stored database output to act on.
+				echo "<button type='button' class='ai4seo-button ai4seo-copy-to-clipboard ai4seo-debug-log-copy-button' data-clipboard-text='" . esc_attr( implode( "\n", $ai4seo_debug_messages_container_for_clipboard ) ) . "' title='" . esc_attr__( 'Copy debug log to clipboard', 'ai-for-seo' ) . "'>";
+					ai4seo_echo_wp_kses( ai4seo_get_svg_tag( 'copy' ) . ' ' . esc_html__( 'Copy debug log to clipboard', 'ai-for-seo' ) );
+					echo " <span class='ai4seo-debug-log-copy-to-clipboard-tooltip ai4seo-copied-to-clipboard'>👍 " . esc_html__( 'Copied!', 'ai-for-seo' ) . '</span>';
+				echo '</button>';
 
-						// Use the existing modal-confirmation flow before deleting database-backed debug entries.
-						echo "<button type='button' class='ai4seo-button ai4seo-abort-button ai4seo-clear-debug-log-button ai4seo-lockable' title='" . esc_attr__( 'Clear debug log', 'ai-for-seo' ) . "'>";
-							ai4seo_echo_wp_kses( ai4seo_get_svg_tag( 'circle-xmark' ) . ' ' . esc_html__( 'Clear log', 'ai-for-seo' ) );
-						echo '</button>';
+				// Use the existing modal-confirmation flow before deleting database-backed debug entries.
+				echo "<button type='button' class='ai4seo-button ai4seo-abort-button ai4seo-clear-debug-log-button ai4seo-lockable' title='" . esc_attr__( 'Clear debug log', 'ai-for-seo' ) . "'>";
+					ai4seo_echo_wp_kses( ai4seo_get_svg_tag( 'circle-xmark' ) . ' ' . esc_html__( 'Clear log', 'ai-for-seo' ) );
+				echo '</button>';
 
-					}
+			}
 					echo '</div>';
 
 					echo "<div class='ai4seo-large-gap'></div>";
@@ -2172,6 +2172,6 @@ foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_
 					echo '</div>';
 
 					// Close the hidden full Help page wrapper after every section has been rendered for debug-operation fallbacks.
-					if ( $ai4seo_has_debug_operation_completion_page ) {
-						echo '</div>';
-					}
+		if ( $ai4seo_has_debug_operation_completion_page ) {
+			echo '</div>';
+		}

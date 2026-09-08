@@ -182,13 +182,32 @@ function ai4seo_can_administer_plugin(): bool {
 		return false;
 	}
 
-	if ( ! ai4seo_is_incognito_mode_enabled() ) {
+	// Use the same owner boundary as the isolated support route after normal settings are available.
+	$incognito_enabled = ai4seo_is_incognito_mode_enabled();
+	return ai4seo_can_administer_plugin_for_owner( $incognito_enabled, $incognito_enabled ? ai4seo_get_incognito_mode_user_id() : 0 );
+}
+
+
+/**
+ * Share the administrator/owner boundary with the lightweight support endpoint.
+ *
+ * @param bool  $incognito_enabled Whether ownership restricts administration.
+ * @param mixed $owner_id Stored owner identifier.
+ * @return bool Whether the current user may administer the plugin.
+ */
+function ai4seo_can_administer_plugin_for_owner( bool $incognito_enabled, $owner_id ): bool {
+	// Incognito ownership can restrict site administrators but cannot grant administration rights.
+	if ( ! current_user_can( 'manage_options' ) ) {
+		return false;
+	}
+
+	if ( ! $incognito_enabled ) {
 		return true;
 	}
 
-	$owner_id = ai4seo_get_valid_incognito_mode_owner_id();
-
-	if ( null === $owner_id ) {
+	// Normalize stored identifiers through the existing strict owner validator before comparison.
+	$owner_id = ai4seo_normalize_incognito_mode_user_id( $owner_id );
+	if ( null === $owner_id || $owner_id <= 0 || ! user_can( $owner_id, 'manage_options' ) ) {
 		return false;
 	}
 

@@ -32,7 +32,7 @@ if ( ! in_array( $ai4seo_post_type, $ai4seo_supported_post_types, true ) ) {
 	return;
 }
 
-$ai4seo_translated_post_type        = ai4seo_get_post_type_translation( $ai4seo_post_type );
+$ai4seo_post_type_label_singular    = ai4seo_get_post_type_singular_label( $ai4seo_post_type );
 $ai4seo_translated_post_type_plural = ai4seo_get_post_type_translation( $ai4seo_post_type, true );
 
 // sanitize and get current page (pagination).
@@ -722,7 +722,8 @@ foreach ( $ai4seo_all_posts as $ai4seo_this_post ) {
 			$ai4seo_this_post_id,
 			$ai4seo_this_active_metadata_coverage_percentage,
 			$ai4seo_progress_bar_animation_class,
-			$ai4seo_this_metadata_generation_is_not_finished
+			$ai4seo_this_metadata_generation_is_not_finished,
+			$ai4seo_post_type_label_singular
 		);
 
 		if ( $ai4seo_is_post_waiting_to_get_queued ) {
@@ -818,7 +819,7 @@ foreach ( $ai4seo_all_posts as $ai4seo_this_post ) {
 			echo "<div class='ai4seo-buttons-wrapper ai4seo-row-action-buttons'>";
 				// Metadata editor.
 	if ( $ai4seo_active_meta_tags ) {
-		ai4seo_echo_wp_kses( ai4seo_get_edit_metadata_button( $ai4seo_this_post_id, $ai4seo_current_post_ids ) );
+		ai4seo_echo_wp_kses( ai4seo_get_edit_metadata_button( $ai4seo_this_post_id, $ai4seo_current_post_ids, $ai4seo_post_type_label_singular ) );
 	}
 
 				// Keep related-media discovery and native editing available independently of active metadata.

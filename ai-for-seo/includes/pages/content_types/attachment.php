@@ -877,7 +877,8 @@ foreach ( $ai4seo_all_attachment_posts as $ai4seo_this_attachment ) {
 			$ai4seo_this_post_attachment_id,
 			$ai4seo_this_attachment_attribute_coverage_percentage,
 			$ai4seo_progress_bar_animation_class,
-			$ai4seo_this_attachment_attributes_is_not_finished
+			$ai4seo_this_attachment_attributes_is_not_finished,
+			$ai4seo_media_label_singular
 		);
 
 		if ( $ai4seo_is_attachment_post_waiting_to_get_queued ) {
@@ -965,7 +966,7 @@ foreach ( $ai4seo_all_attachment_posts as $ai4seo_this_attachment ) {
 			// Actions.
 			echo '<td>';
 	if ( $ai4seo_active_attachment_attributes ) {
-		ai4seo_echo_wp_kses( ai4seo_get_edit_attachment_attributes_button( $ai4seo_this_post_attachment_id, $ai4seo_current_attachment_post_ids ) );
+		ai4seo_echo_wp_kses( ai4seo_get_edit_attachment_attributes_button( $ai4seo_this_post_attachment_id, $ai4seo_current_attachment_post_ids, $ai4seo_media_label_singular ) );
 	}
 			echo '</td>';
 			echo '</tr>';
