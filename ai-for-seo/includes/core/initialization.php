@@ -506,6 +506,9 @@ function ai4seo_on_activation() {
 		return;
 	}
 
+	// Activation can load this plugin after init has already fired.
+	ai4seo_initialize_welcome_notification_state();
+
 	// set AI4SEO_ENVIRONMENTAL_VARIABLE_PLUGIN_ACTIVATION_TIME.
 	if ( ! ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_PLUGIN_ACTIVATION_TIME ) ) {
 		ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_PLUGIN_ACTIVATION_TIME, time() );
@@ -648,6 +651,8 @@ function ai4seo_check_and_handle_plugin_update() {
 		return;
 	}
 
+	// Activation may have been skipped, so resolve enrollment before replacing version history.
+	$welcome_state_ready       = ai4seo_initialize_welcome_notification_state( true );
 	$last_known_plugin_version = strval( ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_KNOWN_PLUGIN_VERSION ) );
 
 	// same plugin version as last known version? -> skip.
@@ -658,6 +663,11 @@ function ai4seo_check_and_handle_plugin_update() {
 	// workaround for version 0.0.0 -> remove $last_known_plugin_version.
 	if ( AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES[ AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_KNOWN_PLUGIN_VERSION ] === $last_known_plugin_version ) {
 		$last_known_plugin_version = '';
+	}
+
+	// Do not consume fresh-install evidence after failed enrollment; established updates remain independent.
+	if ( ! $welcome_state_ready && '' === $last_known_plugin_version ) {
+		return;
 	}
 
 	// Keep the previous version authoritative until every required migration has completed.
@@ -686,6 +696,147 @@ function ai4seo_check_and_handle_plugin_update() {
 		// maybe push a new plugin update notification.
 		ai4seo_check_for_plugin_update_notification( $last_known_plugin_version, true );
 	}
+
+	// A failed migration or version write above must leave the welcome pending.
+	ai4seo_check_for_welcome_notification();
+}
+
+
+/**
+ * Classify retained site history without confusing normalized defaults with missing data.
+ *
+ * @param array $snapshots Authoritative raw option snapshots.
+ * @return string Pending for fresh data, handled for retained welcome history, otherwise suppressed.
+ */
+function ai4seo_classify_welcome_install_context( array $snapshots ): string {
+	// Agreement acceptance can precede the first normal initialization without implying prior use.
+	$consent_variables = array(
+		AI4SEO_ENVIRONMENTAL_VARIABLE_TOS_TOC_AND_PP_ACCEPTED_TIME,
+		AI4SEO_ENVIRONMENTAL_VARIABLE_TOS_LAST_MODAL_OPEN_TIME,
+		AI4SEO_ENVIRONMENTAL_VARIABLE_ENHANCED_REPORTING_ACCEPTED,
+		AI4SEO_ENVIRONMENTAL_VARIABLE_ENHANCED_REPORTING_ACCEPTED_TIME,
+	);
+
+	// Compare persisted values, including unknown keys, rather than normalized runtime defaults.
+	foreach ( $snapshots as $option_name => $snapshot ) {
+		if ( ! $snapshot['exists'] ) {
+			continue;
+		}
+
+		// The existence of a legacy scalar option is history even when its stored value is malformed.
+		if ( in_array( $option_name, AI4SEO_WELCOME_LEGACY_HISTORY_OPTIONS, true ) ) {
+			return 'suppressed';
+		}
+
+		// Retain any previous welcome identity, including a dismissed record with empty copy.
+		$value = $snapshot['value'];
+		if ( AI4SEO_NOTIFICATIONS_OPTION_NAME === $option_name && is_array( $value )
+			&& array_key_exists( AI4SEO_WELCOME_NOTIFICATION_INDEX, $value ) ) {
+			return 'handled';
+		}
+
+		// Non-array modern options cannot establish a confidently fresh installation.
+		if ( ! is_array( $value ) ) {
+			return 'suppressed';
+		}
+
+		// Only settings and internal metadata have declared fresh defaults; other options must be empty.
+		$defaults = array();
+		if ( AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME === $option_name ) {
+			$defaults = AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES;
+		} elseif ( AI4SEO_SETTINGS_OPTION_NAME === $option_name ) {
+			$defaults = AI4SEO_DEFAULT_SETTINGS;
+		}
+
+		foreach ( $value as $name => $entry ) {
+			if ( AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME === $option_name
+				&& in_array( $name, $consent_variables, true )
+				&& ai4seo_validate_environmental_variable_value( $name, $entry ) ) {
+				continue;
+			}
+
+			if ( ! array_key_exists( $name, $defaults ) || $defaults[ $name ] !== $entry ) {
+				return 'suppressed';
+			}
+		}
+	}
+
+	return 'pending';
+}
+
+
+/**
+ * Enroll a fresh site once, before normal initialization creates retained history.
+ *
+ * @param bool $allow_historical_recovery Whether the update owner may recover malformed storage without enrolling it.
+ * @return bool Whether eligibility is resolved or the caller explicitly allows historical recovery; false on failed enrollment.
+ */
+function ai4seo_initialize_welcome_notification_state( bool $allow_historical_recovery = false ): bool {
+	// The gate is currently disabled; using its abstraction preserves any future acceptance requirement.
+	if ( ai4seo_does_user_need_to_accept_tos_toc_and_pp() ) {
+		return false;
+	}
+
+	// Existing decisions use the ordinary site-scoped request cache and need no further history probes.
+	if ( in_array( ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_WELCOME_NOTIFICATION_STATE ), array( 'pending', 'handled', 'suppressed' ), true ) ) {
+		return true;
+	}
+
+	// Resolve installed versions and welcome history before loading potentially large coverage payloads.
+	$scope                = ai4seo_get_site_options_request_cache_scope();
+	$primary_option_names = array( AI4SEO_NOTIFICATIONS_OPTION_NAME, AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME );
+	$history_option_names = array_merge(
+		$primary_option_names,
+		array(
+			AI4SEO_SETTINGS_OPTION_NAME,
+			AI4SEO_ROBHUB_ENVIRONMENTAL_VARIABLES_OPTION_NAME,
+			AI4SEO_LATEST_ACTIVITY_OPTION_NAME,
+			AI4SEO_GENERATION_STATUS_SUMMARY_OPTION_NAME,
+		),
+		AI4SEO_WELCOME_LEGACY_HISTORY_OPTIONS,
+		AI4SEO_ALL_POST_ID_OPTIONS
+	);
+
+	// Reclassify every conflict against current history, never replay a stale fresh-install decision.
+	$attempt_limit = ai4seo_get_environmental_variable_mutation_attempt_limit();
+	for ( $attempt = 0; $attempt < $attempt_limit; ++$attempt ) {
+		$snapshots = ai4seo_get_raw_option_snapshots( $primary_option_names );
+		if ( null === $snapshots ) {
+			return false;
+		}
+
+		// Only inconclusive primary evidence needs the broader snapshot; it also rechecks concurrent primary changes.
+		if ( 'pending' === ai4seo_classify_welcome_install_context( $snapshots ) ) {
+			$snapshots = ai4seo_get_raw_option_snapshots( $history_option_names );
+		}
+		if ( null === $snapshots || '' === $scope || ai4seo_get_site_options_request_cache_scope() !== $scope ) {
+			return false;
+		}
+
+		// The welcome must not replace malformed history, but the existing update owner may still recover it.
+		$snapshot = $snapshots[ AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME ];
+		if ( $snapshot['exists'] && ! is_array( $snapshot['value'] ) ) {
+			return $allow_historical_recovery;
+		}
+
+		// A competing enrollment or finalization always wins over the earlier request-local view.
+		$overrides = $snapshot['exists'] ? $snapshot['value'] : array();
+		$state     = $overrides[ AI4SEO_ENVIRONMENTAL_VARIABLE_WELCOME_NOTIFICATION_STATE ] ?? 'unknown';
+		if ( in_array( $state, array( 'pending', 'handled', 'suppressed' ), true ) ) {
+			ai4seo_read_all_environmental_variables( false );
+			return true;
+		}
+
+		// Preserve every unrelated key and verify the exact snapshot before publishing the decision.
+		$overrides[ AI4SEO_ENVIRONMENTAL_VARIABLE_WELCOME_NOTIFICATION_STATE ] = ai4seo_classify_welcome_install_context( $snapshots );
+		$write_result = ai4seo_compare_and_swap_option_snapshot( AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME, $snapshot, $overrides, false );
+		ai4seo_read_all_environmental_variables( false );
+		if ( null === $write_result || true === $write_result ) {
+			return true === $write_result;
+		}
+	}
+
+	return false;
 }
 
 

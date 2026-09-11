@@ -3099,6 +3099,18 @@ function ai4seo_trim_string_to_length( string $value, int $max_length ): string 
 
 
 /**
+ * Removes all URLs from a given string.
+ *
+ * @param string $content The input string from which URLs will be removed.
+ * @return string The string with all URLs removed.
+ */
+function ai4seo_remove_urls_from_string( string $content ): string {
+	// Post content and excerpts share this cleanup to keep explicit URL tokens out of generation input.
+	return preg_replace( '/\b(?:https?|ftp):\/\/\S+/i', '', $content );
+}
+
+
+/**
  * Safely locate substring position without requiring mbstring.
  *
  * @param string      $haystack Haystack string.

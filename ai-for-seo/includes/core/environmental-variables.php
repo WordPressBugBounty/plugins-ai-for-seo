@@ -827,6 +827,50 @@ function ai4seo_validate_environmental_variable_value( string $environmental_var
 	}
 
 	switch ( $environmental_variable_name ) {
+		case AI4SEO_ENVIRONMENTAL_VARIABLE_WELCOME_NOTIFICATION_STATE:
+			return in_array( $environmental_variable_value, array( 'unknown', 'pending', 'suppressed', 'handled' ), true );
+
+		case AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_PROGRESS:
+			// An empty value is the reset state and keeps completed legacy scans readable.
+			if ( array() === $environmental_variable_value ) {
+				return true;
+			}
+
+			// Reject incomplete schemas before accessing counters or diagnostic fields.
+			if ( ! is_array( $environmental_variable_value )
+				|| array_keys( $environmental_variable_value ) !== array( 'version', 'upper_post_id', 'total_rows', 'examined_rows', 'failure' ) ) {
+				return false;
+			}
+
+			// Reuse canonical integer validation because environmental persistence may stringify integers.
+			foreach ( array( 'version', 'upper_post_id', 'total_rows', 'examined_rows' ) as $progress_key ) {
+				if ( false === ai4seo_normalize_option_post_id( $environmental_variable_value[ $progress_key ], true ) ) {
+					return false;
+				}
+			}
+
+			// Version zero carries initialization failures only; it must not claim any captured bounds.
+			$progress_version = (int) $environmental_variable_value['version'];
+
+			if ( ! in_array( $progress_version, array( 0, 1 ), true )
+				|| ( 0 === $progress_version && (
+					$environmental_variable_value['upper_post_id']
+					|| $environmental_variable_value['total_rows']
+					|| $environmental_variable_value['examined_rows']
+				) ) ) {
+				return false;
+			}
+
+			// Store only bounded identifiers that dashboard and debug output can safely display.
+			$failure = $environmental_variable_value['failure'];
+
+			return array() === $failure || ( is_array( $failure )
+				&& array_keys( $failure ) === array( 'code', 'post_id', 'field' )
+				&& false !== ai4seo_normalize_option_post_id( $failure['code'] )
+				&& false !== ai4seo_normalize_option_post_id( $failure['post_id'], true )
+				&& is_string( $failure['field'] )
+				&& 1 === preg_match( '/^[a-z0-9_]{0,64}$/', $failure['field'] ) );
+
 		case AI4SEO_ENVIRONMENTAL_VARIABLE_ATTACHMENT_BASE64_RECOVERY_STREAK:
 			// The sanitizer stores scalar integers as strings; accept only the four canonical values.
 			return in_array( $environmental_variable_value, array( 0, 1, 2, 3, '0', '1', '2', '3' ), true );
@@ -1064,16 +1108,17 @@ function ai4seo_validate_environmental_variable_value( string $environmental_var
 			return true;
 
 		case AI4SEO_ENVIRONMENTAL_VARIABLE_ATTACHMENT_ID_LOOKUP_CACHE:
-			if ( ! is_array( $environmental_variable_value ) ) {
+			if ( ! is_array( $environmental_variable_value ) || count( $environmental_variable_value ) > 200 ) {
 				return false;
 			}
 
 			foreach ( $environmental_variable_value as $this_key => $this_value ) {
-				if ( ! is_string( $this_key ) || '' === $this_key ) {
+				if ( ! is_string( $this_key ) || 1 !== preg_match( '/^filename_[a-f0-9]{64}$/D', $this_key ) ) {
 					return false;
 				}
 
-				if ( ! is_numeric( $this_value ) || (int) $this_value < 0 ) {
+				// Zero caches a failed lookup; every hit must retain one canonical database ID.
+				if ( 0 !== $this_value && '0' !== $this_value && false === ai4seo_normalize_database_id( $this_value ) ) {
 					return false;
 				}
 			}
@@ -1303,6 +1348,10 @@ function ai4seo_add_invalidate_caches_hooks(): void {
  * @return int|false
  */
 function ai4seo_get_cached_attachment_id_from_filename( string $normalized_filename ) {
+	if ( '' === $normalized_filename ) {
+		return false;
+	}
+
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 331224226, 'Prevented loop', true );
 		return false;
@@ -1313,12 +1362,13 @@ function ai4seo_get_cached_attachment_id_from_filename( string $normalized_filen
 	}
 
 	$lookup_cache = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ATTACHMENT_ID_LOOKUP_CACHE );
+	$cache_key    = 'filename_' . hash( 'sha256', $normalized_filename );
 
-	if ( ! is_array( $lookup_cache ) || ! isset( $lookup_cache[ $normalized_filename ] ) ) {
+	if ( ! is_array( $lookup_cache ) || ! isset( $lookup_cache[ $cache_key ] ) ) {
 		return false;
 	}
 
-	return (int) $lookup_cache[ $normalized_filename ];
+	return (int) $lookup_cache[ $cache_key ];
 }
 
 
@@ -1330,16 +1380,23 @@ function ai4seo_get_cached_attachment_id_from_filename( string $normalized_filen
  * @return void
  */
 function ai4seo_set_cached_attachment_id_from_filename( string $normalized_filename, int $attachment_id ): void {
+	if ( '' === $normalized_filename || $attachment_id < 0 ) {
+		return;
+	}
+
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 341224226, 'Prevented loop', true );
 		return;
 	}
 
+	// Hash exact bytes so key sanitization preserves punctuation, Unicode, and case distinctions.
+	$cache_key = 'filename_' . hash( 'sha256', $normalized_filename );
+
 	// Merge and trim inside each CAS retry so another filename cached concurrently is retained.
-	ai4seo_mutate_environmental_variable_value(
+	$cache_updated = ai4seo_mutate_environmental_variable_value(
 		AI4SEO_ENVIRONMENTAL_VARIABLE_ATTACHMENT_ID_LOOKUP_CACHE,
-		static function ( array $lookup_cache ) use ( $normalized_filename, $attachment_id ): array {
-			$lookup_cache[ $normalized_filename ] = (int) $attachment_id;
+		static function ( array $lookup_cache ) use ( $cache_key, $attachment_id ): array {
+			$lookup_cache[ $cache_key ] = $attachment_id;
 
 			if ( count( $lookup_cache ) > 200 ) {
 				$lookup_cache = array_slice( $lookup_cache, -200, null, true );
@@ -1350,6 +1407,10 @@ function ai4seo_set_cached_attachment_id_from_filename( string $normalized_filen
 		true,
 		HOUR_IN_SECONDS
 	);
+
+	if ( ! $cache_updated ) {
+		ai4seo_debug_message( 341224228, 'Could not persist the attachment filename lookup cache.', true );
+	}
 }
 
 

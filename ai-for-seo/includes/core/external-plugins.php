@@ -14,6 +14,56 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 /**
+ * Determine whether post content contains an ACF block marker.
+ *
+ * @param string $post_content Post content to inspect.
+ * @return bool Whether an ACF block marker is present.
+ */
+function ai4seo_is_acf_content( $post_content ): bool {
+	return strpos( $post_content, '<!-- wp:acf/' ) !== false;
+}
+
+
+/**
+ * Extract user-facing field values from serialized ACF block comments.
+ *
+ * @param string $post_content Post content containing ACF blocks.
+ * @return string Extracted ACF field content.
+ */
+function ai4seo_extract_acf_content( $post_content ): string {
+	// Initialize an array to hold the extracted content.
+	$extracted_content = array();
+
+	// Match all ACF blocks in the post_content.
+	preg_match_all( '/<!-- wp:acf\/(.*?) (.*?)\/-->/s', $post_content, $matches, PREG_SET_ORDER );
+
+	// Loop through each ACF block match.
+	foreach ( $matches as $match ) {
+		// Decode the JSON data for the ACF block.
+		$acf_data = json_decode( $match[2], true );
+
+		if ( isset( $acf_data['data'] ) ) {
+			// Loop through the 'data' array and extract field content.
+			foreach ( $acf_data['data'] as $key => $value ) {
+				// Skip metadata fields (fields starting with an underscore).
+				if ( strpos( $key, '_' ) === 0 ) {
+					continue;
+				}
+
+				// Add the content to the extracted content array.
+				if ( ! empty( $value ) ) {
+					$extracted_content[] = $value;
+				}
+			}
+		}
+	}
+
+	// Return the extracted content as a plain text string.
+	return implode( ' ', $extracted_content );
+}
+
+
+/**
  * Contains the cache-addition suspension leaked by Fix Alt Text 1.9.1 save callbacks.
  *
  * Run immediately before the vendor's priority 999 callbacks. Only replace the
@@ -354,10 +404,12 @@ function ai4seo_is_plugin_or_theme_active( $identifier ): bool {
 /**
  * Best-effort purge for a single post/page URL across common caching layers.
  *
- * @param int $post_id Post ID.
+ * @param int        $post_id Post ID.
+ * @param array|null $diagnostics Receives optional cache failure identities.
  * @return void
  */
-function ai4seo_purge_frontend_cache_for_post( int $post_id ): void {
+function ai4seo_purge_frontend_cache_for_post( int $post_id, ?array &$diagnostics = null ): void {
+	$diagnostics                     = array();
 	$is_frontend_cache_purge_enabled = ai4seo_get_setting( AI4SEO_SETTING_ENABLE_FRONTEND_CACHE_PURGE );
 
 	if ( ! $is_frontend_cache_purge_enabled ) {
@@ -375,15 +427,29 @@ function ai4seo_purge_frontend_cache_for_post( int $post_id ): void {
 		return;
 	}
 
-	clean_post_cache( $post_id );
+	// Post-cache hooks are optional follow-up work and must not prevent the remaining frontend purges.
+	try {
+		clean_post_cache( $post_id );
+	} catch ( Throwable $throwable ) {
+		$diagnostics[] = ai4seo_record_metadata_save_diagnostic( 1908261200, 'cache', 'post_cache_exception', array( 'post_id' => $post_id ), $throwable );
+	}
 
-	$permalink = get_permalink( $post_id );
+	// URL-based integrations require a permalink, so retain its failure and stop only those follow-up purges.
+	try {
+		$permalink = get_permalink( $post_id );
+	} catch ( Throwable $throwable ) {
+		$diagnostics[] = ai4seo_record_metadata_save_diagnostic( 1908261200, 'cache', 'permalink_exception', array( 'post_id' => $post_id ), $throwable );
+		return;
+	}
 
 	if ( empty( $permalink ) ) {
 		return;
 	}
 
-	ai4seo_purge_frontend_cache_for_url( $permalink );
+	// Preserve both the post-cache failure and any individual URL integration failures for the save response.
+	$url_diagnostics = array();
+	ai4seo_purge_frontend_cache_for_url( $permalink, $url_diagnostics );
+	$diagnostics = array_merge( $diagnostics, $url_diagnostics );
 }
 
 
@@ -392,56 +458,48 @@ function ai4seo_purge_frontend_cache_for_post( int $post_id ): void {
  *
  * Note: This cannot purge CDN/browser caches unless your setup integrates them.
  *
- * @param string $url Absolute URL.
+ * @param string     $url Absolute URL.
+ * @param array|null $diagnostics Receives optional cache failure identities.
  * @return void
  */
-function ai4seo_purge_frontend_cache_for_url( string $url ): void {
-	$url = esc_url_raw( $url );
+function ai4seo_purge_frontend_cache_for_url( string $url, ?array &$diagnostics = null ): void {
+	$diagnostics = array();
+	$url         = esc_url_raw( $url );
 
 	if ( empty( $url ) ) {
 		return;
 	}
 
-	// LiteSpeed Cache.
-	if ( function_exists( 'do_action' ) ) {
+	// One optional integration must not abort the remaining cache purges.
+	try {
 		// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- LiteSpeed defines this public integration hook.
 		do_action( 'litespeed_purge_url', $url );
+	} catch ( Throwable $throwable ) {
+		$diagnostics[] = ai4seo_record_metadata_save_diagnostic( 1908261200, 'cache', 'cache_exception', array( 'provider' => 'litespeed' ), $throwable );
 	}
 
-	// WP Rocket.
-	if ( function_exists( 'rocket_clean_files' ) ) {
-		rocket_clean_files( array( $url ) );
-	}
+	// Preserve each plugin's API shape; empty argument lists retain its existing whole-cache purge behavior.
+	$purges = array(
+		'rocket_clean_files'                    => array( array( $url ) ),
+		'w3tc_flush_url'                        => array( $url ),
+		'wp_cache_clear_cache'                  => array(),
+		'sg_cachepress_purge_cache'             => array(),
+		'cache_enabler_clear_page_cache_by_url' => array( $url ),
+		'wp_optimize_cache_purge_url'           => array( $url ),
+		'wpfc_clear_url_cache'                  => array( $url ),
+	);
 
-	// W3 Total Cache.
-	if ( function_exists( 'w3tc_flush_url' ) ) {
-		w3tc_flush_url( $url );
-	}
+	// Skip unavailable integrations and isolate each installed callback so later purges can still run.
+	foreach ( $purges as $callback => $arguments ) {
+		if ( ! function_exists( $callback ) ) {
+			continue;
+		}
 
-	// WP Super Cache.
-	if ( function_exists( 'wp_cache_clear_cache' ) ) {
-		// Clears whole cache; Super Cache has limited per-URL purge in many setups.
-		wp_cache_clear_cache();
-	}
-
-	// SiteGround Optimizer.
-	if ( function_exists( 'sg_cachepress_purge_cache' ) ) {
-		sg_cachepress_purge_cache();
-	}
-
-	// Cache Enabler.
-	if ( function_exists( 'cache_enabler_clear_page_cache_by_url' ) ) {
-		cache_enabler_clear_page_cache_by_url( $url );
-	}
-
-	// WP-Optimize.
-	if ( function_exists( 'wp_optimize_cache_purge_url' ) ) {
-		wp_optimize_cache_purge_url( $url );
-	}
-
-	// WP fastest cache.
-	if ( function_exists( 'wpfc_clear_url_cache' ) ) {
-		wpfc_clear_url_cache( $url );
+		try {
+			call_user_func_array( $callback, $arguments );
+		} catch ( Throwable $throwable ) {
+			$diagnostics[] = ai4seo_record_metadata_save_diagnostic( 1908261200, 'cache', 'cache_exception', array( 'provider' => $callback ), $throwable );
+		}
 	}
 }
 

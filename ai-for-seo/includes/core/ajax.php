@@ -310,9 +310,10 @@ function ai4seo_send_ajax_success( $response = array(), $status_code = null, $se
  * @param int    $error_code The error code to return.
  * @param string $error_headline The error headline value.
  * @param bool   $add_contact_us_link The add contact us link value.
+ * @param array  $additional_data Allowlisted metadata save outcomes and safe diagnostics.
  * @return void
  */
-function ai4seo_send_ajax_error( string $error_message = 'Unknown Error', int $error_code = 999, $error_headline = '', $add_contact_us_link = true ) {
+function ai4seo_send_ajax_error( string $error_message = 'Unknown Error', int $error_code = 999, $error_headline = '', $add_contact_us_link = true, array $additional_data = array() ) {
 	if ( ! ai4seo_singleton( __FUNCTION__ ) ) {
 		return;
 	}
@@ -324,13 +325,24 @@ function ai4seo_send_ajax_error( string $error_message = 'Unknown Error', int $e
 		ai4seo_drain_ajax_output_buffers();
 	}
 
-	wp_send_json_error(
+	// Only the metadata result contract may add data; reserved transport fields remain authoritative.
+	$additional_data = array_intersect_key(
+		$additional_data,
 		array(
-			'success'             => false,
-			'error'               => ai4seo_wp_kses( $error_message ),
-			'code'                => $error_code,
-			'headline'            => ai4seo_wp_kses( $error_headline ),
-			'add_contact_us_link' => $add_contact_us_link,
+			'metadata_editor' => true,
+			'diagnostic'      => true,
+		)
+	);
+	wp_send_json_error(
+		array_merge(
+			$additional_data,
+			array(
+				'success'             => false,
+				'error'               => ai4seo_wp_kses( $error_message ),
+				'code'                => $error_code,
+				'headline'            => ai4seo_wp_kses( $error_headline ),
+				'add_contact_us_link' => $add_contact_us_link,
+			)
 		)
 	);
 }
@@ -505,20 +517,26 @@ function ai4seo_save_anything( $additional_upcoming_updates = array() ) {
 			// remove prefix and sanitize.
 			$ai4seo_this_input_id = ai4seo_get_unprefixed_input_name( $ai4seo_this_prefixed_input_id );
 
-			// handle checkboxes
-			// todo: use better indicator like "checkbox-true".
-			if ( 'true' === $ai4seo_this_post_value ) {
-				$ai4seo_this_post_value = true;
-			} elseif ( 'false' === $ai4seo_this_post_value ) {
-				$ai4seo_this_post_value = false;
+			// Metadata text must retain literals that settings controls use as transport sentinels.
+			$is_metadata_text = 'metadata_editor_custom_instructions' === $ai4seo_this_input_id
+				|| ( 0 === strpos( $ai4seo_this_input_id, 'metadata_' ) && isset( AI4SEO_METADATA_DETAILS[ substr( $ai4seo_this_input_id, 9 ) ] ) );
+			if ( ! $is_metadata_text ) {
+				// Only settings controls interpret these literals as checkbox values.
+				// todo: use better indicator like "checkbox-true".
+				if ( 'true' === $ai4seo_this_post_value ) {
+					$ai4seo_this_post_value = true;
+				} elseif ( 'false' === $ai4seo_this_post_value ) {
+					$ai4seo_this_post_value = false;
+				}
+
+				// Settings can submit an explicit empty array through the shared form transport.
+				if ( '#ai4seo-empty-array#' === $ai4seo_this_post_value
+					|| ( is_array( $ai4seo_this_post_value ) && count( $ai4seo_this_post_value ) === 1 && reset( $ai4seo_this_post_value ) === '#ai4seo-empty-array#' ) ) {
+					$ai4seo_this_post_value = array();
+				}
 			}
 
-			// handle empty arrays (#ai4seo-empty-array# as string).
-			if ( '#ai4seo-empty-array#' === $ai4seo_this_post_value
-				|| ( is_array( $ai4seo_this_post_value ) && count( $ai4seo_this_post_value ) === 1 && reset( $ai4seo_this_post_value ) === '#ai4seo-empty-array#' ) ) {
-				$ai4seo_this_post_value = array();
-			}
-
+			// Apply the shared sanitizer after settings conversion while preserving literal metadata text.
 			$upcoming_save_anything_updates[ $ai4seo_this_input_id ] = ai4seo_deep_sanitize( $ai4seo_this_post_value );
 		}
 	}
@@ -602,7 +620,10 @@ function ai4seo_save_anything( $additional_upcoming_updates = array() ) {
 		// Keep JSON response formatting centralized in the existing AJAX error mechanism.
 		ai4seo_send_ajax_error(
 			$save_anything_processor_result->get_error_message(),
-			(int) $save_anything_processor_result->get_error_code()
+			(int) $save_anything_processor_result->get_error_code(),
+			'',
+			true,
+			is_array( $save_anything_processor_result->get_error_data() ) ? $save_anything_processor_result->get_error_data() : array()
 		);
 		return;
 	}
@@ -1844,6 +1865,8 @@ function ai4seo_visit_generated_data_post_id_pages_by_post_types(
 				'query_limit'        => ai4seo_database_scalar_binding( '%d', $database_chunk_size ),
 			)
 		);
+
+		// Match the migration reader's text REGEXP operands and case-sensitive legacy ownership rule.
 		$post_ids_query = ai4seo_prepare_database_query(
 			'SELECT DISTINCT p.ID
 			FROM {{posts_table}} AS p
@@ -1866,7 +1889,8 @@ function ai4seo_visit_generated_data_post_id_pages_by_post_types(
 						pm.meta_key LIKE {{legacy_pattern_8}} OR
 						pm.meta_key LIKE {{legacy_pattern_9}}
 					)
-					AND BINARY pm.meta_key REGEXP BINARY {{legacy_key_regexp}}
+					AND CONVERT(pm.meta_key USING utf8mb4) COLLATE utf8mb4_bin
+						REGEXP CONVERT({{legacy_key_regexp}} USING utf8mb4)
 				)
 			)
 			ORDER BY p.ID ASC

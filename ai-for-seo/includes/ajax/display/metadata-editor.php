@@ -65,6 +65,14 @@ $ai4seo_next_post_id = ai4seo_get_next_post_id_from_ordered_post_ids( $ai4seo_po
 $ai4seo_this_post_title = get_the_title( $ai4seo_post_id );
 
 // Read all metadata values authoritatively; blank controls must never stand in for a storage failure.
+$ai4seo_storage_read_succeeded = false;
+$ai4seo_storage_failure_reason = '';
+ai4seo_read_authoritative_active_metadata_postmeta_snapshot( $ai4seo_post_id, $ai4seo_storage_read_succeeded, $ai4seo_storage_failure_reason );
+if ( ! $ai4seo_storage_read_succeeded ) {
+	$ai4seo_diagnostic = ai4seo_record_metadata_save_diagnostic( 2208262601, 'editor_read', $ai4seo_storage_failure_reason, array( 'post_id' => $ai4seo_post_id ) );
+	ai4seo_send_ajax_error( esc_html__( 'Stored SOOZ metadata could not be read unambiguously. No changes were made. Please contact support.', 'ai-for-seo' ), 2208262601, '', true, array( 'diagnostic' => $ai4seo_diagnostic ) );
+	return;
+}
 $ai4seo_metadata_read_succeeded = false;
 $ai4seo_this_metadata_values    = ai4seo_read_available_metadata_by_post_ids(
 	array( $ai4seo_post_id ),
@@ -452,6 +460,8 @@ echo '<div'
 									ai4seo_get_editor_preview_edit_actions( $ai4seo_social_preview_fields, $ai4seo_active_meta_tags, AI4SEO_METADATA_DETAILS )
 								)
 							);
+							// Both cards edit the same Open Graph fields, so explain their shared values beside the preview.
+							echo "<p class='ai4seo-editor-preview-description'>" . esc_html__( 'Uses the Facebook title and description. Editing them updates both previews.', 'ai-for-seo' ) . '</p>';
 							echo "<div class='ai4seo-whatsapp-preview-shell'>";
 								echo "<div class='ai4seo-whatsapp-preview-image ai4seo-social-preview-image-placeholder'></div>";
 								echo "<div class='ai4seo-social-preview-image-label'>" . esc_html__( 'WordPress featured image — not managed by SOOZ', 'ai-for-seo' ) . '</div>';

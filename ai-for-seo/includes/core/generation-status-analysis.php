@@ -190,6 +190,13 @@ function ai4seo_check_for_performance_analysis() {
 		ai4seo_debug_message( 175943823, 'Could not schedule the required generation-status summary rebuild.', true );
 	}
 
+	// Recovery shares the scanner's lock and consumes this request's bounded analysis window.
+	if ( 'idle' !== ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_GENERATION_STATUS_SUMMARY_REBUILD_STATE, false )
+		&& ( ai4seo_is_full_dashboard_request() || ai4seo_is_dashboard_refresh_ajax_request() ) ) {
+		ai4seo_rebuild_generation_status_summary();
+		return;
+	}
+
 	// compare cached and real count of posts.
 	$last_known_num_posts_table_entries = (int) ai4seo_read_environmental_variable(
 		AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_LAST_KNOWN_POSTS_TABLE_ENTRIES
@@ -474,9 +481,10 @@ function ai4seo_run_posts_table_analysis_task(
 		return false;
 	}
 
-	$database_lock_name = ai4seo_get_posts_table_analysis_database_lock_name();
-	$task_succeeded     = false;
-	$release_succeeded  = false;
+	$database_lock_name     = ai4seo_get_posts_table_analysis_database_lock_name();
+	$task_succeeded         = false;
+	$release_succeeded      = false;
+	$continuation_succeeded = true;
 
 	if ( '' === $database_lock_name || ! ai4seo_acquire_database_advisory_lock( $database_lock_name ) ) {
 		if ( $debug ) {
@@ -497,12 +505,22 @@ function ai4seo_run_posts_table_analysis_task(
 	} finally {
 		$release_succeeded = ai4seo_release_database_advisory_lock( $database_lock_name );
 
+		// Keep continuation scheduling outside the ownership window; dashboard requests can also resume it.
+		if ( 'idle' !== ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_GENERATION_STATUS_SUMMARY_REBUILD_STATE, false ) ) {
+			$continuation_succeeded = ai4seo_schedule_generation_status_summary_rebuild( false );
+
+			// Scheduling failures must be visible even when an ordinary dashboard request started this run.
+			if ( ! $continuation_succeeded ) {
+				ai4seo_debug_message( 175943823, 'Could not schedule analysis continuation; the pending rebuild and committed progress remain stored.', true );
+			}
+		}
+
 		if ( ! $release_succeeded && $debug ) {
 			ai4seo_debug_message( 903147526, esc_html( __FUNCTION__ ) . ' > Could not release the posts-table analysis advisory lock.' );
 		}
 	}
 
-	return $task_succeeded && $release_succeeded;
+	return $task_succeeded && $release_succeeded && $continuation_succeeded;
 }
 
 
@@ -575,7 +593,34 @@ function ai4seo_run_posts_table_analysis_task_under_lock(
 	$posts_table_analysis_start_time   = (int) $environmental_values[ AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_START_TIME ];
 	$last_core_run_time                = (int) $environmental_values[ AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_LAST_CORE_RUN_TIME ];
 	$posts_table_analysis_last_post_id = (int) $environmental_values[ AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_LAST_POST_ID ];
-	$do_restart                        = false;
+	$analysis_progress                 = $environmental_values[ AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_PROGRESS ];
+	$rebuild_state                     = $environmental_values[ AI4SEO_ENVIRONMENTAL_VARIABLE_GENERATION_STATUS_SUMMARY_REBUILD_STATE ];
+
+	// Keep legacy recovery and later initialization on the same validated progress snapshot.
+	$has_initialized_progress = 1 === (int) ( $analysis_progress['version'] ?? 0 );
+	$do_restart               = 'required' === $rebuild_state
+		|| ( 'completed' !== $posts_table_analysis_state && ! $has_initialized_progress );
+
+	// Log only bounded state identifiers so support can distinguish sparse IDs, retries, and fresh scans.
+	if ( $debug ) {
+		ai4seo_debug_message(
+			890174625,
+			sprintf(
+				'Analysis checkpoint: state=%s; rebuild=%s; cursor=%d; upper ID=%d; examined=%d; starting rows=%d; diagnostic=%d; cron=%d; ajax=%d; force=%d; reset requested=%d.',
+				$posts_table_analysis_state,
+				$rebuild_state,
+				$posts_table_analysis_last_post_id,
+				(int) ( $analysis_progress['upper_post_id'] ?? 0 ),
+				(int) ( $analysis_progress['examined_rows'] ?? 0 ),
+				(int) ( $analysis_progress['total_rows'] ?? 0 ),
+				(int) ( $analysis_progress['failure']['code'] ?? 0 ),
+				(int) wp_doing_cron(),
+				(int) wp_doing_ajax(),
+				(int) $force,
+				(int) $reset_before_run
+			)
+		);
+	}
 
 	// Keep stale-run recovery and batch pacing aligned with the shared analysis limits.
 	$processing_timeout  = AI4SEO_POST_TABLE_ANALYSIS_PROCESSING_TIMEOUT;
@@ -596,13 +641,20 @@ function ai4seo_run_posts_table_analysis_task_under_lock(
 	// Bound iterations as well as wall-clock time so each task obeys the configured pacing envelope.
 	$max_runs_per_task = $total_max_run_time / ( $usleep_between_runs / 1000000 );
 
-	// Restart a stale processing marker, but leave a live analysis process as the sole owner of the task.
+	// Reuse committed bounds after a stopped run; a recent marker without a failure still defers re-entry.
 	if ( 'processing' === $posts_table_analysis_state ) {
-		if ( ! $posts_table_analysis_start_time || ( time() - $posts_table_analysis_start_time ) > $processing_timeout ) {
-			$do_restart = true;
+		$has_resumable_failure = $has_initialized_progress && ! empty( $analysis_progress['failure'] );
+		$is_processing_stale   = ! $posts_table_analysis_start_time || ( time() - $posts_table_analysis_start_time ) > $processing_timeout;
 
+		if ( $has_resumable_failure || $is_processing_stale ) {
+			// The initial restart decision already covers pending resets and unusable legacy progress.
 			if ( $debug ) {
-				ai4seo_debug_message( 604817040, esc_html( __FUNCTION__ ) . ' > Posts table analysis timed out -> restarting' );
+				ai4seo_debug_message(
+					604817040,
+					'Previous analysis stopped; recovery=' . ( $do_restart || $reset_before_run ? 'reset' : 'resume' )
+					. '; cursor=' . $posts_table_analysis_last_post_id
+					. '; diagnostic=' . (int) ( $analysis_progress['failure']['code'] ?? 0 ) . '.'
+				);
 			}
 		} else {
 			if ( $debug ) {
@@ -622,12 +674,15 @@ function ai4seo_run_posts_table_analysis_task_under_lock(
 			if ( $debug ) {
 				ai4seo_debug_message( 978731049, esc_html( __FUNCTION__ ) . ' > Posts table analysis already completed -> restarting' );
 			}
-		} else {
+		} elseif ( ! $do_restart && ! $reset_before_run ) {
 			if ( $debug ) {
 				ai4seo_debug_message( 405037545, esc_html( __FUNCTION__ ) . ' > Posts table analysis already completed -> stop' );
 			}
 
 			// Preserve the completed state when no fresh analysis was requested.
+			if ( 'processing' === $rebuild_state ) {
+				return ai4seo_complete_generation_status_summary_rebuild_state();
+			}
 			return true;
 		}
 	}
@@ -636,6 +691,8 @@ function ai4seo_run_posts_table_analysis_task_under_lock(
 	$run_interval_in_seconds = AI4SEO_POST_TABLE_ANALYSIS_MAX_EXECUTION_TIME * 2;
 
 	if ( $last_core_run_time && ( time() - $last_core_run_time ) < $run_interval_in_seconds && ! $debug && ! $force ) {
+		// This path deliberately skips work; the configured debug destination explains repeated refreshes.
+		ai4seo_debug_message( 890174627, 'Analysis deferred by the request throttle; retry in ' . max( 0, $run_interval_in_seconds - ( time() - $last_core_run_time ) ) . ' seconds; cursor=' . $posts_table_analysis_last_post_id . '.' );
 		return true;
 	}
 
@@ -648,19 +705,68 @@ function ai4seo_run_posts_table_analysis_task_under_lock(
 		return false;
 	}
 
-	// Clear persisted progress only after the state checks have authorized a restart.
-	if ( ( $do_restart || $reset_before_run ) && ! ai4seo_reset_posts_table_analysis( true ) ) {
-		if ( $debug ) {
-			ai4seo_debug_message( 983507261, esc_html( __FUNCTION__ ) . ' > Could not reset posts-table analysis state before this run.' );
+	// Claim and invalidate the old completion together so interruption cannot skip the required reset.
+	if ( 'required' === $rebuild_state ) {
+		$did_claim = false;
+
+		$claim_succeeded = ai4seo_mutate_environmental_variable_overrides(
+			static function ( array $current_overrides ): array {
+				// Recheck the pending request on every CAS retry without replacing another writer's state.
+				$should_claim = 'required' === ( $current_overrides[ AI4SEO_ENVIRONMENTAL_VARIABLE_GENERATION_STATUS_SUMMARY_REBUILD_STATE ] ?? 'idle' );
+
+				// Default idle state and empty progress force a reset if this request stops before clearing sources.
+				if ( $should_claim ) {
+					$current_overrides[ AI4SEO_ENVIRONMENTAL_VARIABLE_GENERATION_STATUS_SUMMARY_REBUILD_STATE ] = 'processing';
+					unset(
+						$current_overrides[ AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_STATE ],
+						$current_overrides[ AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_PROGRESS ]
+					);
+				}
+
+				// The shared mutation contract carries the same decision for writes and no-op retries.
+				return array(
+					'overrides' => $current_overrides,
+					'changed'   => $should_claim,
+					'result'    => $should_claim,
+				);
+			},
+			false,
+			$did_claim
+		);
+
+		if ( ! $claim_succeeded || ! $did_claim ) {
+			// A failed claim preserves the previous checkpoint, so log without replacing its diagnostic.
+			ai4seo_debug_message( 890174624, 'Analysis rebuild claim was not acquired; storage mutation succeeded=' . (int) $claim_succeeded . '; pending request still matched=' . (int) $did_claim . '.', true );
+			return false;
 		}
 
+		$rebuild_state = 'processing';
+	}
+
+	// Clear persisted progress only after the state checks have authorized a restart.
+	if ( $do_restart || $reset_before_run ) {
+		if ( ! ai4seo_reset_posts_table_analysis( true ) ) {
+			if ( $debug ) {
+				ai4seo_debug_message( 983507261, esc_html( __FUNCTION__ ) . ' > Could not reset posts-table analysis state before this run.' );
+			}
+
+			// Keep the reset failure visible on the dashboard as well as in the manual debug result.
+			return ai4seo_record_posts_table_analysis_failure( 983507261, 0, 'reset' );
+		}
+
+		// The checked reset persisted cursor zero; keep the local cursor on the same generation.
+		$posts_table_analysis_last_post_id = 0;
+	}
+
+	// Capture fresh bounds only after a reset or when migrating an unfinished legacy scan.
+	if ( ( $do_restart || $reset_before_run || ! $has_initialized_progress )
+		&& ! ai4seo_initialize_posts_table_analysis_progress() ) {
 		return false;
 	}
 
-	// The checked reset already persisted cursor zero, so mirror it locally instead of reading it again.
-	if ( $do_restart || $reset_before_run ) {
-		$posts_table_analysis_last_post_id = 0;
-	}
+	// A new attempt clears the previous diagnostic together with its processing marker below.
+	$analysis_progress            = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_PROGRESS, false );
+	$analysis_progress['failure'] = array();
 
 	// Publish the processing marker and timestamp before entering the bounded work loop.
 	$start_time = time();
@@ -669,6 +775,7 @@ function ai4seo_run_posts_table_analysis_task_under_lock(
 		array(
 			AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_STATE      => 'processing',
 			AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_START_TIME => $start_time,
+			AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_PROGRESS   => $analysis_progress,
 		),
 		false
 	);
@@ -746,6 +853,7 @@ function ai4seo_run_posts_table_analysis_task_under_lock(
 		}
 	} catch ( Throwable $e ) {
 		$work_succeeded = false;
+		ai4seo_record_posts_table_analysis_failure( 842653579 );
 		ai4seo_debug_message( 842653579, $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine(), true );
 	} finally {
 		// Only the advisory-lock owner reaches this finalizer; every state publication remains checked.
@@ -759,20 +867,47 @@ function ai4seo_run_posts_table_analysis_task_under_lock(
 		} elseif ( $is_finished ) {
 			$final_state_succeeded = ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_STATE, 'completed', false );
 
+			// A leftover processing marker after a failed write is a failure, not another active worker.
+			if ( ! $final_state_succeeded ) {
+				ai4seo_record_posts_table_analysis_failure( 875420613 );
+			}
+
 			if ( $final_state_succeeded && $debug ) {
 				ai4seo_debug_message( 174773382, esc_html( __FUNCTION__ ) . ' > Posts table analysis completed' );
 			} elseif ( $debug ) {
 				ai4seo_debug_message( 875420613, esc_html( __FUNCTION__ ) . ' > Could not persist the completed analysis state.' );
 			}
 		} else {
+			// Keep a specific row diagnostic when available; otherwise explain the stalled invocation.
+			if ( ! $work_succeeded ) {
+				$failed_progress = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_PROGRESS, false );
+
+				if ( empty( $failed_progress['failure'] ) ) {
+					ai4seo_record_posts_table_analysis_failure( 734891205 );
+				}
+			}
+
+			// Retain committed rows so the next request can resume the same bounded scan.
 			$final_state_succeeded = ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_STATE, 'idle', false );
 
+			// Keep a specific chunk failure when present; otherwise identify the failed lifecycle write.
+			if ( ! $final_state_succeeded ) {
+				if ( $work_succeeded ) {
+					ai4seo_record_posts_table_analysis_failure( 248671935, 0, 'analysis_state' );
+				} else {
+					ai4seo_debug_message( 248671935, 'Could not persist the paused analysis state; retaining the preceding chunk failure diagnostic.', true );
+				}
+			}
+
 			if ( $final_state_succeeded && $debug ) {
-				ai4seo_debug_message( 679211510, esc_html( __FUNCTION__ ) . ' > Posts table analysis paused, not yet completed' );
-			} elseif ( $debug ) {
-				ai4seo_debug_message( 248671935, esc_html( __FUNCTION__ ) . ' > Could not persist the paused analysis state.' );
+				ai4seo_debug_message( 679211510, 'Analysis yielded; chunks=' . $run_counter . '; elapsed=' . ( time() - $start_time ) . ' seconds; execution limit=' . $total_max_run_time . ' seconds; chunk work succeeded=' . (int) $work_succeeded . '.' );
 			}
 		}
+	}
+
+	// The conditional update completes only this rebuild and preserves a newer required marker.
+	if ( $is_finished && $work_succeeded && $final_state_succeeded && 'processing' === $rebuild_state ) {
+		$final_state_succeeded = ai4seo_complete_generation_status_summary_rebuild_state();
 	}
 
 	if ( $debug ) {
@@ -780,6 +915,197 @@ function ai4seo_run_posts_table_analysis_task_under_lock(
 	}
 
 	return $work_succeeded && $final_state_succeeded;
+}
+
+
+/**
+ * Capture a bounded scan once while the current connection owns the analysis lock.
+ *
+ * @return bool Whether the aggregate and initialized progress were persisted successfully.
+ */
+function ai4seo_initialize_posts_table_analysis_progress(): bool {
+	global $wpdb;
+
+	// Only the scanner owner may establish the boundary shared by later requests.
+	if ( ! ai4seo_is_database_advisory_lock_owned_by_current_connection( ai4seo_get_posts_table_analysis_database_lock_name() ) ) {
+		return false;
+	}
+
+	// One aggregate captures the initial row count and the upper ID from the same table view.
+	$query = ai4seo_prepare_database_query(
+		'SELECT COUNT(*) AS total_rows, COALESCE(MAX(ID), 0) AS upper_post_id FROM {{posts_table}}',
+		array( 'posts_table' => ai4seo_database_identifier_binding( 'table.posts' ) )
+	);
+
+	if ( false === $query ) {
+		return ai4seo_record_posts_table_analysis_failure( 984321698 );
+	}
+
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed table aggregate establishes one scan boundary and is persisted for all subsequent chunks.
+	$aggregate = $wpdb->get_row( $query, ARRAY_A );
+
+	if ( $wpdb->last_error || ! is_array( $aggregate )
+		|| false === ai4seo_normalize_option_post_id( $aggregate['total_rows'] ?? null, true )
+		|| false === ai4seo_normalize_option_post_id( $aggregate['upper_post_id'] ?? null, true ) ) {
+		return ai4seo_record_posts_table_analysis_failure( 984321698 );
+	}
+
+	// Version one denotes initialized bounds; the cursor and counts advance only after chunk commits.
+	$progress = array(
+		'version'       => 1,
+		'upper_post_id' => (int) $aggregate['upper_post_id'],
+		'total_rows'    => (int) $aggregate['total_rows'],
+		'examined_rows' => 0,
+		'failure'       => array(),
+	);
+
+	if ( ! ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_PROGRESS, $progress, false ) ) {
+		return ai4seo_record_posts_table_analysis_failure( 175943822 );
+	}
+
+	// Emit the captured count and ID boundary only after initialization has actually committed.
+	ai4seo_debug_message( 890174626, 'Analysis initialized; starting rows=' . $progress['total_rows'] . '; upper ID=' . $progress['upper_post_id'] . '.' );
+
+	return true;
+}
+
+
+/**
+ * Retain a safe failure identifier without modifying another worker's progress.
+ *
+ * @param int    $code Existing diagnostic code.
+ * @param int    $post_id Affected post ID, or zero when unavailable.
+ * @param string $field Affected field name, or an empty string.
+ * @return false Always false so callers can return the failed operation directly.
+ */
+function ai4seo_record_posts_table_analysis_failure( int $code, int $post_id = 0, string $field = '' ): bool {
+	// Logging remains available even when this connection cannot safely publish a diagnostic.
+	ai4seo_debug_message( $code, 'Posts-table analysis failed. Post ID: ' . $post_id . '; field: ' . $field, true );
+
+	if ( ! ai4seo_is_database_advisory_lock_owned_by_current_connection( ai4seo_get_posts_table_analysis_database_lock_name() ) ) {
+		return false;
+	}
+
+	// Mutate the authoritative value so a failed read cannot replace committed progress with defaults.
+	$diagnostic_stored = ai4seo_mutate_environmental_variable_value(
+		AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_PROGRESS,
+		static function ( array $progress ) use ( $code, $post_id, $field ): array {
+			// Version zero retains initialization failures only when no valid bounds are stored.
+			if ( ! $progress ) {
+				$progress = array(
+					'version'       => 0,
+					'upper_post_id' => 0,
+					'total_rows'    => 0,
+					'examined_rows' => 0,
+				);
+			}
+
+			// Preserve the latest counters on every CAS retry while replacing only this attempt's diagnostic.
+			$progress['failure'] = array(
+				'code'    => $code,
+				'post_id' => $post_id,
+				'field'   => $field,
+			);
+
+			return $progress;
+		},
+		false
+	);
+
+	if ( ! $diagnostic_stored ) {
+		ai4seo_debug_message( 175943822, 'Could not persist the posts-table analysis failure diagnostic.', true );
+	}
+
+	return false;
+}
+
+
+/**
+ * Resolve one authoritative presentation of analysis progress for dashboard and debug output.
+ *
+ * @param bool $allow_debug_heavy_db_operations Whether this reflects an authorized debug override.
+ * @return array Status, translated message, and the persisted progress snapshot.
+ */
+function ai4seo_get_posts_table_analysis_status( bool $allow_debug_heavy_db_operations = false ): array {
+	// Default to a read failure so unavailable state never appears as a completed scan.
+	$snapshot = ai4seo_read_authoritative_environmental_variables_snapshot();
+	$status   = 'failed';
+	$message  = __( 'Analysis state could not be read. Please run the plugin performance analysis from Help to collect diagnostics.', 'ai-for-seo' );
+	$progress = array();
+
+	// All consumers use the same precedence: intentional pause, recorded failure, then completion.
+	if ( ! empty( $snapshot['success'] ) ) {
+		$values   = $snapshot['values'];
+		$progress = $values[ AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_PROGRESS ];
+		$failure  = $progress['failure'] ?? array();
+
+		// Reflect the same authorized override used by the worker; ordinary dashboard reads retain the pause.
+		if ( ! ai4seo_is_posts_table_analysis_possible( $allow_debug_heavy_db_operations, $allow_debug_heavy_db_operations ) ) {
+			$status  = 'deferred';
+			$message = __( 'Analysis is paused because heavy database operations are disabled.', 'ai-for-seo' );
+		} elseif ( $failure ) {
+			$message = sprintf(
+				/* translators: 1: Diagnostic code. 2: Post ID, zero if unavailable. 3: Field name. */
+				__( 'Analysis failed. Diagnostic: %1$s; post ID: %2$s; field: %3$s. Run the plugin performance analysis from Help for details.', 'ai-for-seo' ),
+				$failure['code'],
+				$failure['post_id'],
+				$failure['field']
+			);
+		} elseif ( 'completed' === $values[ AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_STATE ]
+			&& 'idle' === $values[ AI4SEO_ENVIRONMENTAL_VARIABLE_GENERATION_STATUS_SUMMARY_REBUILD_STATE ] ) {
+			$status  = 'completed';
+			$message = __( 'Analysis complete.', 'ai-for-seo' );
+		} else {
+			$status  = 'incomplete';
+			$message = __( 'Your pages and media files are being analyzed to improve SEO coverage statistics. This page refreshes automatically while analysis is in progress.', 'ai-for-seo' );
+		}
+	}
+
+	// Keep the worker marker available for debug consumers that must distinguish lock deferral.
+	return array(
+		'status'   => $status,
+		'message'  => $message,
+		'progress' => $progress,
+		'state'    => $snapshot['values'][ AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_STATE ] ?? '',
+	);
+}
+
+
+/**
+ * Describe the actual outcome of one authorized manual analysis invocation.
+ *
+ * @param bool $analysis_succeeded Whether the bounded invocation succeeded.
+ * @return array Compatible debug result with an additional analysis status.
+ */
+function ai4seo_get_posts_table_analysis_debug_operation_result( bool $analysis_succeeded ): array {
+	// A successful bounded invocation may still leave work; a failed one cannot claim completion.
+	$analysis = ai4seo_get_posts_table_analysis_status( true );
+
+	if ( ! $analysis_succeeded && 'failed' !== $analysis['status'] ) {
+		$analysis['status']  = 'processing' === $analysis['state'] ? 'deferred' : 'failed';
+		$analysis['message'] = 'deferred' === $analysis['status']
+			? __( 'Another analysis run is still in progress. Please try again after it finishes.', 'ai-for-seo' )
+			: __( 'The analysis operation failed. Please review the debug log for the failing read, write, or lock operation.', 'ai-for-seo' );
+	}
+
+	// Legacy scans have no row-count snapshot, so only initialized scans can show numeric progress.
+	$progress = $analysis['progress'];
+
+	if ( 1 === (int) ( $progress['version'] ?? 0 ) ) {
+		$analysis['message'] .= ' ' . sprintf(
+			/* translators: 1: Rows examined. 2: Number of rows at scan initialization. */
+			__( '%1$s rows examined; %2$s rows at the start of this scan.', 'ai-for-seo' ),
+			ai4seo_format_number_i18n( (int) $progress['examined_rows'] ),
+			ai4seo_format_number_i18n( (int) $progress['total_rows'] )
+		);
+	}
+
+	// Preserve the established debug response fields while carrying the more specific analysis status.
+	return array(
+		'success' => $analysis_succeeded && 'failed' !== $analysis['status'],
+		'message' => $analysis['message'],
+		'status'  => $analysis['status'],
+	);
 }
 
 
@@ -846,8 +1172,12 @@ function ai4seo_prepare_posts_table_analysis_option_transition( array $post_ids_
 function ai4seo_get_verified_posts_table_analysis_summary_batches( array $summary_batches, array $verified_additions ): array {
 	$verified_additions = ai4seo_normalize_post_id_option_mutation_map( $verified_additions );
 	$verified_batches   = array();
+	// Replay coverage in the verified transition order so later missing-field batches cannot erase generated history.
+	$ordered_option_names = array_unique( array_merge( AI4SEO_SEO_COVERAGE_POST_ID_OPTIONS, array_keys( $summary_batches ) ) );
 
-	foreach ( $summary_batches as $option_name => $post_type_batches ) {
+	foreach ( $ordered_option_names as $option_name ) {
+		$post_type_batches = $summary_batches[ $option_name ] ?? null;
+
 		if ( ! is_string( $option_name ) || ! is_array( $post_type_batches ) ) {
 			continue;
 		}
@@ -892,13 +1222,17 @@ function ai4seo_get_verified_posts_table_analysis_summary_batches( array $summar
  * @param array $generation_status_post_ids_to_add Summary membership batches calculated for this chunk.
  * @param int   $last_processed_post_id Durable cursor value after this chunk.
  * @param bool  $debug Whether debug messages should be emitted.
- * @return bool True only when option state, summary state, and the cursor were all persisted.
+ * @param int   $num_examined_rows Number of physical rows examined in this chunk.
+ * @param int   $previous_post_id Cursor at the start of this chunk.
+ * @return bool True only when coverage, summary, cursor, and examined count were all persisted.
  */
 function ai4seo_commit_posts_table_analysis_chunk(
 	array $new_post_ids_by_option,
 	array $generation_status_post_ids_to_add,
 	int $last_processed_post_id,
-	bool $debug
+	bool $debug,
+	int $num_examined_rows,
+	int $previous_post_id
 ): bool {
 	$transition = ai4seo_prepare_posts_table_analysis_option_transition( $new_post_ids_by_option );
 
@@ -913,7 +1247,7 @@ function ai4seo_commit_posts_table_analysis_chunk(
 		&& ! ai4seo_apply_post_id_option_transition( $transition['additions'], $transition['removals'] )
 	) {
 		ai4seo_debug_message( 175943821, esc_html( __FUNCTION__ ) . ' > Could not persist and verify the analyzed coverage transition.', true );
-		return false;
+		return ai4seo_record_posts_table_analysis_failure( 175943821 );
 	}
 
 	$verified_summary_batches = ai4seo_get_verified_posts_table_analysis_summary_batches(
@@ -942,25 +1276,48 @@ function ai4seo_commit_posts_table_analysis_chunk(
 		$current_generation_status_summary
 	);
 
-	if ( ! $generation_status_summary_was_stored ) {
+	if ( ! $generation_status_summary_was_stored || ! is_array( $current_generation_status_summary ) ) {
 		ai4seo_debug_message( 984321697, esc_html( __FUNCTION__ ) . ' > Could not persist a matching generation status summary pair.', true );
-		return false;
+		return ai4seo_record_posts_table_analysis_failure( 984321697 );
 	}
 
 	if ( $debug ) {
-		ai4seo_debug_message( 417529305, esc_html( __FUNCTION__ ) . ' > Current generation status summary: ' . esc_html( ai4seo_stringify( $current_generation_status_summary ) ) );
-		ai4seo_debug_message( 408476980, esc_html( __FUNCTION__ ) . ' > Last processed post ID: ' . $last_processed_post_id );
+		// Compact totals retain useful accounting evidence without dumping every post ID on large sites.
+		ai4seo_debug_message( 417529305, esc_html( __FUNCTION__ ) . ' > Current generation status totals: ' . esc_html( ai4seo_stringify( ai4seo_get_generation_status_summary_totals( $current_generation_status_summary ) ) ) );
 	}
 
-	if (
-		! ai4seo_update_environmental_variable(
-			AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_LAST_POST_ID,
-			$last_processed_post_id,
-			false
-		)
-	) {
+	// Verify the expected cursor only after coverage and summary writes have both succeeded.
+	$snapshot = ai4seo_read_authoritative_environmental_variables_snapshot();
+	$progress = $snapshot['values'][ AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_PROGRESS ] ?? array();
+
+	if ( empty( $snapshot['success'] ) || 1 !== (int) ( $progress['version'] ?? 0 )
+		|| (int) $snapshot['values'][ AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_LAST_POST_ID ] !== $previous_post_id
+		|| $last_processed_post_id <= $previous_post_id
+		|| $last_processed_post_id > (int) $progress['upper_post_id']
+		|| $num_examined_rows <= 0
+		|| $num_examined_rows > PHP_INT_MAX - (int) $progress['examined_rows'] ) {
+		return ai4seo_record_posts_table_analysis_failure( 175943822 );
+	}
+
+	// Publish cursor and count in one environmental CAS so retrying a failed write cannot double-count.
+	$progress['examined_rows'] = (int) $progress['examined_rows'] + $num_examined_rows;
+	$progress['failure']       = array();
+	$progress_transition       = ai4seo_bulk_update_environmental_variables(
+		array(
+			AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_LAST_POST_ID => $last_processed_post_id,
+			AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_PROGRESS     => $progress,
+		),
+		false
+	);
+
+	if ( empty( $progress_transition['success'] ) ) {
 		ai4seo_debug_message( 175943822, esc_html( __FUNCTION__ ) . ' > Could not persist the posts table analysis cursor.', true );
-		return false;
+		return ai4seo_record_posts_table_analysis_failure( 175943822 );
+	}
+
+	// Log cursor movement only after the matching row count has committed successfully.
+	if ( $debug ) {
+		ai4seo_debug_message( 408476980, 'Analysis chunk committed; cursor=' . $previous_post_id . ' -> ' . $last_processed_post_id . '; chunk rows=' . $num_examined_rows . '; examined=' . $progress['examined_rows'] . '; starting rows=' . $progress['total_rows'] . '; upper ID=' . $progress['upper_post_id'] . '.' );
 	}
 
 	return true;
@@ -1130,7 +1487,13 @@ function ai4seo_perform_posts_table_analysis( int $posts_table_analysis_last_pos
 
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 381607754, 'Prevented loop', true );
-		return true;
+		return ai4seo_record_posts_table_analysis_failure( 381607754 );
+	}
+
+	// Initialization belongs to the locked coordinator; direct chunks must already have fixed bounds.
+	$progress = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_PROGRESS, false );
+	if ( 1 !== (int) ( $progress['version'] ?? 0 ) ) {
+		return ai4seo_record_posts_table_analysis_failure( 430965172 );
 	}
 
 	$allowed_attachment_mime_types = ai4seo_get_allowed_attachment_mime_types();
@@ -1145,10 +1508,11 @@ function ai4seo_perform_posts_table_analysis( int $posts_table_analysis_last_pos
 	$raw_posts_query = $wpdb->prepare(
 		"SELECT ID, post_author, post_type, post_status, post_mime_type, post_date_gmt, post_date, post_modified_gmt, post_modified
 		FROM {$wpdb->posts}
-		WHERE ID > %d
+		WHERE ID > %d AND ID <= %d
 		ORDER BY ID ASC
 		LIMIT %d",
 		$posts_table_analysis_last_post_id,
+		(int) $progress['upper_post_id'],
 		$total_rows_per_run
 	);
 
@@ -1157,15 +1521,15 @@ function ai4seo_perform_posts_table_analysis( int $posts_table_analysis_last_pos
 			ai4seo_debug_message( 218640975, esc_html( __FUNCTION__ ) . ' > Could not prepare the posts-table batch query.' );
 		}
 
-		return false;
+		return ai4seo_record_posts_table_analysis_failure( 218640975 );
 	}
 
-	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The immediately preceding prepare call binds both numeric values; analysis requires the current ordered batch after its persisted cursor.
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The prepare call binds the cursor, upper boundary, and limit; analysis requires the current ordered batch.
 	$raw_posts = $wpdb->get_results( $raw_posts_query, ARRAY_A );
 
 	if ( $wpdb->last_error ) {
 		ai4seo_debug_message( 984321680, 'Database error: ' . $wpdb->last_error, true );
-		return false;
+		return ai4seo_record_posts_table_analysis_failure( 984321680 );
 	}
 
 	if ( ! is_array( $raw_posts ) ) {
@@ -1173,7 +1537,7 @@ function ai4seo_perform_posts_table_analysis( int $posts_table_analysis_last_pos
 			ai4seo_debug_message( 865109437, esc_html( __FUNCTION__ ) . ' > Posts-table batch query returned an invalid result shape.' );
 		}
 
-		return false;
+		return ai4seo_record_posts_table_analysis_failure( 865109437 );
 	}
 
 	if ( ! $raw_posts || count( $raw_posts ) === 0 ) {
@@ -1188,46 +1552,36 @@ function ai4seo_perform_posts_table_analysis( int $posts_table_analysis_last_pos
 	$num_raw_posts = count( $raw_posts );
 	$is_last_chunk = $num_raw_posts < $total_rows_per_run;
 
-	// get post ids.
-	$raw_post_ids       = array();
-	$previous_post_id   = $posts_table_analysis_last_post_id;
-	$required_post_keys = array_flip(
+	// Every physical row advances the cursor; only supported types need dependent reads.
+	$supported_post_types              = ai4seo_get_supported_post_types();
+	$supported_attachment_post_types   = ai4seo_get_supported_attachment_post_types();
+	$coverage_candidate_post_id_lookup = array();
+	$supported_post_ids                = array();
+	$last_validated_post_id            = $posts_table_analysis_last_post_id;
+	$required_post_keys                = array_flip(
 		array(
 			'ID',
-			'post_author',
 			'post_type',
-			'post_status',
-			'post_mime_type',
-			'post_date_gmt',
-			'post_date',
-			'post_modified_gmt',
-			'post_modified',
 		)
 	);
-	$post_date_keys     = array( 'post_date_gmt', 'post_date', 'post_modified_gmt', 'post_modified' );
+	$post_date_keys                    = array( 'post_date_gmt', 'post_date', 'post_modified_gmt', 'post_modified' );
 
+	// Validate identity and ordering for all rows before inspecting fields used by supported content.
 	foreach ( $raw_posts as $raw_post_index => $raw_post ) {
 		if ( ! is_array( $raw_post ) || array_diff_key( $required_post_keys, $raw_post ) ) {
 			if ( $debug ) {
 				ai4seo_debug_message( 492736018, esc_html( __FUNCTION__ ) . ' > Posts-table batch row is missing required fields. Batch row: ' . esc_html( (int) $raw_post_index + 1 ) );
 			}
 
-			return false;
+			return ai4seo_record_posts_table_analysis_failure( 492736018 );
 		}
 
 		$this_raw_post_id         = ai4seo_normalize_database_id( $raw_post['ID'] );
-		$this_post_author_id      = ai4seo_normalize_option_post_id( $raw_post['post_author'], true );
 		$this_post_type           = $raw_post['post_type'];
-		$this_post_status         = $raw_post['post_status'];
-		$this_post_mime_type      = $raw_post['post_mime_type'];
 		$this_invalid_post_fields = array();
 
 		if ( false === $this_raw_post_id ) {
 			$this_invalid_post_fields[] = 'ID';
-		}
-
-		if ( false === $this_post_author_id ) {
-			$this_invalid_post_fields[] = 'post_author';
 		}
 
 		if ( ! is_string( $this_post_type )
@@ -1235,19 +1589,6 @@ function ai4seo_perform_posts_table_analysis( int $posts_table_analysis_last_pos
 			|| strlen( $this_post_type ) > 20
 			|| sanitize_key( $this_post_type ) !== $this_post_type ) {
 			$this_invalid_post_fields[] = 'post_type';
-		}
-
-		if ( ! is_string( $this_post_status )
-			|| '' === $this_post_status
-			|| strlen( $this_post_status ) > 20
-			|| sanitize_key( $this_post_status ) !== $this_post_status ) {
-			$this_invalid_post_fields[] = 'post_status';
-		}
-
-		if ( ! is_string( $this_post_mime_type )
-			|| strlen( $this_post_mime_type ) > 100
-			|| sanitize_mime_type( $this_post_mime_type ) !== $this_post_mime_type ) {
-			$this_invalid_post_fields[] = 'post_mime_type';
 		}
 
 		if ( $this_invalid_post_fields ) {
@@ -1260,11 +1601,54 @@ function ai4seo_perform_posts_table_analysis( int $posts_table_analysis_last_pos
 				);
 			}
 
-			return false;
+			return ai4seo_record_posts_table_analysis_failure( 157804629, (int) $this_raw_post_id, strtolower( $this_invalid_post_fields[0] ) );
+		}
+
+		// Excluded rows still belong to the physical scan and must advance its validated cursor.
+		if ( $this_raw_post_id <= $last_validated_post_id || $this_raw_post_id > (int) $progress['upper_post_id'] ) {
+			return ai4seo_record_posts_table_analysis_failure( 943170586, $this_raw_post_id, 'id' );
+		}
+
+		$last_validated_post_id  = $this_raw_post_id;
+		$is_post_type            = in_array( $this_post_type, $supported_post_types, true );
+		$is_attachment_post_type = in_array( $this_post_type, $supported_attachment_post_types, true );
+
+		if ( ! $is_post_type && ! $is_attachment_post_type ) {
+			continue;
+		}
+
+		// Generated counters intentionally include supported content outside current coverage filters.
+		$supported_post_ids[] = $this_raw_post_id;
+
+		// Resolve coverage status before requiring fields that excluded rows do not use.
+		if ( ! isset( $raw_post['post_status'] ) || ! is_string( $raw_post['post_status'] ) ) {
+			return ai4seo_record_posts_table_analysis_failure( 157804629, $this_raw_post_id, 'post_status' );
+		}
+
+		$eligible_statuses = $is_post_type ? array( 'publish', 'future' ) : array( 'publish', 'future', 'inherit' );
+
+		if ( ! in_array( $raw_post['post_status'], $eligible_statuses, true ) ) {
+			continue;
+		}
+
+		// MIME limits apply only to media; metadata post types do not depend on this column.
+		if ( ! $is_post_type ) {
+			if ( ! isset( $raw_post['post_mime_type'] ) || ! is_string( $raw_post['post_mime_type'] ) ) {
+				return ai4seo_record_posts_table_analysis_failure( 157804629, $this_raw_post_id, 'post_mime_type' );
+			}
+
+			if ( ! in_array( $raw_post['post_mime_type'], $allowed_attachment_mime_types, true ) ) {
+				continue;
+			}
+		}
+
+		// Coverage candidates need valid authors and dates before applying their configured filters.
+		if ( false === ai4seo_normalize_option_post_id( $raw_post['post_author'] ?? null, true ) ) {
+			return ai4seo_record_posts_table_analysis_failure( 157804629, $this_raw_post_id, 'post_author' );
 		}
 
 		foreach ( $post_date_keys as $this_post_date_key ) {
-			$this_post_date = $raw_post[ $this_post_date_key ];
+			$this_post_date = $raw_post[ $this_post_date_key ] ?? null;
 
 			if ( ! is_string( $this_post_date )
 				|| ( '0000-00-00 00:00:00' !== $this_post_date && ! ai4seo_is_valid_mysql_datetime( $this_post_date ) ) ) {
@@ -1275,25 +1659,18 @@ function ai4seo_perform_posts_table_analysis( int $posts_table_analysis_last_pos
 					);
 				}
 
-				return false;
+				return ai4seo_record_posts_table_analysis_failure( 608325741, $this_raw_post_id, $this_post_date_key );
 			}
 		}
 
-		if ( $this_raw_post_id <= $previous_post_id ) {
-			if ( $debug ) {
-				ai4seo_debug_message( 943170586, esc_html( __FUNCTION__ ) . ' > Posts-table batch IDs are not strictly increasing. Post ID: ' . esc_html( $this_raw_post_id ) );
-			}
-
-			return false;
-		}
-
-		$raw_post_ids[]   = $this_raw_post_id;
-		$previous_post_id = $this_raw_post_id;
+		// The classification pass reuses this eligibility result while counting generated data separately.
+		$coverage_candidate_post_id_lookup[ $this_raw_post_id ] = true;
 	}
 
-	// read generated data post ids.
+	// Unsupported records never need generated-data reads, even when they contain malformed metadata.
 	$generated_data_read_succeeded      = false;
-	$generated_data_all_post_ids        = ai4seo_read_generated_data_post_ids_by_post_ids( $raw_post_ids, $generated_data_read_succeeded, $debug );
+	$generated_data_failure             = array();
+	$generated_data_all_post_ids        = ai4seo_read_generated_data_post_ids_by_post_ids( $supported_post_ids, $generated_data_read_succeeded, $debug, $generated_data_failure );
 	$generated_data_post_ids            = array();
 	$generated_data_attachment_post_ids = array();
 
@@ -1302,7 +1679,11 @@ function ai4seo_perform_posts_table_analysis( int $posts_table_analysis_last_pos
 			ai4seo_debug_message( 381962704, esc_html( __FUNCTION__ ) . ' > Generated-data batch read failed.' );
 		}
 
-		return false;
+		return ai4seo_record_posts_table_analysis_failure(
+			$generated_data_failure['code'] ?? 381962704,
+			$generated_data_failure['post_id'] ?? 0,
+			'ai4seo_generated_data'
+		);
 	}
 
 	// Resolve the same date-filter state used by queue excavation and content-list eligibility.
@@ -1310,8 +1691,6 @@ function ai4seo_perform_posts_table_analysis( int $posts_table_analysis_last_pos
 
 	// PRE-FILTER POSTS & SEPARATE ATTACHMENTS.
 
-	$supported_post_types                = ai4seo_get_supported_post_types();
-	$supported_attachment_post_types     = ai4seo_get_supported_attachment_post_types();
 	$disabled_post_author_ids            = ai4seo_get_disabled_post_author_ids();
 	$disabled_post_author_ids            = array_flip( $disabled_post_author_ids );
 	$disabled_attachment_post_author_ids = ai4seo_get_disabled_attachment_post_author_ids();
@@ -1330,7 +1709,7 @@ function ai4seo_perform_posts_table_analysis( int $posts_table_analysis_last_pos
 	if ( $disabled_taxonomy_terms ) {
 		$disabled_taxonomy_read_succeeded      = false;
 		$post_ids_with_disabled_taxonomy_terms = ai4seo_get_post_ids_excluded_by_disabled_taxonomy_terms(
-			$raw_post_ids,
+			$supported_post_ids,
 			$disabled_taxonomy_terms,
 			null,
 			$disabled_taxonomy_read_succeeded
@@ -1341,7 +1720,7 @@ function ai4seo_perform_posts_table_analysis( int $posts_table_analysis_last_pos
 				ai4seo_debug_message( 526819403, esc_html( __FUNCTION__ ) . ' > Disabled-taxonomy exclusion read failed.' );
 			}
 
-			return false;
+			return ai4seo_record_posts_table_analysis_failure( 526819403 );
 		}
 
 		$post_ids_with_disabled_taxonomy_terms = array_flip( $post_ids_with_disabled_taxonomy_terms );
@@ -1373,6 +1752,11 @@ function ai4seo_perform_posts_table_analysis( int $posts_table_analysis_last_pos
 
 			if ( $is_attachment_post_type && in_array( $this_post_id, $generated_data_all_post_ids, true ) ) {
 				$generated_data_attachment_post_ids[ $this_post_id ] = $this_post_type;
+			}
+
+			// Reuse the first pass's status and MIME checks before applying the remaining coverage filters.
+			if ( ! isset( $coverage_candidate_post_id_lookup[ $this_post_id ] ) ) {
+				continue;
 			}
 
 			// Apply the exact > / <= boundary contract used by the prepared queue queries.
@@ -1410,11 +1794,6 @@ function ai4seo_perform_posts_table_analysis( int $posts_table_analysis_last_pos
 					continue;
 				}
 
-				// skip if not status publish or future.
-				if ( ! in_array( $this_raw_post['post_status'], array( 'publish', 'future' ), true ) ) {
-					continue;
-				}
-
 				$posts[ $this_post_id ] = $this_raw_post;
 			} elseif ( $is_attachment_post_type ) {
 				if ( $is_disabled_attachment_attributes_wpml_language ) {
@@ -1422,16 +1801,6 @@ function ai4seo_perform_posts_table_analysis( int $posts_table_analysis_last_pos
 				}
 
 				if ( $disabled_attachment_post_author_ids && isset( $disabled_attachment_post_author_ids[ (int) $this_raw_post['post_author'] ] ) ) {
-					continue;
-				}
-
-				// skip if not status publish, future or inherit.
-				if ( ! in_array( $this_raw_post['post_status'], array( 'publish', 'future', 'inherit' ), true ) ) {
-					continue;
-				}
-
-				// check mime type.
-				if ( ! in_array( $this_raw_post['post_mime_type'], $allowed_attachment_mime_types, true ) ) {
 					continue;
 				}
 
@@ -1445,9 +1814,8 @@ function ai4seo_perform_posts_table_analysis( int $posts_table_analysis_last_pos
 
 	// PREPARE.
 
-	// get last $raw_posts entry.
-	$last_raw_post          = end( $raw_posts );
-	$last_processed_post_id = (int) $last_raw_post['ID'];
+	// The first pass retained the final physical ID, including rows excluded from every coverage bucket.
+	$last_processed_post_id = $last_validated_post_id;
 
 	unset( $raw_posts ); // free memory.
 
@@ -1497,7 +1865,7 @@ function ai4seo_perform_posts_table_analysis( int $posts_table_analysis_last_pos
 				ai4seo_debug_message( 709458126, esc_html( __FUNCTION__ ) . ' > Required metadata status-option read failed.' );
 			}
 
-			return false;
+			return ai4seo_record_posts_table_analysis_failure( 709458126 );
 		}
 
 		$processing_post_ids                           = $metadata_status_post_ids_by_option[ AI4SEO_PROCESSING_METADATA_POST_IDS_OPTION_NAME ];
@@ -1518,7 +1886,7 @@ function ai4seo_perform_posts_table_analysis( int $posts_table_analysis_last_pos
 				ai4seo_debug_message( 264975831, esc_html( __FUNCTION__ ) . ' > Metadata coverage read failed.' );
 			}
 
-			return false;
+			return ai4seo_record_posts_table_analysis_failure( 264975831 );
 		}
 
 		foreach ( $percentage_of_available_metadata_by_post_ids as $this_post_id => $this_percentage ) {
@@ -1574,7 +1942,7 @@ function ai4seo_perform_posts_table_analysis( int $posts_table_analysis_last_pos
 				ai4seo_debug_message( 817236490, esc_html( __FUNCTION__ ) . ' > Attachment coverage read failed.' );
 			}
 
-			return false;
+			return ai4seo_record_posts_table_analysis_failure( 817236490 );
 		}
 
 		$attachment_status_options_read_succeeded = false;
@@ -1595,7 +1963,7 @@ function ai4seo_perform_posts_table_analysis( int $posts_table_analysis_last_pos
 				ai4seo_debug_message( 135790864, esc_html( __FUNCTION__ ) . ' > Required attachment status-option read failed.' );
 			}
 
-			return false;
+			return ai4seo_record_posts_table_analysis_failure( 135790864 );
 		}
 
 		$num_total_attachment_attributes_fields          = ai4seo_get_active_num_attachment_attributes();
@@ -1657,7 +2025,9 @@ function ai4seo_perform_posts_table_analysis( int $posts_table_analysis_last_pos
 			$new_post_ids_by_option,
 			$generation_status_post_ids_to_add,
 			$last_processed_post_id,
-			$debug
+			$debug,
+			$num_raw_posts,
+			$posts_table_analysis_last_post_id
 		)
 	) {
 		return false;
@@ -3283,84 +3653,15 @@ function ai4seo_rebuild_generation_status_summary(): bool {
 		return false;
 	}
 
-	$restart_required = 'required' === $rebuild_state;
-
-	if (
-		$restart_required
-		&& ! ai4seo_update_environmental_variable(
-			AI4SEO_ENVIRONMENTAL_VARIABLE_GENERATION_STATUS_SUMMARY_REBUILD_STATE,
-			'processing',
-			false
-		)
-	) {
-		return false;
-	}
-
-	if ( $restart_required ) {
-		$analysis_succeeded = ai4seo_force_posts_table_analysis_refresh( false, true );
-	} else {
-		$analysis_succeeded = ai4seo_try_start_posts_table_analysis( false, false, true );
-	}
+	// Keep forced cron continuation while dashboard recovery obeys the common worker's request throttle.
+	$analysis_succeeded = ai4seo_try_start_posts_table_analysis( false, false, wp_doing_cron() );
 
 	if ( ! $analysis_succeeded ) {
-		$latest_rebuild_state = ai4seo_read_environmental_variable(
-			AI4SEO_ENVIRONMENTAL_VARIABLE_GENERATION_STATUS_SUMMARY_REBUILD_STATE,
-			false
-		);
-
-		if (
-			'required' !== $latest_rebuild_state
-			&& ! ai4seo_update_environmental_variable(
-				AI4SEO_ENVIRONMENTAL_VARIABLE_GENERATION_STATUS_SUMMARY_REBUILD_STATE,
-				'required',
-				false
-			)
-		) {
-			return false;
-		}
-
+		// An unavailable lock returns before the worker finalizer; retain a cron continuation in that case too.
 		ai4seo_schedule_generation_status_summary_rebuild( false );
-		return false;
 	}
 
-	$latest_rebuild_state = ai4seo_read_environmental_variable(
-		AI4SEO_ENVIRONMENTAL_VARIABLE_GENERATION_STATUS_SUMMARY_REBUILD_STATE,
-		false
-	);
-
-	// A late source mutation requested a fresh pass while this bounded run was active.
-	if ( 'required' === $latest_rebuild_state ) {
-		return ai4seo_schedule_generation_status_summary_rebuild( false );
-	}
-
-	$analysis_state = ai4seo_read_environmental_variable(
-		AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_STATE,
-		false
-	);
-
-	if ( 'completed' === $analysis_state ) {
-		$completion_state = '';
-
-		if ( ! ai4seo_complete_generation_status_summary_rebuild_state( $completion_state ) ) {
-			return false;
-		}
-
-		// A source mutation that won the completion CAS needs another bounded pass.
-		if ( 'required' === $completion_state ) {
-			return ai4seo_schedule_generation_status_summary_rebuild( false );
-		}
-
-		return true;
-	}
-
-	// Large sites resume the same reset pass instead of restarting from zero on every cron event.
-	if ( 'processing' !== $latest_rebuild_state ) {
-		if ( ! ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_GENERATION_STATUS_SUMMARY_REBUILD_STATE, 'processing', false ) ) {
-			return false;
-		}
-	}
-
-	return ai4seo_schedule_generation_status_summary_rebuild( false );
+	return $analysis_succeeded;
 }
 
 
@@ -3603,15 +3904,17 @@ function ai4seo_remove_contradictory_post_ids_from_generation_status_summary( ar
 /**
  * Retrieve post IDs that have generated data stored in postmeta.
  *
- * @param array     $post_ids List of post IDs to check.
- * @param bool|null $read_succeeded Receives whether every authoritative read succeeded.
- * @param bool      $debug Whether diagnostic messages should be emitted for rejected storage.
+ * @param array      $post_ids List of post IDs to check.
+ * @param bool|null  $read_succeeded Receives whether every authoritative read succeeded.
+ * @param bool       $debug Whether diagnostic messages should be emitted for rejected storage.
+ * @param array|null $failure Receives the diagnostic code and post ID for rejected generated data.
  * @return array Sanitized list of post IDs with generated data.
  */
-function ai4seo_read_generated_data_post_ids_by_post_ids( array $post_ids, ?bool &$read_succeeded = null, bool $debug = false ): array {
+function ai4seo_read_generated_data_post_ids_by_post_ids( array $post_ids, ?bool &$read_succeeded = null, bool $debug = false, ?array &$failure = null ): array {
 	global $wpdb;
 
 	$read_succeeded = false;
+	$failure        = array();
 
 	if ( empty( $post_ids ) ) {
 		$read_succeeded = true;
@@ -3720,6 +4023,12 @@ function ai4seo_read_generated_data_post_ids_by_post_ids( array $post_ids, ?bool
 			}
 
 			if ( isset( $seen_post_id_lookup[ $this_generated_data_post_id ] ) ) {
+				// Surface the exact conflicting record through the scanner's persisted diagnostic.
+				$failure = array(
+					'code'    => 408572136,
+					'post_id' => $this_generated_data_post_id,
+				);
+
 				if ( $debug ) {
 					ai4seo_debug_message(
 						408572136,
@@ -3735,12 +4044,19 @@ function ai4seo_read_generated_data_post_ids_by_post_ids( array $post_ids, ?bool
 			$this_generated_data_details                         = array();
 			$this_generated_data_repair_required                 = false;
 
-			// Decode before coverage publication so unsupported rows still fail the entire source read.
+			// Validate supported content before publication; unrelated fields do not contribute to coverage.
 			if ( ! ai4seo_decode_generated_data_postmeta_value_authoritatively(
 				$this_generated_data_row['meta_value'],
 				$this_generated_data_details,
-				$this_generated_data_repair_required
+				$this_generated_data_repair_required,
+				true
 			) ) {
+				// Keep malformed relevant data identifiable without changing the existing repair policy.
+				$failure = array(
+					'code'    => 746205318,
+					'post_id' => $this_generated_data_post_id,
+				);
+
 				if ( $debug ) {
 					ai4seo_debug_message(
 						746205318,
@@ -3842,6 +4158,7 @@ function ai4seo_reset_posts_table_analysis( bool $analysis_lock_is_held = false 
 				array(
 					AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_LAST_POST_ID => 0,
 					AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_STATE        => 'idle',
+					AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_PROGRESS     => array(),
 				),
 				false
 			);
@@ -3856,7 +4173,16 @@ function ai4seo_reset_posts_table_analysis( bool $analysis_lock_is_held = false 
 
 				// Publish the empty pair only after every authoritative source and progress write was verified.
 				$reset_succeeded = ai4seo_persist_generation_status_summary( $generation_status_summary );
+
+				// Identify the reset phase separately from the coordinator's overall reset diagnostic.
+				if ( ! $reset_succeeded ) {
+					ai4seo_debug_message( 890174623, 'Analysis reset failed while publishing the empty generation-status summary pair.', true );
+				}
+			} else {
+				ai4seo_debug_message( 890174622, 'Analysis reset failed while clearing the cursor, lifecycle state, and progress.', true );
 			}
+		} else {
+			ai4seo_debug_message( 890174621, 'Analysis reset failed while clearing or verifying coverage source options.', true );
 		}
 	} finally {
 		if ( $lock_acquired_here ) {

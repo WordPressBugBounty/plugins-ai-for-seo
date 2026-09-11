@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 // Centralize plugin identity and asset-cache declarations consumed throughout bootstrap.
-const AI4SEO_PLUGIN_VERSION_NUMBER              = '2.5.3';
+const AI4SEO_PLUGIN_VERSION_NUMBER              = '2.5.4';
 const AI4SEO_PLUGIN_NAME                        = 'SOOZ - AI for SEO';
 const AI4SEO_SHORT_PLUGIN_NAME                  = 'SOOZ';
 const AI4SEO_PLUGIN_DESCRIPTION                 = 'One-Click SEO solution. *SOOZ - AI for SEO* helps your website to rank higher in Web Search results.';
@@ -234,6 +234,20 @@ const AI4SEO_METADATA_KEYWORDS_RECOMMENDED_MAX_ITEMS = 10;
  */
 function ai4seo_get_change_log(): array {
 	return array(
+		array(
+			'date'      => '2026-09-11',
+			'version'   => '2.5.4',
+			'important' => false,
+			'updates'   => array(
+				'Improved metadata saving with clearer recovery guidance and retained edits when saving or refreshing a connected SEO editor fails.',
+				'Improved SEO coverage analysis with progress reporting, reliable recovery after interruptions, and accurate history for partially generated entries.',
+				'Improved image selection in WordPress and Elementor media dialogs so generation controls follow the selected image when opening or reopening a dialog.',
+				'Improved metadata and media editors on small screens, with clearer guidance for empty fields and shared Facebook and WhatsApp previews.',
+				'Added a three-step welcome for new installations that stays dismissed and does not reappear on established sites after updates.',
+				'Added a Help tool to inspect saved generated data when troubleshooting, with readable output for long entries.',
+				'Bug Fixes & Maintenance: Fixed 2 minor bugs and implemented 1 performance improvement.',
+			),
+		),
 		array(
 			'date'      => '2026-09-08',
 			'version'   => '2.5.3',
@@ -1787,13 +1801,45 @@ add_action(
 );
 
 const AI4SEO_NOTIFICATION_AUTO_DISMISS_DAYS          = 7;
+const AI4SEO_WELCOME_NOTIFICATION_INDEX              = 'first-install-welcome';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_CACHE_TTL_SUFFIX = '__ttl_time';
+
+// These exact legacy options are recognized by tidy-up; their presence rules out fresh enrollment.
+const AI4SEO_WELCOME_LEGACY_HISTORY_OPTIONS = array(
+	'_ai4seo_current_credits_balance',
+	'_ai4seo_last_cronjob_call',
+	'_ai4seo_last_cronjob_call_for_ai4seo_automated_generation_cron_job',
+	'_ai4seo_last_cronjob_call_for_ai4seo_automated_metadata_generation',
+	'_ai4seo_licence_key_shown',
+	'_ai4seo_num_already_filled_post_ids_by_post_type',
+	'_ai4seo_num_existing_going_to_fill_this_post_ids_by_post_type',
+	'_ai4seo_num_failed_to_fill_post_ids_by_post_type',
+	'_ai4seo_num_posts_not_filled_by_post_type',
+	'_ai4seo_num_processing_metadata_post_ids_by_post_type',
+	'_ai4seo_performance_notice_dismissed_timestamp',
+	'_ai4seo_plugin_activation_time',
+	'_ai4seo_robhub_credits_balance',
+	'_ai4seo_robhub_last_credit_balance_check',
+	'_ai4seo_version',
+	'ai4seo_already_filled_attributes_attachment_post_ids',
+	'ai4seo_already_filled_metadata_post_ids',
+	'ai4seo_already_filled_post_ids',
+	'ai4seo_failed_to_fill_attributes_attachment_post_ids',
+	'ai4seo_failed_to_fill_metadata_post_ids',
+	'ai4seo_failed_to_fill_post_ids',
+	'ai4seo_is_automation_activated_for_pages',
+	'ai4seo_is_automation_activated_for_posts',
+	'ai4seo_is_automation_activated_for_products',
+	'ai4seo_missing_seo_data_post_ids',
+	'ai4seo_robhub_auth_data',
+);
 
 
 // endregion _________________________________________________________________________________ \\
 // region ENVIRONMENTAL VARIABLES ==============================================================================.
 
 const AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_KNOWN_PLUGIN_VERSION                             = 'last_known_plugin_version';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_WELCOME_NOTIFICATION_STATE                            = 'welcome_notification_state';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_ATTACHMENT_BASE64_RECOVERY_STREAK                     = 'attachment_base64_recovery_streak';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_CRON_JOB_CALL                                    = 'last_cronjob_call';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_SPECIFIC_CRON_JOB_CALLS                          = 'last_specific_cronjob_call';
@@ -1822,6 +1868,7 @@ const AI4SEO_ENVIRONMENTAL_VARIABLE_JUST_PURCHASED_SOMETHING_TIME               
 const AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_LOW_CREDITS_FIRST_OCCURRENCE_TIME           = 'payg_low_credits_first_occurrence_time';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_LOW_CREDITS_LAST_SYNC_TIME                  = 'payg_low_credits_last_sync_time';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_LAST_POST_ID                = 'posts_table_analysis_last_post_id';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_PROGRESS                    = 'posts_table_analysis_progress';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_STATE                       = 'posts_table_analysis_state';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_START_TIME                  = 'posts_table_analysis_start_time';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_LAST_CORE_RUN_TIME          = 'posts_table_analysis_last_core_run_time';
@@ -1834,13 +1881,14 @@ const AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_PROCESSED_ENT
 const AI4SEO_ENVIRONMENTAL_VARIABLE_SUPPORTED_POST_TYPES_CACHE                       = 'supported_post_types_cache';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_AVAILABLE_POST_AUTHORS_CACHE                     = 'available_post_authors_cache';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_SUPPORTED_TAXONOMY_TERMS_CACHE                   = 'supported_taxonomy_terms_cache';
-const AI4SEO_ENVIRONMENTAL_VARIABLE_ATTACHMENT_ID_LOOKUP_CACHE                       = 'attachment_id_lookup_cache';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_ATTACHMENT_ID_LOOKUP_CACHE                       = 'attachment_id_lookup_cache_v2'; // Retire keys altered by legacy filename sanitization.
 const AI4SEO_ENVIRONMENTAL_VARIABLE_NEXTGEN_PICTURE_PIDS_CACHE                       = 'nextgen_picture_pids_cache';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_NEXTGEN_IMPORTED_IMAGES_COUNT_CACHE              = 'nextgen_imported_images_count_cache';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_MAX_POST_ID_CACHE                                = 'max_post_id_cache';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_CLAIMED_FEEDBACK_OFFER                           = 'claimed_feedback_offer';
 
 const AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES = array(
+	AI4SEO_ENVIRONMENTAL_VARIABLE_WELCOME_NOTIFICATION_STATE => 'unknown',
 	AI4SEO_ENVIRONMENTAL_VARIABLE_ATTACHMENT_BASE64_RECOVERY_STREAK => 0,
 	AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_KNOWN_PLUGIN_VERSION => '0.0.0',
 	AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_CRON_JOB_CALL       => 0,
@@ -1870,6 +1918,7 @@ const AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES = array(
 	AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_LOW_CREDITS_FIRST_OCCURRENCE_TIME => 0,
 	AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_LOW_CREDITS_LAST_SYNC_TIME => 0,
 	AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_LAST_POST_ID => 0,
+	AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_PROGRESS => array(),
 	AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_STATE => 'idle',
 	AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_START_TIME => 0,
 	AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_LAST_CORE_RUN_TIME => 0,

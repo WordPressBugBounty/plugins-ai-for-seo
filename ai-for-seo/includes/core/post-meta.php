@@ -172,12 +172,14 @@ function ai4seo_canonicalize_legacy_generated_data_field_aliases( array $generat
  * @param mixed     $raw_value Raw database meta_value.
  * @param array     $generated_data_details Receives normalized generated-data details.
  * @param bool|null $repair_required Receives whether obsolete storage fields require persistence repair.
+ * @param bool      $ignore_unsupported_fields Ignore unused field values for analysis without authorizing their deletion.
  * @return bool True only for a supported JSON or legacy serialized array value.
  */
 function ai4seo_decode_generated_data_postmeta_value_authoritatively(
 	$raw_value,
 	array &$generated_data_details,
-	?bool &$repair_required = null
+	?bool &$repair_required = null,
+	bool $ignore_unsupported_fields = false
 ): bool {
 	$generated_data_details = array();
 	$repair_required        = false;
@@ -232,7 +234,16 @@ function ai4seo_decode_generated_data_postmeta_value_authoritatively(
 			continue;
 		}
 
-		if ( ! in_array( $generated_data_key, $supported_generated_data_fields, true )
+		// Accounting reads and strict validation share the same supported-field boundary.
+		$is_supported_generated_data_field = in_array( $generated_data_key, $supported_generated_data_fields, true );
+		if ( $ignore_unsupported_fields && ! $is_supported_generated_data_field ) {
+			// Count only supported content and preserve the original row, including any legacy fields.
+			unset( $generated_data[ $generated_data_key ], $generated_at_by_field[ $generated_data_key ] );
+			$repair_required = false;
+			continue;
+		}
+
+		if ( ! $is_supported_generated_data_field
 			|| ! is_string( $generated_data_value )
 			|| ai4seo_prepare_generated_data_field_value( $generated_data_key, $generated_data_value ) !== $generated_data_value
 		) {
@@ -246,6 +257,15 @@ function ai4seo_decode_generated_data_postmeta_value_authoritatively(
 	}
 
 	foreach ( $generated_at_by_field as $generated_field => $generated_timestamp ) {
+		if ( $ignore_unsupported_fields && is_string( $generated_field ) && '' !== $generated_field
+			&& sanitize_key( $generated_field ) === $generated_field
+			&& ! in_array( $generated_field, $supported_generated_data_fields, true ) ) {
+			// Provenance for unsupported fields cannot influence supported-field accounting.
+			unset( $generated_at_by_field[ $generated_field ] );
+			$repair_required = false;
+			continue;
+		}
+
 		if ( ! is_string( $generated_field )
 			|| '' === $generated_field
 			|| sanitize_key( $generated_field ) !== $generated_field
@@ -268,6 +288,122 @@ function ai4seo_decode_generated_data_postmeta_value_authoritatively(
 		&& is_array( $generated_data_details['generated_data'] )
 		&& is_int( $generated_data_details['generated_at'] )
 		&& is_array( $generated_data_details['generated_at_by_field'] );
+}
+
+
+/**
+ * Logs a bounded, read-only inspection of generated-data storage for one post.
+ *
+ * Hexadecimal copies survive debug-log sanitization without losing source bytes.
+ * Validation uses the scanner's decoder without executing its persistent repairs.
+ *
+ * @param int $post_id Exact post ID selected by the administrator.
+ * @return array{success: bool, message: string} Diagnostic collection result.
+ */
+function ai4seo_debug_generated_data_postmeta( int $post_id ): array {
+	global $wpdb;
+
+	if ( ! ai4seo_can_administer_plugin() ) {
+		return array(
+			'success' => false,
+			'message' => __( 'You are not allowed to run debug operations.', 'ai-for-seo' ),
+		);
+	}
+
+	if ( $post_id <= 0 ) {
+		return array(
+			'success' => false,
+			'message' => __( 'Please enter a valid post ID.', 'ai-for-seo' ),
+		);
+	}
+
+	// Raw values may belong to unpublished content; never send them to upload files or other debug destinations.
+	if ( 'database' !== ai4seo_get_setting( AI4SEO_SETTING_DEBUG_OUTPUT_MODE ) ) {
+		return array(
+			'success' => false,
+			'message' => __( 'To inspect generated data, set Preferred debug output to Store in the database, save the debug settings, and try again.', 'ai-for-seo' ),
+		);
+	}
+
+	// Bound both duplicate rows and raw bytes before transferring possibly damaged storage into PHP.
+	$row_limit  = 5;
+	$byte_limit = 65536;
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Admin-requested raw diagnostics bypass decoding and stale caches; rows and bytes are bounded.
+	$rows = $wpdb->get_results(
+		$wpdb->prepare(
+			"SELECT meta_id, OCTET_LENGTH(meta_value) AS raw_bytes,
+			LEFT(CAST(meta_value AS BINARY), %d) AS raw_value
+			FROM {$wpdb->postmeta}
+			WHERE post_id = %d AND meta_key = %s
+			ORDER BY meta_id ASC LIMIT %d",
+			$byte_limit,
+			$post_id,
+			AI4SEO_POST_META_GENERATED_DATA_META_KEY,
+			$row_limit + 1
+		),
+		ARRAY_A
+	);
+
+	if ( $wpdb->last_error || ! is_array( $rows ) ) {
+		ai4seo_debug_message( 728451908, 'Generated-data inspection database read failed. Post ID: ' . $post_id, true );
+		return array(
+			'success' => false,
+			'message' => __( 'Could not read generated-data storage. Check the database connection and try again.', 'ai-for-seo' ),
+		);
+	}
+
+	$has_more_rows = count( $rows ) > $row_limit;
+	$rows          = array_slice( $rows, 0, $row_limit );
+	$report        = array(
+		'post_id'        => $post_id,
+		'meta_key'       => AI4SEO_POST_META_GENERATED_DATA_META_KEY, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Diagnostic label only; the actual query is restricted to one post ID.
+		'rows_returned'  => count( $rows ),
+		'has_more_rows'  => $has_more_rows,
+		'duplicate_rows' => count( $rows ) > 1,
+		'row_limit'      => $row_limit,
+		'byte_limit'     => $byte_limit,
+	);
+	$logged        = ai4seo_debug_message( 728451906, 'Generated-data inspection: ' . wp_json_encode( $report ) );
+
+	foreach ( $rows as $row ) {
+		$raw_value      = $row['raw_value'];
+		$raw_is_string  = is_string( $raw_value );
+		$captured_bytes = $raw_is_string ? strlen( $raw_value ) : 0;
+		$is_truncated   = $raw_is_string && (int) $row['raw_bytes'] > $captured_bytes;
+		$details        = array();
+		$needs_repair   = false;
+		$accepted       = $is_truncated ? null : ai4seo_decode_generated_data_postmeta_value_authoritatively( $raw_value, $details, $needs_repair, true );
+
+		// Retain the JSON parser's result separately: valid JSON can still violate the storage contract.
+		$json_error = 'SQL NULL: no stored string.';
+		if ( $raw_is_string ) {
+			json_decode( $raw_value, true );
+			$json_error = $is_truncated ? 'Not checked: value exceeds byte limit.' : json_last_error_msg();
+		}
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Invalid source UTF-8 must remain detectable; wp_json_encode would repair it. Hex retains the exact bytes.
+		$value_json = json_encode( $raw_value, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT );
+		$row_report = array(
+			'post_id'               => $post_id,
+			'meta_id'               => (int) $row['meta_id'],
+			'raw_bytes'             => $raw_is_string ? (int) $row['raw_bytes'] : null,
+			'captured_bytes'        => $captured_bytes,
+			'truncated'             => $is_truncated,
+			'decoder_accepted'      => $accepted,
+			'obsolete_field_repair' => true === $accepted ? $needs_repair : null,
+			'json_error'            => $json_error,
+			'raw_value_json'        => false === $value_json ? null : $value_json,
+			'raw_value_hex'         => $raw_is_string ? bin2hex( $raw_value ) : null,
+		);
+		$row_logged = ai4seo_debug_message( 728451907, 'Generated-data row inspection: ' . wp_json_encode( $row_report ) );
+		$logged     = $row_logged && $logged;
+	}
+
+	return array(
+		'success' => $logged,
+		'message' => $logged
+			? __( 'Generated-data diagnostics collected using the selected debug output. For database output, copy the Debug Message Log and send it to support. The report identifies any capture limits reached.', 'ai-for-seo' )
+			: __( 'Could not output all diagnostics. Set Preferred debug output to Store in the database, save the debug settings, and run this operation again.', 'ai-for-seo' ),
+	);
 }
 
 

@@ -102,6 +102,9 @@ if ( ai4seo_does_user_need_to_accept_tos_toc_and_pp() ) {
 	return;
 }
 
+// Capture install eligibility before analysis, activation, or migration writes become historical evidence.
+add_action( 'init', 'ai4seo_initialize_welcome_notification_state', 1 );
+
 // init cron jobs.
 add_action( 'init', 'ai4seo_init_cron_jobs' );
 

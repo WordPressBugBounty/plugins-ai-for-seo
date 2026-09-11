@@ -43,6 +43,9 @@ function ai4seo_get_debug_operations(): array {
 		'debug_combined_post_content'          => array(
 			'label' => __( 'Debug combined post content', 'ai-for-seo' ),
 		),
+		'debug_generated_data_postmeta'        => array(
+			'label' => __( 'Inspect generated data for a post', 'ai-for-seo' ),
+		),
 		'debug_posts_table_analysis'           => array(
 			'label' => __( 'Force posts table analysis refresh', 'ai-for-seo' ),
 		),
@@ -90,6 +93,7 @@ function ai4seo_render_debug_operation_completion_page( array $completion_page )
 	$auto_redirect_url = ! empty( $completion_page['auto_redirect_url'] ) && is_string( $completion_page['auto_redirect_url'] ) ? $completion_page['auto_redirect_url'] : '';
 	$debug_output      = ! empty( $completion_page['debug_output'] ) && is_string( $completion_page['debug_output'] ) ? $completion_page['debug_output'] : '';
 	$result_message    = ! empty( $result['message'] ) && is_scalar( $result['message'] ) ? sanitize_text_field( (string) $result['message'] ) : '';
+	$result_status     = isset( $result['status'] ) && is_string( $result['status'] ) ? $result['status'] : '';
 
 	echo "<div id='ai4seo-debug-operation-completion-page' class='ai4seo-debug-operation-completion-page' data-ai4seo-auto-redirect-url='" . esc_url( $auto_redirect_url ) . "'";
 	echo '>';
@@ -100,7 +104,15 @@ function ai4seo_render_debug_operation_completion_page( array $completion_page )
 		echo '</div>';
 	}
 
-	echo '<p><strong>' . esc_html__( 'Finished', 'ai-for-seo' ) . '</strong></p>';
+	// Analysis operations supply a specific outcome; unrelated diagnostics retain the Finished heading.
+	$analysis_headings = array(
+		'completed'  => __( 'Analysis complete', 'ai-for-seo' ),
+		'incomplete' => __( 'Analysis incomplete', 'ai-for-seo' ),
+		'deferred'   => __( 'Analysis deferred', 'ai-for-seo' ),
+		'failed'     => __( 'Analysis failed', 'ai-for-seo' ),
+	);
+	$heading           = $analysis_headings[ $result_status ] ?? __( 'Finished', 'ai-for-seo' );
+	echo '<p><strong>' . esc_html( $heading ) . '</strong></p>';
 
 	if ( '' !== $result_message ) {
 		echo '<p>' . esc_html( $result_message ) . '</p>';
@@ -309,13 +321,13 @@ function ai4seo_execute_debug_operation( string $operation, array $request ): ar
 
 		case 'analyze_cronjob':
 			// Run the analysis as a trusted manual debug action, including the heavy-DB override.
-			ai4seo_analyze_plugin_performance(
+			$analysis_succeeded = ai4seo_analyze_plugin_performance(
 				true, // Debug output.
 				true, // Force analysis throttles.
 				true, // Trusted admin mutation.
 				true, // Heavy DB operations debug override.
 			);
-			break;
+			return ai4seo_get_posts_table_analysis_debug_operation_result( $analysis_succeeded );
 
 		case 'force_tidyup':
 			// Reuse the existing tidy-up routine so this operation stays aligned with normal maintenance.
@@ -363,13 +375,26 @@ function ai4seo_execute_debug_operation( string $operation, array $request ): ar
 
 		case 'debug_posts_table_analysis':
 			// Run the posts-table refresh as a trusted manual debug action, including the heavy-DB override.
-			ai4seo_force_posts_table_analysis_refresh(
+			$analysis_succeeded = ai4seo_force_posts_table_analysis_refresh(
 				true, // Debug output.
 				true, // Force analysis throttles.
 				true, // Trusted admin mutation.
 				true, // Heavy DB operations debug override.
 			);
-			break;
+			return ai4seo_get_posts_table_analysis_debug_operation_result( $analysis_succeeded );
+
+		case 'debug_generated_data_postmeta':
+			// Require an exact positive ID so malformed input cannot inspect a different post.
+			$ai4seo_debug_post_id = ai4seo_normalize_database_id( $request['ai4seo_debug_operation_post_id'] ?? null );
+
+			if ( false === $ai4seo_debug_post_id ) {
+				return array(
+					'success' => false,
+					'message' => __( 'Please enter a valid post ID.', 'ai-for-seo' ),
+				);
+			}
+
+			return ai4seo_debug_generated_data_postmeta( $ai4seo_debug_post_id );
 
 		case 'read_generation_status_summary':
 			// Preserve the two old summary flags as nonce-protected form checkboxes.
@@ -483,12 +508,13 @@ function ai4seo_handle_debug_operation_request(): void {
 		exit;
 	}
 
-	// Store one short-lived result message so the hidden Help page can still show the outcome after the in-place return.
+	// Preserve the message and analysis outcome for the Help page after the in-place return.
 	set_transient(
 		ai4seo_get_debug_operation_result_transient_name(),
 		array(
 			'success' => ! empty( $result['success'] ),
 			'message' => sanitize_text_field( $result['message'] ?? '' ),
+			'status'  => in_array( $result['status'] ?? '', array( 'completed', 'incomplete', 'deferred', 'failed' ), true ) ? $result['status'] : '',
 		),
 		MINUTE_IN_SECONDS
 	);
@@ -2019,8 +2045,8 @@ foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_
 
 						echo "<hr class='ai4seo-form-item-divider'>";
 
-						// Post-content operations share one post ID field and server-side validation helper.
-						echo "<div class='ai4seo-form-item ai4seo-display-none ai4seo-debug-operation-field' data-ai4seo-operations='debug_condensed_post_content debug_combined_post_content' data-ai4seo-required='1'>";
+						// Post-specific operations share one required post ID field.
+						echo "<div class='ai4seo-form-item ai4seo-display-none ai4seo-debug-operation-field' data-ai4seo-operations='debug_condensed_post_content debug_combined_post_content debug_generated_data_postmeta' data-ai4seo-required='1'>";
 							echo "<label for='ai4seo_debug_operation_post_id'>";
 								echo esc_html__( 'Post ID:', 'ai-for-seo' );
 							echo '</label>';

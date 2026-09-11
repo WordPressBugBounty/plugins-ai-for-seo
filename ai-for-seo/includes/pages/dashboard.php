@@ -19,10 +19,14 @@ if ( ! ai4seo_can_use_plugin_content() ) {
 // === PREPARE =============================================================================== \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
-$ai4seo_current_utc_hour           = (int) ai4seo_gmdate( 'H' );
-$ai4seo_posts_table_analysis_state = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_STATE );
-$ai4seo_help_page_url              = ai4seo_get_subpage_url( 'help' );
-$ai4seo_can_administer_plugin      = ai4seo_can_administer_plugin();
+$ai4seo_current_utc_hour = (int) ai4seo_gmdate( 'H' );
+
+// Keep chart completion on the shared status while preserving the chart renderer's existing state input.
+$ai4seo_posts_table_analysis_status = ai4seo_get_posts_table_analysis_status();
+$ai4seo_posts_table_analysis_state  = 'completed' === $ai4seo_posts_table_analysis_status['status'] ? 'completed' : 'idle';
+
+$ai4seo_help_page_url         = ai4seo_get_subpage_url( 'help' );
+$ai4seo_can_administer_plugin = ai4seo_can_administer_plugin();
 
 
 // === EXECUTE BULK GENERATION SOONER ======================================================== \\
@@ -256,19 +260,16 @@ if ( $ai4seo_all_supported_post_types || $ai4seo_statistics_filter_labels ) {
 
 	echo "<div class='card ai4seo-card ai4seo-fully-centered-card ai4seo-three-column-card ai4seo-dashboard-statistics-card'>";
 
-		// data shown might be incomplete, if the posts table analysis is not completed yet -> hint.
+	// Explain incomplete statistics without animating intentional pauses or recorded failures.
 	if ( 'completed' !== $ai4seo_posts_table_analysis_state ) {
 		echo "<div class='ai4seo-dashboard-posts-table-analysis-not-completed-hint'>";
-			ai4seo_echo_wp_kses( ai4seo_get_svg_tag( 'gear', '', 'ai4seo-spinning-icon' ) );
+			ai4seo_echo_wp_kses( ai4seo_get_svg_tag( 'gear', '', 'incomplete' === $ai4seo_posts_table_analysis_status['status'] ? 'ai4seo-spinning-icon' : '' ) );
 			echo ' ';
-			printf(
-				/* translators: %s: plugin name */
-				esc_html__( '%s is currently analyzing your pages and media files. Please wait.', 'ai-for-seo' ),
-				esc_html( AI4SEO_PLUGIN_NAME )
-			);
+			echo esc_html( $ai4seo_posts_table_analysis_status['message'] );
 		echo '</div>';
 
-		if ( ! $ai4seo_heavy_db_operations_disabled ) {
+		// Fast refresh is useful only while another bounded analysis attempt can make progress.
+		if ( ! $ai4seo_heavy_db_operations_disabled && 'incomplete' === $ai4seo_posts_table_analysis_status['status'] ) {
 			echo "<div id='ai4seo-no-dashboard-refresh-delay'></div>";
 		}
 	}
@@ -667,18 +668,15 @@ if ( $ai4seo_is_robhub_account_synced ) {
 			echo esc_html__( 'Auto Queue Entries is disabled and the queue is empty. Add entries to the queue manually from the Posts or Media lists so SEO Autopilot can continue.', 'ai-for-seo' );
 		echo '</div>';
 	} elseif ( 'completed' !== $ai4seo_posts_table_analysis_state ) {
+		// Autopilot waits on the same analysis outcome shown above the coverage charts.
 		echo "<img src='" . esc_url( ai4seo_get_sooz_logo_url( '256x256' ) ) . "' alt='" . esc_attr__( 'SEO Autopilot is active, but it is currently waiting for the analysis tasks to finish.', 'ai-for-seo' ) . "' class='ai4seo-bulk-generation-status-active-logo'>";
 
 		echo "<div class='ai4seo-bulk-generation-status-text'>";
-		echo esc_html__( 'Analyzing...', 'ai-for-seo' );
+			echo 'incomplete' === $ai4seo_posts_table_analysis_status['status'] ? esc_html__( 'Analyzing...', 'ai-for-seo' ) : esc_html__( 'Analysis needs attention', 'ai-for-seo' );
 		echo '</div>';
 
 		echo "<div class='ai4seo-bulk-generation-status-subtext'>";
-			printf(
-				/* translators: %s: plugin name */
-				esc_html__( '%s is analyzing your pages and media files. Please wait until the analysis is complete.', 'ai-for-seo' ),
-				esc_html( AI4SEO_PLUGIN_NAME )
-			);
+			echo esc_html( $ai4seo_posts_table_analysis_status['message'] );
 		echo '</div>';
 	} elseif ( isset( $ai4seo_total_num_pending_posts ) && 0 === $ai4seo_total_num_pending_posts ) {
 		echo "<img src='" . esc_url( ai4seo_get_sooz_logo_url( '256x256' ) ) . "' alt='" . esc_attr__( 'SEO Autopilot is active but idling', 'ai-for-seo' ) . "' class='ai4seo-bulk-generation-status-active-logo'>";

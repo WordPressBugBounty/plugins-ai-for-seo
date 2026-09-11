@@ -344,6 +344,8 @@ function ai4seo_get_legacy_active_metadata_database_query_bindings(): array {
 		return array();
 	}
 
+	// Read and reset queries apply this expression to utf8mb4 text with utf8mb4_bin collation.
+	// Keep those operands aligned so MySQL REGEXP support and case-sensitive ownership stay consistent.
 	$query_bindings = array(
 		'postmeta_table'    => ai4seo_database_identifier_binding( 'table.postmeta' ),
 		'legacy_key_regexp' => ai4seo_database_scalar_binding( '%s', '^_ai4seo_[0-9]+_.+$' ),
@@ -623,18 +625,21 @@ function ai4seo_decode_active_metadata_postmeta_value_authoritatively( string $r
  * Missing storage is a successful empty snapshot. Duplicate rows, malformed JSON, and database
  * failures fail closed so a merge can never be based on an arbitrary or cached predecessor.
  *
- * @param int       $post_id Post ID.
- * @param bool|null $read_succeeded Receives whether exact storage and decoding were authoritative.
+ * @param int         $post_id Post ID.
+ * @param bool|null   $read_succeeded Receives whether exact storage and decoding were authoritative.
+ * @param string|null $failure_reason Stable reason when storage cannot be read.
  * @return array{exists: bool, meta_id: int, raw_value: string, active_metadata: array}
  */
 function ai4seo_read_authoritative_active_metadata_postmeta_snapshot(
 	int $post_id,
-	?bool &$read_succeeded = null
+	?bool &$read_succeeded = null,
+	?string &$failure_reason = null
 ): array {
 	global $wpdb;
 
 	$post_id        = absint( $post_id );
 	$read_succeeded = false;
+	$failure_reason = 'invalid_post';
 	$empty_snapshot = array(
 		'exists'          => false,
 		'meta_id'         => 0,
@@ -662,26 +667,39 @@ function ai4seo_read_authoritative_active_metadata_postmeta_snapshot(
 		)
 	);
 
+	$failure_reason = 'query_prepare_failed';
 	if ( false === $query ) {
 		return $empty_snapshot;
 	}
 
 	$wpdb->last_error = '';
 
-	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed compiler owns this bounded exact-row read, which intentionally bypasses possibly stale postmeta caches.
-	$rows = $wpdb->get_results( $query, ARRAY_A );
+	$previous_suppress_errors = $wpdb->suppress_errors( true );
+	try {
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed compiler owns this bounded exact-row read, which intentionally bypasses possibly stale postmeta caches.
+		$rows = $wpdb->get_results( $query, ARRAY_A );
+	} catch ( Throwable $throwable ) {
+		$failure_reason = 'storage_read_exception';
+		ai4seo_record_metadata_save_diagnostic( 984321737, 'storage_read', $failure_reason, array( 'post_id' => $post_id ), $throwable );
+		return $empty_snapshot;
+	} finally {
+		$wpdb->suppress_errors( $previous_suppress_errors );
+	}
 
+	$failure_reason = 'database_read_failed';
 	if ( $wpdb->last_error ) {
-		ai4seo_debug_message( 984321737, 'Database error during authoritative active metadata read: ' . $wpdb->last_error, true );
+		ai4seo_record_metadata_save_diagnostic( 984321737, 'storage_read', $failure_reason, array( 'post_id' => $post_id ) );
 		return $empty_snapshot;
 	}
 
 	if ( ! is_array( $rows ) || count( $rows ) > 1 ) {
+		$failure_reason = is_array( $rows ) ? 'duplicate_rows' : 'invalid_read_result';
 		return $empty_snapshot;
 	}
 
 	if ( ! $rows ) {
 		$read_succeeded = true;
+		$failure_reason = '';
 		return $empty_snapshot;
 	}
 
@@ -698,10 +716,12 @@ function ai4seo_read_authoritative_active_metadata_postmeta_snapshot(
 		|| ! is_string( $row['meta_value'] )
 		|| ! ai4seo_decode_active_metadata_postmeta_value_authoritatively( $row['meta_value'], $active_metadata )
 	) {
+		$failure_reason = 'invalid_metadata_shape';
 		return $empty_snapshot;
 	}
 
 	$read_succeeded = true;
+	$failure_reason = '';
 
 	return array(
 		'exists'          => true,
@@ -906,6 +926,7 @@ function ai4seo_save_active_metadata_to_postmeta(
 	$operation_details = array(
 		'commit_state'            => 'not_committed',
 		'active_metadata_changed' => false,
+		'failure_reason'          => 'write_not_verified',
 	);
 	$post_id           = absint( $post_id );
 
@@ -952,10 +973,12 @@ function ai4seo_save_active_metadata_to_postmeta(
 		if ( ai4seo_is_database_advisory_lock_owned_by_current_connection( $lock_name )
 			|| ! ai4seo_acquire_database_advisory_lock( $lock_name )
 		) {
+			$operation_details['failure_reason'] = 'lock_unavailable';
 			return false;
 		}
 	} catch ( Throwable $throwable ) {
-		ai4seo_debug_message( 984321740, 'Could not acquire the active-metadata postmeta advisory lock: ' . $throwable->getMessage(), true );
+		$operation_details['failure_reason'] = 'lock_exception';
+		$operation_details['diagnostic']     = ai4seo_record_metadata_save_diagnostic( 984321740, 'storage_lock', 'lock_exception', array( 'post_id' => $post_id ), $throwable );
 		return false;
 	}
 
@@ -968,7 +991,7 @@ function ai4seo_save_active_metadata_to_postmeta(
 	try {
 		for ( $write_attempt = 0; $write_attempt < 3; ++$write_attempt ) {
 			$read_succeeded = false;
-			$snapshot       = ai4seo_read_authoritative_active_metadata_postmeta_snapshot( $post_id, $read_succeeded );
+			$snapshot       = ai4seo_read_authoritative_active_metadata_postmeta_snapshot( $post_id, $read_succeeded, $operation_details['failure_reason'] );
 
 			if ( ! $read_succeeded ) {
 				break;
@@ -1031,6 +1054,7 @@ function ai4seo_save_active_metadata_to_postmeta(
 			$wpdb->last_error         = '';
 			$write_result             = false;
 			$database_error           = '';
+			$write_exception          = null;
 
 			try {
 				if ( ! empty( $snapshot['exists'] ) ) {
@@ -1051,7 +1075,8 @@ function ai4seo_save_active_metadata_to_postmeta(
 
 				$database_error = (string) $wpdb->last_error;
 			} catch ( Throwable $throwable ) {
-				$database_error = $throwable->getMessage();
+				// Retain the original hook failure while readback still decides whether the write actually persisted.
+				$write_exception = $throwable;
 			} finally {
 				$wpdb->suppress_errors( $previous_suppress_errors );
 				remove_action( 'added_post_meta', $capture_added_meta_id, PHP_INT_MAX );
@@ -1100,7 +1125,7 @@ function ai4seo_save_active_metadata_to_postmeta(
 						$desired_raw_value
 					);
 				} catch ( Throwable $throwable ) {
-					ai4seo_debug_message( 984321738, 'Active-metadata postmeta compensation could not be verified: ' . $throwable->getMessage(), true );
+					ai4seo_record_metadata_save_diagnostic( 984321738, 'compensation', 'compensation_exception', array( 'post_id' => $post_id ), $throwable );
 				}
 
 				if ( ! $compensation_succeeded ) {
@@ -1111,8 +1136,15 @@ function ai4seo_save_active_metadata_to_postmeta(
 				continue;
 			}
 
-			if ( '' !== $database_error ) {
-				ai4seo_debug_message( 984321702, 'Active-metadata postmeta write could not be verified: ' . $database_error, true );
+			if ( $write_exception || '' !== $database_error ) {
+				$operation_details['failure_reason'] = $write_exception ? 'storage_exception' : 'database_write_failed';
+				$operation_details['diagnostic']     = ai4seo_record_metadata_save_diagnostic(
+					984321702,
+					'storage_write',
+					$operation_details['failure_reason'],
+					array( 'post_id' => $post_id ),
+					$write_exception
+				);
 				break;
 			}
 
@@ -1121,18 +1153,22 @@ function ai4seo_save_active_metadata_to_postmeta(
 			}
 		}
 	} catch ( Throwable $throwable ) {
-		$write_may_have_committed = $write_may_have_committed || $write_was_attempted;
-		ai4seo_debug_message( 984321741, 'Active-metadata postmeta persistence could not be verified: ' . $throwable->getMessage(), true );
+		$write_may_have_committed            = $write_may_have_committed || $write_was_attempted;
+		$operation_details['failure_reason'] = 'storage_exception';
+		$operation_details['diagnostic']     = ai4seo_record_metadata_save_diagnostic( 984321741, 'storage_write', 'storage_exception', array( 'post_id' => $post_id ), $throwable );
 	} finally {
 		try {
 			$lock_released = ai4seo_release_database_advisory_lock( $lock_name );
 		} catch ( Throwable $throwable ) {
-			ai4seo_debug_message( 984321739, 'Could not release the active-metadata postmeta advisory lock: ' . $throwable->getMessage(), true );
+			$operation_details['diagnostic'] = ai4seo_record_metadata_save_diagnostic( 984321739, 'storage_release', 'release_exception', array( 'post_id' => $post_id ), $throwable );
 		}
 	}
 
 	if ( ! $lock_released ) {
-		ai4seo_debug_message( 984321739, 'Could not release the active-metadata postmeta advisory lock.', true );
+		$operation_details['failure_reason'] = 'release_failed';
+		if ( 'storage_release' !== ( $operation_details['diagnostic']['phase'] ?? '' ) ) {
+			$operation_details['diagnostic'] = ai4seo_record_metadata_save_diagnostic( 984321739, 'storage_release', 'release_failed', array( 'post_id' => $post_id ) );
+		}
 
 		if ( $save_succeeded || $write_may_have_committed ) {
 			$operation_details['commit_state'] = 'possibly_committed';
@@ -1143,6 +1179,7 @@ function ai4seo_save_active_metadata_to_postmeta(
 	}
 
 	if ( $save_succeeded ) {
+		$operation_details['failure_reason']          = '';
 		$operation_details['commit_state']            = 'committed';
 		$operation_details['active_metadata_changed'] = $authoritative_value_changed;
 		return true;
@@ -1181,6 +1218,7 @@ function ai4seo_read_legacy_active_metadata_migration_v235_candidate_post_ids( i
 		return array();
 	}
 
+	// REGEXP needs text operands on MySQL 8.0.22+; utf8mb4_bin preserves case-sensitive legacy ownership.
 	$query_bindings['limit'] = ai4seo_database_scalar_binding( '%d', $limit );
 	$query                   = ai4seo_prepare_database_query(
 		'SELECT DISTINCT post_id
@@ -1197,7 +1235,8 @@ function ai4seo_read_legacy_active_metadata_migration_v235_candidate_post_ids( i
 			meta_key LIKE {{legacy_pattern_8}} OR
 			meta_key LIKE {{legacy_pattern_9}}
 		)
-		AND BINARY meta_key REGEXP BINARY {{legacy_key_regexp}}
+		AND CONVERT(meta_key USING utf8mb4) COLLATE utf8mb4_bin
+			REGEXP CONVERT({{legacy_key_regexp}} USING utf8mb4)
 		LIMIT {{limit}}',
 		$query_bindings
 	);
@@ -1302,7 +1341,8 @@ function ai4seo_read_legacy_active_metadata_by_post_ids( array $post_ids, ?bool 
 				meta_key LIKE {{legacy_pattern_8}} OR
 				meta_key LIKE {{legacy_pattern_9}}
 			)
-			AND BINARY meta_key REGEXP BINARY {{legacy_key_regexp}}
+			AND CONVERT(meta_key USING utf8mb4) COLLATE utf8mb4_bin
+				REGEXP CONVERT({{legacy_key_regexp}} USING utf8mb4)
 			AND post_id IN ({{post_ids}})
 			ORDER BY meta_id ASC',
 			$this_query_bindings
@@ -1423,7 +1463,8 @@ function ai4seo_delete_legacy_active_metadata_for_post_ids( array $post_ids ): b
 				meta_key LIKE {{legacy_pattern_8}} OR
 				meta_key LIKE {{legacy_pattern_9}}
 			)
-			AND BINARY meta_key REGEXP BINARY {{legacy_key_regexp}}
+			AND CONVERT(meta_key USING utf8mb4) COLLATE utf8mb4_bin
+				REGEXP CONVERT({{legacy_key_regexp}} USING utf8mb4)
 			AND post_id IN ({{post_ids}})',
 			$this_query_bindings
 		);
@@ -1436,7 +1477,7 @@ function ai4seo_delete_legacy_active_metadata_for_post_ids( array $post_ids ): b
 		$delete_result = $wpdb->query( $delete_query );
 
 		if ( false === $delete_result || $wpdb->last_error ) {
-			ai4seo_debug_message( 984321699, 'Database error: ' . $wpdb->last_error, true );
+			ai4seo_record_metadata_save_diagnostic( 984321699, 'legacy_cleanup', 'database_delete_failed' );
 			return false;
 		}
 
@@ -1486,7 +1527,8 @@ function ai4seo_delete_all_legacy_active_metadata(): bool {
 			meta_key LIKE {{legacy_pattern_8}} OR
 			meta_key LIKE {{legacy_pattern_9}}
 		)
-		AND BINARY meta_key REGEXP BINARY {{legacy_key_regexp}}',
+		AND CONVERT(meta_key USING utf8mb4) COLLATE utf8mb4_bin
+			REGEXP CONVERT({{legacy_key_regexp}} USING utf8mb4)',
 		$query_bindings
 	);
 
@@ -1535,7 +1577,8 @@ function ai4seo_delete_all_legacy_active_metadata(): bool {
 				meta_key LIKE {{legacy_pattern_8}} OR
 				meta_key LIKE {{legacy_pattern_9}}
 			)
-			AND BINARY meta_key REGEXP BINARY {{legacy_key_regexp}}
+			AND CONVERT(meta_key USING utf8mb4) COLLATE utf8mb4_bin
+				REGEXP CONVERT({{legacy_key_regexp}} USING utf8mb4)
 			AND meta_id > {{meta_id_cursor}}
 			AND meta_id <= {{high_water_meta_id}}
 			ORDER BY meta_id ASC
@@ -1609,7 +1652,8 @@ function ai4seo_delete_all_legacy_active_metadata(): bool {
 				meta_key LIKE {{legacy_pattern_8}} OR
 				meta_key LIKE {{legacy_pattern_9}}
 			)
-			AND BINARY meta_key REGEXP BINARY {{legacy_key_regexp}}
+			AND CONVERT(meta_key USING utf8mb4) COLLATE utf8mb4_bin
+				REGEXP CONVERT({{legacy_key_regexp}} USING utf8mb4)
 			AND meta_id IN ({{meta_ids}})',
 			$this_delete_bindings
 		);
@@ -1646,7 +1690,8 @@ function ai4seo_delete_all_legacy_active_metadata(): bool {
 			meta_key LIKE {{legacy_pattern_8}} OR
 			meta_key LIKE {{legacy_pattern_9}}
 		)
-		AND BINARY meta_key REGEXP BINARY {{legacy_key_regexp}}
+		AND CONVERT(meta_key USING utf8mb4) COLLATE utf8mb4_bin
+			REGEXP CONVERT({{legacy_key_regexp}} USING utf8mb4)
 		LIMIT 1',
 		$query_bindings
 	);
@@ -2995,7 +3040,7 @@ function ai4seo_save_manual_editor_values_with_generation_fence(
 		try {
 			return ai4seo_renew_bulk_generation_processing_claim( $context, $post_id, $processing_claim_token );
 		} catch ( Throwable $throwable ) {
-			ai4seo_debug_message( 418620947, 'Could not verify durable manual-editor generation ownership: ' . $throwable->getMessage(), true );
+			ai4seo_record_metadata_save_diagnostic( 418620947, 'generation_fence', 'ownership_exception', array( 'post_id' => $post_id ), $throwable );
 			return false;
 		}
 	};
@@ -3010,7 +3055,7 @@ function ai4seo_save_manual_editor_values_with_generation_fence(
 				$discard_prior_queue_intent
 			);
 		} catch ( Throwable $throwable ) {
-			ai4seo_debug_message( 418620948, 'Could not release durable manual-editor generation ownership: ' . $throwable->getMessage(), true );
+			ai4seo_record_metadata_save_diagnostic( 418620948, 'generation_fence', 'release_exception', array( 'post_id' => $post_id ), $throwable );
 			return false;
 		}
 	};
@@ -3018,7 +3063,7 @@ function ai4seo_save_manual_editor_values_with_generation_fence(
 		try {
 			return ai4seo_schedule_generation_status_summary_rebuild();
 		} catch ( Throwable $throwable ) {
-			ai4seo_debug_message( 418620950, 'Could not schedule manual-editor generation-summary repair: ' . $throwable->getMessage(), true );
+			ai4seo_record_metadata_save_diagnostic( 418620950, 'generation_fence', 'repair_scheduling_exception', array(), $throwable );
 			return false;
 		}
 	};
@@ -3062,7 +3107,10 @@ function ai4seo_save_manual_editor_values_with_generation_fence(
 		try {
 			$operation_details['persistence_succeeded'] = (bool) call_user_func( $persistence_callback );
 		} catch ( Throwable $throwable ) {
-			ai4seo_debug_message( 418620945, 'Manual editor persistence failed while generation ownership was held: ' . $throwable->getMessage(), true );
+			$diagnostic = ai4seo_record_metadata_save_diagnostic( 418620945, 'persistence', 'unexpected_exception', array( 'post_id' => $post_id ), $throwable );
+			if ( $has_structured_persistence_details ) {
+				$persistence_details['diagnostic'] = $diagnostic;
+			}
 		}
 
 		if ( $operation_details['persistence_succeeded'] ) {
@@ -3156,7 +3204,7 @@ function ai4seo_save_manual_editor_values_with_generation_fence(
 					$operation_details['release_succeeded']  = $operation_details['coverage_succeeded'];
 				}
 			} catch ( Throwable $throwable ) {
-				ai4seo_debug_message( 418620949, 'Could not commit manual-editor coverage under durable generation ownership: ' . $throwable->getMessage(), true );
+				ai4seo_record_metadata_save_diagnostic( 418620949, 'generation_fence', 'coverage_exception', array( 'post_id' => $post_id ), $throwable );
 			}
 
 			if ( ! $operation_details['coverage_succeeded'] ) {
@@ -4265,6 +4313,8 @@ function ai4seo_did_post_meta_update_reach_requested_state(
 	$prev_value = '',
 	array $previous_meta_values = array()
 ): bool {
+	global $wpdb;
+
 	// Match update_post_meta() by evaluating revision writes against their parent post.
 	$revision_parent_post_id = wp_is_post_revision( $post_id );
 
@@ -4276,12 +4326,26 @@ function ai4seo_did_post_meta_update_reach_requested_state(
 	wp_cache_delete( $post_id, 'post_meta' );
 
 	// Compare against the value after the same metadata sanitization WordPress applies during persistence.
-	$meta_key             = wp_unslash( $meta_key );
-	$meta_subtype         = get_object_subtype( 'post', $post_id );
-	$expected_meta_value  = sanitize_meta( $meta_key, $meta_value, 'post', $meta_subtype );
-	$expected_comparison  = ai4seo_normalize_post_meta_value_for_comparison( $expected_meta_value );
-	$latest_meta_values   = get_post_meta( $post_id, $meta_key, false );
-	$latest_meta_values   = is_array( $latest_meta_values ) ? $latest_meta_values : array();
+	$meta_key            = wp_unslash( $meta_key );
+	$meta_subtype        = get_object_subtype( 'post', $post_id );
+	$expected_meta_value = sanitize_meta( $meta_key, $meta_value, 'post', $meta_subtype );
+	$expected_comparison = ai4seo_normalize_post_meta_value_for_comparison( $expected_meta_value );
+
+	// A read failure must remain distinct from a confirmed missing key, especially when verifying a clear.
+	$previous_suppress_errors = $wpdb->suppress_errors( true );
+	$wpdb->last_error         = '';
+	try {
+		$latest_meta_values = get_post_meta( $post_id, $meta_key, false );
+		$read_failed        = ! empty( $wpdb->last_error ) || ! is_array( $latest_meta_values );
+	} finally {
+		$wpdb->suppress_errors( $previous_suppress_errors );
+	}
+
+	if ( $read_failed ) {
+		return false;
+	}
+
+	// Compare only successfully read values, including valid empty arrays from filter-backed storage.
 	$matching_value_count = 0;
 
 	// An unconstrained update must align every duplicate row, not merely find one matching row.
@@ -4408,15 +4472,16 @@ function ai4seo_update_post_meta( int $post_id, string $meta_key, $meta_value, $
 	$meta_value = wp_slash( $meta_value );
 
 	// Delegate the write to WordPress so metadata filters and short-circuits remain authoritative.
-	$update_result = update_post_meta( $post_id, $meta_key, $meta_value, $prev_value );
-
-	// Capture the operation error before restoring the caller's database error-display preference.
-	$database_error_occurred = ! empty( $wpdb->last_error );
-
-	$wpdb->suppress_errors( $previous_suppress_errors );
+	try {
+		$update_result = update_post_meta( $post_id, $meta_key, $meta_value, $prev_value );
+		// Capture this operation before another query or hook can replace its error state.
+		$database_error_occurred = ! empty( $wpdb->last_error );
+	} finally {
+		$wpdb->suppress_errors( $previous_suppress_errors );
+	}
 
 	if ( $database_error_occurred ) {
-		ai4seo_debug_message( 984321662, 'Database error during update_post_meta: ' . $wpdb->last_error, true );
+		ai4seo_record_metadata_save_diagnostic( 984321662, 'provider_write', 'database_write_failed', array( 'post_id' => $post_id ) );
 		return false;
 	}
 
@@ -4866,6 +4931,94 @@ function ai4seo_prepare_generated_output_fields_for_save(
 
 
 /**
+ * Record bounded metadata diagnostics without allowing logging to affect persistence.
+ *
+ * @param int            $code Existing error code, or zero for an unlogged request identity.
+ * @param string         $phase Operation phase.
+ * @param string         $reason Stable failure reason.
+ * @param array          $context Allowlisted identifiers only, never submitted content.
+ * @param Throwable|null $throwable Optional original exception; its message and arguments are omitted.
+ * @return array Public diagnostic identity without internal file or stack details.
+ */
+function ai4seo_record_metadata_save_diagnostic( int $code, string $phase, string $reason, array $context = array(), ?Throwable $throwable = null ): array {
+	// Correlate every phase of one request and prevent failures in the logger from recursively logging themselves.
+	static $request_id = '';
+	static $is_logging = false;
+
+	// Build the public identity without WordPress filters so a broken sanitizer cannot replace the original failure.
+	$diagnostic = array(
+		'request_id' => $request_id,
+		'code'       => $code,
+		'phase'      => substr( preg_replace( '/[^a-z0-9_\-]/', '', strtolower( $phase ) ), 0, 64 ),
+		'reason'     => substr( preg_replace( '/[^a-z0-9_\-]/', '', strtolower( $reason ) ), 0, 64 ),
+	);
+
+	// Guard every hook-capable operation, including request identity initialization.
+	if ( $is_logging ) {
+		return $diagnostic;
+	}
+
+	$is_logging = true;
+	try {
+		if ( '' === $request_id ) {
+			// The fallback is only a correlation label, never an authentication or authorization token.
+			$request_id               = uniqid( 'ai4seo_', true );
+			$diagnostic['request_id'] = $request_id;
+			$request_id               = wp_generate_uuid4();
+		}
+		$diagnostic['request_id'] = $request_id;
+
+		// Successful responses need the same request identity but must not create a debug entry.
+		if ( 0 === $code ) {
+			return $diagnostic;
+		}
+
+		// Allowlist identifiers so submitted metadata, SQL, and exception messages never enter automatic diagnostics.
+		$log = $diagnostic;
+		foreach ( array( 'post_id', 'provider', 'field', 'state' ) as $key ) {
+			if ( isset( $context[ $key ] ) && is_scalar( $context[ $key ] ) ) {
+				$log[ $key ] = substr( sanitize_key( (string) $context[ $key ] ), 0, 96 );
+			}
+		}
+
+		// Keep the original exception's origin and bounded call chain instead of the logger's own stack.
+		if ( $throwable ) {
+			$log['exception_class'] = substr( get_class( $throwable ), 0, 160 );
+			// Relative source locations identify the responsible plugin without disclosing server paths.
+			$source_root = wp_normalize_path( ABSPATH );
+			$frames      = array_merge(
+				array(
+					array(
+						'file' => $throwable->getFile(),
+						'line' => $throwable->getLine(),
+					),
+				),
+				array_slice( $throwable->getTrace(), 0, 7 )
+			);
+			foreach ( $frames as $frame ) {
+				$file           = wp_normalize_path( $frame['file'] ?? '' );
+				$log['trace'][] = array(
+					'file'     => substr( 0 === strpos( $file, $source_root ) ? substr( $file, strlen( $source_root ) ) : basename( $file ), 0, 240 ),
+					'line'     => absint( $frame['line'] ?? 0 ),
+					'function' => substr( ( $frame['class'] ?? '' ) . ( $frame['type'] ?? '' ) . ( $frame['function'] ?? '' ), 0, 160 ),
+				);
+			}
+		}
+
+		// Use the existing debug-mode controls and storage rather than introducing a separate logging channel.
+		ai4seo_debug_message( $code, 'Metadata save: ' . wp_json_encode( $log ) );
+	} catch ( Throwable $logging_error ) {
+		// No fallback output: another broken hook or database must not corrupt the AJAX response.
+		unset( $logging_error );
+	} finally {
+		$is_logging = false;
+	}
+
+	return $diagnostic;
+}
+
+
+/**
  * Updates active metadata and synchronizes configured third-party SEO integrations.
  *
  * @param int        $post_id                 Post ID.
@@ -4887,6 +5040,8 @@ function ai4seo_update_active_metadata(
 		'third_party_sync_succeeded' => true,
 		'failed_third_party_syncs'   => array(),
 		'commit_state'               => 'not_committed',
+		'diagnostics'                => array(),
+		'warnings'                   => array(),
 	);
 
 	if ( ! defined( 'AI4SEO_METADATA_DETAILS' ) ) {
@@ -4968,6 +5123,7 @@ function ai4seo_update_active_metadata(
 
 		// Synchronize integrations first because an intentional non-overwrite skip controls SOOZ precedence.
 		$this_third_party_sync_may_have_committed = false;
+		$this_sync_diagnostics                    = array();
 
 		try {
 			$this_third_party_sync_result = ai4seo_update_third_party_seo_plugins_metadata(
@@ -4975,7 +5131,8 @@ function ai4seo_update_active_metadata(
 				$this_metadata_identifier,
 				$this_new_metadata_value,
 				$overwrite_this_metadata_field,
-				$this_third_party_sync_may_have_committed
+				$this_third_party_sync_may_have_committed,
+				$this_sync_diagnostics
 			);
 		} finally {
 			$third_party_sync_may_have_committed = $third_party_sync_may_have_committed
@@ -4985,6 +5142,7 @@ function ai4seo_update_active_metadata(
 				$operation_details['commit_state'] = 'possibly_committed';
 			}
 		}
+		$operation_details['diagnostics'] = array_merge( $operation_details['diagnostics'], $this_sync_diagnostics );
 
 		// Remember any successful integration write so the frontend cache is purged once after the loop.
 		if ( $this_third_party_sync_result['sync_reached_requested_state'] ) {
@@ -5050,18 +5208,36 @@ function ai4seo_update_active_metadata(
 			: 'possibly_committed';
 
 		if ( $active_metadata_succeeded ) {
-			$operation_details['commit_state']        = 'committed';
-			$legacy_active_metadata_cleanup_succeeded = ai4seo_delete_legacy_active_metadata_for_post_ids( array( $post_id ) );
+			$operation_details['commit_state'] = 'committed';
+			try {
+				$legacy_active_metadata_cleanup_succeeded = ai4seo_delete_legacy_active_metadata_for_post_ids( array( $post_id ) );
+			} catch ( Throwable $throwable ) {
+				$legacy_active_metadata_cleanup_succeeded = false;
+				$operation_details['diagnostics'][]       = ai4seo_record_metadata_save_diagnostic( 984321699, 'legacy_cleanup', 'cleanup_exception', array( 'post_id' => $post_id ), $throwable );
+			}
+			if ( ! $legacy_active_metadata_cleanup_succeeded ) {
+				$operation_details['warnings'][]    = __( 'Metadata was saved, but obsolete SOOZ data could not be cleaned up.', 'ai-for-seo' );
+				$operation_details['diagnostics'][] = ai4seo_record_metadata_save_diagnostic( 984321699, 'legacy_cleanup', 'cleanup_failed', array( 'post_id' => $post_id ) );
+			}
 		} elseif ( 'possibly_committed' === $active_metadata_commit_state
 			&& 'committed' !== $operation_details['commit_state']
 		) {
 			$operation_details['commit_state'] = 'possibly_committed';
+		}
+		if ( ! $active_metadata_succeeded ) {
+			$operation_details['diagnostic'] = $active_metadata_operation_details['diagnostic'] ?? ai4seo_record_metadata_save_diagnostic(
+				3518161025,
+				'storage',
+				! empty( $active_metadata_operation_details['failure_reason'] ) ? $active_metadata_operation_details['failure_reason'] : 'write_not_verified',
+				array( 'post_id' => $post_id )
+			);
 		}
 	}
 
 	// Expose persistence separately from integration synchronization while retaining the legacy Boolean return.
 	$operation_details['active_metadata_succeeded']  = $active_metadata_succeeded;
 	$operation_details['third_party_sync_succeeded'] = $third_party_sync_succeeded;
+	$operation_details['legacy_cleanup_succeeded']   = $legacy_active_metadata_cleanup_succeeded;
 
 	foreach ( $operation_details['failed_third_party_syncs'] as $failed_plugin_identifier => $failed_metadata_identifiers ) {
 		$operation_details['failed_third_party_syncs'][ $failed_plugin_identifier ] = array_values( array_unique( $failed_metadata_identifiers ) );
@@ -5074,10 +5250,15 @@ function ai4seo_update_active_metadata(
 		|| $third_party_sync_reached_requested_state
 	) {
 		// Cache integrations are optional, so their exceptions must not change persistence results.
+		$cache_diagnostics = array();
 		try {
-			ai4seo_purge_frontend_cache_for_post( $post_id );
-		} catch ( Exception $e ) {
-			ai4seo_debug_message( 1908261200, 'Frontend cache purge failed after metadata persistence: ' . $e->getMessage(), true );
+			ai4seo_purge_frontend_cache_for_post( $post_id, $cache_diagnostics );
+		} catch ( Throwable $throwable ) {
+			$cache_diagnostics[] = ai4seo_record_metadata_save_diagnostic( 1908261200, 'cache', 'cache_exception', array( 'post_id' => $post_id ), $throwable );
+		}
+		if ( $cache_diagnostics ) {
+			$operation_details['warnings'][]  = __( 'Metadata was saved, but a cache could not be refreshed. Public pages may still show older values.', 'ai-for-seo' );
+			$operation_details['diagnostics'] = array_merge( $operation_details['diagnostics'], $cache_diagnostics );
 		}
 	}
 
@@ -5807,8 +5988,11 @@ function ai4seo_update_one_third_party_seo_plugin_metadata(
 				$metadata_value
 			);
 		} else {
-			$postmeta_write_result                                  = ai4seo_build_third_party_seo_plugin_metadata_write_result( true );
-			$postmeta_write_result['write_succeeded']               = ai4seo_update_post_meta( $post_id, $third_party_postmeta_key, $metadata_value );
+			$postmeta_write_result                    = ai4seo_build_third_party_seo_plugin_metadata_write_result( true );
+			$postmeta_write_result['write_succeeded'] = ai4seo_update_post_meta( $post_id, $third_party_postmeta_key, $metadata_value );
+			// Verify through WordPress so filter-backed storage remains supported as well as ordinary rows.
+			$postmeta_write_result['write_succeeded']               = $postmeta_write_result['write_succeeded']
+				&& ai4seo_did_post_meta_update_reach_requested_state( $post_id, $third_party_postmeta_key, $metadata_value );
 			$postmeta_write_result['write_reached_requested_state'] = $postmeta_write_result['write_succeeded'];
 		}
 	} finally {
@@ -5849,11 +6033,12 @@ function ai4seo_update_one_third_party_seo_plugin_metadata(
 /**
  * Updates configured third-party SEO plugins and reports synchronization details.
  *
- * @param int       $post_id                 Post ID.
- * @param string    $metadata_identifier     Metadata identifier.
- * @param string    $metadata_value          Metadata value.
- * @param bool      $overwrite_existing_data Whether existing data should be overwritten.
- * @param bool|null $sync_may_have_committed Receives whether any configured provider write was attempted or interrupted.
+ * @param int        $post_id                 Post ID.
+ * @param string     $metadata_identifier     Metadata identifier.
+ * @param string     $metadata_value          Metadata value.
+ * @param bool       $overwrite_existing_data Whether existing data should be overwritten.
+ * @param bool|null  $sync_may_have_committed Receives whether any configured provider write was attempted or interrupted.
+ * @param array|null $diagnostics Receives safe diagnostic identities for individual provider failures.
  * @return array{skip_own_metadata: bool, sync_attempted: bool, sync_succeeded: bool, sync_reached_requested_state: bool, failed_plugin_identifiers: array}
  */
 function ai4seo_update_third_party_seo_plugins_metadata(
@@ -5861,9 +6046,11 @@ function ai4seo_update_third_party_seo_plugins_metadata(
 	string $metadata_identifier,
 	string $metadata_value,
 	bool $overwrite_existing_data,
-	?bool &$sync_may_have_committed = null
+	?bool &$sync_may_have_committed = null,
+	?array &$diagnostics = null
 ): array {
 	$sync_may_have_committed = false;
+	$diagnostics             = array();
 
 	// Default to a successful no-op so inactive, deselected, and unsupported integrations remain neutral.
 	$sync_result = array(
@@ -5917,15 +6104,49 @@ function ai4seo_update_third_party_seo_plugins_metadata(
 		// Isolate each plugin outcome so later configured integrations still run after an ordinary write failure.
 		$prior_provider_may_have_committed = $sync_may_have_committed;
 		$sync_may_have_committed           = true;
-		$this_plugin_write_result          = ai4seo_update_one_third_party_seo_plugin_metadata(
-			$post_id,
-			$this_third_party_seo_plugin_identifier,
-			$this_third_party_seo_plugin_details,
-			$metadata_identifier,
-			$metadata_value,
-			$overwrite_existing_data
-		);
-		$sync_may_have_committed           = $prior_provider_may_have_committed
+		$previous_diagnostic_count         = count( $diagnostics );
+		try {
+			$this_plugin_write_result = ai4seo_update_one_third_party_seo_plugin_metadata(
+				$post_id,
+				$this_third_party_seo_plugin_identifier,
+				$this_third_party_seo_plugin_details,
+				$metadata_identifier,
+				$metadata_value,
+				$overwrite_existing_data
+			);
+		} catch ( Throwable $throwable ) {
+			$this_plugin_write_result = ai4seo_build_third_party_seo_plugin_metadata_write_result( true );
+			$diagnostics[]            = ai4seo_record_metadata_save_diagnostic(
+				418620945,
+				'provider',
+				'provider_exception',
+				array(
+					'post_id'  => $post_id,
+					'provider' => $this_third_party_seo_plugin_identifier,
+					'field'    => $metadata_identifier,
+				),
+				$throwable
+			);
+			// A thrown after-write hook may already have committed; never retry or roll it back here.
+			try {
+				$provider_key = $this_third_party_seo_plugin_details['generation-field-postmeta-keys'][ $metadata_identifier ];
+				if ( in_array( $this_third_party_seo_plugin_identifier, array( AI4SEO_THIRD_PARTY_PLUGIN_YOAST_SEO, AI4SEO_THIRD_PARTY_PLUGIN_RANK_MATH ), true ) ) {
+					$this_plugin_write_result['write_reached_requested_state'] = ai4seo_did_post_meta_update_reach_requested_state( $post_id, $provider_key, $metadata_value );
+				}
+			} catch ( Throwable $read_error ) {
+				$diagnostics[] = ai4seo_record_metadata_save_diagnostic(
+					418620945,
+					'provider_read',
+					'read_exception',
+					array(
+						'post_id'  => $post_id,
+						'provider' => $this_third_party_seo_plugin_identifier,
+					),
+					$read_error
+				);
+			}
+		}
+		$sync_may_have_committed = $prior_provider_may_have_committed
 			|| $this_plugin_write_result['write_attempted']
 			|| $this_plugin_write_result['write_reached_requested_state'];
 
@@ -5946,6 +6167,18 @@ function ai4seo_update_third_party_seo_plugins_metadata(
 
 		// Aggregate failures without short-circuiting later configured integrations.
 		if ( ! $this_plugin_write_result['write_succeeded'] ) {
+			if ( count( $diagnostics ) === $previous_diagnostic_count ) {
+				$diagnostics[] = ai4seo_record_metadata_save_diagnostic(
+					3518161025,
+					'provider',
+					'provider_write_not_confirmed',
+					array(
+						'post_id'  => $post_id,
+						'provider' => $this_third_party_seo_plugin_identifier,
+						'field'    => $metadata_identifier,
+					)
+				);
+			}
 			$sync_result['sync_succeeded']              = false;
 			$sync_result['failed_plugin_identifiers'][] = sanitize_key( $this_third_party_seo_plugin_identifier );
 		}

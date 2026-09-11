@@ -1924,9 +1924,10 @@ function ai4seo_get_chart_legend_translation( string $legend_identifier ): strin
  *
  * @param string $target_checkbox_name Name of the entry checkboxes controlled by this checkbox.
  * @param string $label                Visible label, `auto` for the default, or empty for screen-reader-only text.
+ * @param string $group_label          Optional localized group context for the accessible name.
  * @return string
  */
-function ai4seo_get_select_all_checkbox( $target_checkbox_name, $label = 'auto' ): string {
+function ai4seo_get_select_all_checkbox( $target_checkbox_name, $label = 'auto', string $group_label = '' ): string {
 	// Resolve the helper's visible default before distinguishing compact table headers from labeled setting groups.
 	if ( 'auto' === $label ) {
 		$label = esc_html__( 'Select All / Unselect All', 'ai-for-seo' );
@@ -1936,18 +1937,26 @@ function ai4seo_get_select_all_checkbox( $target_checkbox_name, $label = 'auto' 
 	$select_all_checkbox_id      = "ai4seo-select-all-{$target_checkbox_name}";
 	$input_html                  = "<input type='checkbox' class='ai4seo-select-all-checkbox' data-target='" . esc_attr( $target_checkbox_name ) . "' id='" . esc_attr( $select_all_checkbox_id ) . "'>";
 	$is_label_screen_reader_only = empty( $label );
+	$group_label_html            = '';
+
+	// Keep the visible action compact while identifying its target when navigating controls by accessible name.
+	if ( '' !== $group_label ) {
+		/* translators: %s: checkbox group label appended to the select-all action. */
+		$group_label_html = "<span class='screen-reader-text'>" . esc_html( sprintf( __( ' — %s', 'ai-for-seo' ), $group_label ) ) . '</span>';
+	}
 
 	// Content tables pass an empty label to preserve their narrow header column while retaining an accessible control name.
 	if ( $is_label_screen_reader_only ) {
 		$label = esc_html__( 'Select All / Unselect All', 'ai-for-seo' );
 
-		return "<label class='screen-reader-text' for='" . esc_attr( $select_all_checkbox_id ) . "'>" . esc_html( $label ) . '</label>' . $input_html;
+		return "<label class='screen-reader-text' for='" . esc_attr( $select_all_checkbox_id ) . "'>" . esc_html( $label ) . $group_label_html . '</label>' . $input_html;
 	}
 
 	// Settings-style callers keep the existing wrapped label so the visible text and checkbox remain one pointer target.
 	$output  = "<label class='ai4seo-select-all-checkbox-label ai4seo-form-multiple-inputs' for='" . esc_attr( $select_all_checkbox_id ) . "'>";
 	$output .= $input_html;
 	$output .= esc_html( $label );
+	$output .= $group_label_html;
 	$output .= '</label>';
 
 	return $output;

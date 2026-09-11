@@ -4,7 +4,7 @@ Contributors: spacecodes
 Donate link: https://spa.ce.codes
 Requires at least: 6.6
 Tested up to: 7.1
-Stable tag: 2.5.3
+Stable tag: 2.5.4
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -225,6 +225,15 @@ It depends on how the generated data is stored and used. If *SOOZ - AI for SEO* 
 We welcome feature requests, editor integration ideas, page builder compatibility requests, and SEO workflow feedback. Please email [support@sooz.ai](mailto:support@sooz.ai) with your suggestions.
 
 == Changelog ==
+
+= 2.5.4 =
+* Improved metadata saving with clearer recovery guidance and retained edits when saving or refreshing a connected SEO editor fails.
+* Improved SEO coverage analysis with progress reporting, reliable recovery after interruptions, and accurate history for partially generated entries.
+* Improved image selection in WordPress and Elementor media dialogs so generation controls follow the selected image when opening or reopening a dialog.
+* Improved metadata and media editors on small screens, with clearer guidance for empty fields and shared Facebook and WhatsApp previews.
+* Added a three-step welcome for new installations that stays dismissed and does not reappear on established sites after updates.
+* Added a Help tool to inspect saved generated data when troubleshooting, with readable output for long entries.
+* Bug Fixes & Maintenance: Fixed 2 minor bugs and implemented 1 performance improvement.
 
 = 2.5.3 =
 * Added Settings search to find options by name or description, including advanced settings, without changing saved preferences.

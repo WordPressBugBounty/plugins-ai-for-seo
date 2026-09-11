@@ -1708,8 +1708,9 @@ function ai4seo_echo_notice_from_notification( string $notification_index, array
 		$show_generic_coupon_text = true;
 	}
 
+	// The welcome has one primary acknowledgement; other notices retain their duplicate corner control.
 	$is_image_only_notification      = ! $show_generic_coupon_text && ! $show_buttons_row;
-	$show_notice_dismiss_button      = $is_dismissable && ! $is_image_only_notification;
+	$show_notice_dismiss_button      = $is_dismissable && ! $is_image_only_notification && AI4SEO_WELCOME_NOTIFICATION_INDEX !== $notification_index;
 	$show_contact_us_info            = (bool) ( $notification['contact_us_info'] ?? ( $notification['contact_us'] ?? false ) );
 	$notice_class                    = $notification['notice_type'] ?? 'notice-info';
 	$is_unread                       = ! isset( $notification['read'] ) || ! $notification['read'];
@@ -1995,10 +1996,13 @@ function ai4seo_get_notification_buttons( string $notification_index, array $not
 
 	// dismiss / not now button.
 	if ( $show_dismiss_button || $show_not_now_button ) {
-		// dismiss button.
-		$notification_buttons .= '<button type="button" class="ai4seo-button ai4seo-abort-button ai4seo-notification-dismiss-button" data-notification-index="' . esc_attr( $notification_index ) . '" title="' . esc_attr__( 'Dismiss this notification', 'ai-for-seo' ) . '">';
+		// The welcome changes presentation only; the shared dismissal class keeps its existing action.
+		$dismiss_button_class  = AI4SEO_WELCOME_NOTIFICATION_INDEX === $notification_index ? 'ai4seo-primary-button' : 'ai4seo-abort-button';
+		$notification_buttons .= '<button type="button" class="ai4seo-button ' . esc_attr( $dismiss_button_class ) . ' ai4seo-notification-dismiss-button" data-notification-index="' . esc_attr( $notification_index ) . '" title="' . esc_attr__( 'Dismiss this notification', 'ai-for-seo' ) . '">';
 		if ( $show_not_now_button ) {
 			$notification_buttons .= esc_html__( 'Not now', 'ai-for-seo' );
+		} elseif ( AI4SEO_WELCOME_NOTIFICATION_INDEX === $notification_index ) {
+			$notification_buttons .= esc_html__( 'Got it!', 'ai-for-seo' );
 		} else {
 			$notification_buttons .= esc_html__( 'Dismiss', 'ai-for-seo' );
 		}
@@ -2701,6 +2705,91 @@ function ai4seo_check_for_new_notifications() {
 			ai4seo_abort_notification_mutation_batch( $notification_batch_scope );
 		}
 	}
+
+	// Welcome completion requires durable storage, so keep it outside the staged routine batch.
+	if ( $is_user_on_our_dashboard && ai4seo_get_site_options_request_cache_scope() === $notification_batch_scope ) {
+		ai4seo_check_for_welcome_notification();
+	}
+}
+
+
+/**
+ * Deliver a durably enrolled welcome once without replacing read or dismissed history.
+ *
+ * @return void
+ */
+function ai4seo_check_for_welcome_notification(): void {
+	// No writer may finalize pending eligibility against a staged notification batch or a gated user.
+	if ( ! ai4seo_can_administer_plugin() || ai4seo_does_user_need_to_accept_tos_toc_and_pp()
+		|| 'pending' !== ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_WELCOME_NOTIFICATION_STATE )
+		|| ai4seo_get_active_notification_mutation_batch_for_current_site() ) {
+		return;
+	}
+
+	// Confirm eligibility and notification membership together without trusting optimistic request state.
+	$scope     = ai4seo_get_site_options_request_cache_scope();
+	$snapshots = ai4seo_get_raw_option_snapshots( array( AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME, AI4SEO_NOTIFICATIONS_OPTION_NAME ) );
+	if ( null === $snapshots || '' === $scope || ai4seo_get_site_options_request_cache_scope() !== $scope ) {
+		return;
+	}
+
+	// The version milestone is written only after all required installation migrations succeed.
+	$environment = $snapshots[ AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME ]['value'];
+	if ( ! is_array( $environment )
+		|| 'pending' !== ( $environment[ AI4SEO_ENVIRONMENTAL_VARIABLE_WELCOME_NOTIFICATION_STATE ] ?? '' )
+		|| AI4SEO_PLUGIN_VERSION_NUMBER !== ( $environment[ AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_KNOWN_PLUGIN_VERSION ] ?? '' ) ) {
+		return;
+	}
+
+	// Unreadable history must not be repaired into permission to restart the welcome.
+	$notification_snapshot = $snapshots[ AI4SEO_NOTIFICATIONS_OPTION_NAME ];
+	if ( $notification_snapshot['exists'] && ! is_array( $notification_snapshot['value'] ) ) {
+		return;
+	}
+
+	// Even malformed history under this stable index is not permission to restart its lifecycle.
+	if ( ! array_key_exists( AI4SEO_WELCOME_NOTIFICATION_INDEX, $notification_snapshot['value'] ?? array() ) ) {
+		// Keep translated text escaped separately from trusted local emphasis and list markup.
+		$heading = sprintf(
+			/* translators: %s: Plugin name. */
+			__( 'Welcome to %s!', 'ai-for-seo' ),
+			AI4SEO_PLUGIN_NAME
+		);
+		$message  = '<strong>' . esc_html( $heading ) . '</strong><br><br>';
+		$message .= esc_html__( 'Start with these 3 steps:', 'ai-for-seo' ) . '<ol>';
+		$message .= '<li><strong>' . esc_html__( 'Get an overview', 'ai-for-seo' ) . '</strong>: ' . esc_html__( 'Check the Dashboard for content missing SEO data.', 'ai-for-seo' ) . '</li>';
+		$message .= '<li><strong>' . esc_html__( 'Give it a try', 'ai-for-seo' ) . '</strong>: ' . esc_html__( 'Generate metadata for a page or attributes for an image, then review the result.', 'ai-for-seo' ) . '</li>';
+		$message .= '<li><strong>' . esc_html__( 'Make it fit your needs', 'ai-for-seo' ) . '</strong>: ' . esc_html__( 'Adjust Settings as needed, then set up SEO Autopilot.', 'ai-for-seo' ) . '</li></ol>';
+		$message .= esc_html__( 'We’ve continuously optimized our AI prompts for 4 years for the best possible results. Customize AI generation with at least 35 Settings options, some under advanced settings or dependent on your plan and configuration.', 'ai-for-seo' );
+		$message .= '<br><br>' . esc_html__( 'Unclear or not working? Contact our agile support team — we usually reply within a few hours.', 'ai-for-seo' );
+
+		// Reuse the normal temporary lifecycle with no navigation or generation action fields.
+		if ( ! ai4seo_push_notification(
+			AI4SEO_WELCOME_NOTIFICATION_INDEX,
+			$message,
+			false,
+			array( 'notice_type' => 'notice-info' )
+		) ) {
+			return;
+		}
+
+		// A failed readback leaves a retry which recognizes the existing row on its next attempt.
+		$notification_snapshot = ai4seo_get_raw_option_snapshot( AI4SEO_NOTIFICATIONS_OPTION_NAME );
+		if ( null === $notification_snapshot || ! is_array( $notification_snapshot['value'] )
+			|| ! array_key_exists( AI4SEO_WELCOME_NOTIFICATION_INDEX, $notification_snapshot['value'] ) ) {
+			return;
+		}
+	}
+
+	// Finalize only pending state; concurrent terminal decisions must never be overwritten.
+	if ( ai4seo_get_site_options_request_cache_scope() === $scope ) {
+		ai4seo_mutate_environmental_variable_value(
+			AI4SEO_ENVIRONMENTAL_VARIABLE_WELCOME_NOTIFICATION_STATE,
+			static function ( $state ) {
+				return 'pending' === $state ? 'handled' : $state;
+			}
+		);
+	}
 }
 
 
@@ -2711,110 +2800,56 @@ function ai4seo_check_for_new_notifications() {
  * @return void
  */
 function ai4seo_check_for_unfinished_posts_table_analysis_notification( $force = false ) {
-	global $wpdb;
-
 	if ( ai4seo_prevent_loops( __FUNCTION__, 1, 5 ) ) {
 		return;
 	}
 
+	// Use the same authoritative status as the dashboard and troubleshooting result.
 	$notification_index = 'unfinished-posts-table-analysis';
+	$analysis           = ai4seo_get_posts_table_analysis_status();
 
-	$posts_table_analysis_state = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_STATE );
-
-	if ( 'completed' === $posts_table_analysis_state ) {
+	if ( 'completed' === $analysis['status'] ) {
 		ai4seo_remove_routine_notification( $notification_index );
 		return;
 	}
 
-	// if we have dismissed this notification before, we don't show it again.
+	// Preserve dismissal until a caller explicitly requests the notice again.
 	if ( ! $force && ai4seo_is_routine_notification_dismissed( $notification_index ) ) {
 		return;
 	}
 
-	$posts_table_analysis_last_post_id = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_LAST_POST_ID );
+	// The initial row count is a reference total; only exhausted scan bounds establish completion.
+	$message  = esc_html( $analysis['message'] );
+	$progress = $analysis['progress'];
 
-	// read last post id in posts table.
-	if ( ai4seo_is_environmental_variable_cache_available( AI4SEO_ENVIRONMENTAL_VARIABLE_MAX_POST_ID_CACHE ) ) {
-		$max_post_id_in_wp_posts_table = (int) ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_MAX_POST_ID_CACHE );
-	} else {
-		$max_post_id_query = ai4seo_prepare_database_query(
-			'SELECT MAX(ID) FROM {{posts_table}}',
-			array(
-				'posts_table' => ai4seo_database_identifier_binding( 'table.posts' ),
-			)
-		);
-
-		if ( false === $max_post_id_query ) {
-			ai4seo_debug_message( 984321698, 'Could not prepare the maximum post-ID query.', true );
-			return;
-		}
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler resolved the core table; this aggregate is retained in the one-hour environmental cache below.
-		$max_post_id_in_wp_posts_table = (int) $wpdb->get_var( $max_post_id_query );
-
-		if ( $wpdb->last_error ) {
-			ai4seo_debug_message( 984321698, 'Database error: ' . $wpdb->last_error, true );
-			return;
-		}
-
-		ai4seo_update_environmental_variable(
-			AI4SEO_ENVIRONMENTAL_VARIABLE_MAX_POST_ID_CACHE,
-			$max_post_id_in_wp_posts_table,
-			true,
-			HOUR_IN_SECONDS
+	if ( 1 === (int) ( $progress['version'] ?? 0 ) ) {
+		$examined_rows   = (int) $progress['examined_rows'];
+		$total_rows      = (int) $progress['total_rows'];
+		$percentage_done = $total_rows > 0 ? min( 99, (int) floor( 100 * ( $examined_rows / $total_rows ) ) ) : 0;
+		$message        .= '<br><br>';
+		$message        .= "<progress class='ai4seo-seo-coverage-progress-bar' value='" . esc_attr( $percentage_done ) . "' max='100'></progress> ";
+		$message        .= sprintf(
+			/* translators: 1: Progress percentage. 2: Rows examined. 3: Number of rows when this scan started. */
+			esc_html__( 'Progress: %1$s%% (%2$s rows examined; %3$s rows at the start of this scan).', 'ai-for-seo' ),
+			esc_html( ai4seo_format_number_i18n( $percentage_done ) ),
+			esc_html( ai4seo_format_number_i18n( $examined_rows ) ),
+			esc_html( ai4seo_format_number_i18n( $total_rows ) )
 		);
 	}
 
-	// calculate percentage done.
-	$percentage_done = 0;
+	// Keep intentional pauses distinct from failures while retaining the existing permanent notice.
+	$notice_type = 'failed' === $analysis['status'] ? 'notice-error' : 'notice-info';
 
-	if ( $max_post_id_in_wp_posts_table > 0 ) {
-		$percentage_done = round( ( $posts_table_analysis_last_post_id / $max_post_id_in_wp_posts_table ) * 100 );
+	if ( 'deferred' === $analysis['status'] ) {
+		$notice_type = 'notice-warning';
 	}
 
-	$message = sprintf(
-		/* translators: %s: plugin name */
-		esc_html__( 'Your pages and media files are being analyzed to improve SEO coverage statistics. This process helps %s identify which content needs AI optimization. Please wait until the analysis is complete.', 'ai-for-seo' ),
-		esc_html( AI4SEO_PLUGIN_NAME )
-	);
-
-	$message .= '<br><br>';
-
-	$message .= "<progress class='ai4seo-seo-coverage-progress-bar ai4seo-green-animated-progress-bar ai4seo-progress-bar-not-finished' value='" . esc_attr( $percentage_done ) . "' max='100'></progress>";
-
-	/* translators: %s: Percentage of posts table analysis completed. */
-	$message .= sprintf( esc_html__( 'Progress: %s%% completed', 'ai-for-seo' ), esc_html( ai4seo_format_number_i18n( $percentage_done ) ) );
-
-	// in smaller font the number of posts analyzed so far and max entries,
-	// also the estimated time remaining considering AI4SEO_POST_TABLE_ANALYSIS_BATCH_SIZE, AI4SEO_POST_TABLE_ANALYSIS_MAX_EXECUTION_TIME and AI4SEO_POST_TABLE_ANALYSIS_SLEEP_BETWEEN_RUNS.
-	$num_posts_analyzed_so_far = $posts_table_analysis_last_post_id;
-	$num_posts_remaining       = $max_post_id_in_wp_posts_table - $num_posts_analyzed_so_far;
-
-	$num_batches_remaining            = ceil( $num_posts_remaining / AI4SEO_POST_TABLE_ANALYSIS_BATCH_SIZE );
-	$num_batches_per_seconds          = round( ( AI4SEO_POST_TABLE_ANALYSIS_MAX_EXECUTION_TIME / ( AI4SEO_POST_TABLE_ANALYSIS_SLEEP_BETWEEN_RUNS / 100000 ) ) ); // how many batches can be processed in 10 seconds (considering auto dashboard reloads triggering a batch-stack).
-	$estimated_time_remaining_seconds = ( $num_batches_remaining / max( $num_batches_per_seconds, 1 ) ) * 10; // in seconds.
-
-	$message     .= " <span class='ai4seo-sub-info'>";
-		$message .= sprintf(
-			/* translators: 1: Number of processed entries. 2: Total number of entries. 3: Estimated time remaining. */
-			esc_html__( '(%1$s / %2$s entries. Estimated time remaining: %3$s. This page refreshes automatically until the analysis is complete.)', 'ai-for-seo' ),
-			esc_html( ai4seo_format_number_i18n( $num_posts_analyzed_so_far ) ),
-			esc_html( ai4seo_format_number_i18n( $max_post_id_in_wp_posts_table ) ),
-			sprintf(
-				/* translators: %s: Estimated time remaining in seconds. */
-				_n( '%s second', '%s seconds', $estimated_time_remaining_seconds, 'ai-for-seo' ),
-				esc_html( ai4seo_format_number_i18n( $estimated_time_remaining_seconds ) )
-			),
-		);
-	$message .= '</span>';
-
-	// push the notification.
 	ai4seo_push_routine_notification(
 		$notification_index,
 		$message,
 		$force,
 		array(
-			'notice_type'                     => 'notice-info',
+			'notice_type'                     => $notice_type,
 			'is_permanent'                    => true,
 			'ignore_during_dashboard_refresh' => false,
 		)

@@ -307,8 +307,8 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 				// Define variable for the selected user-roles based on plugin-settings.
 				$ai4seo_this_checked_values = ( $ai4seo_this_setting_input_value && is_array( $ai4seo_this_setting_input_value ) ? $ai4seo_this_setting_input_value : array() );
 
-				// add a select / un select all checkbox.
-				ai4seo_echo_wp_kses( ai4seo_get_select_all_checkbox( $ai4seo_this_setting_input_name ) );
+				// Identify the metadata group when navigating select-all controls by accessible name.
+				ai4seo_echo_wp_kses( ai4seo_get_select_all_checkbox( $ai4seo_this_setting_input_name, 'auto', __( 'Active Meta Tags:', 'ai-for-seo' ) ) );
 				echo "<div class='ai4seo-medium-gap'></div>";
 
 				// Loop through all available user-roles and display checkboxes for each of them.
@@ -530,7 +530,8 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
 			echo "<div class='ai4seo-form-item-input-wrapper'>";
 		if ( $ai4seo_all_supported_post_types ) {
-			ai4seo_echo_wp_kses( ai4seo_get_select_all_checkbox( $ai4seo_this_setting_input_name ) );
+			// Identify the post-type group when navigating select-all controls by accessible name.
+			ai4seo_echo_wp_kses( ai4seo_get_select_all_checkbox( $ai4seo_this_setting_input_name, 'auto', __( 'Active Post Types:', 'ai-for-seo' ) ) );
 			echo "<div class='ai4seo-medium-gap'></div>";
 
 			foreach ( $ai4seo_all_supported_post_types as $ai4seo_this_post_type ) {
@@ -652,7 +653,8 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
 			echo "<div class='ai4seo-form-item-input-wrapper'>";
 		if ( $ai4seo_available_post_authors ) {
-			ai4seo_echo_wp_kses( ai4seo_get_select_all_checkbox( $ai4seo_this_setting_input_name ) );
+			// Distinguish metadata authors from the separate media-author selection below.
+			ai4seo_echo_wp_kses( ai4seo_get_select_all_checkbox( $ai4seo_this_setting_input_name, 'auto', __( 'Active Authors:', 'ai-for-seo' ) ) );
 			echo "<div class='ai4seo-medium-gap'></div>";
 
 			foreach ( $ai4seo_available_post_authors as $ai4seo_this_post_author_id => $ai4seo_this_post_author_label ) {
@@ -716,9 +718,10 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 					echo "<div class='ai4seo-medium-gap'></div>";
 				}
 
+				// Reuse the visible taxonomy label to distinguish each group's select-all control.
 				echo '<strong>' . esc_html( $ai4seo_this_taxonomy_label ) . '</strong>';
 				echo "<div class='ai4seo-small-gap'></div>";
-				ai4seo_echo_wp_kses( ai4seo_get_select_all_checkbox( $ai4seo_this_taxonomy_input_name ) );
+				ai4seo_echo_wp_kses( ai4seo_get_select_all_checkbox( $ai4seo_this_taxonomy_input_name, 'auto', $ai4seo_this_taxonomy_label ) );
 				echo "<div class='ai4seo-medium-gap'></div>";
 
 				$ai4seo_visible_taxonomy_terms = array_slice( $ai4seo_this_taxonomy_terms, 0, 10, true );
@@ -819,7 +822,8 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
 				echo "<div class='ai4seo-form-item-input-wrapper'>";
 			if ( $ai4seo_available_wpml_languages ) {
-				ai4seo_echo_wp_kses( ai4seo_get_select_all_checkbox( $ai4seo_this_setting_input_name ) );
+				// Distinguish metadata languages from the separate media-language selection below.
+				ai4seo_echo_wp_kses( ai4seo_get_select_all_checkbox( $ai4seo_this_setting_input_name, 'auto', __( 'Active Metadata Languages (WPML):', 'ai-for-seo' ) ) );
 				echo "<div class='ai4seo-medium-gap'></div>";
 
 				// WPML language checkboxes submit active languages; save normalization stores only unchecked codes.
@@ -1070,9 +1074,9 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 					// Define variable for the selected user-roles based on plugin-settings.
 					$ai4seo_sync_activated_third_party_seo_plugins = ( $ai4seo_this_setting_input_value && is_array( $ai4seo_this_setting_input_value ) ? $ai4seo_this_setting_input_value : array() );
 
-					// add a select / un select all checkbox.
+					// Name the synchronization group when multiple provider choices need a select-all control.
 					if ( count( $ai4seo_active_third_party_seo_plugin_details ) > 1 ) {
-						ai4seo_echo_wp_kses( ai4seo_get_select_all_checkbox( $ai4seo_this_setting_input_name ) );
+						ai4seo_echo_wp_kses( ai4seo_get_select_all_checkbox( $ai4seo_this_setting_input_name, 'auto', __( 'Synchronize Metadata:', 'ai-for-seo' ) ) );
 						echo "<div class='ai4seo-medium-gap'></div>";
 					}
 
@@ -1136,8 +1140,8 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 					// Define variable for the selected user-roles based on plugin-settings.
 					$ai4seo_this_checked_values = ( $ai4seo_this_setting_input_value && is_array( $ai4seo_this_setting_input_value ) ? $ai4seo_this_setting_input_value : array() );
 
-					// add a select / un select all checkbox.
-					ai4seo_echo_wp_kses( ai4seo_get_select_all_checkbox( $ai4seo_this_setting_input_name ) );
+					// Distinguish synchronized fields from the provider-selection group above.
+					ai4seo_echo_wp_kses( ai4seo_get_select_all_checkbox( $ai4seo_this_setting_input_name, 'auto', __( 'Metadata to Sync with Third-Party Plugins:', 'ai-for-seo' ) ) );
 					echo "<div class='ai4seo-medium-gap'></div>";
 
 					// Loop through all available user-roles and display checkboxes for each of them.
@@ -1225,8 +1229,8 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 				// Define variable for the selected user-roles based on plugin-settings.
 				$ai4seo_this_checked_values = ( $ai4seo_this_setting_input_value && is_array( $ai4seo_this_setting_input_value ) ? $ai4seo_this_setting_input_value : array() );
 
-				// add a select / un select all checkbox.
-				ai4seo_echo_wp_kses( ai4seo_get_select_all_checkbox( $ai4seo_this_setting_input_name ) );
+				// Distinguish overwrite permissions from the active-metadata selection above.
+				ai4seo_echo_wp_kses( ai4seo_get_select_all_checkbox( $ai4seo_this_setting_input_name, 'auto', __( 'SEO Autopilot: Overwrite Existing Metadata:', 'ai-for-seo' ) ) );
 				echo "<div class='ai4seo-medium-gap'></div>";
 
 				// Loop through all available user-roles and display checkboxes for each of them.
@@ -1391,8 +1395,8 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 				// Define variable for the selected user-roles based on plugin-settings.
 				$ai4seo_this_checked_values = ( $ai4seo_this_setting_input_value && is_array( $ai4seo_this_setting_input_value ) ? $ai4seo_this_setting_input_value : array() );
 
-				// add a select / un select all checkbox.
-				ai4seo_echo_wp_kses( ai4seo_get_select_all_checkbox( $ai4seo_this_setting_input_name ) );
+				// Identify the media-attribute group when navigating select-all controls by accessible name.
+				ai4seo_echo_wp_kses( ai4seo_get_select_all_checkbox( $ai4seo_this_setting_input_name, 'auto', __( 'Active Media Attributes:', 'ai-for-seo' ) ) );
 				echo "<div class='ai4seo-medium-gap'></div>";
 
 				// Loop through all available user-roles and display checkboxes for each of them.
@@ -1552,7 +1556,8 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
 				echo "<div class='ai4seo-form-item-input-wrapper'>";
 				if ( $ai4seo_available_attachment_post_authors ) {
-					ai4seo_echo_wp_kses( ai4seo_get_select_all_checkbox( $ai4seo_this_setting_input_name ) );
+					// Distinguish media authors from the separate metadata-author selection above.
+					ai4seo_echo_wp_kses( ai4seo_get_select_all_checkbox( $ai4seo_this_setting_input_name, 'auto', __( 'Active Media Authors:', 'ai-for-seo' ) ) );
 					echo "<div class='ai4seo-medium-gap'></div>";
 
 					foreach ( $ai4seo_available_attachment_post_authors as $ai4seo_this_post_author_id => $ai4seo_this_post_author_label ) {
@@ -1600,7 +1605,8 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
 						echo "<div class='ai4seo-form-item-input-wrapper'>";
 					if ( $ai4seo_available_wpml_languages ) {
-						ai4seo_echo_wp_kses( ai4seo_get_select_all_checkbox( $ai4seo_this_setting_input_name ) );
+						// Distinguish media languages from the separate metadata-language selection above.
+						ai4seo_echo_wp_kses( ai4seo_get_select_all_checkbox( $ai4seo_this_setting_input_name, 'auto', __( 'Active Media Languages (WPML):', 'ai-for-seo' ) ) );
 						echo "<div class='ai4seo-medium-gap'></div>";
 
 						// WPML language checkboxes submit active languages; save normalization stores only unchecked codes.
@@ -1807,8 +1813,8 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 				// Define variable for the selected user-roles based on plugin-settings.
 				$ai4seo_this_checked_values = ( $ai4seo_this_setting_input_value && is_array( $ai4seo_this_setting_input_value ) ? $ai4seo_this_setting_input_value : array() );
 
-				// add a select / un select all checkbox.
-				ai4seo_echo_wp_kses( ai4seo_get_select_all_checkbox( $ai4seo_this_setting_input_name ) );
+				// Distinguish overwrite permissions from the active-media-attribute selection above.
+				ai4seo_echo_wp_kses( ai4seo_get_select_all_checkbox( $ai4seo_this_setting_input_name, 'auto', __( 'SEO Autopilot: Overwrite Existing Media Attributes:', 'ai-for-seo' ) ) );
 				echo "<div class='ai4seo-medium-gap'></div>";
 
 				// Loop through all available user-roles and display checkboxes for each of them.
@@ -1896,8 +1902,8 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 				// Define variable for the selected user-roles based on plugin-settings.
 				$ai4seo_this_checked_values = ( $ai4seo_this_setting_input_value && is_array( $ai4seo_this_setting_input_value ) ? $ai4seo_this_setting_input_value : array() );
 
-				// add a select / un select all checkbox.
-				ai4seo_echo_wp_kses( ai4seo_get_select_all_checkbox( $ai4seo_this_setting_input_name ) );
+				// Identify the permissions group when navigating select-all controls by accessible name.
+				ai4seo_echo_wp_kses( ai4seo_get_select_all_checkbox( $ai4seo_this_setting_input_name, 'auto', __( 'Allowed User Roles:', 'ai-for-seo' ) ) );
 				echo "<div class='ai4seo-medium-gap'></div>";
 
 				// Loop through all available user-roles and display checkboxes for each of them.
