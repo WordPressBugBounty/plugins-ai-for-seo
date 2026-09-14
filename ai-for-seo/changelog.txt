@@ -1,4 +1,13 @@
 == Changelog ==
+= 2.5.5 =
+* Improved SEO coverage displays with details for filled, missing, and excluded fields, clearer completion guidance, and highlighted edit buttons for incomplete entries.
+* Added direct SOOZ editor shortcuts to WordPress Posts, Pages, and Media lists.
+* Added an Account option to request existing license details by checkout email, with clearer help when the email does not arrive.
+* Improved editor guidance for using and saving custom instructions, choosing the default editor view, and understanding generation costs.
+* Improved Help navigation with clearer expandable headings, a dedicated support area, and easier access to useful resources.
+* Updated translations for Arabic, Spanish, French, Italian, Japanese, Dutch, Polish, Portuguese, and Swedish.
+* Bug Fixes & Maintenance: Fixed 3 minor bugs.
+
 = 2.5.4 =
 * Improved metadata saving with clearer recovery guidance and retained edits when saving or refreshing a connected SEO editor fails.
 * Improved SEO coverage analysis with progress reporting, reliable recovery after interruptions, and accurate history for partially generated entries.

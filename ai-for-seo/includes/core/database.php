@@ -1,6 +1,6 @@
 <?php
 /**
- * Typed database-query construction helpers.
+ * Typed database-query construction and error classification helpers.
  *
  * @package AI_For_SEO
  */
@@ -8,6 +8,28 @@
 // Database helpers rely on the WordPress runtime and must not be loaded through a direct request.
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
+}
+
+/**
+ * Checks if a database error indicates a statement timeout.
+ *
+ * @param string $query_error      Database error message.
+ * @param int    $query_error_code Database error code.
+ * @return bool
+ */
+function ai4seo_is_database_statement_timeout_error( string $query_error, int $query_error_code = 0 ): bool {
+	if ( in_array( $query_error_code, array( 1969, 3024 ), true ) ) {
+		return true;
+	}
+
+	$query_error = strtolower( $query_error );
+
+	return (
+		strpos( $query_error, 'max_statement_time' ) !== false
+		|| strpos( $query_error, 'maximum statement execution time' ) !== false
+		|| strpos( $query_error, 'execution time exceeded' ) !== false
+		|| strpos( $query_error, 'query execution was interrupted' ) !== false
+	);
 }
 
 /**

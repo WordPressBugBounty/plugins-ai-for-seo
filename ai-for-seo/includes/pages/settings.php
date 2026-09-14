@@ -218,8 +218,14 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 			echo "<div class='ai4seo-form-item-input-wrapper'>";
 				echo "<select class='ai4seo-editor-select' id='" . esc_attr( $ai4seo_this_setting_input_name ) . "' name='" . esc_attr( $ai4seo_this_setting_input_name ) . "'>";
 
-		// Render from the same registry used by the modal switch so labels and values cannot diverge.
+		// Explain the opening modes here while keeping the modal switch labels short.
+		$ai4seo_editor_view_mode_descriptions = array(
+			AI4SEO_EDITOR_VIEW_MODE_PREVIEW => __( 'Preview (see how your SEO looks)', 'ai-for-seo' ),
+			AI4SEO_EDITOR_VIEW_MODE_EDITOR  => __( 'Editor (edit or generate SEO fields)', 'ai-for-seo' ),
+		);
+
 		foreach ( ai4seo_get_editor_view_mode_options() as $ai4seo_editor_view_mode_value => $ai4seo_editor_view_mode_label ) {
+			$ai4seo_editor_view_mode_label = $ai4seo_editor_view_mode_descriptions[ $ai4seo_editor_view_mode_value ] ?? $ai4seo_editor_view_mode_label;
 			echo "<option value='" . esc_attr( $ai4seo_editor_view_mode_value ) . "'" . selected( $ai4seo_this_setting_input_value, $ai4seo_editor_view_mode_value, false ) . '>' . esc_html( $ai4seo_editor_view_mode_label ) . '</option>';
 		}
 

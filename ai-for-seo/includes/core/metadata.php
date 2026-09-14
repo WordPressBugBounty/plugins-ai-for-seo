@@ -2827,12 +2827,16 @@ function ai4seo_read_available_metadata_by_post_ids( array $post_ids, bool $cons
 /**
  * Function to return the amount of active metadata per post id
  *
- * @param array     $post_ids of post ids.
- * @param bool|null $read_succeeded Receives whether every metadata-source read succeeded.
+ * @param array      $post_ids of post ids.
+ * @param bool|null  $read_succeeded Receives whether every metadata-source read succeeded.
+ * @param array|null $field_states Pass an empty array to collect per-post filled/missing/exempt field states without another read.
  * @return array the amount of active metadata by post ids
  */
-function ai4seo_read_num_available_metadata_by_post_ids( array $post_ids, ?bool &$read_succeeded = null ): array {
+function ai4seo_read_num_available_metadata_by_post_ids( array $post_ids, ?bool &$read_succeeded = null, ?array &$field_states = null ): array {
 	$read_succeeded = false;
+	if ( null !== $field_states ) {
+		$field_states = array();
+	}
 
 	if ( ai4seo_prevent_loops( __FUNCTION__, 1, 99999 ) ) {
 		ai4seo_debug_message( 561144878, 'Prevented loop', true );
@@ -2874,8 +2878,15 @@ function ai4seo_read_num_available_metadata_by_post_ids( array $post_ids, ?bool 
 				continue;
 			}
 
-			if ( isset( $this_metadata_entry[ $this_metadata_identifier ] ) && $this_metadata_entry[ $this_metadata_identifier ] ) {
+			$is_field_filled = ! empty( $this_metadata_entry[ $this_metadata_identifier ] );
+
+			if ( $is_field_filled ) {
 				++$num_available_metadata_by_post_ids[ $post_id ];
+			}
+
+			// Optional presentation states come from the same authoritative read as the count.
+			if ( null !== $field_states ) {
+				$field_states[ $post_id ][ $this_metadata_identifier ] = $is_field_filled ? 'filled' : 'missing';
 			}
 		}
 
@@ -2887,12 +2898,18 @@ function ai4seo_read_num_available_metadata_by_post_ids( array $post_ids, ?bool 
 		) {
 			if ( AI4SEO_FOCUS_KEYPHRASE_BEHAVIOR_SKIP === $focus_keyphrase_behavior ) {
 				++$num_available_metadata_by_post_ids[ $post_id ];
+				if ( null !== $field_states ) {
+					$field_states[ $post_id ]['focus-keyphrase'] = 'exempt';
+				}
 			}
 
 			if ( AI4SEO_FOCUS_KEYPHRASE_BEHAVIOR_REGENERATE === $focus_keyphrase_behavior
 				&& ! in_array( 'meta-title', $overwrite_metadata, true )
 				&& ! in_array( 'meta-description', $overwrite_metadata, true ) ) {
 				++$num_available_metadata_by_post_ids[ $post_id ];
+				if ( null !== $field_states ) {
+					$field_states[ $post_id ]['focus-keyphrase'] = 'exempt';
+				}
 			}
 		}
 	}
@@ -2905,13 +2922,17 @@ function ai4seo_read_num_available_metadata_by_post_ids( array $post_ids, ?bool 
 /**
  * Function to return the percentage of active metadata per post id
  *
- * @param array     $post_ids of post ids.
- * @param int       $round_precision the precision to round the percentage to.
- * @param bool|null $read_succeeded Receives whether every metadata-source read succeeded.
+ * @param array      $post_ids of post ids.
+ * @param int        $round_precision the precision to round the percentage to.
+ * @param bool|null  $read_succeeded Receives whether every metadata-source read succeeded.
+ * @param array|null $field_states Pass an empty array to collect the states used by the coverage count.
  * @return array the amount of active metadata by post ids
  */
-function ai4seo_read_percentage_of_available_metadata_by_post_ids( array $post_ids, int $round_precision = 0, ?bool &$read_succeeded = null ): array {
+function ai4seo_read_percentage_of_available_metadata_by_post_ids( array $post_ids, int $round_precision = 0, ?bool &$read_succeeded = null, ?array &$field_states = null ): array {
 	$read_succeeded = false;
+	if ( null !== $field_states ) {
+		$field_states = array();
+	}
 
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 343030419, 'Prevented loop', true );
@@ -2935,7 +2956,7 @@ function ai4seo_read_percentage_of_available_metadata_by_post_ids( array $post_i
 	// first read how many metadata values are available per post id,
 	// then compare it with the total amount of active meta tags.
 	$num_metadata_read_succeeded        = false;
-	$num_available_metadata_by_post_ids = ai4seo_read_num_available_metadata_by_post_ids( $post_ids, $num_metadata_read_succeeded );
+	$num_available_metadata_by_post_ids = ai4seo_read_num_available_metadata_by_post_ids( $post_ids, $num_metadata_read_succeeded, $field_states );
 
 	if ( ! $num_metadata_read_succeeded ) {
 		return array();

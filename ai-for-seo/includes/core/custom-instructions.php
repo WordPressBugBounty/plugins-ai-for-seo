@@ -175,6 +175,7 @@ function ai4seo_validate_custom_instructions_setting_value( string $setting_name
  * @param string $additional_css_classes Additional textarea classes.
  * @param string $field_label            Label used by client-side validation.
  * @param string $placeholder            Optional placeholder text.
+ * @param string $description_id         Optional id of visible help text.
  * @return string Textarea HTML.
  */
 function ai4seo_get_custom_instructions_textarea_tag(
@@ -183,7 +184,8 @@ function ai4seo_get_custom_instructions_textarea_tag(
 	string $input_value = '',
 	string $additional_css_classes = '',
 	string $field_label = '',
-	string $placeholder = ''
+	string $placeholder = '',
+	string $description_id = ''
 ): string {
 	$length_limit = ai4seo_get_custom_instructions_length_limit();
 	$input_value  = ai4seo_normalize_custom_instructions_value( $input_value, $length_limit );
@@ -195,6 +197,7 @@ function ai4seo_get_custom_instructions_textarea_tag(
 		. ' id="' . esc_attr( $input_id ) . '"'
 		. ' name="' . esc_attr( $input_name ) . '"'
 		. ' rows="1"'
+		. ( '' !== $description_id ? ' aria-describedby="' . esc_attr( $description_id ) . '"' : '' )
 		. ( '' !== $placeholder ? " placeholder='" . esc_attr( $placeholder ) . "'" : '' )
 		. ' data-ai4seo-custom-instructions-limit="' . esc_attr( $length_limit ) . '"'
 		. ' data-ai4seo-custom-instructions-label="' . esc_attr( $field_label ) . '"'
@@ -464,6 +467,7 @@ function ai4seo_get_custom_instructions_examples_tooltip_tag( string $context, s
  * @param string $examples_context                 Optional examples tooltip context.
  * @param string $placeholder                      Optional placeholder text for textarea.
  * @param bool   $show_description_in_tooltip      Show description and examples inside a tooltip next to the label.
+ * @param string $visible_help                     Optional plain-text guidance above the character counter.
  * @return string Form item HTML.
  */
 function ai4seo_get_custom_instructions_form_item_tag(
@@ -478,7 +482,8 @@ function ai4seo_get_custom_instructions_form_item_tag(
 	string $label_prefix_html = '',
 	string $examples_context = '',
 	string $placeholder = '',
-	bool $show_description_in_tooltip = false
+	bool $show_description_in_tooltip = false,
+	string $visible_help = ''
 ): string {
 	$form_item_css_classes = trim( 'ai4seo-form-item ' . $additional_form_item_css_classes );
 
@@ -489,6 +494,8 @@ function ai4seo_get_custom_instructions_form_item_tag(
 
 	$active_description = trim( $description );
 	$active_placeholder = trim( $placeholder );
+	$visible_help       = trim( $visible_help );
+	$visible_help_id    = '' !== $visible_help ? $input_id . '-help' : '';
 
 	// Entry-editor tooltips provide their own concise placeholder when callers do not override it.
 	if ( '' === $active_placeholder && $show_description_in_tooltip ) {
@@ -528,8 +535,15 @@ function ai4seo_get_custom_instructions_form_item_tag(
 		$input_value,
 		$additional_textarea_css_classes,
 		$field_label,
-		$active_placeholder
+		$active_placeholder,
+		$visible_help_id
 	);
+
+	// Keep generation and save guidance visible and associated with the editor input.
+	if ( '' !== $visible_help ) {
+		$html .= '<p id="' . esc_attr( $visible_help_id ) . '" class="ai4seo-form-item-description">' . esc_html( $visible_help ) . '</p>';
+	}
+
 	$html .= ai4seo_wp_kses( ai4seo_get_custom_instructions_character_counter_tag( $input_id ) );
 
 	// Append optional guidance inside the input wrapper so it follows the counter in every form surface.

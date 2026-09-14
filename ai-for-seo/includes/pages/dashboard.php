@@ -259,6 +259,18 @@ if ( $ai4seo_all_supported_post_types || $ai4seo_statistics_filter_labels ) {
 	$ai4seo_retry_all_failed_attachment_attributes_generations_link_tag   = '';
 
 	echo "<div class='card ai4seo-card ai4seo-fully-centered-card ai4seo-three-column-card ai4seo-dashboard-statistics-card'>";
+		echo "<div class='ai4seo-dashboard-statistics-header'>";
+			echo "<div class='ai4seo-dashboard-statistics-intro'>";
+				echo '<h2>' . esc_html__( 'SEO completion', 'ai-for-seo' ) . '</h2>';
+				echo '<p>' . esc_html__( 'Each percentage shows the share of items with all enabled SEO fields filled in. Your settings determine which fields and content are included.', 'ai-for-seo' ) . '</p>';
+			echo '</div>';
+
+	if ( $ai4seo_can_administer_plugin && ! $ai4seo_heavy_db_operations_disabled && 'completed' === $ai4seo_posts_table_analysis_state ) {
+				echo "<div class='ai4seo-top-right-refresh-button-wrapper'>";
+					ai4seo_echo_wp_kses( ai4seo_get_small_icon_button_tag( 'rotate', __( 'Refresh statistics', 'ai-for-seo' ), '', 'ai4seo_refresh_dashboard_statistics(this); return false;' ) );
+				echo '</div>';
+	}
+		echo '</div>';
 
 	// Explain incomplete statistics without animating intentional pauses or recorded failures.
 	if ( 'completed' !== $ai4seo_posts_table_analysis_state ) {
@@ -272,13 +284,6 @@ if ( $ai4seo_all_supported_post_types || $ai4seo_statistics_filter_labels ) {
 		if ( ! $ai4seo_heavy_db_operations_disabled && 'incomplete' === $ai4seo_posts_table_analysis_status['status'] ) {
 			echo "<div id='ai4seo-no-dashboard-refresh-delay'></div>";
 		}
-	}
-
-		// refresh performance analysis button.
-	if ( $ai4seo_can_administer_plugin && ! $ai4seo_heavy_db_operations_disabled && 'completed' === $ai4seo_posts_table_analysis_state ) {
-		echo "<div class='ai4seo-top-right-refresh-button-wrapper'>";
-			ai4seo_echo_wp_kses( ai4seo_get_small_icon_button_tag( 'rotate', __( 'Refresh statistics', 'ai-for-seo' ), '', 'ai4seo_refresh_dashboard_statistics(this); return false;' ) );
-		echo '</div>';
 	}
 
 		// Default chart values keep the legend order stable before post-type data is available.

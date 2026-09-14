@@ -481,20 +481,19 @@ function ai4seo_get_recent_activity_details_subtext_tag( string $details_onclick
 
 	$activity_status   = sanitize_key( (string) ( $latest_activity_entry['status'] ?? '' ) );
 	$activity_details  = sanitize_text_field( (string) ( $latest_activity_entry['details'] ?? '' ) );
-	$message_css_class = 'ai4seo-gray-message';
+	$message_css_class = 'ai4seo-coverage-status';
 	$icon_name         = 'circle';
 	$icon_css_class    = 'ai4seo-dark-gray-icon';
 	$icon_alt_text     = __( 'Recent activity', 'ai-for-seo' );
 	$message_text      = __( 'This entry has recent activity.', 'ai-for-seo' );
 
 	if ( 'success' === $activity_status ) {
-		$message_css_class = 'ai4seo-green-message';
-		$icon_name         = 'circle-check';
-		$icon_css_class    = 'ai4seo-dark-green-icon';
-		$icon_alt_text     = __( 'Recently processed by SEO Autopilot', 'ai-for-seo' );
-		$message_text      = __( 'SEO Autopilot has recently processed this entry.', 'ai-for-seo' );
+		$icon_name      = 'circle-check';
+		$icon_css_class = 'ai4seo-dark-green-icon';
+		$icon_alt_text  = __( 'Recently processed by SEO Autopilot', 'ai-for-seo' );
+		$message_text   = __( 'SEO Autopilot has recently processed this entry.', 'ai-for-seo' );
 	} elseif ( 'error' === $activity_status ) {
-		$message_css_class = 'ai4seo-red-message';
+		$message_css_class = 'ai4seo-coverage-status ai4seo-coverage-status-error';
 		$icon_name         = 'circle-xmark';
 		$icon_css_class    = 'ai4seo-red-icon';
 		$icon_alt_text     = __( 'Recent SEO Autopilot processing failed', 'ai-for-seo' );

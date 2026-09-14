@@ -2,8 +2,8 @@
 /**
  * Plugin Name: SOOZ - AI for SEO
  * Plugin URI: https://sooz.ai
- * Description: One-Click SEO solution. *SOOZ - AI for SEO* helps your website to rank higher in Web Search results.
- * Version: 2.5.4
+ * Description: One-Click SEO solution. SOOZ - AI for SEO helps your website to rank higher in Web Search results.
+ * Version: 2.5.5
  * Author: spacecodes
  * Author URI: https://spa.ce.codes
  * Text Domain: ai-for-seo
@@ -74,6 +74,7 @@ require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/settings.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/ajax.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/bulk-generation.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/native-bulk-actions.php';
+require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/native-editor-actions.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/environmental-variables.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/notifications-notices.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/terms-of-service.php';

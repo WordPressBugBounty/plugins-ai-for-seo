@@ -550,6 +550,37 @@ function ai4seo_get_editor_preview_evaluations_tag( array $field_identifiers, ar
 }
 
 /**
+ * Include the approved pricing explanation in higher-cost field help.
+ *
+ * @param string   $field_identifier Metadata or media field identifier.
+ * @param string   $field_hint       Existing field guidance.
+ * @param int|null $credits          Configured field price, when available.
+ * @return string Help HTML preserving the existing guidance.
+ */
+function ai4seo_get_generation_field_help_text( string $field_identifier, string $field_hint, $credits ): string {
+	if ( ! in_array( $field_identifier, array( 'focus-keyphrase', 'meta-description', 'alt-text' ), true )
+		|| ! is_int( $credits ) || $credits <= 1 ) {
+		return $field_hint;
+	}
+
+	$price_help = sprintf(
+		/* translators: %s: Localized number of credits required to generate this field. */
+		_n(
+			'Generation costs %s Credit. The higher price reflects the extra work we put into refining how SOOZ generates this field, along with the additional server-side computing it requires.',
+			'Generation costs %s Credits. The higher price reflects the extra work we put into refining how SOOZ generates this field, along with the additional server-side computing it requires.',
+			$credits,
+			'ai-for-seo'
+		),
+		ai4seo_format_number_i18n( $credits )
+	);
+
+	// Keep the opening explanation first and retain all subsequent best-practice guidance.
+	$hint_sections = explode( '<br><br>', $field_hint, 2 );
+	return $hint_sections[0] . '<br><br>' . esc_html( $price_help )
+		. ( isset( $hint_sections[1] ) ? '<br><br>' . $hint_sections[1] : '' );
+}
+
+/**
  * Return one editable metadata field using the shared editor field structure.
  *
  * @param string $metadata_identifier Metadata field identifier.
@@ -580,6 +611,8 @@ function ai4seo_get_metadata_editor_field_tag(
 	if ( ! $metadata_identifier || ! $field_name || ! in_array( $input_type, array( 'textfield', 'textarea' ), true ) || ! is_string( $field_hint ) ) {
 		return '';
 	}
+
+	$field_hint = ai4seo_get_generation_field_help_text( $metadata_identifier, $field_hint, $metadata_details['flat-credits-cost'] ?? null );
 
 	$input_name                = sanitize_text_field( ai4seo_get_prefixed_input_name( 'metadata_' . $metadata_identifier ) );
 	$evaluation_id             = sanitize_key( $evaluation_details['evaluation_id'] ?? '' );
@@ -972,12 +1005,14 @@ function ai4seo_get_wordpress_post_edit_link_button( int $post_id ): string {
  * @param int    $post_id            The post ID to get the button for.
  * @param array  $all_post_ids       All post IDs in this current list.
  * @param string $content_type_label Optional singular content-type label.
+ * @param bool   $is_primary         Whether known incomplete coverage makes editing the primary action.
  * @return string The HTML for the button.
  */
 function ai4seo_get_edit_metadata_button(
 	int $post_id,
 	array $all_post_ids = array(),
-	string $content_type_label = ''
+	string $content_type_label = '',
+	bool $is_primary = false
 ): string {
 	// Preserve the visible list sequence when the editor opens with previous and next controls.
 	$all_post_ids = ai4seo_deep_sanitize( $all_post_ids, 'absint' );
@@ -995,7 +1030,7 @@ function ai4seo_get_edit_metadata_button(
 	$button_label = sprintf( __( 'Open Metadata Editor for %1$s ID %2$d', 'ai-for-seo' ), $content_type_label, $post_id );
 
 	// Reuse the shared renderer so icon-only controls retain consistent title and ARIA attributes.
-	return ai4seo_get_icon_button_tag( 'pen-to-square', '', '', $onclick, $button_label );
+	return ai4seo_get_icon_button_tag( 'pen-to-square', '', $is_primary ? 'ai4seo-primary-button' : '', $onclick, $button_label );
 }
 
 
@@ -1005,12 +1040,14 @@ function ai4seo_get_edit_metadata_button(
  * @param int    $attachment_post_id      The attachment post ID to get the button for.
  * @param array  $all_attachment_post_ids All attachment post IDs in this current list.
  * @param string $content_type_label      Optional singular content-type label.
+ * @param bool   $is_primary              Whether known incomplete coverage makes editing the primary action.
  * @return string The HTML for the button.
  */
 function ai4seo_get_edit_attachment_attributes_button(
 	int $attachment_post_id,
 	array $all_attachment_post_ids = array(),
-	string $content_type_label = ''
+	string $content_type_label = '',
+	bool $is_primary = false
 ): string {
 	// Preserve the visible list sequence when the editor opens with previous and next controls.
 	$all_attachment_post_ids = ai4seo_deep_sanitize( $all_attachment_post_ids, 'absint' );
@@ -1029,7 +1066,7 @@ function ai4seo_get_edit_attachment_attributes_button(
 	$button_label = sprintf( __( 'Open Media Attributes Editor for %1$s ID %2$d', 'ai-for-seo' ), $content_type_label, $attachment_post_id );
 
 	// Reuse the shared renderer so icon-only controls retain consistent title and ARIA attributes.
-	return ai4seo_get_icon_button_tag( 'pen-to-square', '', '', $onclick, $button_label );
+	return ai4seo_get_icon_button_tag( 'pen-to-square', '', $is_primary ? 'ai4seo-primary-button' : '', $onclick, $button_label );
 }
 
 
@@ -1056,9 +1093,10 @@ function ai4seo_get_related_attachments_button( int $post_id, string $button_tex
  *
  * @param string $headline Accordion headline HTML.
  * @param string $content Accordion panel HTML.
+ * @param int    $heading_level Heading level beneath the current Help section.
  * @return string Accordion markup.
  */
-function ai4seo_get_accordion_element( string $headline, string $content ): string {
+function ai4seo_get_accordion_element( string $headline, string $content, int $heading_level = 2 ): string {
 	// Keep trigger and panel relationships unique across every Help section rendered in one request.
 	static $accordion_number = 0;
 
@@ -1066,19 +1104,21 @@ function ai4seo_get_accordion_element( string $headline, string $content ): stri
 
 	$accordion_trigger_id = 'ai4seo-accordion-trigger-' . $accordion_number;
 	$accordion_panel_id   = 'ai4seo-accordion-content-' . $accordion_number;
+	$heading_tag          = 4 === $heading_level ? 'h4' : 'h2';
 
 	// Preserve the holder structure consumed by Help search and accordion card styling.
 	$output = "<div class='ai4seo-accordion-holder'>";
 	// Keep the existing card wrapper while the native button owns the interactive semantics.
-	$output .= "<div class='card ai4seo-card ai4seo-accordion-headline'>";
+	$output .= '<' . $heading_tag . " class='card ai4seo-card ai4seo-accordion-headline'>";
 	$output .= "<button type='button'"
 		. " class='ai4seo-accordion-trigger'"
 		. " id='" . esc_attr( $accordion_trigger_id ) . "'"
 		. " aria-controls='" . esc_attr( $accordion_panel_id ) . "'"
 		. " aria-expanded='false'>";
 	$output .= $headline;
+	$output .= ai4seo_get_svg_tag( 'caret-down', '', 'ai4seo-accordion-caret', true );
 	$output .= '</button>';
-	$output .= '</div>';
+	$output .= '</' . $heading_tag . '>';
 
 	// Render the controlled panel collapsed until the shared initializer opens it.
 	$output .= "<div class='card ai4seo-card ai4seo-accordion-content'"
@@ -1093,37 +1133,73 @@ function ai4seo_get_accordion_element( string $headline, string $content ): stri
 
 
 /**
- * Returns the accessible SEO coverage progress bar shared by post and attachment lists.
+ * Returns static coverage text and a decorative track shared by content lists.
  *
  * @param int       $post_id                 WordPress post ID represented by the row.
  * @param int|float $coverage_percentage      Current SEO coverage percentage.
- * @param string    $animation_class          Optional animation class, including its leading space.
- * @param bool      $is_generation_incomplete Whether generation is still pending or processing.
+ * @param string    $animation_class          Retained call argument; coverage is never animated.
+ * @param bool      $is_generation_incomplete Retained coverage-completeness flag, not generation progress.
  * @param string    $content_type_label       Optional singular content-type label.
- * @return string Progress element HTML.
+ * @param array     $field_names              Active field identifiers mapped to display names.
+ * @param array     $field_states             Authoritative filled/missing/exempt states; absent means unavailable.
+ * @return string Static coverage HTML, or empty markup for an invalid percentage.
  */
 function ai4seo_get_seo_coverage_progress_bar_tag(
 	int $post_id,
 	$coverage_percentage,
 	string $animation_class,
 	bool $is_generation_incomplete,
-	string $content_type_label = ''
+	string $content_type_label = '',
+	array $field_names = array(),
+	array $field_states = array()
 ): string {
-	// Give assistive technology both the row relationship and a localized completion value.
+	// Invalid readings must not become an invented zero or an unsafe numeric attribute.
+	if ( ! is_numeric( $coverage_percentage ) || ! is_finite( (float) $coverage_percentage ) || $coverage_percentage < 0 || $coverage_percentage > 100 ) {
+		return '';
+	}
+
+	// Preserve the caller's precision while localizing the visible numeric value.
+	$percentage_parts   = explode( '.', ai4seo_stringify( $coverage_percentage ) );
+	$decimals           = isset( $percentage_parts[1] ) ? strlen( $percentage_parts[1] ) : 0;
 	$content_type_label = ai4seo_get_accessible_content_type_label( $post_id, $content_type_label );
 	/* translators: 1: Singular content-type label, such as Post, Page, or Media. 2: WordPress post ID. */
-	$aria_label = sprintf( __( 'SEO coverage for %1$s ID %2$d', 'ai-for-seo' ), $content_type_label, $post_id );
+	$context_label = sprintf( __( 'SEO coverage for %1$s ID %2$d:', 'ai-for-seo' ), $content_type_label, $post_id );
 	/* translators: %s: SEO coverage percentage. */
-	$aria_value_text = sprintf( __( '%s%% complete', 'ai-for-seo' ), ai4seo_stringify( $coverage_percentage ) );
+	$coverage_label = sprintf( __( '%s%% covered', 'ai-for-seo' ), ai4seo_format_number_i18n( $coverage_percentage, $decimals ) );
 
-	// Keep the state class coupled to the same completion flag used by both list implementations.
-	$completion_class = $is_generation_incomplete ? ' ai4seo-progress-bar-not-finished' : ' ai4seo-progress-bar-finished';
+	// The text owns the meaning; the bounded visual adds no control or duplicate announcement.
+	$coverage_class    = $coverage_percentage >= 50 ? 'ai4seo-list-coverage ai4seo-list-coverage-half-filled' : 'ai4seo-list-coverage';
+	$progress_bar_tag  = "<span id='ai4seo-seo-coverage-progress-bar-" . esc_attr( $post_id ) . "' class='" . esc_attr( $coverage_class ) . "'>";
+	$progress_bar_tag .= "<meter class='ai4seo-list-coverage-track' aria-hidden='true' min='0' max='100' value='" . esc_attr( $coverage_percentage ) . "'></meter>";
+	$progress_bar_tag .= "<span class='ai4seo-list-coverage-label'><span class='screen-reader-text'>" . esc_html( $context_label ) . ' </span>' . esc_html( $coverage_label ) . '</span>';
+	$progress_bar_tag .= '</span>';
 
-	// Assemble attributes by concern so the two list callers cannot drift in IDs, state classes, or accessibility text.
-	$progress_bar_tag  = "<progress id='ai4seo-seo-coverage-progress-bar-" . esc_attr( $post_id ) . "'";
-	$progress_bar_tag .= " class='ai4seo-seo-coverage-progress-bar" . esc_attr( $animation_class ) . esc_attr( $completion_class ) . "'";
-	$progress_bar_tag .= " value='" . esc_attr( $coverage_percentage ) . "' max='100'";
-	$progress_bar_tag .= " aria-label='" . esc_attr( $aria_label ) . "' aria-valuetext='" . esc_attr( $aria_value_text ) . "'></progress>";
+	if ( $field_names ) {
+		$state_labels = array(
+			'filled'  => __( 'Filled', 'ai-for-seo' ),
+			'missing' => __( 'Missing', 'ai-for-seo' ),
+			'exempt'  => __( 'Not required under current settings', 'ai-for-seo' ),
+		);
+		$tooltip_html = '<strong>' . esc_html__( 'Active fields', 'ai-for-seo' ) . '</strong><ul class="ai4seo-coverage-field-list">';
+		foreach ( $field_names as $field_identifier => $field_name ) {
+			$state_label = $state_labels[ $field_states[ $field_identifier ] ?? '' ] ?? __( 'Unavailable', 'ai-for-seo' );
+			/* translators: 1: Field display name. 2: Filled, missing, exempt or unavailable status. */
+			$tooltip_html .= '<li>' . esc_html( sprintf( __( '%1$s: %2$s', 'ai-for-seo' ), $field_name, $state_label ) ) . '</li>';
+		}
+		$tooltip_html .= '</ul>';
+		/* translators: 1: Coverage percentage label. 2: Singular content-type label. 3: WordPress post ID. */
+		$trigger_label = sprintf( __( '%1$s — Show field details for %2$s ID %3$d', 'ai-for-seo' ), $coverage_label, $content_type_label, $post_id );
+		return ai4seo_get_tooltip_tag(
+			$progress_bar_tag,
+			$tooltip_html,
+			array(
+				'holder_css_class'   => 'ai4seo-coverage-tooltip-holder',
+				'trigger_css_class'  => 'ai4seo-coverage-tooltip-trigger',
+				'trigger_aria_label' => $trigger_label,
+				'tooltip_css_class'  => 'ai4seo-coverage-field-tooltip',
+			)
+		);
+	}
 
 	return $progress_bar_tag;
 }
@@ -1369,7 +1445,7 @@ function ai4seo_output_money_back_guarantee_notice() {
 			ai4seo_echo_wp_kses(
 				sprintf(
 				/* translators: %1$s plugin name, %2$s is a clickable email address */
-					__( 'We’re excited for you to experience *%1$s*. If you find a better price elsewhere, simply <a href="%2$s" target="_blank">reach out</a>! We’ll match it.', 'ai-for-seo' ),
+					__( 'We’re excited for you to experience %1$s. If you find a better price elsewhere, simply <a href="%2$s" target="_blank">reach out</a>! We’ll match it.', 'ai-for-seo' ),
 					esc_html( AI4SEO_PLUGIN_NAME ),
 					esc_attr( AI4SEO_OFFICIAL_CONTACT_URL )
 				)
@@ -1387,7 +1463,7 @@ function ai4seo_output_money_back_guarantee_notice() {
 			ai4seo_echo_wp_kses(
 				sprintf(
 				/* translators: 1: Number of money-back guarantee days. 2: Support contact link. 3: Percentage to refund. 4: Plugin name */
-					__( 'During the first %1$s days after purchasing a subscription (Basic, Pro or Premium) or your first Credits Pack, if *%4$s* isn’t the best fit, simply <a href="%2$s" target="blank">reach out</a>! We’ll happily refund %3$s of your money. No questions asked.', 'ai-for-seo' ),
+					__( 'During the first %1$s days after purchasing a subscription (Basic, Pro or Premium) or your first Credits Pack, if %4$s isn’t the best fit, simply <a href="%2$s" target="blank">reach out</a>! We’ll happily refund %3$s of your money. No questions asked.', 'ai-for-seo' ),
 					ai4seo_format_number_i18n( AI4SEO_MONEY_BACK_GUARANTEE_DAYS ),
 					esc_attr( AI4SEO_OFFICIAL_CONTACT_URL ),
 					'100%',
@@ -3268,28 +3344,6 @@ function ai4seo_get_environmental_variable_accepted_time_output( $environmental_
 	}
 
 	return $content;
-}
-
-
-/**
- * Function to check if the SEO Autopilot is running at least X amount of seconds
- *
- * @param int $duration The duration in seconds.
- * @return bool True if the SEO Autopilot is running at least X amount of seconds
- */
-function ai4seo_was_seo_autopilot_set_up_at_least_x_seconds_ago( int $duration = 300 ): bool {
-	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
-		ai4seo_debug_message( 530953976, 'Prevented loop', true );
-		return false;
-	}
-
-	$seo_autopilot_start_time = (int) ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_SEO_AUTOPILOT_SET_UP_TIME );
-
-	if ( ! $seo_autopilot_start_time ) {
-		return false;
-	}
-
-	return ( time() - $seo_autopilot_start_time ) >= $duration;
 }
 
 

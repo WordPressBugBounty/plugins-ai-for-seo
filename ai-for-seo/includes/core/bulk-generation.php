@@ -141,6 +141,28 @@ function ai4seo_should_auto_queue_bulk_generation_entries(): bool {
 	return ai4seo_get_setting( AI4SEO_SETTING_BULK_GENERATION_AUTO_QUEUE_ENTRIES ) === true;
 }
 
+
+/**
+ * Function to check if the SEO Autopilot is running at least X amount of seconds
+ *
+ * @param int $duration The duration in seconds.
+ * @return bool True if the SEO Autopilot is running at least X amount of seconds
+ */
+function ai4seo_was_seo_autopilot_set_up_at_least_x_seconds_ago( int $duration = 300 ): bool {
+	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
+		ai4seo_debug_message( 530953976, 'Prevented loop', true );
+		return false;
+	}
+
+	$seo_autopilot_start_time = (int) ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_SEO_AUTOPILOT_SET_UP_TIME );
+
+	if ( ! $seo_autopilot_start_time ) {
+		return false;
+	}
+
+	return ( time() - $seo_autopilot_start_time ) >= $duration;
+}
+
 /**
  * Check whether the SEO Autopilot new/existing setting activates its date boundary.
  *
@@ -344,7 +366,7 @@ function ai4seo_get_bulk_generation_queue_actions( string $surface = 'all', stri
 	if ( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES !== $context ) {
 		$related_attachment_queue_actions = array(
 			AI4SEO_BULK_GENERATION_QUEUE_ACTION_ADD_RELATED_ATTACHMENTS_TO_QUEUE => array(
-				'label'       => __( 'Add all related images to queue (soft)', 'ai-for-seo' ),
+				'label'       => __( 'Add all related images to queue (safe)', 'ai-for-seo' ),
 				'description' => sprintf(
 					/* translators: %s: Plugin name. */
 					__( 'Finds images related to the selected entries using the same Related Media scan as %s, then queues only applicable related images for media attribute generation. Hidden, already queued, processing, or complete images are skipped.', 'ai-for-seo' ),

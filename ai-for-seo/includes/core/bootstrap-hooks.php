@@ -134,3 +134,8 @@ register_activation_hook( AI4SEO_PLUGIN_FILE, 'ai4seo_on_activation' );
 
 // Register native WordPress list bulk action integrations through the opt-in gate below.
 add_action( 'admin_init', 'ai4seo_register_bulk_generation_queue_bulk_actions' );
+
+// Read-only editor shortcuts are independent of the opt-in bulk queue actions.
+add_filter( 'post_row_actions', 'ai4seo_add_native_editor_row_action', 10, 2 );
+add_filter( 'page_row_actions', 'ai4seo_add_native_editor_row_action', 10, 2 );
+add_filter( 'media_row_actions', 'ai4seo_add_native_editor_row_action', 10, 2 );

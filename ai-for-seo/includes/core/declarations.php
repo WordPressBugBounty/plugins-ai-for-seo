@@ -14,10 +14,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 // Centralize plugin identity and asset-cache declarations consumed throughout bootstrap.
-const AI4SEO_PLUGIN_VERSION_NUMBER              = '2.5.4';
+const AI4SEO_PLUGIN_VERSION_NUMBER              = '2.5.5';
 const AI4SEO_PLUGIN_NAME                        = 'SOOZ - AI for SEO';
 const AI4SEO_SHORT_PLUGIN_NAME                  = 'SOOZ';
-const AI4SEO_PLUGIN_DESCRIPTION                 = 'One-Click SEO solution. *SOOZ - AI for SEO* helps your website to rank higher in Web Search results.';
+const AI4SEO_PLUGIN_DESCRIPTION                 = 'One-Click SEO solution. SOOZ - AI for SEO helps your website to rank higher in Web Search results.';
 const AI4SEO_PLUGIN_IDENTIFIER                  = 'ai-for-seo';
 const AI4SEO_ASSET_REFRESH_QUERY_PARAMETER      = 'ai4seo_asset_refresh';
 const AI4SEO_PLUGIN_AUTHOR_COMPANY_NAME         = 'Andre Erbis, Space Codes';
@@ -234,6 +234,20 @@ const AI4SEO_METADATA_KEYWORDS_RECOMMENDED_MAX_ITEMS = 10;
  */
 function ai4seo_get_change_log(): array {
 	return array(
+		array(
+			'date'      => '2026-09-14',
+			'version'   => '2.5.5',
+			'important' => false,
+			'updates'   => array(
+				'Improved SEO coverage displays with details for filled, missing, and excluded fields, clearer completion guidance, and highlighted edit buttons for incomplete entries.',
+				'Added direct SOOZ editor shortcuts to WordPress Posts, Pages, and Media lists.',
+				'Added an Account option to request existing license details by checkout email, with clearer help when the email does not arrive.',
+				'Improved editor guidance for using and saving custom instructions, choosing the default editor view, and understanding generation costs.',
+				'Improved Help navigation with clearer expandable headings, a dedicated support area, and easier access to useful resources.',
+				'Updated translations for Arabic, Spanish, French, Italian, Japanese, Dutch, Polish, Portuguese, and Swedish.',
+				'Bug Fixes & Maintenance: Fixed 3 minor bugs.',
+			),
+		),
 		array(
 			'date'      => '2026-09-11',
 			'version'   => '2.5.4',
@@ -1962,7 +1976,7 @@ add_action(
 					'name'              => esc_html__( 'Focus Keyphrase', 'ai-for-seo' ),
 					'icon'              => 'flag',
 					'input'             => 'textfield',
-					'hint'              => esc_html__( '<strong>Best Practice:</strong> A primary SEO keyword or keyphrase that best represents the main topic of this entry. It should be specific, relevant, and reflect the content accurately to help improve search engine rankings.<br><br>The focus keyphrase is added to the meta title and meta description for best SEO results. Make sure to first generate the keyphrase before generating the meta title and meta description or just generate all at once.', 'ai-for-seo' ),
+					'hint'              => __( '<strong>Best Practice:</strong> A primary SEO keyword or keyphrase that best represents the main topic of this entry. It should be specific, relevant, and reflect the content accurately to help improve search engine rankings.<br><br>The focus keyphrase is added to the meta title and meta description for best SEO results. Make sure to first generate the keyphrase before generating the meta title and meta description or just generate all at once.', 'ai-for-seo' ),
 					'api-identifier'    => 'focus_keyphrase',
 					'flat-credits-cost' => 2,
 				),
@@ -2374,6 +2388,10 @@ function ai4seo_get_allowed_html_tags_and_attributes(): array {
 			'class' => array(),
 			'style' => array(),
 		),
+		// FAQ accordions retain their semantic heading and shared card styling after sanitization.
+		'h4'       => array(
+			'class' => array(),
+		),
 		'p'        => array(
 			'id'              => array(),
 			'class'           => array(),
@@ -2621,6 +2639,7 @@ const AI4SEO_ALLOWED_AJAX_FUNCTIONS = array(
 	'ai4seo_refresh_dashboard_statistics',
 	'ai4seo_refresh_robhub_account',
 	'ai4seo_submit_feedback',
+	'ai4seo_request_lost_licence_data',
 );
 
 // AJAX actions that change or expose site-wide account, configuration, or operational state.
@@ -2647,6 +2666,7 @@ const AI4SEO_ADMINISTRATIVE_AJAX_FUNCTIONS = array(
 	'ai4seo_refresh_dashboard_statistics',
 	'ai4seo_refresh_robhub_account',
 	'ai4seo_submit_feedback',
+	'ai4seo_request_lost_licence_data',
 );
 
 // the robhub api communicator is used to communicate with the robhub api which handles all the AI operations.

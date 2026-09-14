@@ -14,7 +14,15 @@ if ( ! ai4seo_can_use_plugin_content() ) {
 	return;
 }
 
-$ai4seo_can_administer_plugin = ai4seo_can_administer_plugin();
+// Disabled metadata fields remove supported types from discovery; explain the setting before validating the route.
+if ( ! ai4seo_get_active_meta_tags() ) {
+	echo '<p>' . esc_html__( 'No active meta tags.', 'ai-for-seo' ) . '</p>';
+	return;
+}
+
+$ai4seo_can_administer_plugin             = ai4seo_can_administer_plugin();
+$ai4seo_metadata_field_states_by_post_ids = array();
+$ai4seo_metadata_coverage_read_succeeded  = false;
 
 require_once __DIR__ . '/list-filters.php';
 
@@ -291,7 +299,7 @@ if ( ! empty( $ai4seo_content_type_list_result['is_optimized'] ) ) {
 	if ( 'title' === $ai4seo_orderby ) {
 		$ai4seo_sort_value_map = ai4seo_get_content_type_post_title_map( $ai4seo_filtered_candidate_post_ids );
 	} elseif ( 'seo_progress' === $ai4seo_orderby ) {
-		$ai4seo_sort_value_map = ai4seo_read_percentage_of_available_metadata_by_post_ids( $ai4seo_filtered_candidate_post_ids );
+		$ai4seo_sort_value_map = ai4seo_read_percentage_of_available_metadata_by_post_ids( $ai4seo_filtered_candidate_post_ids, 0, $ai4seo_metadata_coverage_read_succeeded, $ai4seo_metadata_field_states_by_post_ids );
 	}
 
 	$ai4seo_filtered_candidate_post_ids = ai4seo_sort_content_type_ids(
@@ -356,7 +364,10 @@ $ai4seo_recent_metadata_activity_entries_by_post_id = ai4seo_get_latest_activity
 $ai4seo_percentage_of_active_metadata_by_post_ids = ( 'seo_progress' === $ai4seo_orderby )
 	&& $ai4seo_sort_value_map
 	? array_intersect_key( $ai4seo_sort_value_map, array_flip( $ai4seo_current_post_ids ) )
-	: ai4seo_read_percentage_of_available_metadata_by_post_ids( $ai4seo_current_post_ids );
+	: ai4seo_read_percentage_of_available_metadata_by_post_ids( $ai4seo_current_post_ids, 0, $ai4seo_metadata_coverage_read_succeeded, $ai4seo_metadata_field_states_by_post_ids );
+
+// Retain only the visible rows after a coverage sort has inspected the candidate batch.
+$ai4seo_metadata_field_states_by_post_ids = array_intersect_key( $ai4seo_metadata_field_states_by_post_ids, array_flip( $ai4seo_current_post_ids ) );
 
 // Large all-lists avoid global coverage options and derive complete/missing state from the rendered page only.
 if ( $ai4seo_should_derive_current_page_metadata_status_ids ) {
@@ -407,8 +418,15 @@ $ai4seo_should_show_retry_all_failed_metadata_generations_link = $ai4seo_can_adm
 	&& ai4seo_should_show_content_type_retry_all_failed_button( $ai4seo_filter_context['status_options'], $ai4seo_status_filter_counts );
 $ai4seo_retry_all_failed_metadata_generations_container_class  = $ai4seo_should_show_retry_all_failed_metadata_generations_link ? '' : ' ai4seo-display-none';
 
-$ai4seo_active_meta_tags                      = ai4seo_get_active_meta_tags();
-$ai4seo_active_meta_tags_names                = ai4seo_get_active_meta_tags_names( $ai4seo_active_meta_tags );
+$ai4seo_active_meta_tags       = ai4seo_get_active_meta_tags();
+$ai4seo_active_meta_tags_names = array();
+
+foreach ( AI4SEO_METADATA_DETAILS as $ai4seo_field_identifier => $ai4seo_field_details ) {
+	if ( in_array( $ai4seo_field_identifier, $ai4seo_active_meta_tags, true ) && isset( $ai4seo_field_details['name'] ) ) {
+		$ai4seo_active_meta_tags_names[ $ai4seo_field_identifier ] = $ai4seo_field_details['name'];
+	}
+}
+
 $ai4seo_bulk_generation_queue_checkbox_name   = 'ai4seo_bulk_generation_queue_post_ids';
 $ai4seo_bulk_generation_queue_action_controls = ai4seo_get_bulk_generation_queue_action_controls(
 	AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA,
@@ -471,6 +489,7 @@ $ai4seo_title_column_aria_sort        = ai4seo_get_content_type_sortable_column_
 $ai4seo_seo_progress_column_aria_sort = ai4seo_get_content_type_sortable_column_aria_sort_value( 'seo_progress', $ai4seo_filter_context );
 
 echo "<div class='ai4seo-posts-table-container'>";
+echo "<p class='ai4seo-coverage-explanation'>" . esc_html__( 'Coverage reflects your active fields and coverage settings.', 'ai-for-seo' ) . '</p>';
 echo "<table class='widefat striped table-view-list pages ai4seo-posts-table'>";
 	echo '<tr>';
 		echo "<th class='ai4seo-bulk-generation-queue-checkbox-column'>";
@@ -484,10 +503,6 @@ echo "<table class='widefat striped table-view-list pages ai4seo-posts-table'>";
 		echo '</th>';
 		echo "<th class='manage-column sortable ai4seo-content-list-sortable-column'" . ( $ai4seo_seo_progress_column_aria_sort ? " aria-sort='" . esc_attr( $ai4seo_seo_progress_column_aria_sort ) . "'" : '' ) . '>';
 			ai4seo_echo_wp_kses( ai4seo_get_content_type_sortable_column_label_html( __( 'Metadata coverage', 'ai-for-seo' ), 'seo_progress', $ai4seo_filter_context ) );
-
-if ( $ai4seo_active_meta_tags_names ) {
-	echo " <span class='ai4seo-content-list-active-fields-note'>(" . esc_html( implode( ', ', $ai4seo_active_meta_tags_names ) ) . ')</span>';
-}
 
 			echo "<span class='ai4seo-visible-on-mobile'> / ";
 				echo esc_html__( 'Title and key phrase', 'ai-for-seo' );
@@ -607,15 +622,6 @@ foreach ( $ai4seo_all_posts as $ai4seo_this_post ) {
 		) .
 	'</span>';
 
-	$ai4seo_this_post_coverage_suffix = $ai4seo_this_post_is_fully_covered ? ' ' . esc_html__( '(completed)', 'ai-for-seo' ) : '';
-	$ai4seo_this_post_sub_info_rows[] =
-		sprintf(
-			/* translators: 1: coverage percentage, 2: optional completed note */
-			esc_html__( 'Coverage: %1$s%%%2$s', 'ai-for-seo' ),
-			esc_html( ai4seo_stringify( $ai4seo_this_active_metadata_coverage_percentage ) ),
-			$ai4seo_this_post_coverage_suffix
-		);
-
 	$ai4seo_this_post_sub_info_rows[] =
 		(
 			$ai4seo_this_post_is_generated
@@ -702,7 +708,6 @@ foreach ( $ai4seo_all_posts as $ai4seo_this_post ) {
 		// Generation Coverage.
 		echo "<td class='ai4seo-generation-coverage'>";
 	if ( $ai4seo_active_meta_tags ) {
-		$ai4seo_progress_bar_animation_class           = '';
 		$ai4seo_should_show_auto_queue_disallowed_note = $ai4seo_is_bulk_generation_activated
 			&& $ai4seo_should_auto_queue_bulk_generation_entries
 			&& $ai4seo_is_post_auto_queue_disallowed
@@ -712,40 +717,38 @@ foreach ( $ai4seo_all_posts as $ai4seo_this_post ) {
 		$ai4seo_should_show_autopilot_pending_note     = $ai4seo_is_post_pending
 			&& ! $ai4seo_is_post_processing;
 
-		if ( $ai4seo_is_post_processing ) {
-			$ai4seo_progress_bar_animation_class = ' ai4seo-green-animated-progress-bar';
-		}
-
 		// Reuse the list-wide progress helper so post and attachment rows expose identical accessibility metadata.
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Static progress markup escapes every dynamic attribute with esc_attr().
 		echo ai4seo_get_seo_coverage_progress_bar_tag(
 			$ai4seo_this_post_id,
 			$ai4seo_this_active_metadata_coverage_percentage,
-			$ai4seo_progress_bar_animation_class,
+			'',
 			$ai4seo_this_metadata_generation_is_not_finished,
-			$ai4seo_post_type_label_singular
+			$ai4seo_post_type_label_singular,
+			$ai4seo_active_meta_tags_names,
+			$ai4seo_metadata_field_states_by_post_ids[ $ai4seo_this_post_id ] ?? array()
 		);
 
 		if ( $ai4seo_is_post_waiting_to_get_queued ) {
-			echo "<div class='ai4seo-sub-info'>";
+			echo "<div class='ai4seo-sub-info ai4seo-coverage-status'>";
 				echo esc_html__( 'Waiting to get queued by SEO Autopilot...', 'ai-for-seo' );
 			echo '</div>';
 		} elseif ( $ai4seo_should_show_autopilot_pending_note ) {
 			if ( $ai4seo_is_bulk_generation_activated ) {
-				echo "<div class='ai4seo-sub-info'>";
+				echo "<div class='ai4seo-sub-info ai4seo-coverage-status'>";
 					echo esc_html__( 'Queued for SEO Autopilot. Processing starts with a future SEO Autopilot run.', 'ai-for-seo' );
 				echo '</div>';
 			} else {
-				echo "<div class='ai4seo-sub-info ai4seo-red-message'>";
+				echo "<div class='ai4seo-sub-info ai4seo-coverage-status ai4seo-coverage-status-warning'>";
 					echo esc_html__( 'Queued, but SEO Autopilot is deactivated for this content type.', 'ai-for-seo' );
 				echo '</div>';
 			}
 		} elseif ( $ai4seo_is_post_processing ) {
-			echo "<div class='ai4seo-sub-info'>";
+			echo "<div class='ai4seo-sub-info ai4seo-coverage-status'>";
 				echo esc_html__( 'This entry is currently being processed.', 'ai-for-seo' );
 			echo '</div>';
 		} elseif ( $ai4seo_is_insufficient_credits ) {
-			echo "<div class='ai4seo-sub-info ai4seo-red-message'>";
+			echo "<div class='ai4seo-sub-info ai4seo-coverage-status ai4seo-coverage-status-warning'>";
 				echo esc_html__( 'Insufficient Credits', 'ai-for-seo' ) . '.';
 				echo ' ';
 			if ( $ai4seo_can_administer_plugin ) {
@@ -753,14 +756,14 @@ foreach ( $ai4seo_all_posts as $ai4seo_this_post ) {
 			}
 			echo '</div>';
 		} elseif ( $ai4seo_this_post_is_failed_to_fill && $ai4seo_this_metadata_generation_is_not_finished ) {
-			echo "<div class='ai4seo-seo-data-not-covered-message'>";
+			echo "<div class='ai4seo-seo-data-not-covered-message ai4seo-coverage-status ai4seo-coverage-status-error'>";
 				echo '<span>' . esc_html__( 'Failed to automatically fill metadata.', 'ai-for-seo' ) . '</span>';
 				echo ' ';
 				ai4seo_echo_wp_kses( ai4seo_get_small_icon_button_tag( 'arrow-up-right-from-square', __( 'Try it manually', 'ai-for-seo' ), '', 'ai4seo_open_metadata_editor_modal("' . esc_js( $ai4seo_this_post_id ) . '");' ) );
 			echo '</div>';
 		} elseif ( $ai4seo_is_excluded_by_new_or_existing_filter && $ai4seo_this_metadata_generation_is_not_finished ) {
 			$ai4seo_new_or_existing_filter_reference_timestamp_formatted = ai4seo_format_unix_timestamp( (int) $ai4seo_bulk_generation_date_filter_state['reference_timestamp'] );
-			echo "<div class='ai4seo-sub-info ai4seo-red-message'>";
+			echo "<div class='ai4seo-sub-info ai4seo-coverage-status'>";
 			if ( 'new' === $ai4seo_bulk_generation_new_or_existing_filter ) {
 					printf(
 						/* translators: %s: reference timestamp */
@@ -778,13 +781,13 @@ foreach ( $ai4seo_all_posts as $ai4seo_this_post ) {
 			}
 							echo '</div>';
 		} elseif ( $ai4seo_this_post_is_fully_covered && ! $ai4seo_this_post_is_generated && ! $ai4seo_do_generate_metadata_for_fully_covered_entries ) {
-			echo "<div class='ai4seo-sub-info ai4seo-red-message'>";
-				echo esc_html__( 'Excluded because all metadata is filled, and the setting "SEO Autopilot: Include Complete Entries When Overwriting" is disabled, or no fields are allowed to be overwritten.', 'ai-for-seo' );
+			echo "<div class='ai4seo-sub-info ai4seo-coverage-status'>";
+				echo esc_html__( 'All active metadata fields are filled. SEO Autopilot is leaving existing values unchanged under your overwrite settings.', 'ai-for-seo' );
 			echo '</div>';
 		}
 
 		if ( $ai4seo_should_show_auto_queue_disallowed_note ) {
-			echo "<div class='ai4seo-sub-info ai4seo-red-message'>";
+			echo "<div class='ai4seo-sub-info ai4seo-coverage-status'>";
 				echo esc_html__( 'Auto Queue will ignore this entry because it was excluded with a bulk action.', 'ai-for-seo' );
 			echo '</div>';
 		}
@@ -803,7 +806,7 @@ foreach ( $ai4seo_all_posts as $ai4seo_this_post ) {
 			ai4seo_echo_wp_kses( $ai4seo_this_post_sub_info_html );
 			echo '</div>';
 	} else {
-		echo "<div class='ai4seo-sub-info ai4seo-red-message'>";
+		echo "<div class='ai4seo-sub-info ai4seo-coverage-status'>";
 			echo esc_html__( 'No active meta tags.', 'ai-for-seo' );
 		echo '</div>';
 	}
@@ -819,7 +822,14 @@ foreach ( $ai4seo_all_posts as $ai4seo_this_post ) {
 			echo "<div class='ai4seo-buttons-wrapper ai4seo-row-action-buttons'>";
 				// Metadata editor.
 	if ( $ai4seo_active_meta_tags ) {
-		ai4seo_echo_wp_kses( ai4seo_get_edit_metadata_button( $ai4seo_this_post_id, $ai4seo_current_post_ids, $ai4seo_post_type_label_singular ) );
+		ai4seo_echo_wp_kses(
+			ai4seo_get_edit_metadata_button(
+				$ai4seo_this_post_id,
+				$ai4seo_current_post_ids,
+				$ai4seo_post_type_label_singular,
+				$ai4seo_metadata_coverage_read_succeeded && $ai4seo_this_active_metadata_coverage_percentage < 100
+			)
+		);
 	}
 
 				// Keep related-media discovery and native editing available independently of active metadata.

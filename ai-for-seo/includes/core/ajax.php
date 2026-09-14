@@ -1584,6 +1584,41 @@ function ai4seo_init_purchase() {
 
 
 /**
+ * Request existing license data through the protected AJAX dispatcher.
+ *
+ * @return void
+ */
+function ai4seo_request_lost_licence_data() {
+	if ( ! ai4seo_singleton( __FUNCTION__ ) || ! ai4seo_require_ajax_administration() ) {
+		return;
+	}
+
+	// The central AJAX gate verifies the nonce before dispatching this administrative action.
+	// phpcs:disable WordPress.Security.NonceVerification.Missing -- Verified by ai4seo_ajax_security_gate before registered dispatch.
+	$email = isset( $_POST['stripe_email'] ) && is_string( $_POST['stripe_email'] )
+		? sanitize_email( wp_unslash( $_POST['stripe_email'] ) ) : '';
+	// phpcs:enable WordPress.Security.NonceVerification.Missing
+
+	if ( ! is_email( $email ) ) {
+		ai4seo_send_ajax_error( esc_html__( 'Enter a valid checkout email address.', 'ai-for-seo' ), 561819325 );
+		return;
+	}
+
+	$api      = ai4seo_robhub_api();
+	$response = $api->perform_lost_licence_call( $email );
+
+	// Never expose account lookup, eligibility, throttling, or mail status to the browser.
+	// Transport errors remain actionable without repeating the upstream response or email.
+	if ( ! $api->was_call_successful( $response )
+		&& ! in_array( (int) ( $response['code'] ?? 0 ), array( 521561224, 561716925, 571716925, 591716925, 591931823 ), true ) ) {
+		ai4seo_send_ajax_error( esc_html__( 'The request could not be completed. Please try again or contact support.', 'ai-for-seo' ), 561819326 );
+		return;
+	}
+
+	ai4seo_send_ajax_success();
+}
+
+/**
  * Called via AJAX - submit plugin deactivation feedback.
  *
  * @return void

@@ -298,7 +298,8 @@ echo '<div'
 				'',
 				'metadata-editor',
 				'',
-				true
+				true,
+				__( 'Generate uses your current instructions right away—no need to save first. Save changes keeps them for future use, including SEO Autopilot.', 'ai-for-seo' )
 			)
 		);
 

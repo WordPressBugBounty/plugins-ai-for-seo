@@ -14,6 +14,69 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 /**
+ * Prevent excessive recursion and repeated calls within the current request.
+ *
+ * @param string $function_name The name of the function to check.
+ * @param int    $max_depth The maximum depth of recursion allowed (default 1, min 1).
+ * @param int    $max_calls The maximum number of calls allowed per function in this request (default 22222, min 1).
+ * @return bool True if the call should be prevented, false otherwise.
+ */
+function ai4seo_prevent_loops( string $function_name, int $max_depth = 1, int $max_calls = 22222 ): bool {
+	// Share counts across callers for the current request, including attempts that are blocked.
+	static $call_counts = array();
+
+	// Both limits must permit an initial call, even when callers supply non-positive values.
+	$max_depth = max( 1, $max_depth );
+	$max_calls = max( 1, $max_calls );
+
+	// Give each function or singleton identifier its own request-local call budget.
+	if ( ! isset( $call_counts[ $function_name ] ) ) {
+		$call_counts[ $function_name ] = 0;
+	}
+
+	// Consume the call budget before checking depth so repeated non-recursive calls are also bounded.
+	++$call_counts[ $function_name ];
+
+	// Once exhausted, the budget blocks every later attempt for this identifier.
+	if ( $call_counts[ $function_name ] > $max_calls ) {
+		return true;
+	}
+
+	// Skip the stack walk while the total call count cannot exceed the allowed active depth.
+	if ( $call_counts[ $function_name ] <= $max_depth ) {
+		return false;
+	}
+
+	// Inspect active function names without retaining potentially large or sensitive arguments.
+	// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_debug_backtrace -- The runtime recursion guard requires the active call stack.
+	$backtrace = debug_backtrace( DEBUG_BACKTRACE_IGNORE_ARGS );
+	$depth     = 0;
+
+	// Only frames for the guarded function contribute to its recursion depth.
+	foreach ( $backtrace as $trace ) {
+		if ( isset( $trace['function'] ) && $trace['function'] === $function_name ) {
+			++$depth;
+		}
+	}
+
+	// The guarded call itself counts toward the limit, so only deeper recursion is blocked.
+	return $depth > $max_depth;
+}
+
+
+/**
+ * Allow an identifier only once within the current request.
+ *
+ * @param mixed $id The identifier sharing the recursion guard's call budget.
+ * @return bool True only when the identifier's first call is allowed.
+ */
+function ai4seo_singleton( $id ): bool {
+	// Reuse the recursion guard's one-call budget and expose whether the caller may proceed.
+	return ! ai4seo_prevent_loops( $id, 1, 1 );
+}
+
+
+/**
  * Determine whether the active database connection can own multiple named locks concurrently.
  *
  * MariaDB supports independent named locks. MySQL added that behavior in 5.7.5; older MySQL

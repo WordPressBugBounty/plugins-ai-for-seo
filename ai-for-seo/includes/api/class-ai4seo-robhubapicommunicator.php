@@ -879,6 +879,16 @@ class Ai4Seo_RobHubApiCommunicator {
 
 
 	/**
+	 * Request an existing credential by its checkout email.
+	 *
+	 * @param string $stripe_email Checkout email.
+	 * @return array Normalized API response.
+	 */
+	public function perform_lost_licence_call( string $stripe_email ): array {
+		return $this->call( 'client/send-licence-data', array( 'stripe_email' => $stripe_email ), 'POST', true );
+	}
+
+	/**
 	 * Function to call the API.
 	 *
 	 * Retries up to two times if a failure occurs and the interpreted error code

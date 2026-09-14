@@ -363,7 +363,8 @@ echo '<div'
 			'',
 			'attachment-attributes-editor',
 			'',
-			true
+			true,
+			__( 'Generate uses your current instructions right away—no need to save first. Save changes keeps them for future use, including SEO Autopilot.', 'ai-for-seo' )
 		)
 	);
 		echo '</div>';
@@ -528,7 +529,11 @@ echo '<div'
 					// Keep the button out of the field label to avoid nested interactive controls.
 					ai4seo_echo_wp_kses(
 						ai4seo_get_icon_with_tooltip_tag(
-							$ai4seo_this_attachment_attribute_details['hint'],
+							ai4seo_get_generation_field_help_text(
+								$ai4seo_this_attachment_attribute_identifier,
+								$ai4seo_this_attachment_attribute_details['hint'],
+								$ai4seo_this_attachment_attribute_details['flat-credits-cost'] ?? null
+							),
 							'',
 							'circle-question',
 							$ai4seo_this_attachment_attribute_details['name'] . ': ' . $ai4seo_help_aria_label

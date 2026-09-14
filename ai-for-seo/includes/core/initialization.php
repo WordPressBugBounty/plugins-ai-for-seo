@@ -2617,6 +2617,7 @@ function ai4seo_set_localization_parameters( array $asset_contexts ) {
 		'ai4seo_current_post_id'                           => $current_post_id,
 		AI4SEO_GLOBAL_NONCE_IDENTIFIER                     => $ajax_nonce,
 		'ai4seo_active_subpage'                            => $active_subpage,
+		'ai4seo_requested_native_editor'                   => in_array( 'plugin-ui', $asset_contexts, true ) ? ai4seo_get_requested_native_editor() : array(),
 		'ai4seo_active_post_type_subpage'                  => $active_post_type_subpage,
 		'ai4seo_active_meta_tags'                          => $active_meta_tags,
 		'ai4seo_active_attachment_attributes'              => $active_attachment_attributes,
@@ -2843,7 +2844,7 @@ function ai4seo_modify_plugin_details_for_white_label( array $all_plugins ): arr
 	if ( $setting_enable_white_label ) {
 		// Define variables for plugin-name and plugin-description based on settings.
 		$new_plugin_name        = ai4seo_get_setting( AI4SEO_SETTING_INSTALLED_PLUGINS_PLUGIN_NAME );
-		$new_plugin_description = ai4seo_get_setting( AI4SEO_SETTING_INSTALLED_PLUGINS_PLUGIN_DESCRIPTION );
+		$new_plugin_description = str_replace( '*' . AI4SEO_PLUGIN_NAME . '*', AI4SEO_PLUGIN_NAME, ai4seo_get_setting( AI4SEO_SETTING_INSTALLED_PLUGINS_PLUGIN_DESCRIPTION ) );
 
 		// Make sure that plugin-name and plugin-description could be found and have content.
 		if ( $new_plugin_name && $new_plugin_description ) {

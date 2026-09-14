@@ -4,7 +4,7 @@ Contributors: spacecodes
 Donate link: https://spa.ce.codes
 Requires at least: 6.6
 Tested up to: 7.1
-Stable tag: 2.5.4
+Stable tag: 2.5.5
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -225,6 +225,15 @@ It depends on how the generated data is stored and used. If *SOOZ - AI for SEO* 
 We welcome feature requests, editor integration ideas, page builder compatibility requests, and SEO workflow feedback. Please email [support@sooz.ai](mailto:support@sooz.ai) with your suggestions.
 
 == Changelog ==
+
+= 2.5.5 =
+* Improved SEO coverage displays with details for filled, missing, and excluded fields, clearer completion guidance, and highlighted edit buttons for incomplete entries.
+* Added direct SOOZ editor shortcuts to WordPress Posts, Pages, and Media lists.
+* Added an Account option to request existing license details by checkout email, with clearer help when the email does not arrive.
+* Improved editor guidance for using and saving custom instructions, choosing the default editor view, and understanding generation costs.
+* Improved Help navigation with clearer expandable headings, a dedicated support area, and easier access to useful resources.
+* Updated translations for Arabic, Spanish, French, Italian, Japanese, Dutch, Polish, Portuguese, and Swedish.
+* Bug Fixes & Maintenance: Fixed 3 minor bugs.
 
 = 2.5.4 =
 * Improved metadata saving with clearer recovery guidance and retained edits when saving or refreshing a connected SEO editor fails.
