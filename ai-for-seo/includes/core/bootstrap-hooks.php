@@ -25,6 +25,9 @@ add_action( 'init', 'ai4seo_init_settings', 8 );
 // Invalidate content type list caches when the posts table changes.
 ai4seo_add_content_type_list_cache_invalidation_hooks();
 
+// Keep the isolated taxonomy cache coherent for admin, REST, cron and frontend mutations.
+ai4seo_add_supported_taxonomy_terms_cache_invalidation_hooks();
+
 // Scope the known Fix Alt Text 1.9.1 cache leak for saves in admin, REST, cron and frontend requests.
 add_action( 'save_post', 'ai4seo_prepare_fix_alt_text_cache_scope', 998, 0 );
 add_action( 'attachment_updated', 'ai4seo_prepare_fix_alt_text_cache_scope', 998, 0 );

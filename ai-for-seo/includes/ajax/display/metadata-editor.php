@@ -65,12 +65,11 @@ $ai4seo_next_post_id = ai4seo_get_next_post_id_from_ordered_post_ids( $ai4seo_po
 $ai4seo_this_post_title = get_the_title( $ai4seo_post_id );
 
 // Read all metadata values authoritatively; blank controls must never stand in for a storage failure.
-$ai4seo_storage_read_succeeded = false;
-$ai4seo_storage_failure_reason = '';
-ai4seo_read_authoritative_active_metadata_postmeta_snapshot( $ai4seo_post_id, $ai4seo_storage_read_succeeded, $ai4seo_storage_failure_reason );
-if ( ! $ai4seo_storage_read_succeeded ) {
-	$ai4seo_diagnostic = ai4seo_record_metadata_save_diagnostic( 2208262601, 'editor_read', $ai4seo_storage_failure_reason, array( 'post_id' => $ai4seo_post_id ) );
-	ai4seo_send_ajax_error( esc_html__( 'Stored SOOZ metadata could not be read unambiguously. No changes were made. Please contact support.', 'ai-for-seo' ), 2208262601, '', true, array( 'diagnostic' => $ai4seo_diagnostic ) );
+$ai4seo_storage_view = ai4seo_recover_active_metadata( $ai4seo_post_id );
+if ( 'unreadable' === $ai4seo_storage_view['classification'] ) {
+	ai4seo_debug_metadata_recovery( $ai4seo_post_id, 'editor_unreadable', $ai4seo_storage_view );
+	ai4seo_echo_wp_kses( ai4seo_get_modal_headline_tag( __( 'Metadata Editor', 'ai-for-seo' ) ) );
+	echo '<div class="notice notice-warning"><p>' . esc_html__( 'The stored metadata for this entry contains unreadable or oversized data. Metadata editing is unavailable for this entry to preserve the original data. An administrator can use Help → Inspect post and contact support. Other entries remain available.', 'ai-for-seo' ) . '</p></div>';
 	return;
 }
 $ai4seo_metadata_read_succeeded = false;
@@ -106,6 +105,7 @@ $ai4seo_yoast_sync_metadata_identifiers = ai4seo_get_third_party_seo_plugin_sync
 
 foreach ( $ai4seo_yoast_sync_metadata_identifiers as $ai4seo_live_yoast_metadata_identifier ) {
 	if ( ! array_key_exists( $ai4seo_live_yoast_metadata_identifier, $ai4seo_live_yoast_metadata )
+		|| isset( $ai4seo_storage_view['conflicts'][ $ai4seo_live_yoast_metadata_identifier ] )
 		|| ! is_scalar( $ai4seo_live_yoast_metadata[ $ai4seo_live_yoast_metadata_identifier ] ) ) {
 		continue;
 	}
@@ -162,7 +162,7 @@ $ai4seo_this_post_modified_time      = $ai4seo_this_post
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 // Preserve the existing empty-state behavior before constructing the full editor workspace.
-if ( ! $ai4seo_active_meta_tags ) {
+if ( ! $ai4seo_active_meta_tags && ! $ai4seo_storage_view['conflicts'] ) {
 	ai4seo_echo_wp_kses( ai4seo_get_modal_headline_tag( __( 'Metadata Editor', 'ai-for-seo' ) ) );
 	ai4seo_echo_wp_kses(
 		ai4seo_get_editor_no_active_fields_notice_tag(
@@ -278,6 +278,7 @@ echo '<div'
 	$ai4seo_skipped_meta_tags = array();
 
 	echo "<div class='ai4seo-editor-workspace-scroll'>";
+	echo "<div class='ai4seo-metadata-recovery' data-ai4seo-recovery='" . esc_attr( wp_json_encode( ai4seo_metadata_recovery_editor_state( $ai4seo_storage_view ) ) ) . "'></div>";
 		echo "<div class='ai4seo-editor-shared-context-grid ai4seo-metadata-editor-shared-context-grid'>";
 		// Place the shared generation instructions before the focus keyphrase in both modes.
 
@@ -404,6 +405,11 @@ echo '<div'
 				echo '</article>';
 			}
 
+				// Keep the same native-editor shortcut beside every social preview without leaving this modal.
+				$ai4seo_featured_image_caption  = "<div class='ai4seo-social-preview-image-label'>" . esc_html__( 'WordPress featured image — not managed by SOOZ', 'ai-for-seo' );
+				$ai4seo_featured_image_caption .= ai4seo_get_wordpress_post_edit_link_button( $ai4seo_post_id, true );
+				$ai4seo_featured_image_caption .= '</div>';
+
 				foreach (
 					array(
 						'facebook' => array(
@@ -439,7 +445,7 @@ echo '<div'
 						);
 						echo "<div class='ai4seo-social-preview'>";
 							echo "<div class='ai4seo-social-preview-image ai4seo-social-preview-image-placeholder'></div>";
-							echo "<div class='ai4seo-social-preview-image-label'>" . esc_html__( 'WordPress featured image — not managed by SOOZ', 'ai-for-seo' ) . '</div>';
+							ai4seo_echo_wp_kses( $ai4seo_featured_image_caption );
 							echo "<div class='ai4seo-social-preview-copy'>";
 								echo "<span class='ai4seo-social-preview-domain'></span>";
 								echo "<div class='ai4seo-social-preview-title ai4seo-preview-measured-text' data-ai4seo-preview-field='" . esc_attr( $ai4seo_social_preview['title'] ) . "'></div>";
@@ -465,7 +471,7 @@ echo '<div'
 							echo "<p class='ai4seo-editor-preview-description'>" . esc_html__( 'Uses the Facebook title and description. Editing them updates both previews.', 'ai-for-seo' ) . '</p>';
 							echo "<div class='ai4seo-whatsapp-preview-shell'>";
 								echo "<div class='ai4seo-whatsapp-preview-image ai4seo-social-preview-image-placeholder'></div>";
-								echo "<div class='ai4seo-social-preview-image-label'>" . esc_html__( 'WordPress featured image — not managed by SOOZ', 'ai-for-seo' ) . '</div>';
+								ai4seo_echo_wp_kses( $ai4seo_featured_image_caption );
 								echo "<div class='ai4seo-whatsapp-preview-copy'><div class='ai4seo-whatsapp-preview-title ai4seo-preview-measured-text' data-ai4seo-preview-field='facebook-title'></div><div class='ai4seo-whatsapp-preview-description ai4seo-preview-measured-text' data-ai4seo-preview-field='facebook-description'></div><span class='ai4seo-whatsapp-preview-domain'></span></div>";
 							echo '</div>';
 							ai4seo_echo_wp_kses( ai4seo_get_editor_preview_evaluations_tag( $ai4seo_social_preview_fields, $ai4seo_metadata_evaluation_details ) );

@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 // Centralize plugin identity and asset-cache declarations consumed throughout bootstrap.
-const AI4SEO_PLUGIN_VERSION_NUMBER              = '2.5.5';
+const AI4SEO_PLUGIN_VERSION_NUMBER              = '2.5.6';
 const AI4SEO_PLUGIN_NAME                        = 'SOOZ - AI for SEO';
 const AI4SEO_SHORT_PLUGIN_NAME                  = 'SOOZ';
 const AI4SEO_PLUGIN_DESCRIPTION                 = 'One-Click SEO solution. SOOZ - AI for SEO helps your website to rank higher in Web Search results.';
@@ -71,6 +71,10 @@ const AI4SEO_POST_META_GENERATED_DATA_META_KEY       = 'ai4seo_generated_data';
 const AI4SEO_POST_META_ACTIVE_METADATA_META_KEY      = 'ai4seo_active_metadata';
 const AI4SEO_POST_META_POST_CONTENT_SUMMARY_META_KEY = 'ai4seo_content_summary';
 const AI4SEO_POST_META_RELATED_POST_ID_META_KEY      = 'ai4seo_related_post_id';
+
+// Keep recovery readers, classifiers, and writers within the same per-post storage bounds.
+const AI4SEO_ACTIVE_METADATA_MAX_ROWS      = 100;
+const AI4SEO_ACTIVE_METADATA_MAX_ROW_BYTES = 65536;
 
 // Entry-level custom instructions are stored separately from generated data and active metadata.
 const AI4SEO_POST_META_METADATA_CUSTOM_INSTRUCTIONS_META_KEY              = 'ai4seo_metadata_custom_instructions';
@@ -234,6 +238,21 @@ const AI4SEO_METADATA_KEYWORDS_RECOMMENDED_MAX_ITEMS = 10;
  */
 function ai4seo_get_change_log(): array {
 	return array(
+		array(
+			'date'      => '2026-09-18',
+			'version'   => '2.5.6',
+			'important' => false,
+			'updates'   => array(
+				'Added recovery options for duplicate or conflicting saved metadata, with explicit choices for conflicting values and protection for unsaved edits.',
+				'Improved generation context with cleaner visible page content, better Elementor support, and more accurate matching of images to their surrounding text.',
+				'Added confirmation before overwriting existing metadata or media attributes, showing the affected fields and generation cost.',
+				'Added dismissal of resolved SEO Autopilot warnings and automatic acknowledgement after successful generation or saving, while retaining activity history.',
+				'Improved navigation with a Back control in Related Media that preserves parent edits, direct Dashboard links to missing SEO fields, and a shortcut to Deep Search settings.',
+				'Expanded the Help page post inspector to make saved-data and metadata-recovery problems easier to diagnose.',
+				'Improved Help headings and custom-instruction tooltips for clearer navigation and accessibility.',
+				'Bug Fixes & Maintenance: Fixed 1 minor bug and implemented 2 performance improvements.',
+			),
+		),
 		array(
 			'date'      => '2026-09-14',
 			'version'   => '2.5.5',
@@ -1895,6 +1914,7 @@ const AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_PROCESSED_ENT
 const AI4SEO_ENVIRONMENTAL_VARIABLE_SUPPORTED_POST_TYPES_CACHE                       = 'supported_post_types_cache';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_AVAILABLE_POST_AUTHORS_CACHE                     = 'available_post_authors_cache';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_SUPPORTED_TAXONOMY_TERMS_CACHE                   = 'supported_taxonomy_terms_cache';
+const AI4SEO_SUPPORTED_TAXONOMY_TERMS_CACHE_OPTION_NAME                              = 'ai4seo_supported_taxonomy_terms_cache_v1';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_ATTACHMENT_ID_LOOKUP_CACHE                       = 'attachment_id_lookup_cache_v2'; // Retire keys altered by legacy filename sanitization.
 const AI4SEO_ENVIRONMENTAL_VARIABLE_NEXTGEN_PICTURE_PIDS_CACHE                       = 'nextgen_picture_pids_cache';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_NEXTGEN_IMPORTED_IMAGES_COUNT_CACHE              = 'nextgen_imported_images_count_cache';
@@ -2617,6 +2637,7 @@ const AI4SEO_ALLOWED_AJAX_FUNCTIONS = array(
 	'ai4seo_accept_tos',
 	'ai4seo_show_terms_of_service',
 	'ai4seo_dismiss_notification',
+	'ai4seo_dismiss_recent_activity_error',
 	'ai4seo_get_dashboard_html',
 	'ai4seo_reset_plugin_data',
 	'ai4seo_clear_debug_message_log',

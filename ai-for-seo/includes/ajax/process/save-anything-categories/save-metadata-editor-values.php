@@ -42,6 +42,20 @@ function ai4seo_process_save_anything_metadata_editor_values( array &$upcoming_s
 
 	// Track field presence separately because an empty instruction value intentionally clears its postmeta.
 	$ai4seo_custom_instructions_were_submitted = array_key_exists( 'metadata_editor_custom_instructions', $upcoming_save_anything_updates );
+	$ai4seo_recovery_context                   = array(
+		'fingerprint' => $upcoming_save_anything_updates['metadata_editor_storage_fingerprint'] ?? '',
+		'resolutions' => $upcoming_save_anything_updates['metadata_editor_resolutions'] ?? array(),
+	);
+	if ( ! is_string( $ai4seo_recovery_context['fingerprint'] ) || ! is_array( $ai4seo_recovery_context['resolutions'] ) ) {
+		return new WP_Error( 728451917, __( 'Invalid metadata resolution request. Reload this entry and try again.', 'ai-for-seo' ) );
+	}
+	foreach ( $ai4seo_recovery_context['resolutions'] as $field => $resolution ) {
+		if ( ! isset( AI4SEO_METADATA_DETAILS[ $field ] ) || ! is_array( $resolution )
+			|| ! in_array( $resolution['kind'] ?? '', array( 'stored', 'custom' ), true )
+			|| ! isset( $upcoming_save_anything_updates[ 'metadata_' . $field ] ) ) {
+			return new WP_Error( 728451917, __( 'Invalid metadata resolution request. Reload this entry and try again.', 'ai-for-seo' ) );
+		}
+	}
 
 	// Collect the complete validated metadata set before any editor-level values are written.
 	$ai4seo_new_metadata = array();
@@ -89,6 +103,11 @@ function ai4seo_process_save_anything_metadata_editor_values( array &$upcoming_s
 					esc_html( ai4seo_format_number_i18n( $ai4seo_length_limit ) )
 				)
 			);
+		}
+
+		// Retain the actual selected value for validation under the storage lock, before keyword formatting.
+		if ( 'stored' === ( $ai4seo_recovery_context['resolutions'][ $ai4seo_metadata_identifier ]['kind'] ?? '' ) ) {
+			$ai4seo_recovery_context['resolutions'][ $ai4seo_metadata_identifier ]['stored_value'] = $ai4seo_metadata_input_value;
 		}
 
 		// Canonicalize comma-separated keywords so saved editor values retain the plugin's expected format.
@@ -149,11 +168,31 @@ function ai4seo_process_save_anything_metadata_editor_values( array &$upcoming_s
 				esc_html__( 'Failed to update custom instructions. Please try again.', 'ai-for-seo' )
 			);
 		}
+		if ( '' !== $ai4seo_recovery_context['fingerprint'] ) {
+			$view = ai4seo_read_active_metadata_resolved_view( $ai4seo_this_post_id );
+			return array(
+				'metadata_editor' => array(
+					'post_id'                 => $ai4seo_this_post_id,
+					'metadata'                => array(),
+					'status'                  => $view['conflicts'] ? 'partial' : 'complete',
+					'reload_required'         => 'unreadable' === $view['classification'],
+					'warnings'                => array(),
+					'saved_fields'            => array(),
+					'unresolved_fields'       => array_keys( $view['conflicts'] ),
+					'storage'                 => ai4seo_metadata_recovery_editor_state( $view ),
+					'storage_fingerprint'     => $view['fingerprint'],
+					'conflicts'               => $view['conflicts'],
+					'submitted_changes_saved' => true,
+					'custom_instructions'     => $upcoming_save_anything_updates['metadata_editor_custom_instructions'],
+				),
+			);
+		}
 
 		return null;
 	}
 
 	// Keep queue reservation, primary persistence, coverage publication, and ownership verification under one fence.
+	$ai4seo_activity_error_token          = ai4seo_get_recent_activity_error_token( $ai4seo_this_post_id, 'metadata-bulk-generated' );
 	$ai4seo_metadata_update_details       = array();
 	$ai4seo_fenced_save_details           = array();
 	$ai4seo_custom_instructions_saved     = ! $ai4seo_custom_instructions_were_submitted;
@@ -167,15 +206,16 @@ function ai4seo_process_save_anything_metadata_editor_values( array &$upcoming_s
 		static function () use (
 			$ai4seo_this_post_id,
 			$ai4seo_new_metadata,
+			$ai4seo_recovery_context,
 			$ai4seo_custom_instructions_were_submitted,
 			$ai4seo_submitted_custom_instructions,
 			&$ai4seo_metadata_update_details,
 			&$ai4seo_custom_instructions_saved
 		): bool {
 			// Validate before instructions or providers can commit; the locked writer still rechecks later.
-			$preflight_succeeded = false;
-			$preflight_reason    = '';
-			ai4seo_read_authoritative_active_metadata_postmeta_snapshot( $ai4seo_this_post_id, $preflight_succeeded, $preflight_reason );
+			$preflight_view      = ai4seo_read_active_metadata_resolved_view( $ai4seo_this_post_id );
+			$preflight_succeeded = 'unreadable' !== $preflight_view['classification'];
+			$preflight_reason    = $preflight_view['reason'];
 
 			// A failed snapshot must stop every write while retaining its phase for the shared error response.
 			if ( ! $preflight_succeeded ) {
@@ -203,11 +243,12 @@ function ai4seo_process_save_anything_metadata_editor_values( array &$upcoming_s
 				$ai4seo_this_post_id,
 				$ai4seo_new_metadata,
 				true,
-				$ai4seo_metadata_update_details
+				$ai4seo_metadata_update_details,
+				$ai4seo_recovery_context
 			);
 
 			// A third-party warning is not a SOOZ persistence failure and must still commit coverage.
-			return ! empty( $ai4seo_metadata_update_details['active_metadata_succeeded'] );
+			return ! empty( $ai4seo_metadata_update_details['active_metadata_succeeded'] ) || ! empty( $ai4seo_metadata_update_details['confirmed_fields'] );
 		},
 		$ai4seo_fenced_save_details,
 		$ai4seo_metadata_update_details
@@ -220,6 +261,18 @@ function ai4seo_process_save_anything_metadata_editor_values( array &$upcoming_s
 		$ai4seo_metadata_update_details,
 		$ai4seo_fenced_save_details
 	);
+	if ( $ai4seo_custom_instructions_were_submitted && $ai4seo_custom_instructions_saved ) {
+		$ai4seo_save_response['metadata_editor']['custom_instructions'] = $ai4seo_submitted_custom_instructions;
+	}
+
+	// A partial save, unresolved conflict, or failed coverage update must retain the warning.
+	if ( 'complete' === $ai4seo_save_response['metadata_editor']['status']
+		&& ! empty( $ai4seo_fenced_save_details['coverage_succeeded'] )
+		&& ! empty( $ai4seo_fenced_save_details['release_succeeded'] )
+		&& '' !== $ai4seo_activity_error_token
+		&& ai4seo_resolve_recent_activity_error( $ai4seo_this_post_id, 'metadata-bulk-generated', $ai4seo_activity_error_token ) ) {
+		$ai4seo_save_response['resolved_activity_tokens']['metadata-bulk-generated'] = $ai4seo_activity_error_token;
+	}
 
 	// Reservation failures take precedence because the persistence callback may never have run.
 	if ( empty( $ai4seo_fenced_save_details['reservation_succeeded'] ) ) {
@@ -249,6 +302,10 @@ function ai4seo_process_save_anything_metadata_editor_values( array &$upcoming_s
 	}
 
 	// Once primary values persisted, any coverage, ownership, or release ambiguity must fail closed.
+	if ( ! empty( $ai4seo_metadata_update_details['recovery_save'] )
+		|| ( ! empty( $ai4seo_fenced_save_details['persistence_succeeded'] ) && ! empty( $ai4seo_fenced_save_details['release_succeeded'] ) ) ) {
+		return $ai4seo_save_response;
+	}
 	if ( ! empty( $ai4seo_fenced_save_details['persistence_succeeded'] )
 		&& ( empty( $ai4seo_fenced_save_details['coverage_succeeded'] ) || empty( $ai4seo_fenced_save_details['release_succeeded'] ) )
 	) {
@@ -285,8 +342,7 @@ function ai4seo_build_metadata_editor_save_response( int $ai4seo_this_post_id, a
 	// Primary persistence and the overall outcome differ when optional synchronization fails.
 	$ai4seo_overall_save_succeeded    = ! empty( $ai4seo_metadata_update_details['overall_succeeded'] );
 	$ai4seo_active_metadata_succeeded = ! empty( $ai4seo_metadata_update_details['active_metadata_succeeded'] );
-	$ai4seo_reload_required           = $ai4seo_active_metadata_succeeded
-		&& ( empty( $ai4seo_fenced_save_details['coverage_succeeded'] ) || empty( $ai4seo_fenced_save_details['release_succeeded'] ) );
+	$ai4seo_reload_required           = $ai4seo_active_metadata_succeeded && empty( $ai4seo_fenced_save_details['release_succeeded'] );
 	$ai4seo_warnings                  = $ai4seo_metadata_update_details['warnings'] ?? array();
 	$ai4seo_diagnostic                = $ai4seo_metadata_update_details['diagnostic'] ?? ( $ai4seo_metadata_update_details['diagnostics'][0] ?? array() );
 	$ai4seo_commit_state              = $ai4seo_metadata_update_details['commit_state'] ?? 'not_committed';
@@ -303,12 +359,12 @@ function ai4seo_build_metadata_editor_save_response( int $ai4seo_this_post_id, a
 
 	// Return authoritative stored values rather than assuming that submitted values survived every hook.
 	$ai4seo_persisted_metadata = array();
-	if ( $ai4seo_active_metadata_succeeded ) {
+	$ai4seo_storage_view       = ai4seo_read_active_metadata_resolved_view( $ai4seo_this_post_id );
+	if ( $ai4seo_active_metadata_succeeded || ! empty( $ai4seo_metadata_update_details['recovery_save'] ) ) {
 		try {
-			$own_read_succeeded = false;
-			$snapshot           = ai4seo_read_authoritative_active_metadata_postmeta_snapshot( $ai4seo_this_post_id, $own_read_succeeded );
+			$own_read_succeeded = 'unreadable' !== $ai4seo_storage_view['classification'];
 			if ( $own_read_succeeded ) {
-				$ai4seo_persisted_metadata = array_intersect_key( $snapshot['active_metadata'], $ai4seo_new_metadata );
+				$ai4seo_persisted_metadata = ai4seo_get_confirmed_active_metadata_updates( $ai4seo_new_metadata, $ai4seo_storage_view );
 			} else {
 				$ai4seo_reload_required = true;
 				$ai4seo_diagnostic      = ai4seo_record_metadata_save_diagnostic( 3518161025, 'response_read', 'storage_read_failed', array( 'post_id' => $ai4seo_this_post_id ) );
@@ -319,9 +375,9 @@ function ai4seo_build_metadata_editor_save_response( int $ai4seo_this_post_id, a
 		}
 	}
 
-	// A partial third-party result is still a successful editor save because SOOZ owns the submitted values.
+	// Confirmed recovery fields can fail synchronization even when other submitted fields were rejected.
 	$ai4seo_third_party_sync_failed  = ! $ai4seo_overall_save_succeeded
-		&& $ai4seo_active_metadata_succeeded
+		&& ( $ai4seo_active_metadata_succeeded || ! empty( $ai4seo_metadata_update_details['confirmed_fields'] ) )
 		&& empty( $ai4seo_metadata_update_details['third_party_sync_succeeded'] );
 	$ai4seo_failed_third_party_syncs = $ai4seo_metadata_update_details['failed_third_party_syncs'] ?? array();
 	$ai4seo_third_party_sync_warning = '';
@@ -488,6 +544,15 @@ function ai4seo_build_metadata_editor_save_response( int $ai4seo_this_post_id, a
 	}
 
 	// Explain why the browser must retain the current editor and stop automatic navigation.
+	if ( $ai4seo_storage_view['conflicts'] ) {
+		$ai4seo_warnings[] = __( 'Some stored fields have different values. Choose a value for each conflict, or keep editing other fields.', 'ai-for-seo' );
+	}
+	if ( $ai4seo_storage_view['repair_incomplete'] || 'compatible_duplicates' === $ai4seo_storage_view['classification'] ) {
+		$ai4seo_warnings[] = __( 'Metadata is available, but duplicate cleanup is incomplete. It will be retried on the next edit.', 'ai-for-seo' );
+	}
+	if ( ! empty( $ai4seo_fenced_save_details['persistence_succeeded'] ) && empty( $ai4seo_fenced_save_details['coverage_succeeded'] ) ) {
+		$ai4seo_warnings[] = __( 'Metadata was saved. Its coverage will be refreshed by the scheduled reconciliation.', 'ai-for-seo' );
+	}
 	if ( $ai4seo_reload_required ) {
 		$ai4seo_warnings[] = __( 'The saved state could not be fully confirmed. Reload this entry before updating it again.', 'ai-for-seo' );
 	}
@@ -521,6 +586,19 @@ function ai4seo_build_metadata_editor_save_response( int $ai4seo_this_post_id, a
 		'metadata_editor' => array(
 			'post_id'                  => $ai4seo_this_post_id,
 			'metadata'                 => $ai4seo_persisted_metadata,
+			'saved_fields'             => array_keys( $ai4seo_persisted_metadata ),
+			'unresolved_fields'        => array_values(
+				array_unique(
+					array_merge(
+						array_keys( $ai4seo_storage_view['conflicts'] ),
+						array_keys( array_diff_key( $ai4seo_new_metadata, $ai4seo_persisted_metadata ) )
+					)
+				)
+			),
+			'storage'                  => ai4seo_metadata_recovery_editor_state( $ai4seo_storage_view ),
+			'storage_fingerprint'      => $ai4seo_storage_view['fingerprint'],
+			'conflicts'                => $ai4seo_storage_view['conflicts'],
+			'submitted_changes_saved'  => count( $ai4seo_new_metadata ) === count( $ai4seo_persisted_metadata ),
 			'status'                   => $ai4seo_save_status,
 			'reload_required'          => $ai4seo_reload_required,
 			'warnings'                 => $ai4seo_warnings,

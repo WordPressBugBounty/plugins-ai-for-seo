@@ -4,7 +4,7 @@ Contributors: spacecodes
 Donate link: https://spa.ce.codes
 Requires at least: 6.6
 Tested up to: 7.1
-Stable tag: 2.5.5
+Stable tag: 2.5.6
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -225,6 +225,16 @@ It depends on how the generated data is stored and used. If *SOOZ - AI for SEO* 
 We welcome feature requests, editor integration ideas, page builder compatibility requests, and SEO workflow feedback. Please email [support@sooz.ai](mailto:support@sooz.ai) with your suggestions.
 
 == Changelog ==
+
+= 2.5.6 =
+* Added recovery options for duplicate or conflicting saved metadata, with explicit choices for conflicting values and protection for unsaved edits.
+* Improved generation context with cleaner visible page content, better Elementor support, and more accurate matching of images to their surrounding text.
+* Added confirmation before overwriting existing metadata or media attributes, showing the affected fields and generation cost.
+* Added dismissal of resolved SEO Autopilot warnings and automatic acknowledgement after successful generation or saving, while retaining activity history.
+* Improved navigation with a Back control in Related Media that preserves parent edits, direct Dashboard links to missing SEO fields, and a shortcut to Deep Search settings.
+* Expanded the Help page post inspector to make saved-data and metadata-recovery problems easier to diagnose.
+* Improved Help headings and custom-instruction tooltips for clearer navigation and accessibility.
+* Bug Fixes & Maintenance: Fixed 1 minor bug and implemented 2 performance improvements.
 
 = 2.5.5 =
 * Improved SEO coverage displays with details for filled, missing, and excluded fields, clearer completion guidance, and highlighted edit buttons for incomplete entries.

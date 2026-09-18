@@ -123,26 +123,6 @@ function ai4seo_get_tooltip_tag( string $trigger_html, string $tooltip_html, arr
 // The editor notice helpers follow.
 
 /**
- * Sanitize a whitespace-separated list of CSS classes without joining adjacent class names.
- *
- * @param string $css_classes CSS classes.
- * @return string Sanitized CSS classes.
- */
-function ai4seo_sanitize_css_class_list( string $css_classes ): string {
-	$css_classes = preg_split( '/\s+/', trim( $css_classes ), -1, PREG_SPLIT_NO_EMPTY );
-
-	if ( ! is_array( $css_classes ) ) {
-		return '';
-	}
-
-	$css_classes = array_map( 'sanitize_html_class', $css_classes );
-	$css_classes = array_filter( $css_classes );
-
-	return implode( ' ', $css_classes );
-}
-
-
-/**
  * Returns an icon with a tooltip.
  *
  * @param string $tooltip_text      The tooltip text to be displayed.
@@ -182,34 +162,6 @@ function ai4seo_get_icon_with_tooltip_tag( string $tooltip_text, string $icon_cs
  */
 function ai4seo_get_sooz_logo_image_tag( string $variant = 'sooz' ): string {
 	return "<img src='" . esc_url( ai4seo_get_sooz_logo_url( $variant ) ) . "' alt='" . esc_attr( AI4SEO_PLUGIN_NAME ) . "' title='" . esc_attr( AI4SEO_PLUGIN_NAME ) . "' class='ai4seo-sooz-logo'>";
-}
-
-
-/**
- * Returns the next post ID from an ordered list of post IDs.
- *
- * @param int   $current_post_id The current post ID.
- * @param array $ordered_post_ids All post IDs in the current list.
- * @return int The next post ID or 0 if no next post ID is available.
- */
-function ai4seo_get_next_post_id_from_ordered_post_ids( int $current_post_id, array $ordered_post_ids ): int {
-	// Normalize the modal navigation inputs before comparing them with strict array_search().
-	$current_post_id  = absint( $current_post_id );
-	$ordered_post_ids = array_map( 'absint', $ordered_post_ids );
-
-	// Empty lists and invalid current IDs mean there is no sequential editor target.
-	if ( ! $current_post_id || ! $ordered_post_ids ) {
-		return 0;
-	}
-
-	// Preserve the original list order so list filters and sorting keep controlling editor navigation.
-	$current_post_index = array_search( $current_post_id, $ordered_post_ids, true );
-
-	if ( false === $current_post_index || ! isset( $ordered_post_ids[ $current_post_index + 1 ] ) ) {
-		return 0;
-	}
-
-	return $ordered_post_ids[ $current_post_index + 1 ];
 }
 
 
@@ -426,9 +378,16 @@ function ai4seo_get_editor_preview_card_heading_tag(
 
 	$output .= '</div>';
 
-	// Preserve the original single Edit action when no field-specific labels were requested.
+	// Keep the single action compact while identifying its field to assistive technology.
+	$single_edit_aria_label = '';
+
 	if ( $edit_target && ! $edit_actions ) {
 		$edit_actions[ $edit_target ] = __( 'Edit', 'ai-for-seo' );
+		$single_edit_aria_label       = sprintf(
+			/* translators: %s: Editable field name. */
+			__( 'Edit %s', 'ai-for-seo' ),
+			sanitize_text_field( $headline )
+		);
 	}
 
 	if ( $edit_actions ) {
@@ -442,7 +401,13 @@ function ai4seo_get_editor_preview_card_heading_tag(
 				continue;
 			}
 
-			$output .= '<button type="button" class="ai4seo-button ai4seo-small-button ai4seo-editor-preview-edit-button" data-ai4seo-preview-edit-target="' . esc_attr( $action_target ) . '">';
+			$output .= '<button type="button" class="ai4seo-button ai4seo-small-button ai4seo-editor-preview-edit-button" data-ai4seo-preview-edit-target="' . esc_attr( $action_target ) . '"';
+
+			if ( $single_edit_aria_label ) {
+				$output .= ' aria-label="' . esc_attr( $single_edit_aria_label ) . '"';
+			}
+
+			$output .= '>';
 			$output .= esc_html( $action_label );
 			$output .= '</button>';
 		}
@@ -969,10 +934,11 @@ function ai4seo_get_accessible_content_type_label( int $post_id, string $content
 /**
  * Returns the HTML for a native WordPress post editor link.
  *
- * @param int $post_id The post ID to edit.
+ * @param int  $post_id The post ID to edit.
+ * @param bool $small_secondary Whether to show a compact secondary button with visible text.
  * @return string The HTML for the link, or an empty string when the post cannot be edited.
  */
-function ai4seo_get_wordpress_post_edit_link_button( int $post_id ): string {
+function ai4seo_get_wordpress_post_edit_link_button( int $post_id, bool $small_secondary = false ): string {
 	// Let WordPress reject unavailable records and build the canonical editor URL for the current installation.
 	$edit_post_link = get_edit_post_link( $post_id );
 	if ( ! $edit_post_link ) {
@@ -991,8 +957,8 @@ function ai4seo_get_wordpress_post_edit_link_button( int $post_id ): string {
 		'',
 		'_blank',
 		'arrow-up-right-from-square',
-		'',
-		'',
+		$small_secondary ? esc_html__( 'Edit in WordPress', 'ai-for-seo' ) : '',
+		$small_secondary ? 'ai4seo-small-button ai4seo-secondary-button' : '',
 		'',
 		$button_label
 	);
@@ -1104,7 +1070,7 @@ function ai4seo_get_accordion_element( string $headline, string $content, int $h
 
 	$accordion_trigger_id = 'ai4seo-accordion-trigger-' . $accordion_number;
 	$accordion_panel_id   = 'ai4seo-accordion-content-' . $accordion_number;
-	$heading_tag          = 4 === $heading_level ? 'h4' : 'h2';
+	$heading_tag          = in_array( $heading_level, array( 2, 3, 4 ), true ) ? 'h' . $heading_level : 'h2';
 
 	// Preserve the holder structure consumed by Help search and accordion card styling.
 	$output = "<div class='ai4seo-accordion-holder'>";
@@ -1242,6 +1208,7 @@ function ai4seo_get_seo_coverage_chart_values(
  * @param int    $num_total Total entries represented by the chart.
  * @param string $posts_table_analysis_state Current posts-table analysis state.
  * @param string $post_type Post type represented by the chart.
+ * @param string $review_missing_fields_url Optional URL for reviewing incomplete items.
  * @return void
  */
 function ai4seo_echo_half_donut_chart_with_headline_and_percentage(
@@ -1250,7 +1217,8 @@ function ai4seo_echo_half_donut_chart_with_headline_and_percentage(
 	$num_complete,
 	$num_total,
 	$posts_table_analysis_state,
-	$post_type
+	$post_type,
+	$review_missing_fields_url = ''
 ) {
 	// Derive the displayed percentage from the same totals used to render the chart segments.
 	$ai4seo_percentage_complete = round( $num_complete / $num_total * 100 );
@@ -1329,6 +1297,21 @@ function ai4seo_echo_half_donut_chart_with_headline_and_percentage(
 		);
 	}
 		echo '</div>';
+
+	// Keep navigation outside the progressbar so its link remains keyboard and screen-reader accessible.
+	if ( $review_missing_fields_url ) {
+		$review_missing_fields_label = sprintf(
+			/* translators: %s: plural content type name, such as Pages or Media. */
+			__( 'Review missing fields for %s', 'ai-for-seo' ),
+			ai4seo_get_post_type_translation( $post_type, true )
+		);
+
+		echo '<div class="ai4seo-chart-review">';
+			echo '<a class="ai4seo-button ai4seo-small-button ai4seo-secondary-button" href="' . esc_url( $review_missing_fields_url ) . '" aria-label="' . esc_attr( $review_missing_fields_label ) . '">';
+				echo esc_html__( 'Review missing fields', 'ai-for-seo' );
+			echo '</a>';
+		echo '</div>';
+	}
 	echo '</div>';
 }
 
@@ -3151,45 +3134,6 @@ function ai4seo_get_bulk_generation_queue_action_controls( string $context, stri
 	$output .= '</form>';
 
 	return $output;
-}
-
-
-/**
- * Returns generated-data counts by post type for reset controls.
- *
- * @return array Generated-data counts by post type.
- */
-function ai4seo_get_generated_data_reset_post_type_counts(): array {
-	$generation_status_summary       = ai4seo_read_generation_status_summary( true, true );
-	$generated_data_post_type_counts = array();
-	$generated_data_option_names     = array(
-		AI4SEO_GENERATED_METADATA_POST_IDS_OPTION_NAME,
-		AI4SEO_GENERATED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME,
-	);
-
-	foreach ( $generated_data_option_names as $this_generated_data_option_name ) {
-		if ( ! isset( $generation_status_summary[ $this_generated_data_option_name ] )
-			|| ! is_array( $generation_status_summary[ $this_generated_data_option_name ] ) ) {
-			continue;
-		}
-
-		foreach ( $generation_status_summary[ $this_generated_data_option_name ] as $this_post_type => $this_num_generated_entries ) {
-			$this_post_type             = sanitize_key( $this_post_type );
-			$this_num_generated_entries = absint( $this_num_generated_entries );
-
-			if ( ! $this_post_type || ! $this_num_generated_entries ) {
-				continue;
-			}
-
-			if ( ! isset( $generated_data_post_type_counts[ $this_post_type ] ) ) {
-				$generated_data_post_type_counts[ $this_post_type ] = 0;
-			}
-
-			$generated_data_post_type_counts[ $this_post_type ] += $this_num_generated_entries;
-		}
-	}
-
-	return $generated_data_post_type_counts;
 }
 
 

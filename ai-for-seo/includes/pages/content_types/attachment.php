@@ -513,6 +513,7 @@ $ai4seo_content_type_filter_controls_html     = ai4seo_get_content_type_filter_c
 	$ai4seo_all_attachment_posts ? $ai4seo_bulk_generation_queue_action_controls : '',
 	array(
 		'defer_status_filters'           => $ai4seo_should_defer_status_filters,
+		'list_location'                  => $ai4seo_is_related_attachments_modal ? 'related-media' : 'main',
 		'content_context'                => AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES,
 		'post_type'                      => $ai4seo_main_attachment_post_type,
 		'retry_all_failed_button_target' => ( $ai4seo_can_administer_plugin && ! $ai4seo_is_related_attachments_modal ) ? $ai4seo_retry_all_failed_attachment_attributes_container_id : '',

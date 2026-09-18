@@ -1482,6 +1482,39 @@ function ai4seo_get_attachment_source_tls_error_response( WP_Error $error ): arr
 
 
 /**
+ * Convert an image signature detector format to its normalized MIME type.
+ *
+ * @param string $detected_image_format Format or MIME type returned by the image signature detector.
+ * @return string Normalized MIME type, or an empty string when the format is unknown.
+ */
+function ai4seo_get_mime_type_from_detected_image_format( string $detected_image_format ): string {
+	// Normalize once so both MIME values and short signature names remain case-insensitive.
+	$detected_image_format = strtolower( $detected_image_format );
+
+	// Preserve MIME values returned by getimagesizefromstring() while normalizing optional parameters.
+	if ( 0 === strpos( $detected_image_format, 'image/' ) ) {
+		return ai4seo_normalize_mime_type_string( $detected_image_format ) ?? '';
+	}
+
+	// Map the stable short names returned by the plugin's magic-byte checks.
+	$image_mime_types = array(
+		'jpg'  => 'image/jpeg',
+		'jpeg' => 'image/jpeg',
+		'png'  => 'image/png',
+		'gif'  => 'image/gif',
+		'webp' => 'image/webp',
+		'avif' => 'image/avif',
+		'heif' => 'image/heif',
+		'bmp'  => 'image/bmp',
+		'tiff' => 'image/tiff',
+		'ico'  => 'image/x-icon',
+	);
+
+	return $image_mime_types[ $detected_image_format ] ?? '';
+}
+
+
+/**
  * Load an image and return its base64 conversion result.
  *
  * @param string $image_url Image URL.
@@ -3947,6 +3980,152 @@ function ai4seo_update_attachment_related_post_id_for_attachment_post_ids(
 // =========================================================================================== \
 
 /**
+ * Normalize a source URL for exact image matching, preserving path and query identity.
+ *
+ * @param string $url Source URL.
+ * @param string $base_url Page URL used to resolve relative sources.
+ * @return string Comparable HTTP URL, or empty for unsupported sources.
+ */
+function ai4seo_normalize_generation_image_url( string $url, string $base_url ): string {
+	$url   = WP_Http::make_absolute_url( trim( $url ), $base_url );
+	$parts = wp_parse_url( $url );
+
+	if ( ! is_array( $parts )
+		|| empty( $parts['host'] )
+		|| empty( $parts['scheme'] )
+		|| ! in_array( strtolower( $parts['scheme'] ), array( 'http', 'https' ), true ) ) {
+		return '';
+	}
+
+	return strtolower( $parts['scheme'] ) . '://' . strtolower( $parts['host'] )
+		. ( isset( $parts['port'] ) ? ':' . $parts['port'] : '' )
+		. ( $parts['path'] ?? '/' ) . ( isset( $parts['query'] ) ? '?' . $parts['query'] : '' );
+}
+
+
+/**
+ * Read URL tokens from srcset without treating descriptors as image URLs.
+ *
+ * @param string $srcset Complete srcset attribute.
+ * @return array Source URLs in document order.
+ */
+function ai4seo_get_generation_srcset_urls( string $srcset ): array {
+	$urls   = array();
+	$offset = 0;
+	$length = strlen( $srcset );
+
+	while ( $offset < $length ) {
+		$offset += strspn( $srcset, " \t\r\n\f,", $offset );
+		$size    = strcspn( $srcset, " \t\r\n\f", $offset );
+		$url     = substr( $srcset, $offset, $size );
+		$offset += $size;
+
+		if ( '' === $url ) {
+			break;
+		}
+
+		$urls[] = rtrim( $url, ',' );
+
+		if ( ',' !== substr( $url, -1 ) ) {
+			// Skip the density/width descriptor up to the next candidate separator.
+			$offset += strcspn( $srcset, ',', $offset );
+		}
+	}
+
+	return $urls;
+}
+
+
+/**
+ * Match an actual image token by exact attachment identity or source URL.
+ *
+ * @param WP_HTML_Tag_Processor $processor Processor positioned at an IMG token.
+ * @param int                   $attachment_id Attachment identity.
+ * @param string                $attachment_url Exact attachment URL.
+ * @param string                $page_url Source page URL.
+ * @return bool Whether this image is the requested attachment.
+ */
+function ai4seo_generation_image_matches(
+	WP_HTML_Tag_Processor $processor,
+	int $attachment_id,
+	string $attachment_url,
+	string $page_url
+): bool {
+	if ( 0 < $attachment_id && $processor->has_class( 'wp-image-' . $attachment_id ) ) {
+		return true;
+	}
+
+	if ( '' === $attachment_url ) {
+		return false;
+	}
+
+	$base_url = '' !== $page_url ? $page_url : $attachment_url;
+	$expected = ai4seo_normalize_generation_image_url( $attachment_url, $base_url );
+
+	if ( '' === $expected ) {
+		return false;
+	}
+
+	$sources = array();
+
+	foreach ( array( 'src', 'data-src', 'data-lazy-src', 'data-original' ) as $attribute ) {
+		$value = $processor->get_attribute( $attribute );
+
+		if ( is_string( $value ) ) {
+			$sources[] = $value;
+		}
+	}
+
+	foreach ( array( 'srcset', 'data-srcset', 'data-lazy-srcset' ) as $attribute ) {
+		$value = $processor->get_attribute( $attribute );
+
+		if ( is_string( $value ) ) {
+			$sources = array_merge( $sources, ai4seo_get_generation_srcset_urls( $value ) );
+		}
+	}
+
+	foreach ( $sources as $source ) {
+		if ( '' !== trim( $source ) && ai4seo_normalize_generation_image_url( $source, $base_url ) === $expected ) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+
+/**
+ * Return a bounded visible excerpt around the first real matching image.
+ *
+ * @param string $html Intact normalized source markup.
+ * @param int    $attachment_id Requested attachment identity.
+ * @param string $attachment_url Exact attachment URL.
+ * @param string $page_url Base URL for relative image sources.
+ * @return string Surrounding context, or empty when no real occurrence is found.
+ */
+function ai4seo_get_attachment_surrounding_visible_text(
+	string $html,
+	int $attachment_id,
+	string $attachment_url,
+	string $page_url = ''
+): string {
+	$position = null;
+	$text     = ai4seo_extract_generation_visible_text( $html, $attachment_id, $attachment_url, $page_url, $position );
+
+	if ( null === $position ) {
+		return '';
+	}
+
+	$before = ai4seo_mb_substr( $text, max( 0, $position - 1000 ), min( 1000, $position ) );
+	$after  = ai4seo_mb_substr( $text, $position, 1100 );
+	$before = ai4seo_truncate_sentence( ai4seo_remove_double_sentences( trim( $before ) ), 900, 1000 );
+	$after  = ai4seo_truncate_sentence( ai4seo_remove_double_sentences( trim( $after ) ), 1000, 1100 );
+
+	return trim( $before . ' #IMAGE IS USED HERE# ' . $after );
+}
+
+
+/**
  * Returns post-related context for an attachment.
  *
  * @param int  $attachment_post_id    The attachment post ID.
@@ -3990,55 +4169,14 @@ function ai4seo_get_attachment_post_related_context( int $attachment_post_id, bo
 	// ADD POST CONTEXT.
 	ai4seo_add_post_context( $post_id, $post_related_context, false );
 
-	// FIND SURROUNDING CONTENT.
-	$content_markers = array(
-		'wp-image-' . $attachment_post_id,
-		'"id":' . $attachment_post_id,
-		'attachment_' . $attachment_post_id,
-		'ids="' . $attachment_post_id,
-		"ids='" . $attachment_post_id,
-		"#$attachment_post_id",
+	// Locate whole image nodes before taking windows from cleaned text.
+	$combined_post_content                      = ai4seo_get_combined_post_content( $post_id, '', true );
+	$post_content_around_first_image_occurrence = ai4seo_get_attachment_surrounding_visible_text(
+		(string) $combined_post_content,
+		$attachment_post_id,
+		(string) $attachment_url,
+		(string) get_permalink( $post_id )
 	);
-
-	if ( $attachment_url ) {
-		$content_markers[] = $attachment_url;
-
-		// basename only.
-		$content_markers[] = basename( $attachment_url );
-
-		// without file type.
-		$content_markers[] = basename( $attachment_url, pathinfo( $attachment_url, PATHINFO_EXTENSION ) );
-	}
-
-	$combined_post_content     = ai4seo_get_combined_post_content( $post_id, '', true );
-	$first_occurrence_position = false;
-
-	foreach ( $content_markers as $this_marker ) {
-		$this_position = ai4seo_mb_strpos( $combined_post_content, $this_marker );
-
-		if ( false === $this_position ) {
-			continue;
-		}
-
-		if ( false === $first_occurrence_position || $this_position < $first_occurrence_position ) {
-			$first_occurrence_position = $this_position;
-		}
-	}
-
-	$post_content_around_first_image_occurrence = '';
-
-	if ( false !== $first_occurrence_position ) {
-		$length            = 1000;
-		$start             = max( 0, ( (int) $first_occurrence_position ) - $length );
-		$pre_image_content = ai4seo_mb_substr( $combined_post_content, $start, $length );
-		ai4seo_condense_raw_post_content( $pre_image_content, $length - 100, $length );
-
-		$start              = ( (int) $first_occurrence_position - 16 );
-		$post_image_content = ai4seo_mb_substr( $combined_post_content, $start, $length + 100 );
-		ai4seo_condense_raw_post_content( $post_image_content, $length, $length + 100 );
-
-		$post_content_around_first_image_occurrence = $pre_image_content . ' #IMAGE IS USED HERE# ' . $post_image_content;
-	}
 
 	if ( $post_content_around_first_image_occurrence ) {
 		$post_related_context .= " Image surrounding content: '[...] " . $post_content_around_first_image_occurrence . " [...]'";

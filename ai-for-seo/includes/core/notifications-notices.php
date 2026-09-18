@@ -2352,24 +2352,6 @@ function ai4seo_refresh_unread_notifications_count() {
 
 
 /**
- * Function to check if an notification is defined in the $notifications array
- *
- * @param string $notification_index The notification identifier.
- * @return bool True if the notification is defined, false otherwise
- */
-function ai4seo_is_notification_defined( string $notification_index ): bool {
-	if ( empty( $notification_index ) ) {
-		return false;
-	}
-
-	// Resolve repaired state so legacy payloads cannot influence notification identity checks.
-	$notifications = ai4seo_get_repaired_notifications();
-
-	return isset( $notifications[ $notification_index ] ) && is_array( $notifications[ $notification_index ] );
-}
-
-
-/**
  * Function to get the amount of unread notifications
  *
  * @return int The number of unread notifications
@@ -3590,6 +3572,27 @@ function ai4seo_check_for_payg_status_errors( $payg_status, $force = false ) {
 
 
 /**
+ * Determine whether any supplied post type has outstanding generation work for notifications.
+ *
+ * @param array $post_types Post types relevant to the notification.
+ * @return bool Whether a supplied post type has a positive numeric missing-post count.
+ */
+function ai4seo_notification_post_types_have_missing_posts( array $post_types ): bool {
+	$num_missing_posts_by_post_type = ai4seo_get_num_missing_posts_by_post_type();
+
+	foreach ( $post_types as $this_post_type ) {
+		if ( ! empty( $num_missing_posts_by_post_type[ $this_post_type ] )
+			&& is_numeric( $num_missing_posts_by_post_type[ $this_post_type ] )
+			&& $num_missing_posts_by_post_type[ $this_post_type ] > 0 ) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+
+/**
  * Function to eventually output a notice about inefficient cron jobs
  *
  * @param bool $force The force value.
@@ -3635,18 +3638,7 @@ function ai4seo_check_for_inefficient_cron_jobs_notification( $force = false ) {
 	}
 
 	// no need to check cron job efficiency if we don't have any missing posts.
-	$we_got_any_missing_posts       = false;
-	$num_missing_posts_by_post_type = ai4seo_get_num_missing_posts_by_post_type();
-
-	foreach ( $active_bulk_generation_post_types as $this_post_type ) {
-		// check if we have any missing posts for the current post type.
-		if ( ! empty( $num_missing_posts_by_post_type[ $this_post_type ] )
-			&& is_numeric( $num_missing_posts_by_post_type[ $this_post_type ] )
-			&& $num_missing_posts_by_post_type[ $this_post_type ] > 0 ) {
-			$we_got_any_missing_posts = true;
-			break;
-		}
-	}
+	$we_got_any_missing_posts = ai4seo_notification_post_types_have_missing_posts( $active_bulk_generation_post_types );
 
 	if ( ! $we_got_any_missing_posts ) {
 		// no missing posts for the active post types, remove the notification.
@@ -3737,18 +3729,7 @@ function ai4seo_check_for_finished_seo_autopilot_notification( $force = false ) 
 	}
 
 	// no need to check if we still have any missing posts left.
-	$we_got_any_missing_posts       = false;
-	$num_missing_posts_by_post_type = ai4seo_get_num_missing_posts_by_post_type();
-
-	foreach ( $active_bulk_generation_post_types as $this_post_type ) {
-		// check if we have any missing posts for the current post type.
-		if ( ! empty( $num_missing_posts_by_post_type[ $this_post_type ] )
-			&& is_numeric( $num_missing_posts_by_post_type[ $this_post_type ] )
-			&& $num_missing_posts_by_post_type[ $this_post_type ] > 0 ) {
-			$we_got_any_missing_posts = true;
-			break;
-		}
-	}
+	$we_got_any_missing_posts = ai4seo_notification_post_types_have_missing_posts( $active_bulk_generation_post_types );
 
 	if ( $we_got_any_missing_posts ) {
 		// we have missing posts for the active post types, remove the notification.

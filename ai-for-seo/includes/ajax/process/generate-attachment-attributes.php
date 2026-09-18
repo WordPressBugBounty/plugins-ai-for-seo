@@ -68,6 +68,9 @@ if ( ! ai4seo_can_edit_post( $ai4seo_this_attachment_post_id ) ) {
 
 // === CHECK PARAMETER: GENERATION FIELDS ==================================================== \\
 
+// Capture the existing failure before the API request; later failures must remain visible.
+$ai4seo_activity_error_token = ai4seo_get_recent_activity_error_token( $ai4seo_this_attachment_post_id, 'attachment-attributes-bulk-generated' );
+
 // Preserve the old parameter shape while making the direct request read WPCS-compliant.
 $ai4seo_generation_fields = ai4seo_deep_sanitize(
 	isset( $_REQUEST['ai4seo_generation_fields'] )
@@ -331,5 +334,10 @@ $ai4seo_response = array(
 	'credits_consumed'    => $ai4seo_credits_consumed,
 	'new_credits_balance' => (int) ( $ai4seo_results['new-credits-balance'] ?? 0 ),
 );
+
+if ( ! $ai4seo_unresolved_generation_fields && '' !== $ai4seo_activity_error_token
+	&& ai4seo_resolve_recent_activity_error( $ai4seo_this_attachment_post_id, 'attachment-attributes-bulk-generated', $ai4seo_activity_error_token ) ) {
+	$ai4seo_response['resolved_activity_tokens']['attachment-attributes-bulk-generated'] = $ai4seo_activity_error_token;
+}
 
 ai4seo_send_ajax_success( $ai4seo_response );

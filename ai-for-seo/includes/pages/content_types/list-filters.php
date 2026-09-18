@@ -2684,6 +2684,9 @@ if ( ! function_exists( 'ai4seo_get_content_type_filter_controls_html' ) ) {
 			}
 		}
 
+		// Keep labels local when an AJAX-rendered Related Media list shares the document with its parent list.
+		$control_scope           = sanitize_html_class( (string) ( $render_args['list_location'] ?? 'main' ) );
+		$search_input_id         = 'ai4seo-content-list-search-input-' . $control_scope;
 		$output                  = '<div class="ai4seo-filter-bar ai4seo-content-list-controls">';
 			$output             .= '<div class="ai4seo-content-list-controls__top">';
 				$output         .= '<div class="ai4seo-content-list-controls__views">';
@@ -2692,8 +2695,8 @@ if ( ! function_exists( 'ai4seo_get_content_type_filter_controls_html' ) ) {
 				$output         .= '<div class="ai4seo-content-list-controls__search">';
 					$output     .= '<form method="get" action="' . esc_url( $form_action_url ) . '" class="ai4seo-content-list-search-form search-box">';
 						$output .= $search_hidden_fields_html;
-						$output .= '<label class="screen-reader-text" for="ai4seo-content-list-search-input">' . esc_html__( 'Search', 'ai-for-seo' ) . '</label>';
-						$output .= '<input class="ai4seo-textfield" autocomplete="off" id="ai4seo-content-list-search-input" type="search" name="ai4seo_filter_text" value="' . esc_attr( $filter_text ) . '" placeholder="' . esc_attr__( 'Search by title, ID, or URL/filename', 'ai-for-seo' ) . '" />';
+						$output .= '<label class="screen-reader-text" for="' . esc_attr( $search_input_id ) . '">' . esc_html__( 'Search', 'ai-for-seo' ) . '</label>';
+						$output .= '<input class="ai4seo-textfield" autocomplete="off" id="' . esc_attr( $search_input_id ) . '" type="search" name="ai4seo_filter_text" value="' . esc_attr( $filter_text ) . '" placeholder="' . esc_attr__( 'Search by title, ID, or URL/filename', 'ai-for-seo' ) . '" />';
 						$output .= $language_select_html;
 
 						// Add stable classes so shared JS can submit on Enter and reset on Escape across media/post lists and modals.

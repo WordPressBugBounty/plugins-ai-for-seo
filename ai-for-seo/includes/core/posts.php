@@ -14,6 +14,34 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 /**
+ * Returns the next post ID from an ordered list of post IDs.
+ *
+ * @param int   $current_post_id The current post ID.
+ * @param array $ordered_post_ids All post IDs in the current list.
+ * @return int The next post ID or 0 if no next post ID is available.
+ */
+function ai4seo_get_next_post_id_from_ordered_post_ids( int $current_post_id, array $ordered_post_ids ): int {
+	// Normalize the modal navigation inputs before comparing them with strict array_search().
+	$current_post_id  = absint( $current_post_id );
+	$ordered_post_ids = array_map( 'absint', $ordered_post_ids );
+
+	// Empty lists and invalid current IDs mean there is no sequential editor target.
+	if ( ! $current_post_id || ! $ordered_post_ids ) {
+		return 0;
+	}
+
+	// Preserve the original list order so list filters and sorting keep controlling editor navigation.
+	$current_post_index = array_search( $current_post_id, $ordered_post_ids, true );
+
+	if ( false === $current_post_index || ! isset( $ordered_post_ids[ $current_post_index + 1 ] ) ) {
+		return 0;
+	}
+
+	return $ordered_post_ids[ $current_post_index + 1 ];
+}
+
+
+/**
  * Return the shared per-request post-context override stack.
  *
  * @return array Post IDs in push order.
@@ -458,37 +486,21 @@ function ai4seo_get_disabled_attachment_post_author_ids(): array {
 function ai4seo_get_supported_taxonomy_terms(): array {
 	global $wpdb;
 
-	static $ai4seo_supported_taxonomy_terms_by_site = array();
+	$cached_terms = ai4seo_read_supported_taxonomy_terms_cache( $cache_context );
 
-	$options_table  = isset( $wpdb->options ) ? (string) $wpdb->options : '';
-	$blog_id        = absint( get_current_blog_id() );
-	$site_cache_key = $options_table . '|' . $blog_id;
-
-	if ( isset( $ai4seo_supported_taxonomy_terms_by_site[ $site_cache_key ] )
-		&& is_array( $ai4seo_supported_taxonomy_terms_by_site[ $site_cache_key ] ) ) {
-		return $ai4seo_supported_taxonomy_terms_by_site[ $site_cache_key ];
+	if ( null !== $cached_terms ) {
+		return $cached_terms;
 	}
-
-	$ai4seo_supported_taxonomy_terms =& $ai4seo_supported_taxonomy_terms_by_site[ $site_cache_key ];
 
 	if ( ai4seo_prevent_loops( __FUNCTION__, 2 ) ) {
 		ai4seo_debug_message( 517322611, 'Prevented loop', true );
 		return array();
 	}
 
-	if ( ai4seo_is_environmental_variable_cache_available( AI4SEO_ENVIRONMENTAL_VARIABLE_SUPPORTED_TAXONOMY_TERMS_CACHE ) ) {
-		$ai4seo_supported_taxonomy_terms = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_SUPPORTED_TAXONOMY_TERMS_CACHE );
-
-		if ( is_array( $ai4seo_supported_taxonomy_terms ) ) {
-			return $ai4seo_supported_taxonomy_terms;
-		}
-	}
-
 	$supported_post_types = ai4seo_get_supported_post_types( false );
 
 	if ( ! $supported_post_types ) {
-		$ai4seo_supported_taxonomy_terms = array();
-		return $ai4seo_supported_taxonomy_terms;
+		return array();
 	}
 
 	$supported_post_types = ai4seo_deep_sanitize( $supported_post_types, 'sanitize_key' );
@@ -496,8 +508,7 @@ function ai4seo_get_supported_taxonomy_terms(): array {
 	$supported_post_types = array_slice( $supported_post_types, 0, 256 );
 
 	if ( ! $supported_post_types ) {
-		$ai4seo_supported_taxonomy_terms = array();
-		return $ai4seo_supported_taxonomy_terms;
+		return array();
 	}
 
 	$supported_taxonomies = array();
@@ -536,8 +547,7 @@ function ai4seo_get_supported_taxonomy_terms(): array {
 	}
 
 	if ( ! $supported_taxonomies ) {
-		$ai4seo_supported_taxonomy_terms = array();
-		return $ai4seo_supported_taxonomy_terms;
+		return array();
 	}
 
 	$taxonomy_names      = array_keys( $supported_taxonomies );
@@ -570,8 +580,7 @@ function ai4seo_get_supported_taxonomy_terms(): array {
 
 	if ( false === $sql ) {
 		ai4seo_debug_message( 984321704, 'Could not prepare the supported taxonomy relationship query.', true );
-		$ai4seo_supported_taxonomy_terms = array();
-		return $ai4seo_supported_taxonomy_terms;
+		return array();
 	}
 
 	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The named-query compiler prepares every binding; results use the one-hour taxonomy cache invalidated by post, relationship, term, plugin, and theme lifecycle hooks.
@@ -579,8 +588,7 @@ function ai4seo_get_supported_taxonomy_terms(): array {
 
 	if ( $wpdb->last_error ) {
 		ai4seo_debug_message( 984321704, 'Database error: ' . $wpdb->last_error, true );
-		$ai4seo_supported_taxonomy_terms = array();
-		return $ai4seo_supported_taxonomy_terms;
+		return array();
 	}
 
 	$supported_term_taxonomy_ids = array_map( 'intval', (array) $supported_term_taxonomy_ids );
@@ -593,8 +601,8 @@ function ai4seo_get_supported_taxonomy_terms(): array {
 	);
 
 	if ( ! $supported_term_taxonomy_ids ) {
-		$ai4seo_supported_taxonomy_terms = array();
-		return $ai4seo_supported_taxonomy_terms;
+		ai4seo_store_supported_taxonomy_terms_cache( array(), $cache_context, time() + HOUR_IN_SECONDS );
+		return array();
 	}
 
 	// Reserve the fixed taxonomy-name and identifier bindings before sizing each term-ID chunk.
@@ -602,8 +610,7 @@ function ai4seo_get_supported_taxonomy_terms(): array {
 
 	if ( $available_term_taxonomy_id_bindings < 1 ) {
 		ai4seo_debug_message( 984321705, 'Could not fit the supported taxonomy query within the database placeholder budget.', true );
-		$ai4seo_supported_taxonomy_terms = array();
-		return $ai4seo_supported_taxonomy_terms;
+		return array();
 	}
 
 	$database_chunk_size               = min( $database_chunk_size, $available_term_taxonomy_id_bindings );
@@ -627,16 +634,14 @@ function ai4seo_get_supported_taxonomy_terms(): array {
 
 		if ( false === $sql ) {
 			ai4seo_debug_message( 984321705, 'Could not prepare the supported taxonomy term query.', true );
-			$ai4seo_supported_taxonomy_terms = array();
-			return $ai4seo_supported_taxonomy_terms;
+			return array();
 		}
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The named-query compiler prepares every binding; rows feed the one-hour taxonomy cache invalidated by post, relationship, term, plugin, and theme lifecycle hooks.
 		$this_supported_taxonomy_term_rows = $wpdb->get_results( $sql, ARRAY_A );
 		if ( $wpdb->last_error ) {
 			ai4seo_debug_message( 984321705, 'Database error: ' . $wpdb->last_error, true );
-			$ai4seo_supported_taxonomy_terms = array();
-			return $ai4seo_supported_taxonomy_terms;
+			return array();
 		}
 
 		// Reduce this bounded page immediately so high-cardinality term rows are released before the next query.
@@ -678,16 +683,13 @@ function ai4seo_get_supported_taxonomy_terms(): array {
 		);
 	}
 
-	$ai4seo_supported_taxonomy_terms = $supported_taxonomies;
-
-	ai4seo_update_environmental_variable(
-		AI4SEO_ENVIRONMENTAL_VARIABLE_SUPPORTED_TAXONOMY_TERMS_CACHE,
-		$ai4seo_supported_taxonomy_terms,
-		true,
-		HOUR_IN_SECONDS
+	ai4seo_store_supported_taxonomy_terms_cache(
+		$supported_taxonomies,
+		$cache_context,
+		time() + HOUR_IN_SECONDS
 	);
 
-	return $ai4seo_supported_taxonomy_terms;
+	return $supported_taxonomies;
 }
 
 
@@ -1887,6 +1889,7 @@ function ai4seo_read_metadata_generation_source_snapshot(
  * @param string|null $strict_visible_text Optional structure-free visible text output.
  * @param string|null $first_h1 Optional first locally available H1 output.
  * @param array|null  $authoritative_source_snapshot Optional validated post/builder source snapshot.
+ * @param bool|null   $extraction_succeeded Whether both content extractions completed with usable evidence.
  * @return string The pure text content of the post.
  */
 function ai4seo_get_condensed_post_content_from_database(
@@ -1894,8 +1897,11 @@ function ai4seo_get_condensed_post_content_from_database(
 	bool $debug = false,
 	?string &$strict_visible_text = null,
 	?string &$first_h1 = null,
-	?array $authoritative_source_snapshot = null
+	?array $authoritative_source_snapshot = null,
+	?bool &$extraction_succeeded = null
 ): string {
+	$extraction_succeeded = false;
+
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 561711889, 'Prevented loop', true );
 		return '';
@@ -1927,8 +1933,11 @@ function ai4seo_get_condensed_post_content_from_database(
 	$first_h1               = ai4seo_extract_first_local_h1( $analysis_content );
 
 	// Preserve the existing transport condenser while deriving language evidence from the local source.
-	ai4seo_condense_raw_post_content( $post_content );
-	ai4seo_condense_raw_post_content( $analysis_content, 2000, 2250, $strict_visible_text );
+	$transport_visible_text = null;
+	$transport_succeeded    = false;
+	ai4seo_condense_raw_post_content( $post_content, 2000, 2250, $transport_visible_text, $transport_succeeded );
+	ai4seo_condense_raw_post_content( $analysis_content, 2000, 2250, $strict_visible_text, $extraction_succeeded );
+	$extraction_succeeded = $extraction_succeeded && $transport_succeeded;
 
 	if ( $debug ) {
 		ai4seo_debug_message(
@@ -2034,7 +2043,7 @@ function ai4seo_get_combined_post_content(
 	// check if is_plugin_active() is available.
 	$plugins_are_loaded = function_exists( 'is_plugin_active' );
 
-	// Elementor: only if the post_content got less than 100 characters, as the post_content should contain even a clearer version of the content.
+	// Normalize builder data before combining it with prose, including pages with saved post content.
 	if ( $plugins_are_loaded && ( ! $editor_identifier || 'elementor' === $editor_identifier ) && is_plugin_active( 'elementor/elementor.php' ) ) {
 		// Get elementor-content.
 		$elementor_content = $read_builder_content( '_elementor_data' );
@@ -2050,7 +2059,7 @@ function ai4seo_get_combined_post_content(
 				);
 			}
 
-			$combined_content[] = trim( $elementor_content );
+			$combined_content[] = ai4seo_get_elementor_generation_content( $elementor_content );
 		}
 	}
 
@@ -2210,132 +2219,395 @@ function ai4seo_get_combined_post_content(
 
 
 /**
+ * Render an exact Elementor source snapshot without emitting renderer output.
+ *
+ * @param mixed $source Serialized Elementor elements from the existing source read.
+ * @return string Content HTML, or empty when the source/renderer is unavailable.
+ */
+function ai4seo_get_elementor_generation_content( $source ): string {
+	if ( ! is_string( $source ) || '' === trim( $source ) || ! class_exists( '\Elementor\Plugin', false ) ) {
+		return '';
+	}
+
+	$data = json_decode( $source, true, 64 );
+
+	if ( ! is_array( $data ) || JSON_ERROR_NONE !== json_last_error() || '[' !== substr( ltrim( $source ), 0, 1 ) ) {
+		return '';
+	}
+
+	// Validate nested containers as well as roots before third-party widget traversal.
+	$pending = array( $data );
+
+	while ( $pending ) {
+		foreach ( array_pop( $pending ) as $key => $element ) {
+			if ( ! is_int( $key )
+				|| ! is_array( $element )
+				|| ! is_string( $element['elType'] ?? null )
+				|| ( isset( $element['settings'] ) && ! is_array( $element['settings'] ) ) ) {
+				return '';
+			}
+
+			if ( isset( $element['elements'] ) ) {
+				if ( ! is_array( $element['elements'] ) ) {
+					return '';
+				}
+
+				$pending[] = $element['elements'];
+			}
+		}
+	}
+
+	$buffer_level = ob_get_level();
+	$content      = '';
+
+	try {
+		$plugin  = \Elementor\Plugin::$instance;
+		$manager = is_object( $plugin ) ? ( $plugin->elements_manager ?? null ) : null;
+
+		if ( ! is_object( $manager ) || ! is_callable( array( $manager, 'create_element_instance' ) ) ) {
+			return '';
+		}
+
+		// Keep a discard boundary outside the capture buffer to protect the caller's output.
+		ob_start(
+			static function () {
+				return '';
+			}
+		);
+		$pending = array_reverse( $data );
+
+		while ( $pending ) {
+			$element = array_pop( $pending );
+
+			if ( 'widget' === $element['elType'] ) {
+				$widget = $manager->create_element_instance( $element );
+
+				if ( is_object( $widget ) && is_callable( array( $widget, 'render_plain_content' ) ) ) {
+					ob_start();
+					$capture_level = ob_get_level();
+					$widget->render_plain_content();
+
+					// Include nested widget buffers without losing intact tags or image identity.
+					while ( ob_get_level() > $capture_level ) {
+						if ( ! ob_end_flush() ) {
+							return '';
+						}
+					}
+
+					if ( ob_get_level() !== $capture_level ) {
+						return '';
+					}
+
+					$content .= ' ' . ob_get_clean();
+				}
+			}
+
+			foreach ( array_reverse( $element['elements'] ?? array() ) as $child ) {
+				$pending[] = $child;
+			}
+		}
+	} catch ( Throwable $exception ) {
+		// Saved post content remains available; never reuse serialized configuration.
+		$content = '';
+	} finally {
+		while ( ob_get_level() > $buffer_level ) {
+			if ( ! ob_end_clean() ) {
+				break;
+			}
+		}
+	}
+
+	return trim( $content );
+}
+
+
+/**
+ * Normalize extracted text without reinterpreting decoded text as markup.
+ *
+ * @param string $text Text emitted by the HTML tokenizer.
+ * @return string Compact visible text.
+ */
+function ai4seo_normalize_generation_visible_text( string $text ): string {
+	$text = ai4seo_remove_urls_from_string( $text );
+	$text = preg_replace( '/&(?:#[0-9]+|#x[0-9a-f]+|[a-z][a-z0-9]+);/i', ' ', $text );
+	$text = preg_replace( '/[\s\x{00a0}\x{fffd}]+/u', ' ', $text );
+
+	return is_string( $text ) ? trim( $text ) : '';
+}
+
+
+/**
+ * Extract bounded visible text and optionally locate a real image in that text.
+ *
+ * @param string      $content Complete source markup, never a slice from inside a tag.
+ * @param int         $attachment_id Optional image identity to locate.
+ * @param string      $attachment_url Optional exact image URL.
+ * @param string      $page_url Base URL for relative image sources.
+ * @param int|null    $image_offset Receives a character offset, or null when no image matched.
+ * @param string|null $first_h1 Receives the first nonempty visible H1.
+ * @param string|null $extraction_status Receives complete, truncated, or failed.
+ * @return string Clean text without a marker embedded in user-controlled input.
+ */
+function ai4seo_extract_generation_visible_text(
+	string $content,
+	int $attachment_id = 0,
+	string $attachment_url = '',
+	string $page_url = '',
+	?int &$image_offset = null,
+	?string &$first_h1 = null,
+	?string &$extraction_status = null
+): string {
+	global $shortcode_tags;
+
+	$image_offset   = null;
+	$first_h1       = '';
+	$h1_byte_offset = null;
+
+	// Allow large non-visible heads without spending the separate visible-text budget.
+	$source_truncated  = false;
+	$content           = ai4seo_get_bounded_metadata_analysis_source( $content, 2097152, $source_truncated );
+	$extraction_status = $source_truncated ? 'truncated' : 'complete';
+	$max_text_bytes    = 262144;
+	$content           = str_replace( "\0", ' ', $content );
+
+	// WordPress 6.6's iconv-based strip mode can fail on one bad byte. Preserve valid
+	// UTF-8 sequences and replace only invalid bytes, including a split boundary character.
+	if ( 1 !== preg_match( '//u', $content ) ) {
+		$content = preg_replace_callback(
+			'/((?:[\x00-\x7f]++|[\xc2-\xdf][\x80-\xbf]|\xe0[\xa0-\xbf][\x80-\xbf]|[\xe1-\xec\xee-\xef][\x80-\xbf]{2}|\xed[\x80-\x9f][\x80-\xbf]|\xf0[\x90-\xbf][\x80-\xbf]{2}|[\xf1-\xf3][\x80-\xbf]{3}|\xf4[\x80-\x8f][\x80-\xbf]{2})++)|./s',
+			static function ( array $matches ): string {
+				return $matches[1] ?? ' ';
+			},
+			$content
+		);
+
+		if ( null === $content ) {
+			$extraction_status = 'failed';
+			return '';
+		}
+	}
+
+	if ( ai4seo_is_acf_content( $content ) ) {
+		$content .= ai4seo_extract_acf_content( $content );
+	}
+
+	// Preserve the established bounded decode policy before interpreting markup.
+	for ( $pass = 0; $pass < 2; ++$pass ) {
+		// Attribute quotes stay encoded until the tokenizer has established their boundaries.
+		$decoded = html_entity_decode( $content, ENT_NOQUOTES | ENT_HTML5, 'UTF-8' );
+
+		if ( $decoded === $content ) {
+			break;
+		}
+
+		$content = $decoded;
+	}
+
+	// Only known shortcode delimiters are structural; ordinary brackets and JSON remain prose.
+	$shortcode_patterns   = array_map(
+		static function ( $name ) {
+			return preg_quote( $name, '~' );
+		},
+		array_keys( (array) $shortcode_tags )
+	);
+	$shortcode_patterns[] = 'vc_[a-zA-Z0-9_]+';
+	$shortcode_patterns[] = 'et_pb_[a-zA-Z0-9_]+';
+	// Disjoint possessive runs avoid one recursive match per attribute byte.
+	$content = preg_replace( '~\[/?(' . implode( '|', $shortcode_patterns ) . ')(?=[]\s/])(?:[^]"\']++|"[^"]*+"|\'[^\']*+\')*+]~', '', $content );
+
+	if ( null === $content ) {
+		$extraction_status = 'failed';
+		return '';
+	}
+
+	$processor         = new WP_HTML_Tag_Processor( $content );
+	$text              = '';
+	$image_byte_offset = null;
+	$hidden_tags       = array();
+	$block_tags        = array(
+		'ADDRESS',
+		'ARTICLE',
+		'ASIDE',
+		'BLOCKQUOTE',
+		'BR',
+		'DD',
+		'DIV',
+		'DL',
+		'DT',
+		'FIELDSET',
+		'FIGCAPTION',
+		'FIGURE',
+		'FOOTER',
+		'FORM',
+		'H1',
+		'H2',
+		'H3',
+		'H4',
+		'H5',
+		'H6',
+		'HEADER',
+		'HR',
+		'IMG',
+		'LI',
+		'MAIN',
+		'NAV',
+		'OL',
+		'P',
+		'PRE',
+		'SECTION',
+		'TABLE',
+		'TBODY',
+		'TD',
+		'TH',
+		'THEAD',
+		'TR',
+		'UL',
+	);
+
+	while ( $processor->next_token() ) {
+		if ( strlen( $text ) >= $max_text_bytes ) {
+			$extraction_status = 'truncated';
+			break;
+		}
+
+		$type = $processor->get_token_type();
+		$tag  = $processor->get_tag();
+
+		// HTML permits an omitted HEAD closer before BODY.
+		if ( 'BODY' === $tag && ! $processor->is_tag_closer() && array( 'HEAD' ) === $hidden_tags ) {
+			$hidden_tags = array();
+		}
+
+		if ( '#tag' === $type && in_array( $tag, array( 'HEAD', 'TEMPLATE', 'NOSCRIPT' ), true ) ) {
+			if ( $processor->is_tag_closer() ) {
+				if ( end( $hidden_tags ) === $tag ) {
+					array_pop( $hidden_tags );
+				}
+			} else {
+				$hidden_tags[] = $tag;
+			}
+
+			$text .= ' ';
+			continue;
+		}
+
+		if ( $hidden_tags ) {
+			continue;
+		}
+
+		if ( 'H1' === $tag && '' === $first_h1 ) {
+			if ( $processor->is_tag_closer() && null !== $h1_byte_offset ) {
+				$first_h1       = ai4seo_mb_substr( ai4seo_normalize_generation_visible_text( substr( $text, $h1_byte_offset ) ), 0, 512 );
+				$h1_byte_offset = null;
+			} elseif ( ! $processor->is_tag_closer() ) {
+				$h1_byte_offset = strlen( $text );
+			}
+		}
+
+		if ( '#text' === $type ) {
+			$text .= preg_replace( '/[\s\x{00a0}\x{fffd}]+/u', ' ', $processor->get_modifiable_text() );
+			continue;
+		}
+
+		if ( '#tag' !== $type ) {
+			continue;
+		}
+
+		// Raw-text elements are atomic tokens; never emit their bodies as page evidence.
+		if ( in_array( $tag, array( 'SCRIPT', 'STYLE', 'IFRAME' ), true ) ) {
+			$text .= ' ';
+			continue;
+		}
+
+		if ( 'IMG' === $tag
+			&& ! $processor->is_tag_closer()
+			&& null === $image_byte_offset
+			&& ai4seo_generation_image_matches( $processor, $attachment_id, $attachment_url, $page_url ) ) {
+			$image_byte_offset = strlen( $text );
+		}
+
+		if ( in_array( $tag, $block_tags, true ) ) {
+			$text .= ' ';
+		}
+
+		// RCDATA text belongs to its tag token rather than a subsequent text token.
+		if ( in_array( $tag, array( 'TEXTAREA', 'TITLE' ), true ) && ! $processor->is_tag_closer() ) {
+			$text .= preg_replace( '/[\s\x{00a0}\x{fffd}]+/u', ' ', $processor->get_modifiable_text() );
+		}
+	}
+
+	if ( strlen( $text ) > $max_text_bytes ) {
+		$extraction_status = 'truncated';
+		$text              = substr( $text, 0, $max_text_bytes );
+
+		// The byte budget can split a valid UTF-8 character; remove only that trailing fragment.
+		while ( 1 !== preg_match( '//u', $text ) ) {
+			$text = substr( $text, 0, -1 );
+		}
+	}
+
+	// Preserve visible text in a heading whose closing token was omitted.
+	if ( '' === $first_h1 && null !== $h1_byte_offset ) {
+		$first_h1 = ai4seo_mb_substr( ai4seo_normalize_generation_visible_text( substr( $text, $h1_byte_offset ) ), 0, 512 );
+	}
+
+	if ( null !== $image_byte_offset ) {
+		$before = ai4seo_normalize_generation_visible_text( substr( $text, 0, $image_byte_offset ) );
+		$after  = ai4seo_normalize_generation_visible_text( substr( $text, $image_byte_offset ) );
+
+		// Internal slices use byte offsets; callers need a character offset in normalized text.
+		$image_offset = ai4seo_mb_strlen( $before );
+
+		return trim( $before . ' ' . $after );
+	}
+
+	return ai4seo_normalize_generation_visible_text( $text );
+}
+
+
+/**
  * Condenses the raw content to a more readable and useful format for the api
  *
  * @param string      $content The raw content to condense.
  * @param int         $soft_cap Consider at least this many characters before truncating.
  * @param int         $hard_cap Truncate the content to this length if no sentence end is found.
  * @param string|null $strict_visible_text Optional structure-free visible text output.
+ * @param bool|null   $extraction_succeeded Whether extraction produced usable evidence or a complete empty result.
  */
 function ai4seo_condense_raw_post_content(
 	string &$content,
 	int $soft_cap = 2000,
 	int $hard_cap = 2250,
-	?string &$strict_visible_text = null
+	?string &$strict_visible_text = null,
+	?bool &$extraction_succeeded = null
 ) {
-	global $shortcode_tags;
+	$image_offset      = null;
+	$first_h1          = null;
+	$extraction_status = null;
+	$content           = ai4seo_extract_generation_visible_text( $content, 0, '', '', $image_offset, $first_h1, $extraction_status );
+	$content           = ai4seo_remove_double_sentences( $content );
+	$content           = ai4seo_truncate_sentence( $content, $soft_cap, $hard_cap );
 
-	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
-		ai4seo_debug_message( 528878491, 'Prevented loop', true );
-		return;
-	}
-
-	// workaround for ACF blocks, as content for ACF blocks are defined inside <!-- wp:acf/... --> tags.
-	if ( ai4seo_is_acf_content( $content ) ) {
-		$content .= ai4seo_extract_acf_content( $content );
-	}
-
-	// Remove complete and malformed style/script blocks so an absent closing tag cannot expose code as page text.
-	$content = preg_replace( '/<style\b[^>]*>.*?(?:<\/style>|$)/is', '', $content );
-	$content = preg_replace( '/<script\b[^>]*>.*?(?:<\/script>|$)/is', '', $content );
-
-	// Remove HTML comments.
-	$content = preg_replace( '/<!--(.*?)-->/', '', $content );
-
-	// Remove CSS/JS comments.
-	$content = preg_replace( '/\/\*(.*?)\*\//', '', $content );
-
-	// replace \/ with /.
-	$content = str_replace( '\/', '/', $content );
-	$content = str_replace( "'", "'", $content );
-
-	// remove icons ("icon-lamp").
-	$content = preg_replace( '/icon-[a-z0-9-]+/', '', $content );
-
-	// remove shortcodes like [vc_row1].
-	$content = preg_replace( '/\[[a-zA-Z0-9_]+(]|$)/', '', $content );
-
-	// Remove opening vc_ shortcodes.
-	$content = preg_replace( '/\[vc_[^]]+(]|$)/', '', $content );
-
-	// Remove closing vc_ shortcodes.
-	$content = preg_replace( '/\[\/vc_[^]]+(]|$)/', '', $content );
-
-	// handle $shortcode_tags.
-	$shortcodes = array_keys( $shortcode_tags );
-
-	if ( $shortcodes ) {
-		foreach ( $shortcodes as $shortcode ) {
-			$content = preg_replace( '/\[' . $shortcode . '[^]]*]/', '', $content );
-			$content = preg_replace( '/\[\/' . $shortcode . '[^]]*]/', '', $content );
-		}
-	}
-
-	// Remove all HTML tags.
-	$content = wp_strip_all_tags( $content );
-
-	// remove all URLs.
-	$content = ai4seo_remove_urls_from_string( $content );
-
-	// Replace multiple spaces with a single space and trim whitespace.
-	$content = preg_replace( '/\s+/', ' ', $content );
-	$content = trim( $content );
-
-	// remove be-builder progress bar infos (50 10 #72a5d8).
-	$content = preg_replace( '/[0-9]+ [0-9]+ #[a-f0-9]+/', '', $content );
-	$content = preg_replace( '/[0-9]+ [0-9]+ (grey|gray|red|green|blue|yellow|orange|purple|pink|black|white)/', '', $content );
-
-	// Decode HTML entities and handle common entities separately.
-	$content = html_entity_decode( $content, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
-	$content = str_replace( ' ', ' ', $content );
-
-	// Handle common entities that might not be converted.
-	$content = str_replace( array( '&nbsp;', '&amp;', '&quot;', '&#39;', '&lt;', '&gt;', '&;', '\u2019', 'â€™', 'â€', 'â€³', '€™t', '\u201d', '\u003cli>', '\u2013' ), array( ' ', '&', '"', "'", '<', '>', "'", "'", "'", '"', '"', "'", '"', '- ', '–' ), $content );
-
-	// Replace multiple spaces with a single space and trim whitespace.
-	$content = preg_replace( '/\s+/', ' ', $content );
-	$content = trim( $content );
-
-	// remove remaining short tags with all kinds of [ - ] combinations,
-	// but only apply the changes if we have at least AI4SEO_TOO_SHORT_CONTENT_LENGTH chars left.
-	$temp_content = preg_replace( '/\[.*?]/', '', $content );
-
-	// Bound only the new analysis pass; transport processing above remains unchanged for legacy callers.
-	$strict_analysis_source = ai4seo_get_bounded_metadata_analysis_source(
-		is_string( $temp_content ) ? $temp_content : ''
-	);
-	$strict_visible_text    = ai4seo_clean_metadata_visible_text( $strict_analysis_source );
-	$strict_visible_text    = ai4seo_remove_double_sentences( $strict_visible_text );
-	$strict_visible_text    = ai4seo_truncate_sentence( $strict_visible_text, $soft_cap, $hard_cap );
-
-	if ( $content !== $temp_content && ai4seo_mb_strlen( $temp_content ) >= AI4SEO_TOO_SHORT_CONTENT_LENGTH ) {
-		$content = $temp_content;
-
-		// Replace multiple spaces with a single space and trim whitespace.
-		$content = preg_replace( '/\s+/', ' ', $content );
-		$content = trim( $content );
-	}
-
-	// remove double sentences.
-	$content = ai4seo_remove_double_sentences( $content );
-
-	// truncate sentence.
-	$content = ai4seo_truncate_sentence( $content, $soft_cap, $hard_cap );
+	// Transport and classification must describe the same cleaned source.
+	$strict_visible_text  = $content;
+	$extraction_succeeded = 'failed' !== $extraction_status && ( 'complete' === $extraction_status || '' !== $content );
 }
 
 
 /**
  * Bound the strict-analysis source while retaining a small token-boundary overlap.
  *
- * The extra overlap lets tags or shortcode tokens that start near the 256 KiB boundary reach
+ * The extra overlap lets tags or shortcode tokens that start near the requested boundary reach
  * their closing delimiter without allowing the cleanup pass to copy an arbitrarily large page.
  *
- * @param string $content Source already prepared by the legacy condenser.
+ * @param string    $content Raw source markup to bound before visible-text extraction.
+ * @param int       $max_source_bytes Maximum source bytes before the token-boundary overlap.
+ * @param bool|null $truncated Receives whether any source bytes were omitted.
  * @return string Bounded strict-analysis source.
  */
-function ai4seo_get_bounded_metadata_analysis_source( string $content ): string {
-	$max_source_bytes = 262144;
-	$overlap_bytes    = 4096;
+function ai4seo_get_bounded_metadata_analysis_source( string $content, int $max_source_bytes = 262144, ?bool &$truncated = null ): string {
+	$overlap_bytes = 4096;
+	$truncated     = strlen( $content ) > $max_source_bytes + $overlap_bytes;
 
 	// Normal pages avoid an unnecessary substring allocation.
 	if ( strlen( $content ) <= $max_source_bytes ) {
@@ -2354,43 +2626,7 @@ function ai4seo_get_bounded_metadata_analysis_source( string $content ): string 
  * @return string Visible text only.
  */
 function ai4seo_clean_metadata_visible_text( string $content ): string {
-	// Empty sources need no normalization and should remain empty evidence.
-	if ( '' === $content ) {
-		return '';
-	}
-
-	// Remove malformed byte sequences before Unicode regexes so one bad remote byte cannot erase all evidence.
-	$content = wp_check_invalid_utf8( $content, true );
-
-	if ( '' === $content ) {
-		return '';
-	}
-
-	// Decode before stripping so encoded tags, scripts, and shortcode brackets cannot become evidence later.
-	for ( $decode_pass = 0; $decode_pass < 2; $decode_pass++ ) {
-		$decoded_content = html_entity_decode( $content, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
-
-		// Stop once another pass cannot expose additional encoded structure.
-		if ( $decoded_content === $content ) {
-			break;
-		}
-
-		$content = $decoded_content;
-	}
-
-	// Remove non-visible structural content before reducing the remaining source to plain text.
-	$content = preg_replace( '/<(style|script)\b[^>]*>.*?(?:<\/\1>|$)/is', '', $content );
-	$content = preg_replace( '/<!--.*?-->/s', '', $content );
-	$content = preg_replace( '/\/\*.*?\*\//s', '', $content );
-	$content = preg_replace( '/\[.*?]/s', '', $content );
-	$content = is_string( $content ) ? wp_strip_all_tags( $content ) : '';
-	$content = ai4seo_remove_urls_from_string( $content );
-
-	// Remove still-encoded or unknown entities rather than counting their names as visible words.
-	$content = preg_replace( '/&(?:#[0-9]+|#x[0-9a-f]+|[a-z][a-z0-9]+);/i', ' ', $content );
-	$content = preg_replace( '/\s+/u', ' ', is_string( $content ) ? $content : '' );
-
-	return is_string( $content ) ? trim( $content ) : '';
+	return ai4seo_extract_generation_visible_text( $content );
 }
 
 
@@ -2404,30 +2640,16 @@ function ai4seo_clean_metadata_visible_text( string $content ): string {
  * @return string First visible H1 text, or an empty string when none is available.
  */
 function ai4seo_extract_first_local_h1( $content ): string {
-	// Ignore unavailable local sources without triggering any fallback retrieval.
 	if ( ! is_string( $content ) || '' === trim( $content ) ) {
 		return '';
 	}
 
-	// Limit parsing to locally available content so metadata preparation never adds network or unbounded parsing work.
-	$h1_scan_content = substr( $content, 0, 65536 );
-	$h1_matches      = array();
+	// Use intact tokens: a quoted greater-than sign must not split an H1 opener.
+	$image_offset = null;
+	$first_h1     = '';
+	ai4seo_extract_generation_visible_text( substr( $content, 0, 65536 ), 0, '', '', $image_offset, $first_h1 );
 
-	// Collect local candidates once so structurally empty headings can be skipped without rescanning.
-	if ( ! preg_match_all( '/<h1\b[^>]*>(.*?)<\/h1>/is', $h1_scan_content, $h1_matches ) ) {
-		return '';
-	}
-
-	// Return the first heading that still contains language evidence after structural cleanup.
-	foreach ( $h1_matches[1] ?? array() as $h1_content ) {
-		$clean_h1 = ai4seo_clean_metadata_visible_text( (string) $h1_content );
-
-		if ( '' !== $clean_h1 ) {
-			return ai4seo_mb_substr( $clean_h1, 0, 512 );
-		}
-	}
-
-	return '';
+	return $first_h1;
 }
 
 
@@ -2474,7 +2696,7 @@ function ai4seo_classify_metadata_visible_content( string $visible_text ): array
  * @param string    $submitted_content Content already supplied by manual generation, when available.
  * @param bool|null $required_source_read_succeeded Receives whether required post/builder reads succeeded.
  * @param bool|null $post_exists Receives whether the authoritative posts-table owner exists.
- * @return array{content:string,post_context:string,content_analysis:array}
+ * @return array{content:string,post_context:string,content_analysis:array,content_extraction_succeeded:bool}
  */
 function ai4seo_prepare_metadata_generation_content_data(
 	int $post_id,
@@ -2486,6 +2708,7 @@ function ai4seo_prepare_metadata_generation_content_data(
 	$required_source_read_succeeded = null;
 	$post_exists                    = null;
 	$authoritative_source_snapshot  = null;
+	$content_extraction_succeeded   = true;
 
 	if ( $authoritative_source_requested ) {
 		$authoritative_source_snapshot  = array();
@@ -2498,9 +2721,10 @@ function ai4seo_prepare_metadata_generation_content_data(
 
 		if ( ! $required_source_read_succeeded ) {
 			return array(
-				'content'          => '',
-				'post_context'     => '',
-				'content_analysis' => array(
+				'content_extraction_succeeded' => false,
+				'content'                      => '',
+				'post_context'                 => '',
+				'content_analysis'             => array(
 					'schema_version'       => '1',
 					'quality'              => 'markup_only',
 					'quality_reason'       => 'required_source_read_failed',
@@ -2525,7 +2749,7 @@ function ai4seo_prepare_metadata_generation_content_data(
 
 	// Reuse submitted content for manual generation before falling back to the existing database preparation path.
 	if ( $has_submitted_source ) {
-		ai4seo_condense_raw_post_content( $post_content, 2000, 2250, $body_text );
+		ai4seo_condense_raw_post_content( $post_content, 2000, 2250, $body_text, $content_extraction_succeeded );
 	}
 
 	// Preserve the database fallback only when no editor source was submitted. Structurally empty editor
@@ -2537,7 +2761,8 @@ function ai4seo_prepare_metadata_generation_content_data(
 				false,
 				$body_text,
 				$database_first_h1,
-				$authoritative_source_snapshot
+				$authoritative_source_snapshot,
+				$content_extraction_succeeded
 			);
 		}
 
@@ -2578,9 +2803,10 @@ function ai4seo_prepare_metadata_generation_content_data(
 	);
 
 	return array(
-		'content'          => $post_content,
-		'post_context'     => $post_context,
-		'content_analysis' => $content_analysis,
+		'content_extraction_succeeded' => $content_extraction_succeeded,
+		'content'                      => $post_content,
+		'post_context'                 => $post_context,
+		'content_analysis'             => $content_analysis,
 	);
 }
 

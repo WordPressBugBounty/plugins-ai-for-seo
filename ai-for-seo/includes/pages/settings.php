@@ -2074,7 +2074,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 				$ai4seo_this_setting_description .= esc_html__( 'Enable this option to allow deeper database searches to determine the usage context of images. This can improve the relevance of generated image metadata, especially when context is missing.', 'ai-for-seo' );
 				$ai4seo_this_setting_description .= '<br><br>' . esc_html__( 'On large websites, these extended searches may increase database load during generation. Use this setting if many images lack context and you are comfortable with potential performance impact while content is being processed.', 'ai-for-seo' );
 
-				echo "<div class='ai4seo-form-item ai4seo-is-advanced-setting'>";
+				echo "<div id='ai4seo-deep-search-setting' class='ai4seo-form-item ai4seo-is-advanced-setting'>";
 				echo "<label for='" . esc_attr( $ai4seo_this_setting_input_name ) . "'>";
 				echo esc_html__( 'Deep Search for Image Usage:', 'ai-for-seo' );
 				echo '</label>';

@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Processes attachment attributes editor values from sanitized save-anything data.
  *
  * @param array $upcoming_save_anything_updates Sanitized updates shared by the ordered save-anything processors.
- * @return WP_Error|null Error on failure, null on success or no-op.
+ * @return WP_Error|array|null Error on failure, optional acknowledgement on success, null on no-op.
  */
 function ai4seo_process_save_anything_attachment_attributes_editor_values( array &$upcoming_save_anything_updates ) {
 	// Preserve the category's silent no-op behavior outside the configured content boundary.
@@ -130,6 +130,7 @@ function ai4seo_process_save_anything_attachment_attributes_editor_values( array
 	}
 
 	// Keep queue reservation, primary persistence, coverage publication, and ownership verification under one fence.
+	$ai4seo_activity_error_token          = ai4seo_get_recent_activity_error_token( $ai4seo_this_attachment_post_id, 'attachment-attributes-bulk-generated' );
 	$ai4seo_attachment_update_succeeded   = false;
 	$ai4seo_attachment_update_details     = array();
 	$ai4seo_fenced_save_details           = array();
@@ -202,6 +203,11 @@ function ai4seo_process_save_anything_attachment_attributes_editor_values( array
 			7211221025,
 			esc_html__( 'Attachment attributes were saved and reserved from generation, but their coverage state could not be secured. Please refresh the page and try again.', 'ai-for-seo' )
 		);
+	}
+
+	if ( '' !== $ai4seo_activity_error_token
+		&& ai4seo_resolve_recent_activity_error( $ai4seo_this_attachment_post_id, 'attachment-attributes-bulk-generated', $ai4seo_activity_error_token ) ) {
+		return array( 'resolved_activity_tokens' => array( 'attachment-attributes-bulk-generated' => $ai4seo_activity_error_token ) );
 	}
 
 	return null;

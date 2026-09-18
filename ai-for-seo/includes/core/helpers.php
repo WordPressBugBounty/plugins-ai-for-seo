@@ -304,6 +304,26 @@ function ai4seo_deep_sanitize( $data, string $sanitize_value_function_name = 'sa
 
 
 /**
+ * Sanitize a whitespace-separated list of CSS classes without joining adjacent class names.
+ *
+ * @param string $css_classes CSS classes.
+ * @return string Sanitized CSS classes.
+ */
+function ai4seo_sanitize_css_class_list( string $css_classes ): string {
+	$css_classes = preg_split( '/\s+/', trim( $css_classes ), -1, PREG_SPLIT_NO_EMPTY );
+
+	if ( ! is_array( $css_classes ) ) {
+		return '';
+	}
+
+	$css_classes = array_map( 'sanitize_html_class', $css_classes );
+	$css_classes = array_filter( $css_classes );
+
+	return implode( ' ', $css_classes );
+}
+
+
+/**
  * Runs a callback while ignore_user_abort() is forced to true (unless WP-Cron already handles it).
  *
  * @param callable $callback             Callback to execute.
@@ -2071,39 +2091,6 @@ function ai4seo_normalize_mime_type_string( ?string $mime_type ): ?string {
 	$mime_type = strtolower( trim( $mime_type ) );
 
 	return '' !== $mime_type ? $mime_type : null;
-}
-
-
-/**
- * Convert an image signature detector format to its normalized MIME type.
- *
- * @param string $detected_image_format Format or MIME type returned by the image signature detector.
- * @return string Normalized MIME type, or an empty string when the format is unknown.
- */
-function ai4seo_get_mime_type_from_detected_image_format( string $detected_image_format ): string {
-	// Normalize once so both MIME values and short signature names remain case-insensitive.
-	$detected_image_format = strtolower( $detected_image_format );
-
-	// Preserve MIME values returned by getimagesizefromstring() while normalizing optional parameters.
-	if ( 0 === strpos( $detected_image_format, 'image/' ) ) {
-		return ai4seo_normalize_mime_type_string( $detected_image_format ) ?? '';
-	}
-
-	// Map the stable short names returned by the plugin's magic-byte checks.
-	$image_mime_types = array(
-		'jpg'  => 'image/jpeg',
-		'jpeg' => 'image/jpeg',
-		'png'  => 'image/png',
-		'gif'  => 'image/gif',
-		'webp' => 'image/webp',
-		'avif' => 'image/avif',
-		'heif' => 'image/heif',
-		'bmp'  => 'image/bmp',
-		'tiff' => 'image/tiff',
-		'ico'  => 'image/x-icon',
-	);
-
-	return $image_mime_types[ $detected_image_format ] ?? '';
 }
 
 

@@ -297,10 +297,11 @@ function ai4seo_decode_generated_data_postmeta_value_authoritatively(
  * Hexadecimal copies survive debug-log sanitization without losing source bytes.
  * Validation uses the scanner's decoder without executing its persistent repairs.
  *
- * @param int $post_id Exact post ID selected by the administrator.
+ * @param int  $post_id Exact post ID selected by the administrator.
+ * @param bool $inspect_post Include every plugin-owned postmeta key for the broader post inspection.
  * @return array{success: bool, message: string} Diagnostic collection result.
  */
-function ai4seo_debug_generated_data_postmeta( int $post_id ): array {
+function ai4seo_debug_generated_data_postmeta( int $post_id, bool $inspect_post = false ): array {
 	global $wpdb;
 
 	if ( ! ai4seo_can_administer_plugin() ) {
@@ -326,19 +327,22 @@ function ai4seo_debug_generated_data_postmeta( int $post_id ): array {
 	}
 
 	// Bound both duplicate rows and raw bytes before transferring possibly damaged storage into PHP.
-	$row_limit  = 5;
-	$byte_limit = 65536;
+	$row_limit          = $inspect_post ? 100 : 5;
+	$byte_limit         = 65536;
+	$meta_key_pattern   = $inspect_post ? $wpdb->esc_like( 'ai4seo_' ) . '%' : $wpdb->esc_like( AI4SEO_POST_META_GENERATED_DATA_META_KEY );
+	$legacy_key_pattern = $inspect_post ? $wpdb->esc_like( '_ai4seo_' ) . '%' : $wpdb->esc_like( AI4SEO_POST_META_GENERATED_DATA_META_KEY );
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Admin-requested raw diagnostics bypass decoding and stale caches; rows and bytes are bounded.
 	$rows = $wpdb->get_results(
 		$wpdb->prepare(
-			"SELECT meta_id, OCTET_LENGTH(meta_value) AS raw_bytes,
+			"SELECT meta_id, meta_key, OCTET_LENGTH(meta_value) AS raw_bytes,
 			LEFT(CAST(meta_value AS BINARY), %d) AS raw_value
 			FROM {$wpdb->postmeta}
-			WHERE post_id = %d AND meta_key = %s
+			WHERE post_id = %d AND (meta_key LIKE %s OR meta_key LIKE %s)
 			ORDER BY meta_id ASC LIMIT %d",
 			$byte_limit,
 			$post_id,
-			AI4SEO_POST_META_GENERATED_DATA_META_KEY,
+			$meta_key_pattern,
+			$legacy_key_pattern,
 			$row_limit + 1
 		),
 		ARRAY_A
@@ -356,23 +360,55 @@ function ai4seo_debug_generated_data_postmeta( int $post_id ): array {
 	$rows          = array_slice( $rows, 0, $row_limit );
 	$report        = array(
 		'post_id'        => $post_id,
-		'meta_key'       => AI4SEO_POST_META_GENERATED_DATA_META_KEY, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Diagnostic label only; the actual query is restricted to one post ID.
+		'meta_key'       => $inspect_post ? 'all_plugin_postmeta' : AI4SEO_POST_META_GENERATED_DATA_META_KEY, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Diagnostic label only; the actual query is restricted to one post ID.
 		'rows_returned'  => count( $rows ),
 		'has_more_rows'  => $has_more_rows,
 		'duplicate_rows' => count( $rows ) > 1,
 		'row_limit'      => $row_limit,
 		'byte_limit'     => $byte_limit,
 	);
-	$logged        = ai4seo_debug_message( 728451906, 'Generated-data inspection: ' . wp_json_encode( $report ) );
+	if ( $inspect_post ) {
+		$report['rows_by_meta_key']    = array_count_values( array_column( $rows, 'meta_key' ) );
+		$report['duplicate_meta_keys'] = array_keys(
+			array_filter(
+				$report['rows_by_meta_key'],
+				static function ( int $count ): bool {
+					return $count > 1;
+				}
+			)
+		);
+		unset( $report['duplicate_rows'] );
+	}
+	$logged = ai4seo_debug_message( 728451906, ( $inspect_post ? 'Post metadata inspection: ' : 'Generated-data inspection: ' ) . wp_json_encode( $report ) );
 
 	foreach ( $rows as $row ) {
+		$meta_key = $inspect_post ? $row['meta_key'] : AI4SEO_POST_META_GENERATED_DATA_META_KEY;
+		if ( $inspect_post && ai4seo_is_sensitive_post_inspection_key( $meta_key ) ) {
+			$row_logged = ai4seo_debug_message(
+				728451907,
+				'Post metadata row inspection: ' . wp_json_encode(
+					array(
+						'post_id'  => $post_id,
+						'meta_id'  => (int) $row['meta_id'],
+						'redacted' => true,
+					)
+				)
+			);
+			$logged     = $row_logged && $logged;
+			continue;
+		}
 		$raw_value      = $row['raw_value'];
 		$raw_is_string  = is_string( $raw_value );
 		$captured_bytes = $raw_is_string ? strlen( $raw_value ) : 0;
 		$is_truncated   = $raw_is_string && (int) $row['raw_bytes'] > $captured_bytes;
 		$details        = array();
 		$needs_repair   = false;
-		$accepted       = $is_truncated ? null : ai4seo_decode_generated_data_postmeta_value_authoritatively( $raw_value, $details, $needs_repair, true );
+		$accepted       = null;
+		if ( ! $is_truncated && AI4SEO_POST_META_GENERATED_DATA_META_KEY === $meta_key ) {
+			$accepted = ai4seo_decode_generated_data_postmeta_value_authoritatively( $raw_value, $details, $needs_repair, true );
+		} elseif ( ! $is_truncated && AI4SEO_POST_META_ACTIVE_METADATA_META_KEY === $meta_key ) {
+			$accepted = $raw_is_string && ai4seo_decode_active_metadata_postmeta_value_authoritatively( $raw_value );
+		}
 
 		// Retain the JSON parser's result separately: valid JSON can still violate the storage contract.
 		$json_error = 'SQL NULL: no stored string.';
@@ -394,7 +430,11 @@ function ai4seo_debug_generated_data_postmeta( int $post_id ): array {
 			'raw_value_json'        => false === $value_json ? null : $value_json,
 			'raw_value_hex'         => $raw_is_string ? bin2hex( $raw_value ) : null,
 		);
-		$row_logged = ai4seo_debug_message( 728451907, 'Generated-data row inspection: ' . wp_json_encode( $row_report ) );
+		if ( $inspect_post ) {
+			$row_report['meta_key']        = $meta_key; // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Diagnostic label, not a query.
+			$row_report['captured_sha256'] = $raw_is_string ? hash( 'sha256', $raw_value ) : null;
+		}
+		$row_logged = ai4seo_debug_message( 728451907, ( $inspect_post ? 'Post metadata row inspection: ' : 'Generated-data row inspection: ' ) . wp_json_encode( $row_report ) );
 		$logged     = $row_logged && $logged;
 	}
 

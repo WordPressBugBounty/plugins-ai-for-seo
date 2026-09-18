@@ -439,6 +439,19 @@ function ai4seo_get_custom_instructions_examples_tooltip_tag( string $context, s
 	$tooltip_trigger = $as_icon_trigger
 		? ai4seo_get_svg_tag( 'circle-question', '', 'ai4seo-gray-icon ai4seo-custom-instructions-examples-icon' )
 		: esc_html__( 'Examples & limits', 'ai-for-seo' );
+	$context_labels  = array(
+		'global'                       => __( 'Global custom instructions', 'ai-for-seo' ),
+		'metadata'                     => __( 'Metadata custom instructions', 'ai-for-seo' ),
+		'metadata-post-type'           => __( 'Post-type custom instructions', 'ai-for-seo' ),
+		'metadata-editor'              => __( 'This entry\'s custom instructions', 'ai-for-seo' ),
+		'media-attributes'             => __( 'Media attribute custom instructions', 'ai-for-seo' ),
+		'attachment-attributes-editor' => __( 'This media item\'s custom instructions', 'ai-for-seo' ),
+	);
+	$trigger_label   = sprintf(
+		/* translators: %s: Scope of the custom instructions. */
+		__( 'Examples & limits: %s', 'ai-for-seo' ),
+		$context_labels[ sanitize_key( $context ) ]
+	);
 
 	return ai4seo_get_tooltip_tag(
 		$tooltip_trigger,
@@ -446,7 +459,7 @@ function ai4seo_get_custom_instructions_examples_tooltip_tag( string $context, s
 		array(
 			'holder_css_class'   => 'ai4seo-custom-instructions-examples',
 			'trigger_css_class'  => $as_icon_trigger ? 'ai4seo-icon-tooltip-trigger ai4seo-custom-instructions-examples-trigger' : 'ai4seo-custom-instructions-examples-trigger',
-			'trigger_aria_label' => $as_icon_trigger ? __( 'Custom Instructions: Help', 'ai-for-seo' ) : '',
+			'trigger_aria_label' => $trigger_label,
 		)
 	);
 }

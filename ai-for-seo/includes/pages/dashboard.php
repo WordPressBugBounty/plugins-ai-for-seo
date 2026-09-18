@@ -261,8 +261,19 @@ if ( $ai4seo_all_supported_post_types || $ai4seo_statistics_filter_labels ) {
 	echo "<div class='card ai4seo-card ai4seo-fully-centered-card ai4seo-three-column-card ai4seo-dashboard-statistics-card'>";
 		echo "<div class='ai4seo-dashboard-statistics-header'>";
 			echo "<div class='ai4seo-dashboard-statistics-intro'>";
-				echo '<h2>' . esc_html__( 'SEO completion', 'ai-for-seo' ) . '</h2>';
-				echo '<p>' . esc_html__( 'Each percentage shows the share of items with all enabled SEO fields filled in. Your settings determine which fields and content are included.', 'ai-for-seo' ) . '</p>';
+				echo '<h2 class="ai4seo-dashboard-section-heading">' . esc_html__( 'SEO completion', 'ai-for-seo' ) . '</h2>';
+				ai4seo_echo_wp_kses(
+					ai4seo_get_icon_with_tooltip_tag(
+						esc_html__( 'Each percentage shows the share of included items with all enabled SEO fields filled in. For example, 2/8 complete means that 2 of 8 included items have every enabled field. This measures field completion; content quality and search performance require separate review.', 'ai-for-seo' )
+						. '<br><br>'
+						. esc_html__( 'Your Settings determine which SEO fields and content are included. Content types, authors, categories, languages, and new or existing entry filters can affect the totals. Use Review missing fields beneath a chart to inspect incomplete items.', 'ai-for-seo' )
+						. '<br><br>'
+						. esc_html__( 'If entries seem missing, or the figures look wrong or incomplete, check Settings to make sure the fields and content you expect are included. After saving any changes, use Refresh statistics when available to recalculate the figures.', 'ai-for-seo' ),
+						'',
+						'circle-question',
+						__( 'SEO completion: Help', 'ai-for-seo' )
+					)
+				);
 			echo '</div>';
 
 	if ( $ai4seo_can_administer_plugin && ! $ai4seo_heavy_db_operations_disabled && 'completed' === $ai4seo_posts_table_analysis_state ) {
@@ -397,7 +408,24 @@ if ( $ai4seo_all_supported_post_types || $ai4seo_statistics_filter_labels ) {
 		$ai4seo_supported_post_type_label  = ai4seo_get_dashicon_tag_for_navigation( $ai4seo_this_post_type );
 		$ai4seo_supported_post_type_label .= ucfirst( ai4seo_get_post_type_translation( $ai4seo_this_post_type, true ) );
 
-		ai4seo_echo_half_donut_chart_with_headline_and_percentage( $ai4seo_supported_post_type_label, $ai4seo_chart_values, $ai4seo_this_num_finished_post_ids, $ai4seo_total_value, $ai4seo_posts_table_analysis_state, $ai4seo_this_post_type );
+		// Link to the existing missing-field scope, including queued/failed items with incomplete fields.
+		$ai4seo_review_missing_fields_url = '';
+
+		if ( 'completed' === $ai4seo_posts_table_analysis_state && $ai4seo_this_num_finished_post_ids < $ai4seo_total_value ) {
+			$ai4seo_review_missing_fields_query_args = array(
+				'ai4seo_page'                      => 1,
+				'ai4seo_filter_status'             => 'missing',
+				'ai4seo_content_type_filter_nonce' => wp_create_nonce( 'ai4seo_content_type_filter_form' ),
+			);
+
+			if ( ! $ai4seo_this_is_attachment_post_type ) {
+				$ai4seo_review_missing_fields_query_args['ai4seo_post_type'] = $ai4seo_this_original_post_type;
+			}
+
+			$ai4seo_review_missing_fields_url = ai4seo_get_subpage_url( $ai4seo_this_is_attachment_post_type ? 'media' : 'post', $ai4seo_review_missing_fields_query_args );
+		}
+
+		ai4seo_echo_half_donut_chart_with_headline_and_percentage( $ai4seo_supported_post_type_label, $ai4seo_chart_values, $ai4seo_this_num_finished_post_ids, $ai4seo_total_value, $ai4seo_posts_table_analysis_state, $ai4seo_this_post_type, $ai4seo_review_missing_fields_url );
 	}
 
 		// chart legend container.

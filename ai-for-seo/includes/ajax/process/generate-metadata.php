@@ -61,6 +61,9 @@ if ( ! ai4seo_can_edit_post( $ai4seo_post_id ) ) {
 
 // === CHECK PARAMETER: CONTENT ========================================================== \\
 
+// Capture the existing failure before the API request; later failures must remain visible.
+$ai4seo_activity_error_token = ai4seo_get_recent_activity_error_token( $ai4seo_post_id, 'metadata-bulk-generated' );
+
 // get sanitized content parameter.
 $ai4seo_post_content = sanitize_textarea_field( wp_unslash( $_REQUEST['ai4seo_content'] ?? '' ) );
 
@@ -136,6 +139,11 @@ $ai4seo_prepared_content = ai4seo_prepare_metadata_generation_content_data(
 	$ai4seo_post_id,
 	$ai4seo_post_content
 );
+
+if ( ! $ai4seo_prepared_content['content_extraction_succeeded'] ) {
+	ai4seo_send_ajax_error( esc_html__( 'The page content could not be read for generation.', 'ai-for-seo' ), 917202601 );
+}
+
 $ai4seo_post_content     = $ai4seo_prepared_content['content'];
 $ai4seo_post_context     = $ai4seo_prepared_content['post_context'];
 $ai4seo_content_analysis = $ai4seo_prepared_content['content_analysis'];
@@ -330,5 +338,10 @@ $ai4seo_ajax_response = array(
 	'credits_consumed'    => $ai4seo_credits_consumed,
 	'new_credits_balance' => (int) ( $ai4seo_results['new-credits-balance'] ?? 0 ),
 );
+
+if ( ! $ai4seo_unresolved_generation_fields && '' !== $ai4seo_activity_error_token
+	&& ai4seo_resolve_recent_activity_error( $ai4seo_post_id, 'metadata-bulk-generated', $ai4seo_activity_error_token ) ) {
+	$ai4seo_ajax_response['resolved_activity_tokens']['metadata-bulk-generated'] = $ai4seo_activity_error_token;
+}
 
 ai4seo_send_ajax_success( $ai4seo_ajax_response );

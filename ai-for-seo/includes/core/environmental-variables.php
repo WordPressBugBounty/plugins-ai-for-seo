@@ -27,9 +27,20 @@ function ai4seo_normalize_environmental_variable_overrides_for_runtime( $current
 
 	$loaded_environmental_variables = AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES;
 
+	// Large derived taxonomy data is owned by its isolated option, even during cleanup retries.
+	unset(
+		$current_environmental_variables[ AI4SEO_ENVIRONMENTAL_VARIABLE_SUPPORTED_TAXONOMY_TERMS_CACHE ],
+		$current_environmental_variables[ ai4seo_get_environmental_variable_ttl_name( AI4SEO_ENVIRONMENTAL_VARIABLE_SUPPORTED_TAXONOMY_TERMS_CACHE ) ]
+	);
+
 	// Merge only declared base variables; unknown keys are excluded unless recognized as TTL companions below.
 	foreach ( AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES as $environmental_variable_name => $default_environmental_variable_value ) {
-		$current_environmental_variable_value = $current_environmental_variables[ $environmental_variable_name ] ?? $default_environmental_variable_value;
+		// Defaults are already loaded; absent or null overrides must not consume the request's validation budget.
+		if ( ! isset( $current_environmental_variables[ $environmental_variable_name ] ) ) {
+			continue;
+		}
+
+		$current_environmental_variable_value = $current_environmental_variables[ $environmental_variable_name ];
 
 		if ( ! ai4seo_validate_environmental_variable_value( $environmental_variable_name, $current_environmental_variable_value ) ) {
 			ai4seo_debug_message( 2317181024, 'Invalid value for environmental variable "' . $environmental_variable_name . '"', true );
@@ -165,6 +176,14 @@ function ai4seo_read_all_environmental_variables( bool $use_cache = true ): arra
 	// Keep the request-global as the only cache so values are decoded before WordPress can
 	// instantiate stored objects.
 	$current_environmental_variables = ai4seo_get_option( AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME, false, true );
+	if ( ! is_object( $wpdb ) || ! isset( $wpdb->options ) || $current_options_table !== (string) $wpdb->options ) {
+		return array();
+	}
+
+	if ( is_array( $current_environmental_variables ) && null !== ai4seo_remove_legacy_supported_taxonomy_terms_cache( $current_environmental_variables ) ) {
+		// Success and failure recovery both reload storage; do not overwrite it with our older input.
+		return ai4seo_read_all_environmental_variables();
+	}
 
 	$ai4seo_environmental_variables               = ai4seo_normalize_environmental_variable_overrides_for_runtime( $current_environmental_variables );
 	$ai4seo_environmental_variables_are_loaded    = true;
@@ -182,6 +201,10 @@ function ai4seo_read_all_environmental_variables( bool $use_cache = true ): arra
  * @return mixed The value of the environmental variable
  */
 function ai4seo_read_environmental_variable( string $environmental_variable_name, bool $use_cache = true ) {
+	if ( AI4SEO_ENVIRONMENTAL_VARIABLE_SUPPORTED_TAXONOMY_TERMS_CACHE === $environmental_variable_name ) {
+		return ai4seo_read_supported_taxonomy_terms_cache( $context, $use_cache, false ) ?? array();
+	}
+
 	if ( ai4seo_prevent_loops( __FUNCTION__, 5 ) ) {
 		ai4seo_debug_message( 232735921, 'Prevented loop', true );
 		return null;
@@ -353,6 +376,10 @@ function ai4seo_mutate_environmental_variable_value(
 	bool $use_cache = true,
 	int $cache_ttl = 0
 ): bool {
+	if ( AI4SEO_ENVIRONMENTAL_VARIABLE_SUPPORTED_TAXONOMY_TERMS_CACHE === $environmental_variable_name ) {
+		return ai4seo_mutate_supported_taxonomy_terms_cache( $mutation_callback, $cache_ttl );
+	}
+
 	if ( ai4seo_prevent_loops( __FUNCTION__, 5 ) ) {
 		ai4seo_debug_message( 146829303, 'Prevented loop', true );
 		return false;
@@ -537,6 +564,11 @@ function ai4seo_reconcile_bulk_generation_date_filter_reference_timestamp( $refe
  * @return bool True if the environmental variable was deleted successfully, false if not
  */
 function ai4seo_delete_environmental_variable( string $environmental_variable_name ): bool {
+	if ( AI4SEO_ENVIRONMENTAL_VARIABLE_SUPPORTED_TAXONOMY_TERMS_CACHE === $environmental_variable_name
+		|| ai4seo_get_environmental_variable_ttl_name( AI4SEO_ENVIRONMENTAL_VARIABLE_SUPPORTED_TAXONOMY_TERMS_CACHE ) === $environmental_variable_name ) {
+		return ai4seo_invalidate_supported_taxonomy_terms_cache();
+	}
+
 	if ( ai4seo_prevent_loops( __FUNCTION__, 5 ) ) {
 		ai4seo_debug_message( 912986381, 'Prevented loop', true );
 		return false;
@@ -572,6 +604,10 @@ function ai4seo_delete_environmental_variable( string $environmental_variable_na
  * @return bool
  */
 function ai4seo_delete_all_environmental_variables(): bool {
+	if ( ! ai4seo_invalidate_supported_taxonomy_terms_cache() ) {
+		return false;
+	}
+
 	$option_snapshot = ai4seo_get_raw_option_snapshot( AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME );
 
 	if ( null === $option_snapshot ) {
@@ -650,6 +686,25 @@ function ai4seo_bulk_update_environmental_variables( array $environmental_variab
 			continue;
 		}
 
+		if ( AI4SEO_ENVIRONMENTAL_VARIABLE_SUPPORTED_TAXONOMY_TERMS_CACHE === $this_name ) {
+			$did_change = false;
+			$did_update = ai4seo_mutate_supported_taxonomy_terms_cache(
+				static function ( array $current_terms ) use ( $this_value, &$did_change ): array {
+					$replacement_terms = ai4seo_deep_sanitize( $this_value );
+					$did_change        = ! ai4seo_are_persisted_state_values_equivalent( $current_terms, $replacement_terms );
+
+					return $replacement_terms;
+				}
+			);
+
+			$result['success'] = $result['success'] && $did_update;
+
+			if ( $did_update && $did_change ) {
+				++$result['updated_count'];
+			}
+			continue;
+		}
+
 		$validated_updates[ $this_name ] = ai4seo_deep_sanitize( $this_value );
 	}
 
@@ -694,7 +749,7 @@ function ai4seo_bulk_update_environmental_variables( array $environmental_variab
 		$mutation_updated_count
 	);
 
-	$result['updated_count'] = (int) $mutation_updated_count;
+	$result['updated_count'] += (int) $mutation_updated_count;
 
 	if ( ! $did_update ) {
 		$result['success'] = false;
@@ -762,8 +817,22 @@ function ai4seo_compare_and_swap_environmental_variable_value(
 		return false;
 	}
 
-	$expected_value     = ai4seo_deep_sanitize( $expected_value );
-	$replacement_value  = ai4seo_deep_sanitize( $replacement_value );
+	$expected_value    = ai4seo_deep_sanitize( $expected_value );
+	$replacement_value = ai4seo_deep_sanitize( $replacement_value );
+
+	if ( AI4SEO_ENVIRONMENTAL_VARIABLE_SUPPORTED_TAXONOMY_TERMS_CACHE === $environmental_variable_name ) {
+		$mutation_succeeded = ai4seo_mutate_supported_taxonomy_terms_cache(
+			static function ( array $current_terms ) use ( $expected_value, $replacement_value, &$did_replace ): array {
+				$did_replace = $current_terms === $expected_value;
+
+				return $did_replace ? $replacement_value : $current_terms;
+			}
+		);
+
+		$did_replace = $mutation_succeeded && $did_replace;
+		return $mutation_succeeded;
+	}
+
 	$mutation_result    = false;
 	$mutation_succeeded = ai4seo_mutate_environmental_variable_overrides(
 		static function ( array $current_overrides ) use ( $environmental_variable_name, $expected_value, $replacement_value ): array {
@@ -1160,6 +1229,10 @@ function ai4seo_get_environmental_variable_ttl_name( string $environmental_varia
  * @return bool
  */
 function ai4seo_is_environmental_variable_cache_available( string $environmental_variable_name ): bool {
+	if ( AI4SEO_ENVIRONMENTAL_VARIABLE_SUPPORTED_TAXONOMY_TERMS_CACHE === $environmental_variable_name ) {
+		return null !== ai4seo_read_supported_taxonomy_terms_cache();
+	}
+
 	if ( ! isset( AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES[ $environmental_variable_name ] ) ) {
 		return false;
 	}
@@ -1206,6 +1279,10 @@ function ai4seo_invalidate_environmental_variable_cache( string $environmental_v
  * @return bool True when every cache TTL was removed or already absent.
  */
 function ai4seo_invalidate_all_environmental_variable_caches(): bool {
+	if ( ! ai4seo_invalidate_supported_taxonomy_terms_cache() ) {
+		return false;
+	}
+
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 321224226, 'Prevented loop', true );
 		return false;
@@ -1326,6 +1403,11 @@ function ai4seo_add_invalidate_caches_hooks(): void {
 	$environmental_variable_to_action_map = ai4seo_get_environmental_variable_to_action_cache_invalidation_map();
 
 	foreach ( $environmental_variable_to_action_map as $this_environmental_variable_name => $this_actions ) {
+		// The taxonomy owner registers this same map before bootstrap request-type gates.
+		if ( AI4SEO_ENVIRONMENTAL_VARIABLE_SUPPORTED_TAXONOMY_TERMS_CACHE === $this_environmental_variable_name ) {
+			continue;
+		}
+
 		foreach ( $this_actions as $this_action ) {
 			add_action(
 				$this_action,

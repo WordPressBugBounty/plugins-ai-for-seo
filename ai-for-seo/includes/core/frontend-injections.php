@@ -93,7 +93,7 @@ function ai4seo_get_meta_tags_from_html( string $head_html ): array {
 	$head_html = preg_replace( '/<link\b[^>]*>/i', '', $head_html );
 
 	// Remove non-rendered wrappers before splitting the remaining head into individual tag candidates.
-	$head_html = preg_replace( '/<!\[CDATA\[.*?\]\]>/s', '', $head_html );
+	$head_html = preg_replace( '/<!\[CDATA\[.*?]]>/s', '', $head_html );
 	$head_html = preg_replace( '/<!--.*?-->/s', '', $head_html );
 	$head_html = trim( $head_html );
 
@@ -408,7 +408,7 @@ function ai4seo_inject_our_meta_tags_into_the_html_head( string $full_html_buffe
 
 			if ( false !== strpos( $this_metadata_content, '{WC_PRICE=' ) ) {
 				$this_metadata_content = preg_replace_callback(
-					'/\{WC_PRICE=([^}]+)\}/',
+					'/\{WC_PRICE=([^}]+)}/',
 					function ( $matches ) use ( $current_product_price_for_placeholders ) {
 						$fallback_price = html_entity_decode( wp_strip_all_tags( $matches[1] ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
 						$fallback_price = str_replace( ' ', ' ', $fallback_price );
@@ -549,9 +549,16 @@ function ai4seo_inject_image_attributes_into_html( $content ) {
 
 	static $cache = array();
 
+	// Keep URL identities only for this render pass; the attribute cache above has its own existing lifecycle.
+	$attachment_ids               = array();
+	$attachment_ids_scope         = '';
+	$attachment_ids_cache_enabled = true;
+
 	return preg_replace_callback(
 		'/<img\b([^>]*?)>/i',
-		function ( $matches ) use ( &$cache, $alt_enabled, $title_injection_mode ) {
+		function ( $matches ) use ( &$cache, &$attachment_ids, &$attachment_ids_scope, &$attachment_ids_cache_enabled, $alt_enabled, $title_injection_mode ) {
+			global $wpdb;
+
 			$this_full_tag = $matches[0];
 			$this_attr_str = $matches[1];
 
@@ -560,7 +567,44 @@ function ai4seo_inject_image_attributes_into_html( $content ) {
 				return $this_full_tag;
 			}
 
-			$this_post_id = ai4seo_get_attachment_id_from_src( $this_src_matches[1] );
+			$this_src   = $this_src_matches[1];
+			$this_scope = ai4seo_get_site_options_request_cache_scope();
+
+			// Drop the old site's identities, including when the current site cannot be determined.
+			if ( $attachment_ids_scope !== $this_scope ) {
+				$attachment_ids       = array();
+				$attachment_ids_scope = $this_scope;
+			}
+
+			// Resolver filters may be stateful or appear mid-render; once observed, preserve every later call.
+			if ( $attachment_ids_cache_enabled && ( has_filter( 'pre_attachment_url_to_postid' ) || has_filter( 'attachment_url_to_postid' ) ) ) {
+				$attachment_ids               = array();
+				$attachment_ids_cache_enabled = false;
+			}
+
+			if ( $attachment_ids_cache_enabled && '' !== $this_scope && array_key_exists( $this_src, $attachment_ids ) ) {
+				$this_post_id = $attachment_ids[ $this_src ];
+			} else {
+				$this_post_id = ai4seo_get_attachment_id_from_src( $this_src );
+
+				// A lookup can itself install a filter or switch sites; never publish that result into the old scope.
+				if ( $attachment_ids_cache_enabled && ( has_filter( 'pre_attachment_url_to_postid' ) || has_filter( 'attachment_url_to_postid' ) ) ) {
+					$attachment_ids               = array();
+					$attachment_ids_cache_enabled = false;
+				}
+
+				$resolved_scope = ai4seo_get_site_options_request_cache_scope();
+				if ( $resolved_scope !== $this_scope ) {
+					$attachment_ids       = array();
+					$attachment_ids_scope = $resolved_scope;
+				}
+
+				// Retain regular misses too, but never an observable database failure or more than 256 exact URLs.
+				if ( $attachment_ids_cache_enabled && '' !== $this_scope && $resolved_scope === $this_scope
+					&& empty( $wpdb->last_error ) && count( $attachment_ids ) < 256 ) {
+					$attachment_ids[ $this_src ] = $this_post_id;
+				}
+			}
 
 			if ( ! $this_post_id ) {
 				return $this_full_tag;
@@ -611,11 +655,11 @@ function ai4seo_inject_image_attributes_into_html( $content ) {
 
 			// Remove only the attributes being replaced so unrelated image markup remains byte-for-byte intact.
 			if ( isset( $this_to_add['alt'] ) ) {
-				$this_attr_str = preg_replace( '/\s*(?:alt)\s*=\s*["\'][^"\']*["\']/', '', $this_attr_str );
+				$this_attr_str = preg_replace( '/\s*alt\s*=\s*["\'][^"\']*["\']/', '', $this_attr_str );
 			}
 
 			if ( isset( $this_to_add['title'] ) ) {
-				$this_attr_str = preg_replace( '/\s*(?:title)\s*=\s*["\'][^"\']*["\']/', '', $this_attr_str );
+				$this_attr_str = preg_replace( '/\s*title\s*=\s*["\'][^"\']*["\']/', '', $this_attr_str );
 			}
 
 			// Normalize the captured attribute suffix before rebuilding the original self-closing style below.

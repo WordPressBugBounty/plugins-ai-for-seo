@@ -44,7 +44,7 @@ function ai4seo_get_debug_operations(): array {
 			'label' => __( 'Debug combined post content', 'ai-for-seo' ),
 		),
 		'debug_generated_data_postmeta'        => array(
-			'label' => __( 'Inspect generated data for a post', 'ai-for-seo' ),
+			'label' => __( 'Inspect post', 'ai-for-seo' ),
 		),
 		'debug_posts_table_analysis'           => array(
 			'label' => __( 'Force posts table analysis refresh', 'ai-for-seo' ),
@@ -394,7 +394,7 @@ function ai4seo_execute_debug_operation( string $operation, array $request ): ar
 				);
 			}
 
-			return ai4seo_debug_generated_data_postmeta( $ai4seo_debug_post_id );
+			return ai4seo_debug_post( $ai4seo_debug_post_id );
 
 		case 'read_generation_status_summary':
 			// Preserve the two old summary flags as nonce-protected form checkboxes.
@@ -803,9 +803,9 @@ echo "<div class='ai4seo-clear'></div>";
 // Render the selected Help section on the server so refreshes do not flash another section before JavaScript initializes.
 echo "<div class='" . esc_attr( $ai4seo_help_sections['getting-started']['content_class'] ) . "' id='" . esc_attr( $ai4seo_help_sections['getting-started']['target_id'] ) . "'>";
 	// Headline.
-	echo "<h1 id='ai4seo-getting-started-section'>";
+	echo "<h2 class='ai4seo-help-section-title' id='ai4seo-getting-started-section'>";
 		echo esc_html__( 'Getting started', 'ai-for-seo' );
-	echo '</h1>';
+	echo '</h2>';
 
 	// === FIRST STEPS =========================================================================== \\
 
@@ -855,7 +855,7 @@ echo "<div class='" . esc_attr( $ai4seo_help_sections['getting-started']['conten
 	$ai4seo_this_accordion_content .= "<img src='" . esc_url( ai4seo_get_assets_images_url( 'help-screenshots/first-steps-7.jpg' ) ) . "' class='ai4seo-help-screenshot' />";
 	$ai4seo_this_accordion_content .= '<p><b>12.</b> ' . __( '<b>Contact us</b>: If you have questions, suggestions, need further support or require a specific amount of credits, please contact us via Help > Contact support. We typically respond within 8 hours.', 'ai-for-seo' ) . '</p>';
 
-	ai4seo_echo_wp_kses( ai4seo_get_accordion_element( esc_html__( 'First steps', 'ai-for-seo' ), $ai4seo_this_accordion_content ) );
+	ai4seo_echo_wp_kses( ai4seo_get_accordion_element( esc_html__( 'First steps', 'ai-for-seo' ), $ai4seo_this_accordion_content, 3 ) );
 
 	// === How to edit specific page or post ===================================================== \\
 
@@ -876,7 +876,7 @@ echo "<div class='" . esc_attr( $ai4seo_help_sections['getting-started']['conten
 	$ai4seo_this_accordion_content .= '<p>' . sprintf( __( '<b>Alternatively,</b> you can go to the "Pages" or "Posts" page within the %s plugin. From there, you can browse through your pages and posts, and choose the ones you want to edit.', 'ai-for-seo' ), esc_html( AI4SEO_PLUGIN_NAME ) ) . '</p>';
 	$ai4seo_this_accordion_content .= "<img src='" . esc_url( ai4seo_get_assets_images_url( 'faq-screenshots/screenshot-page-post-3.jpg' ) ) . "' class='ai4seo-help-screenshot' />";
 
-	ai4seo_echo_wp_kses( ai4seo_get_accordion_element( esc_html__( 'How to generate or edit SEO-relevant metadata for a specific page or post', 'ai-for-seo' ), $ai4seo_this_accordion_content ) );
+	ai4seo_echo_wp_kses( ai4seo_get_accordion_element( esc_html__( 'How to generate or edit SEO-relevant metadata for a specific page or post', 'ai-for-seo' ), $ai4seo_this_accordion_content, 3 ) );
 
 
 	// === Hot to edit specific media-entry ====================================================== \\
@@ -895,7 +895,7 @@ echo "<div class='" . esc_attr( $ai4seo_help_sections['getting-started']['conten
 	/* translators: %s: plugin name */
 	$ai4seo_this_accordion_content .= '<p>' . sprintf( __( '<b>Alternatively,</b> you can go to the "Media" page within the %s plugin. From there, you can browse through your media-entries, and choose the ones you want to edit.', 'ai-for-seo' ), esc_html( AI4SEO_PLUGIN_NAME ) ) . '</p>';
 
-	ai4seo_echo_wp_kses( ai4seo_get_accordion_element( esc_html__( 'How to add alt-text, captions, titles and descriptions for media files', 'ai-for-seo' ), $ai4seo_this_accordion_content ) );
+	ai4seo_echo_wp_kses( ai4seo_get_accordion_element( esc_html__( 'How to add alt-text, captions, titles and descriptions for media files', 'ai-for-seo' ), $ai4seo_this_accordion_content, 3 ) );
 
 
 	// === Bulk generate metadata ======================================================== \\
@@ -914,7 +914,7 @@ echo "<div class='" . esc_attr( $ai4seo_help_sections['getting-started']['conten
 	$ai4seo_this_accordion_content .= '<p><b>3.</b> ' . sprintf( esc_html__( 'If you wish to disable the SEO Autopilot, simply click on the "Stop SEO Autopilot"-button at the bottom of the "SEO Autopilot (Bulk Generation)"-section on the dashboard of the %s plugin page.', 'ai-for-seo' ), esc_html( AI4SEO_PLUGIN_NAME ) ) . '</p>';
 	$ai4seo_this_accordion_content .= "<img src='" . esc_url( ai4seo_get_assets_images_url( 'faq-screenshots/screenshot-seo-autopilot-3.jpg' ) ) . "' class='ai4seo-help-screenshot' />";
 
-	ai4seo_echo_wp_kses( ai4seo_get_accordion_element( esc_html__( 'How to activate bulk generation', 'ai-for-seo' ), $ai4seo_this_accordion_content ) );
+	ai4seo_echo_wp_kses( ai4seo_get_accordion_element( esc_html__( 'How to activate bulk generation', 'ai-for-seo' ), $ai4seo_this_accordion_content, 3 ) );
 
 
 	// === Credits ======================================================================== \\
@@ -964,7 +964,7 @@ foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_
 	$ai4seo_this_accordion_content .= '</ul>';
 	$ai4seo_this_accordion_content .= '<p>' . __( "We offer a <strong>Pay-As-You-Go (PAYG)</strong> option which enables you to automatically refill your Credits balance with a custom number of Credits. This way you don't have to worry about purchasing new Credits or ever running out of them. The plugin will automatically purchase Credits for you as soon as you're about to run out.", 'ai-for-seo' ) . '</p>';
 
-	ai4seo_echo_wp_kses( ai4seo_get_accordion_element( esc_html__( 'How do Credits work?', 'ai-for-seo' ), $ai4seo_this_accordion_content ) );
+	ai4seo_echo_wp_kses( ai4seo_get_accordion_element( esc_html__( 'How do Credits work?', 'ai-for-seo' ), $ai4seo_this_accordion_content, 3 ) );
 
 
 	// === "Yoast SEO" elements ======================================================================== \\
@@ -986,7 +986,7 @@ foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_
 		$ai4seo_this_accordion_content .= '<p><b>4.</b> ' . esc_html__( 'To streamline the process, click the "Generate & Overwrite" button. This will apply the AI-generated descriptions to all corresponding input fields, enhancing the SEO across the entire page or post.', 'ai-for-seo' ) . '</p>';
 		$ai4seo_this_accordion_content .= "<img src='" . esc_url( ai4seo_get_assets_images_url( 'faq-screenshots/screenshot-yoast-3.jpg' ) ) . "' class='ai4seo-help-screenshot' />";
 
-		ai4seo_echo_wp_kses( ai4seo_get_accordion_element( esc_html__( 'Yoast integration', 'ai-for-seo' ), $ai4seo_this_accordion_content ) );
+		ai4seo_echo_wp_kses( ai4seo_get_accordion_element( esc_html__( 'Yoast integration', 'ai-for-seo' ), $ai4seo_this_accordion_content, 3 ) );
 	}
 
 	// === Elementor-elements ==================================================================== \\
@@ -1004,7 +1004,7 @@ foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_
 		$ai4seo_this_accordion_content .= '<p><b>3.</b> ' . sprintf( esc_html__( 'In the settings section, click on the "Show all SEO settings" button to open the %s metadata editor. Here, you can adjust the metadata using our AI-driven algorithms.', 'ai-for-seo' ), esc_html( AI4SEO_PLUGIN_NAME ) ) . '</p>';
 		$ai4seo_this_accordion_content .= "<img src='" . esc_url( ai4seo_get_assets_images_url( 'faq-screenshots/screenshot-elementor-2.jpg' ) ) . "' class='ai4seo-help-screenshot' />";
 
-		ai4seo_echo_wp_kses( ai4seo_get_accordion_element( esc_html__( 'Elementor integration', 'ai-for-seo' ), $ai4seo_this_accordion_content ) );
+		ai4seo_echo_wp_kses( ai4seo_get_accordion_element( esc_html__( 'Elementor integration', 'ai-for-seo' ), $ai4seo_this_accordion_content, 3 ) );
 	}
 
 	// === Be-Builder-elements =================================================================== \\
@@ -1021,7 +1021,7 @@ foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_
 		$ai4seo_this_accordion_content .= '<p><b>3.</b> ' . sprintf( esc_html__( 'Click on the "Show all SEO settings" button within the SEO section to open the %s metadata editor. Here, you can access and manipulate metadata using our AI-driven algorithms.', 'ai-for-seo' ), esc_html( AI4SEO_PLUGIN_NAME ) ) . '</p>';
 		$ai4seo_this_accordion_content .= "<img src='" . esc_url( ai4seo_get_assets_images_url( 'faq-screenshots/screenshot-be-builder-1.jpg' ) ) . "' class='ai4seo-help-screenshot' />";
 
-		ai4seo_echo_wp_kses( ai4seo_get_accordion_element( esc_html__( 'Be-Builder integration', 'ai-for-seo' ), $ai4seo_this_accordion_content ) );
+		ai4seo_echo_wp_kses( ai4seo_get_accordion_element( esc_html__( 'Be-Builder integration', 'ai-for-seo' ), $ai4seo_this_accordion_content, 3 ) );
 	}
 	echo '</div>';
 
@@ -1031,9 +1031,9 @@ foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_
 	// FAQ visibility follows the same server-side section state as the active navigation tile.
 	echo "<div class='" . esc_attr( $ai4seo_help_sections['faq']['content_class'] ) . "' id='" . esc_attr( $ai4seo_help_sections['faq']['target_id'] ) . "'>";
 	// Headline.
-	echo "<h1 id='ai4seo-faq-section'>";
+	echo "<h2 class='ai4seo-help-section-title' id='ai4seo-faq-section'>";
 		echo esc_html__( 'F.A.Q.', 'ai-for-seo' );
-	echo '</h1>';
+	echo '</h2>';
 
 
 	// === SEARCH ================================================================================ \\
@@ -1674,9 +1674,9 @@ foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_
 
 		echo "<div class='ai4seo-display-none ai4seo-help-content' id='ai4seo-help-contact'>";
 		// Headline.
-		echo "<h1 id='ai4seo-contact-section'>";
+		echo "<h2 class='ai4seo-help-section-title' id='ai4seo-contact-section'>";
 		echo esc_html__( 'Contact the makers of this plugin', 'ai-for-seo' );
-		echo '</h1>';
+		echo '</h2>';
 
 		// Description.
 		echo '<p>';
@@ -1755,9 +1755,9 @@ foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_
 			// Troubleshooting visibility is decided before the browser paints to avoid refresh flicker after selecting this tile.
 			echo "<div class='" . esc_attr( $ai4seo_help_sections['troubleshooting']['content_class'] ) . "' id='" . esc_attr( $ai4seo_help_sections['troubleshooting']['target_id'] ) . "'>";
 			// Headline.
-			echo "<h1 id='ai4seo-troubleshooting-section'>";
+			echo "<h2 class='ai4seo-help-section-title' id='ai4seo-troubleshooting-section'>";
 			echo esc_html__( 'Troubleshooting', 'ai-for-seo' );
-			echo '</h1>';
+			echo '</h2>';
 
 			// WARNING.
 			echo esc_html__( 'ATTENTION: The following tools are for advanced users only or if you are advised to use them by our support team.', 'ai-for-seo' );
@@ -1774,10 +1774,10 @@ foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_
 			echo "<div class='card ai4seo-form-section ai4seo-troubleshooting-settings-card'>";
 
 			// Headline.
-			echo '<h2>';
+			echo '<h3 class="ai4seo-help-subheading">';
 			echo '<i class="dashicons dashicons-image-rotate"></i>';
 			echo esc_html__( 'Reset plugin data', 'ai-for-seo' );
-			echo '</h2>';
+			echo '</h3>';
 
 			echo "<div class='ai4seo-form-item'>";
 			echo "<label for='ai4seo-troubleshooting-reset-cache'>";
@@ -1856,9 +1856,9 @@ foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_
 
 			// === TROUBLESHOOTING FAQ ================================================================== \\
 
-			echo '<h1>';
+			echo '<h3 class="ai4seo-help-subheading">';
 			echo esc_html__( 'Troubleshooting FAQ', 'ai-for-seo' );
-			echo '</h1>';
+			echo '</h3>';
 
 			// Input for the search.
 			echo "<div class='ai4seo-help-search-wrapper'>";
@@ -1970,10 +1970,10 @@ foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_
 			echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 			echo "<div class='card ai4seo-form-section ai4seo-troubleshooting-settings-card'>";
 			// Headline.
-			echo '<h2>';
+			echo '<h3 class="ai4seo-help-subheading">';
 				echo '<i class="dashicons dashicons-sos"></i>';
 				echo esc_html__( 'Debug Settings', 'ai-for-seo' );
-			echo '</h2>';
+			echo '</h3>';
 
 			echo "<div class='ai4seo-form-item'>";
 				echo "<label for='" . esc_attr( $ai4seo_disable_heavy_db_operations_input_name ) . "'>";
@@ -2036,10 +2036,10 @@ foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_
 					echo "<form method='post' class='ai4seo-form ai4seo-debug-operation-form' id='ai4seo-debug-operation-form' action='" . esc_url( ai4seo_get_debug_operation_redirect_url() ) . "' data-ai4seo-prohibit-operation='prohibit-ai-for-seo'>";
 					wp_nonce_field( 'ai4seo-debug-operation', 'ai4seo-debug-operation-nonce' );
 					echo "<div class='card ai4seo-form-section ai4seo-troubleshooting-settings-card'>";
-						echo '<h2>';
+						echo '<h3 class="ai4seo-help-subheading">';
 							echo '<i class="dashicons dashicons-admin-tools"></i>';
 							echo esc_html__( 'Debug Operations', 'ai-for-seo' );
-						echo '</h2>';
+						echo '</h3>';
 
 						echo "<div class='ai4seo-form-item'>";
 							echo "<label for='ai4seo_debug_operation'>";
@@ -2118,10 +2118,10 @@ foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_
 					$ai4seo_debug_messages_container_for_clipboard = array();
 
 					echo "<div class='card ai4seo-form-section ai4seo-troubleshooting-settings-card'>";
-					echo '<h2>';
+					echo '<h3 class="ai4seo-help-subheading">';
 					echo '<i class="dashicons dashicons-media-text"></i>';
 					echo esc_html__( 'Debug Message Log', 'ai-for-seo' );
-					echo '</h2>';
+					echo '</h3>';
 
 					echo "<div id='ai4seo-debug-message-log-entries' class='ai4seo-debug-message-log-entries'>";
 			if ( empty( $ai4seo_debug_message_entries ) ) {
@@ -2180,9 +2180,9 @@ foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_
 					// Useful links visibility is server-rendered from the same whitelisted Help section parameter.
 					echo "<div class='" . esc_attr( $ai4seo_help_sections['links']['content_class'] ) . "' id='" . esc_attr( $ai4seo_help_sections['links']['target_id'] ) . "'>";
 					// Headline.
-					echo "<h1 id='ai4seo-links-section'>";
+					echo "<h2 class='ai4seo-help-section-title' id='ai4seo-links-section'>";
 					echo esc_html__( 'Useful links', 'ai-for-seo' );
-					echo '</h1>';
+					echo '</h2>';
 
 					echo "<p class='ai4seo-help-resources-intro'>" . esc_html__( 'Explore the plugin, find community support, and meet the team behind it.', 'ai-for-seo' ) . '</p>';
 					echo "<p class='ai4seo-help-resources-note'>" . esc_html__( 'All links open in a new tab.', 'ai-for-seo' ) . '</p>';
@@ -2224,7 +2224,7 @@ foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_
 					foreach ( $ai4seo_help_resources as $ai4seo_help_resource ) {
 						echo "<a class='ai4seo-help-resource-card' href='" . esc_url( $ai4seo_help_resource['url'] ) . "' target='_blank' rel='noopener noreferrer'>";
 						echo "<span class='ai4seo-help-resource-icon dashicons " . esc_attr( $ai4seo_help_resource['icon'] ) . "' aria-hidden='true'></span>";
-						echo '<h2>' . esc_html( $ai4seo_help_resource['title'] ) . '</h2>';
+						echo '<h3>' . esc_html( $ai4seo_help_resource['title'] ) . '</h3>';
 						echo "<p class='ai4seo-help-resource-description'>" . esc_html( $ai4seo_help_resource['description'] ) . '</p>';
 						echo "<span class='ai4seo-help-resource-action'>" . esc_html( $ai4seo_help_resource['action'] ) . "<span class='dashicons dashicons-external' aria-hidden='true'></span></span>";
 						echo "<span class='screen-reader-text'> " . esc_html__( '(opens in a new tab)', 'ai-for-seo' ) . '</span>';

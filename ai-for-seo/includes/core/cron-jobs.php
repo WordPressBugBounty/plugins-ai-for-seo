@@ -3150,6 +3150,20 @@ function ai4seo_automated_metadata_generation(
 		ai4seo_debug_message( 439931261, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'trying to generate metadata for #' . esc_html( $post_id ) ) ) );
 	}
 
+	// Resolve active storage before any billable generation request. One failed entry does not stop the queue.
+	$active_storage_view = ai4seo_recover_active_metadata( $post_id );
+	if ( 'unreadable' === $active_storage_view['classification'] ) {
+		ai4seo_abort_bulk_generation_processing_claim_before_generation( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA, $post_id, $processing_claim_token, $pending_was_present, $force_was_present );
+		return false;
+	}
+	if ( $active_storage_view['conflicts'] ) {
+		$reason = 'Stored metadata has conflicting values; resolve them in the metadata editor';
+		ai4seo_debug_metadata_recovery( $post_id, 'generation_preflight_skipped', $active_storage_view, array_keys( $active_storage_view['conflicts'] ) );
+		$failure_status_succeeded = ai4seo_handle_failed_metadata_generation( $post_id, __FUNCTION__, $reason, $debug, $processing_claim_token );
+		ai4seo_add_latest_activity_entry( $post_id, 'error', 'metadata-bulk-generated', 0, $reason );
+		return $failure_status_succeeded;
+	}
+
 	// let's find fields to generate for this post id.
 	$generated_data_read_succeeded     = false;
 	$generated_data_details            = ai4seo_read_authoritative_generated_data_details_for_post(
@@ -3309,6 +3323,18 @@ function ai4seo_automated_metadata_generation(
 			$processing_claim_token
 		);
 		ai4seo_add_latest_activity_entry( $post_id, 'error', 'metadata-bulk-generated', 0, 'Post no longer exists' );
+		return $failure_status_succeeded;
+	}
+
+	if ( ! $prepared_content['content_extraction_succeeded'] ) {
+		$failure_status_succeeded = ai4seo_handle_failed_metadata_generation(
+			$post_id,
+			__FUNCTION__,
+			'Post content could not be extracted for post ID: ' . $post_id,
+			$debug,
+			$processing_claim_token
+		);
+		ai4seo_add_latest_activity_entry( $post_id, 'error', 'metadata-bulk-generated', 0, 'Post content could not be read' );
 		return $failure_status_succeeded;
 	}
 

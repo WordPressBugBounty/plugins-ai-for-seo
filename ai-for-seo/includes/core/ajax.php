@@ -784,6 +784,36 @@ function ai4seo_stop_bulk_generation() {
 
 
 /**
+ * Dismiss the displayed Autopilot failure for an entry the current user may edit.
+ *
+ * @return void
+ */
+function ai4seo_dismiss_recent_activity_error() {
+	if ( ! ai4seo_singleton( __FUNCTION__ ) ) {
+		return;
+	}
+
+	// The dispatcher supplies the nonce gate; object permission also protects direct callbacks.
+	// phpcs:disable WordPress.Security.NonceVerification.Missing -- ai4seo_on_ajax_action() verifies the nonce before dispatching allowlisted handlers.
+	$post_id = ai4seo_normalize_database_id( sanitize_text_field( wp_unslash( $_POST['ai4seo_post_id'] ?? '' ) ) );
+	$action  = sanitize_key( wp_unslash( $_POST['ai4seo_activity_action'] ?? '' ) );
+	$token   = sanitize_text_field( wp_unslash( $_POST['ai4seo_activity_token'] ?? '' ) );
+	// phpcs:enable WordPress.Security.NonceVerification.Missing
+	if ( ! $post_id || ! ai4seo_can_edit_post( $post_id ) || ! is_string( $action ) || ! is_string( $token ) ) {
+		ai4seo_send_ajax_error( esc_html__( 'You are not allowed to dismiss this activity warning.', 'ai-for-seo' ), 481809261 );
+		return;
+	}
+
+	if ( ! ai4seo_resolve_recent_activity_error( $post_id, $action, $token ) ) {
+		ai4seo_send_ajax_error( esc_html__( 'The activity warning changed or could not be dismissed. Please refresh the page and try again.', 'ai-for-seo' ), 481809262 );
+		return;
+	}
+
+	ai4seo_send_ajax_success( array( 'resolved_activity_tokens' => array( $action => $token ) ) );
+}
+
+
+/**
  * Clears snapshot pending memberships and their paired force-overwrite markers atomically.
  *
  * @return bool True only when every requested absence is verified and the shared lock releases.

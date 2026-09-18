@@ -103,6 +103,7 @@ function ai4seo_add_latest_activity_entry(
 
 	// Keep the base entry compatible with activity rows written before field-level details were available.
 	$new_entry = array(
+		'event_id'  => wp_generate_uuid4(),
 		'timestamp' => time(),
 		'post_id'   => $post_id,
 		'post_type' => $post_type,
@@ -343,30 +344,6 @@ function ai4seo_get_latest_activity_message_parts( array $latest_activity_entry 
 
 
 /**
- * Return the user-facing message for a latest-activity entry.
- *
- * @param array $latest_activity_entry Latest-activity entry.
- * @return string Localized activity message.
- */
-function ai4seo_get_latest_activity_message( array $latest_activity_entry ): string {
-	$message_parts = ai4seo_get_latest_activity_message_parts( $latest_activity_entry );
-	$summary       = $message_parts['summary'];
-	$details       = $message_parts['details'];
-
-	if ( '' === $details ) {
-		return $summary;
-	}
-
-	return sprintf(
-		/* translators: 1: Activity summary. 2: Activity diagnostic details. */
-		__( '%1$s — %2$s', 'ai-for-seo' ),
-		$summary,
-		$details
-	);
-}
-
-
-/**
  * Filter latest activity entries to objects visible to the current plugin user.
  *
  * Site administrators retain the site-wide operational view. Content users only receive entries
@@ -377,26 +354,21 @@ function ai4seo_get_latest_activity_message( array $latest_activity_entry ): str
  */
 function ai4seo_filter_latest_activity_entries_for_current_user( array $latest_activity ): array {
 	// Stored options and third-party filters may contain scalar rows; only structured entries can be rendered safely.
-	$latest_activity = array_values(
-		array_filter(
-			$latest_activity,
-			'is_array'
-		)
+	$latest_activity = array_filter(
+		$latest_activity,
+		'is_array'
 	);
 
-	if ( ai4seo_can_administer_plugin() ) {
-		return $latest_activity;
-	}
-
-	return array_values(
-		array_filter(
+	if ( ! ai4seo_can_administer_plugin() ) {
+		$latest_activity = array_filter(
 			$latest_activity,
 			static function ( $latest_activity_entry ): bool {
-				return is_array( $latest_activity_entry )
-					&& ai4seo_can_edit_post( absint( $latest_activity_entry['post_id'] ?? 0 ) );
+				return ai4seo_can_edit_post( absint( $latest_activity_entry['post_id'] ?? 0 ) );
 			}
-		)
-	);
+		);
+	}
+
+	return array_values( $latest_activity );
 }
 
 
@@ -475,7 +447,7 @@ function ai4seo_get_latest_activity_entries_by_post_id( array $actions = array()
 function ai4seo_get_recent_activity_details_subtext_tag( string $details_onclick, array $latest_activity_entry = array() ): string {
 	$details_onclick = trim( $details_onclick );
 
-	if ( '' === $details_onclick ) {
+	if ( '' === $details_onclick || true === ( $latest_activity_entry['warning_resolved'] ?? false ) ) {
 		return '';
 	}
 
@@ -500,10 +472,11 @@ function ai4seo_get_recent_activity_details_subtext_tag( string $details_onclick
 		$message_text      = __( 'Recent SEO Autopilot processing failed.', 'ai-for-seo' );
 	}
 
-	$output      = "<div class='ai4seo-sub-info " . esc_attr( $message_css_class ) . "'>";
-		$output .= ai4seo_get_svg_tag( $icon_name, esc_html( $icon_alt_text ), $icon_css_class );
-		$output .= ' ';
-		$output .= esc_html( $message_text );
+	$activity_token = ai4seo_get_activity_error_token( $latest_activity_entry );
+	$output         = "<div class='ai4seo-sub-info " . esc_attr( $message_css_class ) . "' data-ai4seo-activity-token='" . esc_attr( $activity_token ) . "'>";
+		$output    .= ai4seo_get_svg_tag( $icon_name, esc_html( $icon_alt_text ), $icon_css_class );
+		$output    .= ' ';
+		$output    .= esc_html( $message_text );
 
 	if ( 'error' === $activity_status && '' !== $activity_details ) {
 		$output .= ' ';
@@ -512,9 +485,102 @@ function ai4seo_get_recent_activity_details_subtext_tag( string $details_onclick
 
 		$output .= ' ';
 		$output .= ai4seo_get_small_icon_button_tag( '', esc_html__( 'Check details', 'ai-for-seo' ), '', $details_onclick );
-	$output     .= '</div>';
+	if ( '' !== $activity_token ) {
+		$dismiss_onclick = 'ai4seo_dismiss_recent_activity_error(this, ' . (int) $latest_activity_entry['post_id'] . ', '
+			. wp_json_encode( $latest_activity_entry['action'] ) . ', ' . wp_json_encode( $activity_token ) . ');';
+		$output         .= ' ' . ai4seo_get_small_icon_button_tag( '', esc_html__( 'Dismiss', 'ai-for-seo' ), '', $dismiss_onclick );
+	}
+	$output .= '</div>';
 
 	return $output;
+}
+
+
+/**
+ * Identify one Autopilot failure without including its mutable acknowledgement.
+ *
+ * @param array $entry Activity entry, including legacy entries without an event ID.
+ * @return string Opaque identity, or empty for entries that are not Autopilot errors.
+ */
+function ai4seo_get_activity_error_token( array $entry ): string {
+	if ( 'error' !== ( $entry['status'] ?? '' ) || empty( $entry['post_id'] )
+		|| ! in_array( $entry['action'] ?? '', array( 'metadata-bulk-generated', 'attachment-attributes-bulk-generated' ), true ) ) {
+		return '';
+	}
+
+	unset( $entry['warning_resolved'] );
+	$encoded_entry = wp_json_encode( $entry );
+	return is_string( $encoded_entry ) ? hash( 'sha256', $encoded_entry ) : '';
+}
+
+
+/**
+ * Capture the warning before a manual operation so it cannot resolve a later failure.
+ *
+ * @param int    $post_id Target post.
+ * @param string $action Autopilot action for the editor's domain.
+ * @return string Current unresolved error identity, or empty when there is none.
+ */
+function ai4seo_get_recent_activity_error_token( int $post_id, string $action ): string {
+	$entries = ai4seo_get_latest_activity_entries_by_post_id( array( $action ) );
+	$entry   = $entries[ $post_id ] ?? array();
+	return empty( $entry['warning_resolved'] ) ? ai4seo_get_activity_error_token( $entry ) : '';
+}
+
+
+/**
+ * Acknowledge an exact current failure while retaining the complete activity history.
+ *
+ * @param int    $post_id Target post.
+ * @param string $action Autopilot action for the editor's domain.
+ * @param string $token Identity captured before saving, generating, or dismissing.
+ * @return bool Whether this warning was resolved or expired from history; false covers newer events and storage failures.
+ */
+function ai4seo_resolve_recent_activity_error( int $post_id, string $action, string $token ): bool {
+	if ( $post_id <= 0 || ! preg_match( '/^[a-f0-9]{64}$/D', $token )
+		|| ! in_array( $action, array( 'metadata-bulk-generated', 'attachment-attributes-bulk-generated' ), true ) ) {
+		return false;
+	}
+
+	// Retry against fresh snapshots so acknowledgements never overwrite concurrent log appends.
+	for ( $attempt = 0; $attempt < 5; ++$attempt ) {
+		$snapshot = ai4seo_get_raw_option_snapshot( AI4SEO_LATEST_ACTIVITY_OPTION_NAME );
+		if ( null === $snapshot || ! is_array( $snapshot['value'] ) ) {
+			return false;
+		}
+
+		$entries = $snapshot['value'];
+		foreach ( $entries as $index => $entry ) {
+			if ( ! is_array( $entry ) || (int) ( $entry['post_id'] ?? 0 ) !== $post_id || ( $entry['action'] ?? '' ) !== $action ) {
+				continue;
+			}
+
+			// Only the newest event in this domain can be acknowledged, including repeated requests.
+			if ( ! hash_equals( $token, ai4seo_get_activity_error_token( $entry ) ) ) {
+				return false;
+			}
+			if ( true === ( $entry['warning_resolved'] ?? false ) ) {
+				return true;
+			}
+
+			$entries[ $index ]['warning_resolved'] = true;
+			$result                                = ai4seo_compare_and_swap_option_snapshot( AI4SEO_LATEST_ACTIVITY_OPTION_NAME, $snapshot, $entries, false );
+			if ( null === $result || true === $result ) {
+				return true === $result;
+			}
+			continue 2;
+		}
+
+		// A manual generation can evict the old failure from the bounded log before acknowledgement.
+		foreach ( $entries as $entry ) {
+			if ( is_array( $entry ) && hash_equals( $token, ai4seo_get_activity_error_token( $entry ) ) ) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	return false;
 }
 
 

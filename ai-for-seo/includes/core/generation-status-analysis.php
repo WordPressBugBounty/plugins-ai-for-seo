@@ -3018,6 +3018,45 @@ function ai4seo_maybe_reset_generation_status_summary_request_cache( string $opt
 
 
 /**
+ * Returns generated-data counts by post type for reset controls.
+ *
+ * @return array Generated-data counts by post type.
+ */
+function ai4seo_get_generated_data_reset_post_type_counts(): array {
+	$generation_status_summary       = ai4seo_read_generation_status_summary( true, true );
+	$generated_data_post_type_counts = array();
+	$generated_data_option_names     = array(
+		AI4SEO_GENERATED_METADATA_POST_IDS_OPTION_NAME,
+		AI4SEO_GENERATED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME,
+	);
+
+	foreach ( $generated_data_option_names as $this_generated_data_option_name ) {
+		if ( ! isset( $generation_status_summary[ $this_generated_data_option_name ] )
+			|| ! is_array( $generation_status_summary[ $this_generated_data_option_name ] ) ) {
+			continue;
+		}
+
+		foreach ( $generation_status_summary[ $this_generated_data_option_name ] as $this_post_type => $this_num_generated_entries ) {
+			$this_post_type             = sanitize_key( $this_post_type );
+			$this_num_generated_entries = absint( $this_num_generated_entries );
+
+			if ( ! $this_post_type || ! $this_num_generated_entries ) {
+				continue;
+			}
+
+			if ( ! isset( $generated_data_post_type_counts[ $this_post_type ] ) ) {
+				$generated_data_post_type_counts[ $this_post_type ] = 0;
+			}
+
+			$generated_data_post_type_counts[ $this_post_type ] += $this_num_generated_entries;
+		}
+	}
+
+	return $generated_data_post_type_counts;
+}
+
+
+/**
  * Read the generation status summary option.
  *
  * @param bool $totals_only When true, return legacy totals-only format.
