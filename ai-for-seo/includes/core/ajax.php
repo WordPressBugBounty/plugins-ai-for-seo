@@ -4315,10 +4315,14 @@ function ai4seo_check_attachment_usage_context() {
 	$usage_post_id    = ai4seo_get_first_attachment_using_post_id( $attachment_post_id, true );
 	$usage_post_title = '';
 	$usage_post_url   = '';
+	$usage_edit_url   = '';
 
 	if ( $usage_post_id > 0 && ai4seo_is_attachment_context_post_eligible( $usage_post_id ) ) {
 		$usage_post_title = get_the_title( $usage_post_id );
 		$usage_post_url   = ai4seo_get_attachment_context_frontend_post_url( $usage_post_id );
+		if ( ! $usage_post_url ) {
+			$usage_edit_url = get_edit_post_link( $usage_post_id, 'raw' );
+		}
 
 		if ( ! $usage_post_title ) {
 			$usage_post_title = __( 'Untitled', 'ai-for-seo' );
@@ -4327,13 +4331,14 @@ function ai4seo_check_attachment_usage_context() {
 		$usage_post_id = 0;
 	}
 
-	// Return the same context payload as before, with an optional frontend URL for linkable post references.
+	// Prefer the frontend URL, with an authorized editor fallback for non-public context.
 	ai4seo_send_ajax_success(
 		array(
 			'usage_context_available'       => ( $usage_post_id > 0 ),
 			'post_id'                       => $usage_post_id,
 			'post_title'                    => trim( sanitize_text_field( $usage_post_title ) ),
 			'post_url'                      => esc_url_raw( $usage_post_url ),
+			'post_edit_url'                 => esc_url_raw( (string) $usage_edit_url ),
 			'deep_context_search_enabled'   => $is_deep_context_search_enabled,
 			'deep_context_search_supported' => $is_deep_context_search_supported,
 			'settings_url'                  => ai4seo_can_administer_plugin() ? ai4seo_get_subpage_url( 'settings' ) : '',

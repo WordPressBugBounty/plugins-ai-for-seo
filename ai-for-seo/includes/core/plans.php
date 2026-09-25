@@ -285,24 +285,19 @@ function ai4seo_get_subscription_upgrade_prompt_tag( string $plan, string $promp
 
 	$ai4seo_wrapper_css_class = trim( $wrapper_css_class );
 
-	// Lower roles receive only the plan requirement; do not resolve account identifiers or pricing URLs.
-	if ( ! ai4seo_can_administer_plugin() ) {
-		if ( '' !== $ai4seo_wrapper_css_class ) {
-			return "<span class='" . esc_attr( $ai4seo_wrapper_css_class ) . "'>" . $ai4seo_upgrade_text . '</span>';
-		}
+	$ai4seo_upgrade_prompt_html = $ai4seo_upgrade_text;
 
-		return $ai4seo_upgrade_text;
+	// Lower roles receive only the plan requirement; pricing opens only after an administrator clicks.
+	if ( ai4seo_can_administer_plugin() ) {
+		$ai4seo_upgrade_button_html = ai4seo_get_icon_button_tag(
+			'crown',
+			esc_html_x( 'Upgrade now', 'subscription upgrade prompt button', 'ai-for-seo' ),
+			'ai4seo-primary-button ai4seo-small-button',
+			'ai4seo_init_subscription_pricing(this);'
+		);
+
+		$ai4seo_upgrade_prompt_html .= ' ' . $ai4seo_upgrade_button_html;
 	}
-
-	// Resolve the external destination only after the administrator explicitly clicks this CTA.
-	$ai4seo_upgrade_button_html = ai4seo_get_icon_button_tag(
-		'crown',
-		esc_html_x( 'Upgrade now', 'subscription upgrade prompt button', 'ai-for-seo' ),
-		'ai4seo-primary-button ai4seo-small-button',
-		'ai4seo_init_subscription_pricing(this);'
-	);
-
-	$ai4seo_upgrade_prompt_html = $ai4seo_upgrade_text . ' ' . $ai4seo_upgrade_button_html;
 
 	// Let callers opt into local layout without duplicating the prompt and button generation.
 	if ( '' !== $ai4seo_wrapper_css_class ) {

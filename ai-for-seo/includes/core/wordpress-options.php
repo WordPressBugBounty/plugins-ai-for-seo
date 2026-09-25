@@ -4249,30 +4249,6 @@ function ai4seo_add_post_ids_to_option( $option, $post_ids ): bool {
 
 
 /**
- * Remove post IDs from options that contradict one destination option.
- *
- * @param string $add_to_this_option The destination option.
- * @param array  $post_ids Post IDs to remove.
- * @return void
- */
-function ai4seo_remove_contradictory_post_ids( string $add_to_this_option, array $post_ids ) {
-	if ( ai4seo_prevent_loops( __FUNCTION__, 2 ) ) {
-		ai4seo_debug_message( 173818084, 'Prevented loop', true );
-		return;
-	}
-
-	$removals = array();
-	foreach ( ai4seo_get_contradictory_post_id_option_names( $add_to_this_option ) as $contradictory_option_name ) {
-		$removals[ $contradictory_option_name ] = $post_ids;
-	}
-
-	if ( $removals ) {
-		ai4seo_apply_post_id_option_transition( array(), $removals );
-	}
-}
-
-
-/**
  * Removes post IDs from a generation-state option.
  *
  * @param string    $remove_from_this_option Option name to update.
@@ -4409,15 +4385,8 @@ function ai4seo_get_active_overwrite_existing_metadata(): array {
  * @return bool Whether to generate metadata for fully covered entries
  */
 function ai4seo_do_generate_metadata_for_fully_covered_entries(): bool {
-	$generate_metadata_for_fully_covered_entries = ai4seo_get_setting( AI4SEO_SETTING_GENERATE_METADATA_FOR_FULLY_COVERED_ENTRIES );
-
-	if ( ! $generate_metadata_for_fully_covered_entries ) {
-		return false;
-	}
-
-	$active_overwrite_existing_metadata = ai4seo_get_active_overwrite_existing_metadata();
-
-	return ! empty( $active_overwrite_existing_metadata );
+	return ai4seo_get_setting( AI4SEO_SETTING_GENERATE_METADATA_FOR_FULLY_COVERED_ENTRIES )
+		&& ! empty( ai4seo_get_active_overwrite_existing_metadata() );
 }
 
 
@@ -4450,15 +4419,8 @@ function ai4seo_get_active_overwrite_existing_attachment_attributes(): array {
  * @return bool Whether to generate attachment attributes for fully covered entries
  */
 function ai4seo_do_generate_attachment_attributes_for_fully_covered_entries(): bool {
-	$generate_attachment_attributes_for_fully_covered_entries = ai4seo_get_setting( AI4SEO_SETTING_GENERATE_ATTACHMENT_ATTRIBUTES_FOR_FULLY_COVERED_ENTRIES );
-
-	if ( ! $generate_attachment_attributes_for_fully_covered_entries ) {
-		return false;
-	}
-
-	$active_overwrite_existing_attachment_attributes = ai4seo_get_active_overwrite_existing_attachment_attributes();
-
-	return ! empty( $active_overwrite_existing_attachment_attributes );
+	return ai4seo_get_setting( AI4SEO_SETTING_GENERATE_ATTACHMENT_ATTRIBUTES_FOR_FULLY_COVERED_ENTRIES )
+		&& ! empty( ai4seo_get_active_overwrite_existing_attachment_attributes() );
 }
 
 

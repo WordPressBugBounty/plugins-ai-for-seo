@@ -14,6 +14,40 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 /**
+ * Restores PHP's candidate order after an unordered eligibility query.
+ *
+ * Ordered SQL variants already return their requested ID order. Random mode
+ * queries every eligible row in one bounded candidate chunk, then intersects
+ * that result with the caller's shuffled candidate sequence.
+ *
+ * @param array  $candidate_post_ids Candidate IDs in requested PHP order.
+ * @param array  $eligible_post_ids IDs returned by the eligibility query.
+ * @param string $bulk_generation_order Requested queue order.
+ * @return array Eligible integer IDs in the requested order.
+ */
+function ai4seo_order_auto_queue_eligible_post_ids( array $candidate_post_ids, array $eligible_post_ids, string $bulk_generation_order ): array {
+	$eligible_post_ids = array_values( array_filter( array_map( 'intval', $eligible_post_ids ) ) );
+
+	if ( in_array( $bulk_generation_order, array( 'oldest', 'newest' ), true ) ) {
+		return $eligible_post_ids;
+	}
+
+	// Use a lookup only for membership; traversal order remains the shuffled candidate order.
+	$eligible_post_id_lookup   = array_fill_keys( $eligible_post_ids, true );
+	$ordered_eligible_post_ids = array();
+
+	foreach ( $candidate_post_ids as $candidate_post_id ) {
+		$candidate_post_id = (int) $candidate_post_id;
+
+		if ( isset( $eligible_post_id_lookup[ $candidate_post_id ] ) ) {
+			$ordered_eligible_post_ids[] = $candidate_post_id;
+		}
+	}
+
+	return $ordered_eligible_post_ids;
+}
+
+/**
  * Normalize enabled bulk-generation post types to their canonical string domain.
  *
  * @param mixed $enabled_bulk_generation_post_types Candidate post-type collection.
@@ -258,6 +292,53 @@ function ai4seo_get_bulk_generation_date_filter_state( $filter, $reference_times
 
 	return $filter_state;
 }
+
+/**
+ * Resolve the new/existing-entry filter into query-safe date state.
+ *
+ * The inactive "both" mode uses a valid, neutral DATETIME binding so strict database modes never
+ * receive an empty value. Active date filters require a positive integer timestamp that formats to
+ * an exact MySQL DATETIME value; corrupted state is rejected instead of widening the queue scope.
+ *
+ * @param mixed $filter Stored new/existing filter.
+ * @param mixed $reference_timestamp Stored filter reference timestamp.
+ * @return array|false Query-safe filter and DATETIME value, or false when the state is invalid.
+ */
+function ai4seo_resolve_bulk_generation_date_filter( $filter, $reference_timestamp ) {
+	// Reuse the canonical validator before exposing state to either prepared-query path.
+	$date_filter_state = ai4seo_get_bulk_generation_date_filter_state( $filter, $reference_timestamp );
+
+	if ( empty( $date_filter_state['is_valid'] ) ) {
+		// Map each validation failure to a stable diagnostic without exposing invalid data to SQL.
+		switch ( $date_filter_state['error_code'] ?? '' ) {
+			case 'invalid_filter':
+				ai4seo_debug_message( 748217659, 'Invalid SEO Autopilot new/existing filter; queue excavation was skipped.', true );
+				break;
+
+			case 'invalid_reference_timestamp':
+				ai4seo_debug_message( 758217659, 'Invalid SEO Autopilot date-filter timestamp; queue excavation was skipped.', true );
+				break;
+
+			case 'reference_timestamp_format_failed':
+				ai4seo_debug_message( 768217659, 'SEO Autopilot could not format its date-filter timestamp; queue excavation was skipped.', true );
+				break;
+
+			case 'invalid_post_date_gmt':
+			default:
+				ai4seo_debug_message( 778217659, 'SEO Autopilot produced an invalid database DATETIME value; queue excavation was skipped.', true );
+				break;
+		}
+
+		return false;
+	}
+
+	// Return only the values consumed by the candidate-query variants.
+	return array(
+		'filter'        => $date_filter_state['filter'],
+		'post_date_gmt' => $date_filter_state['post_date_gmt'],
+	);
+}
+
 
 /**
  * Resolve the currently persisted SEO Autopilot date-filter setting and reference time.

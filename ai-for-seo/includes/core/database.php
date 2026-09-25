@@ -1,6 +1,6 @@
 <?php
 /**
- * Typed database-query construction and error classification helpers.
+ * Typed database-query construction, capability detection, and error classification helpers.
  *
  * @package AI_For_SEO
  */
@@ -30,6 +30,55 @@ function ai4seo_is_database_statement_timeout_error( string $query_error, int $q
 		|| strpos( $query_error, 'execution time exceeded' ) !== false
 		|| strpos( $query_error, 'query execution was interrupted' ) !== false
 	);
+}
+
+/**
+ * Detects whether the current database can enforce per-statement SELECT timeouts.
+ *
+ * @return array
+ */
+function ai4seo_get_database_statement_timeout_support(): array {
+	global $wpdb;
+
+	static $timeout_support = null;
+
+	if ( null !== $timeout_support ) {
+		return $timeout_support;
+	}
+
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Database capability detection is immutable for the request and retained in the function-local static cache.
+	$db_version_string = (string) $wpdb->get_var( 'SELECT VERSION()' );
+	$db_version_number = preg_replace( '/[^0-9.].*$/', '', $db_version_string );
+	$is_mariadb        = ( stripos( $db_version_string, 'mariadb' ) !== false );
+
+	$timeout_support = array(
+		'supported' => false,
+		'engine'    => '',
+		'version'   => $db_version_string,
+	);
+
+	if ( $is_mariadb ) {
+		$mariadb_version_matches = array();
+
+		if ( preg_match( '/([0-9]+(?:\.[0-9]+){1,2})-MariaDB/i', $db_version_string, $mariadb_version_matches ) ) {
+			$db_version_number = $mariadb_version_matches[1];
+		}
+	}
+
+	if ( ! $db_version_number ) {
+		return $timeout_support;
+	}
+
+	if ( $is_mariadb ) {
+		$timeout_support['engine']    = 'mariadb';
+		$timeout_support['supported'] = version_compare( $db_version_number, '10.1.1', '>=' );
+		return $timeout_support;
+	}
+
+	$timeout_support['engine']    = 'mysql';
+	$timeout_support['supported'] = version_compare( $db_version_number, '5.7.4', '>=' );
+
+	return $timeout_support;
 }
 
 /**

@@ -4094,7 +4094,7 @@ function ai4seo_encode_generated_data_details_for_postmeta( array $generated_dat
  * @param bool       $update_generated_at Whether to update the field and top-level generated_at timestamps.
  * @param int        $generated_at The generated-at timestamp to store. Uses the current time when empty.
  * @param array      $unresolved_fields Requested field identifiers omitted from a partial response.
- * @param array|null $operation_details Receives commit_state: not_committed, committed, or possibly_committed.
+ * @param array|null $operation_details Receives commit_state: not_committed, committed, or possibly_committed; failure_reason when the post is missing.
  * @return bool
  */
 function ai4seo_save_generated_data_to_postmeta(
@@ -4112,7 +4112,12 @@ function ai4seo_save_generated_data_to_postmeta(
 	);
 	$post_id           = absint( $post_id );
 
-	if ( $post_id <= 0 || ! get_post( $post_id ) ) {
+	if ( $post_id <= 0 ) {
+		return false;
+	}
+
+	if ( ! get_post( $post_id ) ) {
+		$operation_details['failure_reason'] = 'post_not_found';
 		return false;
 	}
 

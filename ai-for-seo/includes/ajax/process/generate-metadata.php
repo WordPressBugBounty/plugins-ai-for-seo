@@ -53,6 +53,17 @@ if ( $ai4seo_post_id <= 0 ) {
 	ai4seo_send_ajax_error( esc_html__( 'Post id is invalid.', 'ai-for-seo' ), 34127323 );
 }
 
+$ai4seo_missing_post_error_message = sprintf(
+	/* translators: %d: WordPress post ID. */
+	esc_html__( 'This entry (ID %d) could not be found. Refresh the page and reopen the entry before generating metadata again.', 'ai-for-seo' ),
+	$ai4seo_post_id
+);
+
+// Reject missing entries before permission checks and the paid generation request.
+if ( ! get_post( $ai4seo_post_id ) ) {
+	ai4seo_send_ajax_error( $ai4seo_missing_post_error_message, 923260001 );
+}
+
 // Generation can later persist metadata, so enforce WordPress's permission for this post object.
 if ( ! ai4seo_can_edit_post( $ai4seo_post_id ) ) {
 	ai4seo_send_ajax_error( esc_html__( 'You are not allowed to edit this entry.', 'ai-for-seo' ), 34127324 );
@@ -298,17 +309,22 @@ if ( ! $ai4seo_new_metadata ) {
 // === SAVE GENERATED DATA TO DATABASE ================================================================= \\
 
 // Save one timestamp and clear stale provenance for omissions so live values survive and remain eligible later.
-$ai4seo_generated_at = time();
-$ai4seo_this_success = ai4seo_save_generated_data_to_postmeta(
+$ai4seo_generated_at           = time();
+$ai4seo_save_operation_details = array();
+$ai4seo_this_success           = ai4seo_save_generated_data_to_postmeta(
 	$ai4seo_post_id,
 	$ai4seo_new_metadata,
 	true,
 	$ai4seo_generated_at,
-	$ai4seo_unresolved_generation_fields
+	$ai4seo_unresolved_generation_fields,
+	$ai4seo_save_operation_details
 );
 
 if ( ! $ai4seo_this_success ) {
 	ai4seo_debug_message( 141829626, 'Could not save generated metadata for post ID ' . $ai4seo_post_id . ': ' . ai4seo_stringify( $ai4seo_new_metadata ) );
+	if ( 'post_not_found' === ( $ai4seo_save_operation_details['failure_reason'] ?? '' ) ) {
+		ai4seo_send_ajax_error( $ai4seo_missing_post_error_message, 923260001 );
+	}
 	ai4seo_send_ajax_error( esc_html__( 'Could not save generated metadata.', 'ai-for-seo' ), 151829626 );
 }
 

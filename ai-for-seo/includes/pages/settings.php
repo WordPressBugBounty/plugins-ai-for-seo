@@ -1267,7 +1267,9 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 				$ai4seo_this_setting_name        = AI4SEO_SETTING_GENERATE_METADATA_FOR_FULLY_COVERED_ENTRIES;
 				$ai4seo_this_setting_input_name  = ai4seo_get_prefixed_input_name( $ai4seo_this_setting_name );
 				$ai4seo_this_setting_input_value = ai4seo_get_setting( $ai4seo_this_setting_name );
-				$ai4seo_this_setting_description = __( "Generate metadata for entries that already have a complete set of metadata. Disable this option to generate metadata only for entries with at least one missing field. Note: Enable at least one field under 'Overwrite Existing Metadata' for this setting to take effect.", 'ai-for-seo' );
+				$ai4seo_this_setting_description = __( 'Generate metadata for entries that already have a complete set of metadata. Disable this option to generate metadata only for entries with at least one missing field.', 'ai-for-seo' );
+				$ai4seo_has_active_overwrite     = ! empty( ai4seo_get_active_overwrite_existing_metadata() );
+				$ai4seo_overwrite_requirement_id = $ai4seo_this_setting_input_name . '-requirement';
 
 				// Divider.
 				echo "<hr class='ai4seo-form-item-divider'>";
@@ -1280,11 +1282,15 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
 				echo "<div class='ai4seo-form-item-input-wrapper'>";
 					echo "<label for='" . esc_attr( $ai4seo_this_setting_input_name ) . "'>";
-					echo "<input type='checkbox' id='" . esc_attr( $ai4seo_this_setting_input_name ) . "' name='" . esc_attr( $ai4seo_this_setting_input_name ) . "' value='1' class='ai4seo-single-checkbox'" . ( $ai4seo_this_setting_input_value ? " checked='checked'" : '' ) . '/> ';
+					echo "<input type='checkbox' id='" . esc_attr( $ai4seo_this_setting_input_name ) . "' name='" . esc_attr( $ai4seo_this_setting_input_name ) . "' value='1' class='ai4seo-single-checkbox ai4seo-complete-entries-toggle' data-active-fields='" . esc_attr( ai4seo_get_prefixed_input_name( AI4SEO_SETTING_ACTIVE_META_TAGS ) ) . "' data-overwrite-fields='" . esc_attr( ai4seo_get_prefixed_input_name( AI4SEO_SETTING_OVERWRITE_EXISTING_METADATA ) ) . "' aria-describedby='" . esc_attr( $ai4seo_overwrite_requirement_id ) . "'" . disabled( $ai4seo_has_active_overwrite, false, false ) . ( $ai4seo_this_setting_input_value ? " checked='checked'" : '' ) . '/> ';
 					echo esc_html__( 'Include Complete Entries', 'ai-for-seo' );
 
 					echo '<br>';
 					echo '</label>';
+
+					echo "<p id='" . esc_attr( $ai4seo_overwrite_requirement_id ) . "' class='ai4seo-form-item-description ai4seo-complete-entries-requirement'" . ( $ai4seo_has_active_overwrite ? ' hidden' : '' ) . '>';
+					echo esc_html__( 'Select at least one active field under Overwrite Existing Metadata to enable this option.', 'ai-for-seo' );
+					echo '</p>';
 
 				echo "<p class='ai4seo-form-item-description'>";
 					ai4seo_echo_wp_kses( $ai4seo_this_setting_description );
@@ -1851,7 +1857,9 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 				$ai4seo_this_setting_name        = AI4SEO_SETTING_GENERATE_ATTACHMENT_ATTRIBUTES_FOR_FULLY_COVERED_ENTRIES;
 				$ai4seo_this_setting_input_name  = ai4seo_get_prefixed_input_name( $ai4seo_this_setting_name );
 				$ai4seo_this_setting_input_value = ai4seo_get_setting( $ai4seo_this_setting_name );
-				$ai4seo_this_setting_description = __( "Generate media attributes for entries that already have a complete set of attributes. Disable this option to generate media attributes only for entries with missing attributes. Note: Enable at least one attribute under 'Overwrite Existing Media Attributes' for this setting to take effect.", 'ai-for-seo' );
+				$ai4seo_this_setting_description = __( 'Generate media attributes for entries that already have a complete set of attributes. Disable this option to generate media attributes only for entries with missing attributes.', 'ai-for-seo' );
+				$ai4seo_has_active_overwrite     = ! empty( ai4seo_get_active_overwrite_existing_attachment_attributes() );
+				$ai4seo_overwrite_requirement_id = $ai4seo_this_setting_input_name . '-requirement';
 
 				// Divider.
 				echo "<hr class='ai4seo-form-item-divider'>";
@@ -1864,11 +1872,15 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
 				echo "<div class='ai4seo-form-item-input-wrapper'>";
 					echo "<label for='" . esc_attr( $ai4seo_this_setting_input_name ) . "'>";
-					echo "<input type='checkbox' id='" . esc_attr( $ai4seo_this_setting_input_name ) . "' name='" . esc_attr( $ai4seo_this_setting_input_name ) . "' value='1' class='ai4seo-single-checkbox'" . ( $ai4seo_this_setting_input_value ? " checked='checked'" : '' ) . '/> ';
+					echo "<input type='checkbox' id='" . esc_attr( $ai4seo_this_setting_input_name ) . "' name='" . esc_attr( $ai4seo_this_setting_input_name ) . "' value='1' class='ai4seo-single-checkbox ai4seo-complete-entries-toggle' data-active-fields='" . esc_attr( ai4seo_get_prefixed_input_name( AI4SEO_SETTING_ACTIVE_ATTACHMENT_ATTRIBUTES ) ) . "' data-overwrite-fields='" . esc_attr( ai4seo_get_prefixed_input_name( AI4SEO_SETTING_OVERWRITE_EXISTING_ATTACHMENT_ATTRIBUTES ) ) . "' aria-describedby='" . esc_attr( $ai4seo_overwrite_requirement_id ) . "'" . disabled( $ai4seo_has_active_overwrite, false, false ) . ( $ai4seo_this_setting_input_value ? " checked='checked'" : '' ) . '/> ';
 					echo esc_html__( 'Include Complete Entries When Overwriting', 'ai-for-seo' );
 
 					echo '<br>';
 					echo '</label>';
+
+					echo "<p id='" . esc_attr( $ai4seo_overwrite_requirement_id ) . "' class='ai4seo-form-item-description ai4seo-complete-entries-requirement'" . ( $ai4seo_has_active_overwrite ? ' hidden' : '' ) . '>';
+					echo esc_html__( 'Select at least one active attribute under Overwrite Existing Media Attributes to enable this option.', 'ai-for-seo' );
+					echo '</p>';
 
 				echo "<p class='ai4seo-form-item-description'>";
 					ai4seo_echo_wp_kses( $ai4seo_this_setting_description );

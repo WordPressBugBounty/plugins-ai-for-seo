@@ -227,11 +227,8 @@ function ai4seo_store_supported_taxonomy_terms_cache( array $terms, ?array $cont
 	$scope         = ai4seo_get_site_options_request_cache_scope();
 	$request_cache =& ai4seo_get_supported_taxonomy_terms_request_cache();
 
-	if ( ! empty( $request_cache[ $scope ]['blocked'] ) ) {
-		return false;
-	}
-
-	if ( '' === $scope || null === $context
+	if ( ! empty( $request_cache[ $scope ]['blocked'] )
+		|| '' === $scope || null === $context
 		|| ( $context['scope'] ?? '' ) !== $scope || ! isset( $context['snapshot'] ) ) {
 		return false;
 	}

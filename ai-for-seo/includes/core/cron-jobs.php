@@ -3773,78 +3773,6 @@ function ai4seo_handle_failed_metadata_generation(
 
 
 /**
- * Determines whether to use base64 encoding or URL for image upload based on user setting and automatic logic
- *
- * @param string $attachment_url The attachment URL to check.
- * @return bool true if base64 should be used, false if URL should be used
- */
-function ai4seo_should_use_base64_image( string $attachment_url ): bool {
-	global $ai4seo_allowed_image_file_type_names;
-
-	// Get the user's preference for image upload method.
-	$image_upload_method = ai4seo_get_setting( AI4SEO_SETTING_IMAGE_UPLOAD_METHOD );
-
-	switch ( $image_upload_method ) {
-		case 'base64':
-			// User explicitly chose base64 - always encode and send image data directly.
-			return true;
-
-		case 'url':
-			// User explicitly chose URL - always send the image URL.
-			return false;
-
-		case 'auto':
-		default:
-			// Auto mode: use intelligent logic to decide the best method
-			// Default to URL method for better performance (smaller payload).
-			$ai4seo_use_base64_image = false;
-
-			// First check: Validate URL format
-			// If URL format is invalid, we must use base64 as fallback.
-			if ( ! filter_var( $attachment_url, FILTER_VALIDATE_URL ) ) {
-				$ai4seo_use_base64_image = true;
-			}
-
-			// Second check: Detect localhost/development environments
-			// Our API cannot access localhost URLs, so base64 is required.
-			if ( ! $ai4seo_use_base64_image && ai4seo_robhub_api()->are_we_on_a_localhost_system() ) {
-				$ai4seo_use_base64_image = true;
-			}
-
-			// third check: Validate file type at the end of the URL.
-			if ( ! $ai4seo_use_base64_image ) {
-				// Get the file extension from the URL.
-				$file_extension = pathinfo( $attachment_url, PATHINFO_EXTENSION );
-
-				// If the file extension is not in our allowed list, we must use base64.
-				if ( ! in_array( strtolower( $file_extension ), $ai4seo_allowed_image_file_type_names, true ) ) {
-					$ai4seo_use_base64_image = true;
-				}
-			}
-
-			// Third check: Test URL accessibility (only if we haven't already decided on base64).
-			if ( ! $ai4seo_use_base64_image ) {
-				// Attempt to get HTTP headers to verify the URL is accessible.
-				$attachment_url_headers = get_headers( $attachment_url );
-
-				// If we can't get headers or they're malformed, the URL is not accessible.
-				if ( ! $attachment_url_headers || ! is_array( $attachment_url_headers ) || ! isset( $attachment_url_headers[0] ) ) {
-					$ai4seo_use_base64_image = true;
-				}
-
-				// Check for successful HTTP response (200 OK)
-				// If the response is not successful, our Server won't be able to access the URL.
-				if ( strpos( $attachment_url_headers[0], '200' ) === false ) {
-					$ai4seo_use_base64_image = true;
-				}
-			}
-
-			return $ai4seo_use_base64_image;
-	}
-}
-
-
-/**
  * Function to automatically generate attributes for attachments
  *
  * @param bool $debug debug mode yes or no.
@@ -4553,53 +4481,6 @@ function ai4seo_handle_failed_attachment_generation( int $attachment_post_id, st
 
 
 /**
- * Resolve the new/existing-entry filter into query-safe date state.
- *
- * The inactive "both" mode uses a valid, neutral DATETIME binding so strict database modes never
- * receive an empty value. Active date filters require a positive integer timestamp that formats to
- * an exact MySQL DATETIME value; corrupted state is rejected instead of widening the queue scope.
- *
- * @param mixed $filter Stored new/existing filter.
- * @param mixed $reference_timestamp Stored filter reference timestamp.
- * @return array|false Query-safe filter and DATETIME value, or false when the state is invalid.
- */
-function ai4seo_resolve_bulk_generation_date_filter( $filter, $reference_timestamp ) {
-	// Reuse the canonical validator before exposing state to either prepared-query path.
-	$date_filter_state = ai4seo_get_bulk_generation_date_filter_state( $filter, $reference_timestamp );
-
-	if ( empty( $date_filter_state['is_valid'] ) ) {
-		// Map each validation failure to a stable diagnostic without exposing invalid data to SQL.
-		switch ( $date_filter_state['error_code'] ?? '' ) {
-			case 'invalid_filter':
-				ai4seo_debug_message( 748217659, 'Invalid SEO Autopilot new/existing filter; queue excavation was skipped.', true );
-				break;
-
-			case 'invalid_reference_timestamp':
-				ai4seo_debug_message( 758217659, 'Invalid SEO Autopilot date-filter timestamp; queue excavation was skipped.', true );
-				break;
-
-			case 'reference_timestamp_format_failed':
-				ai4seo_debug_message( 768217659, 'SEO Autopilot could not format its date-filter timestamp; queue excavation was skipped.', true );
-				break;
-
-			case 'invalid_post_date_gmt':
-			default:
-				ai4seo_debug_message( 778217659, 'SEO Autopilot produced an invalid database DATETIME value; queue excavation was skipped.', true );
-				break;
-		}
-
-		return false;
-	}
-
-	// Return only the values consumed by the candidate-query variants.
-	return array(
-		'filter'        => $date_filter_state['filter'],
-		'post_date_gmt' => $date_filter_state['post_date_gmt'],
-	);
-}
-
-
-/**
  * Prepares one metadata Auto Queue candidate query with a literal ordering policy.
  *
  * @param array  $post_ids Candidate post IDs.
@@ -4789,40 +4670,6 @@ function ai4seo_prepare_attachment_auto_queue_candidate_query(
 	);
 }
 
-
-/**
- * Restores PHP's candidate order after an unordered eligibility query.
- *
- * Ordered SQL variants already return their requested ID order. Random mode
- * queries every eligible row in one bounded candidate chunk, then intersects
- * that result with the caller's shuffled candidate sequence.
- *
- * @param array  $candidate_post_ids Candidate IDs in requested PHP order.
- * @param array  $eligible_post_ids IDs returned by the eligibility query.
- * @param string $bulk_generation_order Requested queue order.
- * @return array Eligible integer IDs in the requested order.
- */
-function ai4seo_order_auto_queue_eligible_post_ids( array $candidate_post_ids, array $eligible_post_ids, string $bulk_generation_order ): array {
-	$eligible_post_ids = array_values( array_filter( array_map( 'intval', $eligible_post_ids ) ) );
-
-	if ( in_array( $bulk_generation_order, array( 'oldest', 'newest' ), true ) ) {
-		return $eligible_post_ids;
-	}
-
-	// Use a lookup only for membership; traversal order remains the shuffled candidate order.
-	$eligible_post_id_lookup   = array_fill_keys( $eligible_post_ids, true );
-	$ordered_eligible_post_ids = array();
-
-	foreach ( $candidate_post_ids as $candidate_post_id ) {
-		$candidate_post_id = (int) $candidate_post_id;
-
-		if ( isset( $eligible_post_id_lookup[ $candidate_post_id ] ) ) {
-			$ordered_eligible_post_ids[] = $candidate_post_id;
-		}
-	}
-
-	return $ordered_eligible_post_ids;
-}
 
 /**
  * Add automatically discovered entries to a generation queue without losing retained force-overwrite markers.

@@ -64,6 +64,109 @@ function ai4seo_extract_acf_content( $post_content ): string {
 
 
 /**
+ * Render an exact Elementor source snapshot without emitting renderer output.
+ *
+ * @param mixed $source Serialized Elementor elements from the existing source read.
+ * @return string Content HTML, or empty when the source/renderer is unavailable.
+ */
+function ai4seo_get_elementor_generation_content( $source ): string {
+	if ( ! is_string( $source ) || '' === trim( $source ) || ! class_exists( '\Elementor\Plugin', false ) ) {
+		return '';
+	}
+
+	$data = json_decode( $source, true, 64 );
+
+	if ( ! is_array( $data ) || JSON_ERROR_NONE !== json_last_error() || '[' !== substr( ltrim( $source ), 0, 1 ) ) {
+		return '';
+	}
+
+	// Validate nested containers as well as roots before third-party widget traversal.
+	$pending = array( $data );
+
+	while ( $pending ) {
+		foreach ( array_pop( $pending ) as $key => $element ) {
+			if ( ! is_int( $key )
+				|| ! is_array( $element )
+				|| ! is_string( $element['elType'] ?? null )
+				|| ( isset( $element['settings'] ) && ! is_array( $element['settings'] ) ) ) {
+				return '';
+			}
+
+			if ( isset( $element['elements'] ) ) {
+				if ( ! is_array( $element['elements'] ) ) {
+					return '';
+				}
+
+				$pending[] = $element['elements'];
+			}
+		}
+	}
+
+	$buffer_level = ob_get_level();
+	$content      = '';
+
+	try {
+		$plugin  = \Elementor\Plugin::$instance;
+		$manager = is_object( $plugin ) ? ( $plugin->elements_manager ?? null ) : null;
+
+		if ( ! is_object( $manager ) || ! is_callable( array( $manager, 'create_element_instance' ) ) ) {
+			return '';
+		}
+
+		// Keep a discard boundary outside the capture buffer to protect the caller's output.
+		ob_start(
+			static function () {
+				return '';
+			}
+		);
+		$pending = array_reverse( $data );
+
+		while ( $pending ) {
+			$element = array_pop( $pending );
+
+			if ( 'widget' === $element['elType'] ) {
+				$widget = $manager->create_element_instance( $element );
+
+				if ( is_object( $widget ) && is_callable( array( $widget, 'render_plain_content' ) ) ) {
+					ob_start();
+					$capture_level = ob_get_level();
+					$widget->render_plain_content();
+
+					// Include nested widget buffers without losing intact tags or image identity.
+					while ( ob_get_level() > $capture_level ) {
+						if ( ! ob_end_flush() ) {
+							return '';
+						}
+					}
+
+					if ( ob_get_level() !== $capture_level ) {
+						return '';
+					}
+
+					$content .= ' ' . ob_get_clean();
+				}
+			}
+
+			foreach ( array_reverse( $element['elements'] ?? array() ) as $child ) {
+				$pending[] = $child;
+			}
+		}
+	} catch ( Throwable $exception ) {
+		// Saved post content remains available; never reuse serialized configuration.
+		$content = '';
+	} finally {
+		while ( ob_get_level() > $buffer_level ) {
+			if ( ! ob_end_clean() ) {
+				break;
+			}
+		}
+	}
+
+	return trim( $content );
+}
+
+
+/**
  * Contains the cache-addition suspension leaked by Fix Alt Text 1.9.1 save callbacks.
  *
  * Run immediately before the vendor's priority 999 callbacks. Only replace the

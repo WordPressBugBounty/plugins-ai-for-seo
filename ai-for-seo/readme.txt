@@ -4,7 +4,7 @@ Contributors: spacecodes
 Donate link: https://spa.ce.codes
 Requires at least: 6.6
 Tested up to: 7.1
-Stable tag: 2.5.6
+Stable tag: 2.5.7
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -225,6 +225,15 @@ It depends on how the generated data is stored and used. If *SOOZ - AI for SEO* 
 We welcome feature requests, editor integration ideas, page builder compatibility requests, and SEO workflow feedback. Please email [support@sooz.ai](mailto:support@sooz.ai) with your suggestions.
 
 == Changelog ==
+
+= 2.5.7 =
+* Improved image generation reliability by using available local image files when preparing image data, with clearer guidance when an image cannot be processed.
+* Improved account connection recovery to avoid repeated unsuccessful recovery attempts while keeping valid connections usable.
+* Improved generation context by removing unfinished page-builder markup from excerpts while preserving readable text.
+* Clarified when complete entries can be included in generation, with overwrite requirements shown directly in Settings and saved preferences retained.
+* Added clear, accessible notices when custom instructions exceed the character limit, including the number of characters removed.
+* Improved keyboard navigation in metadata and media editors, preserved unsaved edits when closing image previews, and added editor links for image context from unpublished content.
+* Bug Fixes & Maintenance: Fixed 3 minor bugs and implemented 1 performance improvement.
 
 = 2.5.6 =
 * Added recovery options for duplicate or conflicting saved metadata, with explicit choices for conflicting values and protection for unsaved edits.

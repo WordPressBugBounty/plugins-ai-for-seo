@@ -197,7 +197,7 @@ function ai4seo_get_custom_instructions_textarea_tag(
 		. ' id="' . esc_attr( $input_id ) . '"'
 		. ' name="' . esc_attr( $input_name ) . '"'
 		. ' rows="1"'
-		. ( '' !== $description_id ? ' aria-describedby="' . esc_attr( $description_id ) . '"' : '' )
+		. ' aria-describedby="' . esc_attr( trim( $description_id . ' ' . $input_id . '-truncation' ) ) . '"'
 		. ( '' !== $placeholder ? " placeholder='" . esc_attr( $placeholder ) . "'" : '' )
 		. ' data-ai4seo-custom-instructions-limit="' . esc_attr( $length_limit ) . '"'
 		. ' data-ai4seo-custom-instructions-label="' . esc_attr( $field_label ) . '"'
@@ -245,6 +245,7 @@ function ai4seo_get_custom_instructions_character_counter_tag( string $input_id 
 		);
 		$html .= '</span>';
 	}
+	$html .= '<span id="' . esc_attr( $input_id . '-truncation' ) . '" class="ai4seo-custom-instructions-truncation" role="status" aria-live="polite" aria-atomic="true"></span>';
 	$html .= '</p>';
 
 	return $html;

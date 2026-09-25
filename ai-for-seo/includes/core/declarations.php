@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 // Centralize plugin identity and asset-cache declarations consumed throughout bootstrap.
-const AI4SEO_PLUGIN_VERSION_NUMBER              = '2.5.6';
+const AI4SEO_PLUGIN_VERSION_NUMBER              = '2.5.7';
 const AI4SEO_PLUGIN_NAME                        = 'SOOZ - AI for SEO';
 const AI4SEO_SHORT_PLUGIN_NAME                  = 'SOOZ';
 const AI4SEO_PLUGIN_DESCRIPTION                 = 'One-Click SEO solution. SOOZ - AI for SEO helps your website to rank higher in Web Search results.';
@@ -238,6 +238,20 @@ const AI4SEO_METADATA_KEYWORDS_RECOMMENDED_MAX_ITEMS = 10;
  */
 function ai4seo_get_change_log(): array {
 	return array(
+		array(
+			'date'      => '2026-09-25',
+			'version'   => '2.5.7',
+			'important' => false,
+			'updates'   => array(
+				'Improved image generation reliability by using available local image files when preparing image data, with clearer guidance when an image cannot be processed.',
+				'Improved account connection recovery to avoid repeated unsuccessful recovery attempts while keeping valid connections usable.',
+				'Improved generation context by removing unfinished page-builder markup from excerpts while preserving readable text.',
+				'Clarified when complete entries can be included in generation, with overwrite requirements shown directly in Settings and saved preferences retained.',
+				'Added clear, accessible notices when custom instructions exceed the character limit, including the number of characters removed.',
+				'Improved keyboard navigation in metadata and media editors, preserved unsaved edits when closing image previews, and added editor links for image context from unpublished content.',
+				'Bug Fixes & Maintenance: Fixed 3 minor bugs and implemented 1 performance improvement.',
+			),
+		),
 		array(
 			'date'      => '2026-09-18',
 			'version'   => '2.5.6',

@@ -1039,12 +1039,13 @@ function ai4seo_is_post_a_valid_attachment( int $attachment_post_id, ?WP_Post $a
  * @return array|null {
  *     Attachment generation image source, or null when the attachment URL is unavailable.
  *
- *     @type string $original_url Full attachment URL retained for reference and context.
- *     @type string $delivery_url URL used for image delivery.
- *     @type int    $width        Delivery image width when known.
- *     @type int    $height       Delivery image height when known.
- *     @type string $mime_type    Delivery image MIME type.
- *     @type string $size_name    WordPress image size name.
+ *     @type string $original_url  Full attachment URL retained for reference and context.
+ *     @type string $delivery_url  URL used for image delivery.
+ *     @type int    $width         Delivery image width when known.
+ *     @type int    $height        Delivery image height when known.
+ *     @type string $mime_type     Delivery image MIME type.
+ *     @type string $size_name     WordPress image size name.
+ *     @type int    $attachment_id Attachment identity used only for local source resolution.
  * }
  */
 function ai4seo_get_attachment_generation_image_source(
@@ -1093,12 +1094,13 @@ function ai4seo_get_attachment_generation_image_source(
 	}
 
 	$full_image_source = array(
-		'original_url' => $original_attachment_url,
-		'delivery_url' => $original_attachment_url,
-		'width'        => $full_width,
-		'height'       => $full_height,
-		'mime_type'    => $full_mime_type,
-		'size_name'    => 'full',
+		'attachment_id' => $attachment_post_id,
+		'original_url'  => $original_attachment_url,
+		'delivery_url'  => $original_attachment_url,
+		'width'         => $full_width,
+		'height'        => $full_height,
+		'mime_type'     => $full_mime_type,
+		'size_name'     => 'full',
 	);
 
 	// Soft selection requires known oversized full dimensions; every other case keeps today's full source.
@@ -1166,17 +1168,160 @@ function ai4seo_get_attachment_generation_image_source(
 
 		// Return the first eligible candidate while keeping the full URL available as the stable reference.
 		return array(
-			'original_url' => $original_attachment_url,
-			'delivery_url' => $candidate_url,
-			'width'        => $candidate_width,
-			'height'       => $candidate_height,
-			'mime_type'    => $candidate_mime_type,
-			'size_name'    => $image_size_name,
+			'attachment_id' => $attachment_post_id,
+			'original_url'  => $original_attachment_url,
+			'delivery_url'  => $candidate_url,
+			'width'         => $candidate_width,
+			'height'        => $candidate_height,
+			'mime_type'     => $candidate_mime_type,
+			'size_name'     => $image_size_name,
 		);
 	}
 
 	// Keep the optimization soft when none of the existing core sizes satisfies every candidate requirement.
 	return $full_image_source;
+}
+
+
+/**
+ * Resolve the selected attachment file without depending on its public URL host.
+ *
+ * Only current-site upload files identified by WordPress attachment metadata are eligible.
+ * Missing/offloaded files and filtered sources that do not match that identity retain URL loading.
+ *
+ * @param array $image_source Attachment generation source descriptor.
+ * @return string Contained local file path, or an empty string for URL fallback.
+ */
+function ai4seo_get_attachment_generation_local_file_path( array $image_source ): string {
+	$attachment_id = $image_source['attachment_id'] ?? 0;
+	$size_name     = $image_source['size_name'] ?? '';
+	$delivery_url  = $image_source['delivery_url'] ?? '';
+	if ( ! is_int( $attachment_id ) || $attachment_id <= 0 || 'attachment' !== get_post_type( $attachment_id )
+		|| ! in_array( $size_name, array( 'full', '2048x2048', '1536x1536', 'large' ), true )
+		|| ! is_string( $delivery_url ) ) {
+		return '';
+	}
+
+	// Query parameters can select CDN crops or other variants that the local filename cannot identify.
+	// Keep every nonempty query on the URL-loading path, including unknown or signed parameters.
+	$delivery_url_parts = wp_parse_url( $delivery_url );
+	if ( ! is_array( $delivery_url_parts ) || '' !== ( $delivery_url_parts['query'] ?? '' ) ) {
+		return '';
+	}
+
+	// Unfiltered attachment storage identifies the file; URL/CDN filters do not grant filesystem authority.
+	$attached_file = get_attached_file( $attachment_id, true );
+	$uploads       = wp_get_upload_dir();
+	if ( ! is_string( $attached_file ) || '' === $attached_file || ! empty( $uploads['error'] )
+		|| empty( $uploads['basedir'] ) || ! is_string( $uploads['basedir'] ) ) {
+		return '';
+	}
+
+	$candidate_path = $attached_file;
+	if ( 'full' !== $size_name ) {
+		$metadata  = wp_get_attachment_metadata( $attachment_id, true );
+		$size_file = $metadata['sizes'][ $size_name ]['file'] ?? '';
+		// Sub-size metadata names a sibling file, never a URL, subdirectory or traversal path.
+		if ( ! is_string( $size_file ) || '' === $size_file || '.' === $size_file || '..' === $size_file
+			|| strpbrk( $size_file, "/\\\0" ) !== false ) {
+			return '';
+		}
+		$candidate_path = dirname( $attached_file ) . '/' . $size_file;
+	}
+
+	// Preserve the selected variant when a filter points the delivery URL at different content.
+	$delivery_path = $delivery_url_parts['path'] ?? null;
+	if ( ! is_string( $delivery_path )
+		|| wp_basename( rawurldecode( $delivery_path ) ) !== wp_basename( $candidate_path ) ) {
+		return '';
+	}
+
+	$real_candidate = realpath( $candidate_path );
+	$real_uploads   = realpath( $uploads['basedir'] );
+	if ( false === $real_candidate || false === $real_uploads
+		|| ! is_file( $real_candidate ) || ! is_readable( $real_candidate ) ) {
+		return '';
+	}
+
+	// Canonical containment rejects sibling-prefix tricks and symlinks outside this site's uploads.
+	$uploads_prefix = trailingslashit( wp_normalize_path( $real_uploads ) );
+	if ( 0 !== strpos( wp_normalize_path( $real_candidate ), $uploads_prefix ) ) {
+		return '';
+	}
+
+	return $real_candidate;
+}
+
+
+/**
+ * Determines whether to use base64 encoding or URL for image upload based on user setting and automatic logic
+ *
+ * @param string $attachment_url The attachment URL to check.
+ * @return bool true if base64 should be used, false if URL should be used
+ */
+function ai4seo_should_use_base64_image( string $attachment_url ): bool {
+	global $ai4seo_allowed_image_file_type_names;
+
+	// Get the user's preference for image upload method.
+	$image_upload_method = ai4seo_get_setting( AI4SEO_SETTING_IMAGE_UPLOAD_METHOD );
+
+	switch ( $image_upload_method ) {
+		case 'base64':
+			// User explicitly chose base64 - always encode and send image data directly.
+			return true;
+
+		case 'url':
+			// User explicitly chose URL - always send the image URL.
+			return false;
+
+		case 'auto':
+		default:
+			// Auto mode: use intelligent logic to decide the best method
+			// Default to URL method for better performance (smaller payload).
+			$ai4seo_use_base64_image = false;
+
+			// First check: Validate URL format
+			// If URL format is invalid, we must use base64 as fallback.
+			if ( ! filter_var( $attachment_url, FILTER_VALIDATE_URL ) ) {
+				$ai4seo_use_base64_image = true;
+			}
+
+			// Second check: Detect localhost/development environments
+			// Our API cannot access localhost URLs, so base64 is required.
+			if ( ! $ai4seo_use_base64_image && ai4seo_robhub_api()->are_we_on_a_localhost_system() ) {
+				$ai4seo_use_base64_image = true;
+			}
+
+			// third check: Validate file type at the end of the URL.
+			if ( ! $ai4seo_use_base64_image ) {
+				// Get the file extension from the URL.
+				$file_extension = pathinfo( $attachment_url, PATHINFO_EXTENSION );
+
+				// If the file extension is not in our allowed list, we must use base64.
+				if ( ! in_array( strtolower( $file_extension ), $ai4seo_allowed_image_file_type_names, true ) ) {
+					$ai4seo_use_base64_image = true;
+				}
+			}
+
+			// Third check: Test URL accessibility (only if we haven't already decided on base64).
+			if ( ! $ai4seo_use_base64_image ) {
+				// Attempt to get HTTP headers to verify the URL is accessible.
+				$attachment_url_headers = get_headers( $attachment_url );
+
+				// If we can't get headers or they're malformed, the URL is not accessible.
+				if ( ! $attachment_url_headers || ! is_array( $attachment_url_headers ) || ! isset( $attachment_url_headers[0] ) ) {
+					$ai4seo_use_base64_image = true;
+				}
+
+				// Check for successful HTTP response (200 OK)
+				// If the response is not successful, our Server won't be able to access the URL.
+				if ( strpos( $attachment_url_headers[0], '200' ) === false ) {
+					$ai4seo_use_base64_image = true;
+				}
+			}
+
+			return $ai4seo_use_base64_image;
+	}
 }
 
 
@@ -1442,6 +1587,67 @@ function ai4seo_normalize_attachment_image_preparation_failure_stage( $failure_s
 
 
 /**
+ * Normalize the optional reason within a decode-budget failure.
+ *
+ * @param mixed $failure_reason Untrusted or internally supplied reason.
+ * @return string Allowlisted reason, or an empty string.
+ */
+function ai4seo_normalize_attachment_image_preparation_failure_reason( $failure_reason ): string {
+	return is_string( $failure_reason )
+		&& in_array( $failure_reason, array( 'pixel_limit', 'memory_limit', 'dimensions_unavailable' ), true )
+		? $failure_reason : '';
+}
+
+
+/**
+ * Preserve preparation diagnostics while returning an actionable generation error.
+ *
+ * @param array $preparation_response Local image preparation result.
+ * @return array Generation error with the established numeric code.
+ */
+function ai4seo_get_attachment_preparation_error_response( array $preparation_response ): array {
+	$code   = (int) ( $preparation_response['code'] ?? 361324725 );
+	$stage  = ai4seo_normalize_attachment_image_preparation_failure_stage( $preparation_response['failure_stage'] ?? '' );
+	$reason = 'decode_budget' === $stage
+		? ai4seo_normalize_attachment_image_preparation_failure_reason( $preparation_response['failure_reason'] ?? '' ) : '';
+	$result = array(
+		'success' => false,
+		'message' => $preparation_response['message'] ?? __( 'This image could not be prepared for processing. Try again or use another image.', 'ai-for-seo' ),
+		'code'    => $code,
+	);
+
+	// Retain existing codes so account, queue, and retry decisions do not change with the wording.
+	if ( in_array( $code, array( 111324725, 131324725, 141324725, 581927126 ), true ) ) {
+		$result['code']    = 391014824;
+		$result['message'] = __( 'This image could not be prepared for processing. Try again or use another image.', 'ai-for-seo' );
+		if ( 'decode_budget' === $stage ) {
+			$result['message'] = __( 'This image could not be prepared within the safe processing limits. Try a smaller image.', 'ai-for-seo' );
+			if ( 'pixel_limit' === $reason ) {
+				$result['message'] = __( 'This image exceeds the safe processing limit. Use a smaller image or regenerate its WordPress image sizes, then try again.', 'ai-for-seo' );
+			} elseif ( 'memory_limit' === $reason ) {
+				$result['message'] = __( 'There is not enough available memory to prepare this image. Try a smaller image.', 'ai-for-seo' );
+			} elseif ( 'dimensions_unavailable' === $reason ) {
+				$result['message'] = __( 'The dimensions of this image could not be read. Re-save the image or use another image, then try again.', 'ai-for-seo' );
+			}
+		} elseif ( 581927126 === $code ) {
+			$result['message'] = __( 'The fetched content is not a valid image. Re-save the image or use another image, then try again.', 'ai-for-seo' );
+		} elseif ( 111324725 === $code ) {
+			$result['message'] = __( 'The image could not be loaded. Check that it is accessible, then try again.', 'ai-for-seo' );
+		}
+	}
+
+	if ( '' !== $stage ) {
+		$result['failure_stage'] = $stage;
+	}
+	if ( '' !== $reason ) {
+		$result['failure_reason'] = $reason;
+	}
+
+	return $result;
+}
+
+
+/**
  * Build a structured oversized media response for local/base64 attachment processing.
  *
  * @param int $content_length The known source size in bytes.
@@ -1482,45 +1688,13 @@ function ai4seo_get_attachment_source_tls_error_response( WP_Error $error ): arr
 
 
 /**
- * Convert an image signature detector format to its normalized MIME type.
- *
- * @param string $detected_image_format Format or MIME type returned by the image signature detector.
- * @return string Normalized MIME type, or an empty string when the format is unknown.
- */
-function ai4seo_get_mime_type_from_detected_image_format( string $detected_image_format ): string {
-	// Normalize once so both MIME values and short signature names remain case-insensitive.
-	$detected_image_format = strtolower( $detected_image_format );
-
-	// Preserve MIME values returned by getimagesizefromstring() while normalizing optional parameters.
-	if ( 0 === strpos( $detected_image_format, 'image/' ) ) {
-		return ai4seo_normalize_mime_type_string( $detected_image_format ) ?? '';
-	}
-
-	// Map the stable short names returned by the plugin's magic-byte checks.
-	$image_mime_types = array(
-		'jpg'  => 'image/jpeg',
-		'jpeg' => 'image/jpeg',
-		'png'  => 'image/png',
-		'gif'  => 'image/gif',
-		'webp' => 'image/webp',
-		'avif' => 'image/avif',
-		'heif' => 'image/heif',
-		'bmp'  => 'image/bmp',
-		'tiff' => 'image/tiff',
-		'ico'  => 'image/x-icon',
-	);
-
-	return $image_mime_types[ $detected_image_format ] ?? '';
-}
-
-
-/**
  * Load an image and return its base64 conversion result.
  *
- * @param string $image_url Image URL.
+ * @param string $image_url        Image URL.
+ * @param string $local_image_path Optional validated attachment file path.
  * @return array Image conversion result.
  */
-function ai4seo_get_base64_from_image_file( $image_url ): array {
+function ai4seo_get_base64_from_image_file( $image_url, string $local_image_path = '' ): array {
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 697474987, 'Prevented loop', true );
 		return array(
@@ -1530,107 +1704,58 @@ function ai4seo_get_base64_from_image_file( $image_url ): array {
 		);
 	}
 
-	// Keep the local/base64 path within the same media source-size envelope as the URL-based API path.
-	$max_source_size      = AI4SEO_MAX_BASE64_ATTACHMENT_SOURCE_SIZE_BYTES;
-	$same_site_local_path = ai4seo_get_same_site_local_file_path_from_url( $image_url );
-
-	// Same-site media can be measured before loading the binary into PHP memory.
-	if ( $same_site_local_path && ai4seo_is_file_larger_than( $same_site_local_path, $max_source_size ) ) {
-		return ai4seo_get_attachment_source_too_large_response( ai4seo_get_file_size( $same_site_local_path ) );
+	// Keep source-size policy and attachment response codes outside the generic image loader.
+	$image_source = '' !== $local_image_path
+		? ai4seo_get_image_data_from_local_file( $local_image_path, AI4SEO_MAX_BASE64_ATTACHMENT_SOURCE_SIZE_BYTES )
+		: null;
+	// Retain remote recovery for missing/unreadable/corrupt local copies, but never bypass the source-size cap.
+	if ( null === $image_source
+		|| ( is_wp_error( $image_source ) && 'ai4seo_fetch_too_large' !== $image_source->get_error_code() ) ) {
+		$image_source = ai4seo_get_image_data_from_url( $image_url, AI4SEO_MAX_BASE64_ATTACHMENT_SOURCE_SIZE_BYTES );
 	}
 
-	// Remote media with Content-Length can be rejected before the body request.
-	if ( ! $same_site_local_path ) {
-		$remote_content_length = ai4seo_get_remote_content_length( $image_url );
+	if ( is_wp_error( $image_source ) ) {
+		$error_code = $image_source->get_error_code();
 
-		if ( $remote_content_length > $max_source_size ) {
-			return ai4seo_get_attachment_source_too_large_response( $remote_content_length );
+		if ( 'ai4seo_fetch_too_large' === $error_code ) {
+			$content_length = $image_source->get_error_data();
+			return ai4seo_get_attachment_source_too_large_response( is_int( $content_length ) ? $content_length : 0 );
 		}
-	}
 
-	// Prefer contained local reads before one bounded SSRF-safe remote attempt; insecure retries are intentionally excluded.
-	try {
-		foreach ( array( 'local_only', 'remote_only' ) as $fetch_mode ) {
-			$image_body = ai4seo_get_remote_body( $image_url, $fetch_mode, $max_source_size );
-
-			if ( is_wp_error( $image_body ) ) {
-				// Convert the internal capped-fetch marker into the same structured API-style failure used below.
-				if ( $image_body->get_error_code() === 'ai4seo_fetch_too_large' ) {
-					return ai4seo_get_attachment_source_too_large_response();
-				}
-
-				if ( $image_body->get_error_code() === 'ai4seo_tls_verification_failed' ) {
-					return ai4seo_get_attachment_source_tls_error_response( $image_body );
-				}
-
-				continue;
-			}
-
-			if ( ! $image_body ) {
-				continue;
-			}
-
-			// Keep a final size guard in case the active WP HTTP transport does not honor limit_response_size.
-			if ( strlen( $image_body ) > $max_source_size ) {
-				return ai4seo_get_attachment_source_too_large_response( strlen( $image_body ) );
-			}
-
-			// Verify that the content is a valid image.
-			$is_probably_image = ai4seo_is_probably_image_content( $image_body );
-
-			if ( ! empty( $is_probably_image['is_probably_image'] ) ) {
-				break;
-			}
+		if ( 'ai4seo_tls_verification_failed' === $error_code ) {
+			return ai4seo_get_attachment_source_tls_error_response( $image_source );
 		}
-	} catch ( Exception $e ) {
-		return array(
-			'success' => false,
-			'message' => 'Media URL not accessible: ' . $e->getMessage(),
-			'code'    => 91324725,
-		);
-	}
 
-	if ( is_wp_error( $image_body ) ) {
-		$remote_get_response_error = $image_body->get_error_message();
+		if ( in_array( $error_code, array( 'ai4seo_image_source_empty', 'ai4seo_image_source_invalid' ), true ) ) {
+			return array(
+				'success' => false,
+				'message' => $image_source->get_error_message(),
+				'code'    => 'ai4seo_image_source_empty' === $error_code ? 111324725 : 581927126,
+			);
+		}
 
 		return array(
 			'success' => false,
-			'message' => 'Media URL not accessible: ' . $remote_get_response_error,
-			'code'    => 101324725,
+			'message' => 'Media URL not accessible: ' . $image_source->get_error_message(),
+			'code'    => 'ai4seo_image_fetch_exception' === $error_code ? 91324725 : 101324725,
 		);
 	}
 
-	if ( ! $image_body ) {
-		return array(
-			'success' => false,
-			'message' => 'Media content not accessible',
-			'code'    => 111324725,
-		);
-	}
-
-	if ( ! isset( $is_probably_image['is_probably_image'] ) || ! $is_probably_image['is_probably_image'] ) {
-		return array(
-			'success' => false,
-			'message' => 'The fetched content is not a valid image',
-			'code'    => 581927126,
-		);
-	}
-
-	// Normalize the signature detector output so the encoder can report whether conversion changed the format.
-	$source_mime_type = ai4seo_get_mime_type_from_detected_image_format(
-		(string) ( $is_probably_image['detected_format'] ?? '' )
-	);
+	$image_body       = $image_source['data'];
+	$source_mime_type = $image_source['mime_type'];
 
 	// Encode the attachment while collecting the actual post-conversion MIME for the data URI.
 	$encoded_mime_type = $source_mime_type;
 	$failure_stage     = '';
+	$failure_reason    = '';
 
 	try {
 		$attachment_base64 = ai4seo_smart_image_base64_encode(
 			$image_body,
 			$source_mime_type,
 			$encoded_mime_type,
-			$failure_stage
+			$failure_stage,
+			$failure_reason
 		);
 	} catch ( Exception $e ) {
 		return array(
@@ -1647,10 +1772,12 @@ function ai4seo_get_base64_from_image_file( $image_url ): array {
 		$failure_stage = '' !== $failure_stage ? $failure_stage : 'derivative_encode';
 
 		return array(
-			'success'       => false,
-			'message'       => 'Media content could not be base64 encoded',
-			'code'          => 141324725,
-			'failure_stage' => $failure_stage,
+			'success'        => false,
+			'message'        => 'Media content could not be base64 encoded',
+			'code'           => 141324725,
+			'failure_stage'  => $failure_stage,
+			'failure_reason' => 'decode_budget' === $failure_stage
+				? ai4seo_normalize_attachment_image_preparation_failure_reason( $failure_reason ) : '',
 		);
 	}
 
@@ -1690,7 +1817,10 @@ function ai4seo_generate_attachment_attributes_using_base64(
 	$is_recovery_continuation = ! empty( $robhub_api_call_parameters['attachment_recovery_token'] );
 
 	// Reuse the bounded image fetcher so the established 25 MB source limit remains authoritative for base64.
-	$base64_from_image_file_response = ai4seo_get_base64_from_image_file( $delivery_url );
+	$base64_from_image_file_response = ai4seo_get_base64_from_image_file(
+		$delivery_url,
+		ai4seo_get_attachment_generation_local_file_path( $attachment_image_source )
+	);
 
 	// Normalize all fetch failures before building the data URI so callers receive the established error contract.
 	if ( ! isset( $base64_from_image_file_response['success'] ) || ! $base64_from_image_file_response['success']
@@ -1699,23 +1829,7 @@ function ai4seo_generate_attachment_attributes_using_base64(
 			ai4seo_log_attachment_base64_recovery_preparation_failure( $base64_from_image_file_response );
 		}
 
-		$base64_error_code    = (int) ( $base64_from_image_file_response['code'] ?? 361324725 );
-		$base64_error_message = $base64_from_image_file_response['message'] ?? 'Unknown error';
-
-		$results = array(
-			'success' => false,
-			'message' => $base64_error_message,
-			'code'    => $base64_error_code,
-		);
-
-		// Preserve the user-facing interpretation error used for empty, oversized, or invalid image bodies.
-		if ( in_array( $base64_error_code, array( 111324725, 131324725, 141324725, 581927126 ), true ) ) {
-			$results['message'] = "Attachment '{$original_url}' could not be interpreted. "
-				. 'The fetched image content is empty or invalid.';
-			$results['code']    = 391014824;
-		}
-
-		return $results;
+		return ai4seo_get_attachment_preparation_error_response( $base64_from_image_file_response );
 	}
 
 	// Build the data URI with the actual encoded MIME while retaining the canonical full URL
@@ -1743,7 +1857,7 @@ function ai4seo_generate_attachment_attributes_using_base64(
  * Create the safe diagnostic fields for a failed client-side Base64 recovery preparation.
  *
  * @param array $base64_response Image preparation response.
- * @return array Safe diagnostic fields containing the stage and source error code only.
+ * @return array Safe stage, source error code, and optional decode-budget reason.
  */
 function ai4seo_get_attachment_base64_recovery_preparation_failure_diagnostic( array $base64_response ): array {
 	$source_error_code = ( isset( $base64_response['code'] ) && is_numeric( $base64_response['code'] ) )
@@ -1770,10 +1884,17 @@ function ai4seo_get_attachment_base64_recovery_preparation_failure_diagnostic( a
 		}
 	}
 
-	return array(
+	$diagnostic = array(
 		'stage'             => $stage,
 		'source_error_code' => $source_error_code,
 	);
+	$reason     = 'decode_budget' === $stage
+		? ai4seo_normalize_attachment_image_preparation_failure_reason( $base64_response['failure_reason'] ?? '' ) : '';
+	if ( '' !== $reason ) {
+		$diagnostic['reason'] = $reason;
+	}
+
+	return $diagnostic;
 }
 
 /**
@@ -1790,6 +1911,7 @@ function ai4seo_log_attachment_base64_recovery_preparation_failure( array $base6
 		870014824,
 		'Attachment Base64 recovery preparation failed before continuation submission (stage: '
 		. $diagnostic['stage']
+		. ( isset( $diagnostic['reason'] ) ? '; reason: ' . $diagnostic['reason'] : '' )
 		. '; source error code: '
 		. $diagnostic['source_error_code']
 		. ').'
@@ -1798,225 +1920,20 @@ function ai4seo_log_attachment_base64_recovery_preparation_failure( array $base6
 
 
 /**
- * Create a WordPress image editor for raw image bytes.
- *
- * WordPress selects the available backend, so conversion works with Imagick or GD without
- * requiring either extension directly.
- *
- * @param string $image_data                 Raw source bytes.
- * @param string $source_mime_type           MIME type detected from the source bytes.
- * @param string $derivative_mime_type       MIME type required for the derivative.
- * @param array  $temporary_image_file_paths Temporary paths that must be deleted by the caller.
- * @return WP_Image_Editor|WP_Error
- */
-function ai4seo_get_image_editor_from_data(
-	string $image_data,
-	string $source_mime_type,
-	string $derivative_mime_type,
-	array &$temporary_image_file_paths
-) {
-	// Load the WordPress temporary-file helper only when the host has not loaded it already.
-	if ( ! function_exists( 'wp_tempnam' ) ) {
-		require_once ABSPATH . 'wp-admin/includes/file.php';
-	}
-
-	// Return a normalized editor error when WordPress cannot expose the required abstraction.
-	if ( ! function_exists( 'wp_tempnam' ) || ! function_exists( 'wp_get_image_editor' ) ) {
-		return new WP_Error( 'ai4seo_image_editor_unavailable', 'WordPress image editing is unavailable.' );
-	}
-
-	// Give the selected editor a local source path while tracking it for unconditional cleanup.
-	$source_file_path = wp_tempnam( 'ai4seo-image-source' );
-
-	// Stop before writing when WordPress could not reserve the source path.
-	if ( ! $source_file_path ) {
-		return new WP_Error( 'ai4seo_image_temp_file_failed', 'Could not create a temporary image file.' );
-	}
-
-	$temporary_image_file_paths[] = $source_file_path;
-	// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- WordPress image editors require a local temporary source path.
-	$written_bytes = file_put_contents( $source_file_path, $image_data );
-
-	// Partial writes cannot produce a trustworthy image editor input.
-	if ( strlen( $image_data ) !== $written_bytes ) {
-		return new WP_Error( 'ai4seo_image_temp_file_write_failed', 'Could not write the complete temporary image file.' );
-	}
-
-	// Let WordPress select whichever installed backend supports both the source and derivative formats.
-	return wp_get_image_editor(
-		$source_file_path,
-		array(
-			'mime_type'        => $source_mime_type,
-			'output_mime_type' => $derivative_mime_type,
-		)
-	);
-}
-
-
-/**
- * Canonicalize a backend-selected derivative path within its reserved temporary namespace.
- *
- * WordPress image editors may keep the reserved placeholder filename, append the requested
- * extension, or replace the placeholder extension. No other sibling or external path is owned
- * by this conversion and therefore no other path may be read, tracked, or deleted.
- *
- * @param string $reserved_path        Temporary placeholder reserved by this conversion.
- * @param string $candidate_path       Derivative path returned by the image editor.
- * @param string $derivative_mime_type Requested derivative MIME type.
- * @return string|WP_Error Canonical owned path, or an error for an unowned path.
- */
-function ai4seo_get_owned_temporary_derivative_path(
-	string $reserved_path,
-	string $candidate_path,
-	string $derivative_mime_type
-) {
-	$reserved_directory = realpath( dirname( $reserved_path ) );
-	$canonical_path     = realpath( $candidate_path );
-
-	// Both the reserved namespace and the returned derivative must resolve before ownership is asserted.
-	if ( false === $reserved_directory || false === $canonical_path || ! is_file( $canonical_path ) ) {
-		return new WP_Error( 'ai4seo_image_derivative_path_unowned', 'The generated image derivative path is not owned by this conversion.' );
-	}
-
-	$normalized_reserved_directory  = wp_normalize_path( $reserved_directory );
-	$normalized_candidate_directory = wp_normalize_path( dirname( $canonical_path ) );
-	$reserved_basename              = basename( wp_normalize_path( $reserved_path ) );
-	$candidate_basename             = basename( wp_normalize_path( $canonical_path ) );
-
-	// Windows paths are case-insensitive, while canonical paths on other supported hosts retain case significance.
-	if ( '\\' === DIRECTORY_SEPARATOR ) {
-		$normalized_reserved_directory  = strtolower( $normalized_reserved_directory );
-		$normalized_candidate_directory = strtolower( $normalized_candidate_directory );
-		$reserved_basename              = strtolower( $reserved_basename );
-		$candidate_basename             = strtolower( $candidate_basename );
-	}
-
-	// A returned path outside the exact reserved temporary directory is never safe to consume or delete.
-	if ( $normalized_reserved_directory !== $normalized_candidate_directory ) {
-		return new WP_Error( 'ai4seo_image_derivative_path_unowned', 'The generated image derivative path is not owned by this conversion.' );
-	}
-
-	$allowed_extensions  = array(
-		'image/jpeg' => array( 'jpeg', 'jpg' ),
-		'image/png'  => array( 'png' ),
-	);
-	$candidate_extension = strtolower( (string) pathinfo( $candidate_basename, PATHINFO_EXTENSION ) );
-	$candidate_stem      = (string) pathinfo( $candidate_basename, PATHINFO_FILENAME );
-	$reserved_stem       = (string) pathinfo( $reserved_basename, PATHINFO_FILENAME );
-	$is_reserved_name    = $candidate_basename === $reserved_basename;
-	$is_expected_variant = in_array( $candidate_extension, $allowed_extensions[ $derivative_mime_type ] ?? array(), true )
-		&& in_array( $candidate_stem, array( $reserved_basename, $reserved_stem ), true );
-
-	// Permit only the placeholder itself or the two extension variants used by core image backends.
-	if ( ! $is_reserved_name && ! $is_expected_variant ) {
-		return new WP_Error( 'ai4seo_image_derivative_path_unowned', 'The generated image derivative path is not owned by this conversion.' );
-	}
-
-	return $canonical_path;
-}
-
-
-/**
- * Save the current image-editor state to a tracked temporary derivative.
- *
- * @param WP_Image_Editor $image_editor               Loaded WordPress image editor.
- * @param string          $derivative_mime_type      Requested output MIME type.
- * @param array           $temporary_image_file_paths Temporary paths that must be deleted by the caller.
- * @return array|WP_Error
- */
-function ai4seo_save_temporary_image_derivative(
-	$image_editor,
-	string $derivative_mime_type,
-	array &$temporary_image_file_paths
-) {
-	// Reserve a predictable local output path and return a normalized error if that is unavailable.
-	$derivative_placeholder_path = wp_tempnam( 'ai4seo-image-derivative' );
-
-	// Stop before saving when WordPress could not reserve the derivative path.
-	if ( ! $derivative_placeholder_path ) {
-		return new WP_Error( 'ai4seo_image_derivative_temp_file_failed', 'Could not create a temporary derivative file.' );
-	}
-
-	// The placeholder itself was reserved by this conversion and is always safe to clean up.
-	$canonical_placeholder_path   = realpath( $derivative_placeholder_path );
-	$derivative_placeholder_path  = false === $canonical_placeholder_path
-		? $derivative_placeholder_path
-		: $canonical_placeholder_path;
-	$temporary_image_file_paths[] = $derivative_placeholder_path;
-	$saved_derivative             = $image_editor->save( $derivative_placeholder_path, $derivative_mime_type );
-
-	// Canonicalize and track only backend paths derived from this conversion's reserved filename.
-	if ( ! is_wp_error( $saved_derivative )
-		&& isset( $saved_derivative['path'] )
-		&& is_string( $saved_derivative['path'] )
-		&& '' !== $saved_derivative['path']
-		&& is_file( $saved_derivative['path'] ) ) {
-		$owned_derivative_path = ai4seo_get_owned_temporary_derivative_path(
-			$derivative_placeholder_path,
-			$saved_derivative['path'],
-			$derivative_mime_type
-		);
-
-		if ( is_wp_error( $owned_derivative_path ) ) {
-			return $owned_derivative_path;
-		}
-
-		$saved_derivative['path']     = $owned_derivative_path;
-		$temporary_image_file_paths[] = $owned_derivative_path;
-	}
-
-	return $saved_derivative;
-}
-
-
-/**
- * Determine whether source pixels can be decoded within absolute and current-memory safeguards.
- *
- * @param int $width  Image width in pixels.
- * @param int $height Image height in pixels.
- * @return bool Whether a decoder can be opened within the shared budget.
- */
-function ai4seo_image_dimensions_fit_decode_budget( int $width, int $height ): bool {
-	if ( $width < 1 || $height < 1 ) {
-		return false;
-	}
-
-	// Mirror RobHub's conservative true-colour estimate while retaining PHP memory headroom.
-	$decode_bytes_per_pixel        = 8;
-	$memory_reserve_bytes          = 32 * 1024 * 1024;
-	$absolute_decode_budget        = 256 * 1024 * 1024;
-	$memory_limit                  = wp_convert_hr_to_bytes( (string) ini_get( 'memory_limit' ) );
-	$available_decode_budget       = $absolute_decode_budget;
-	$maximum_pixels_from_budget    = intdiv( $available_decode_budget, $decode_bytes_per_pixel );
-	$maximum_width_for_this_height = intdiv( $maximum_pixels_from_budget, $height );
-
-	// Even an unlimited PHP runtime retains a bounded source-canvas allocation ceiling.
-	if ( $memory_limit > 0 ) {
-		$available_memory              = $memory_limit
-			- memory_get_usage( true )
-			- $memory_reserve_bytes;
-		$available_decode_budget       = min( $available_decode_budget, max( 0, $available_memory ) );
-		$maximum_pixels_from_budget    = intdiv( $available_decode_budget, $decode_bytes_per_pixel );
-		$maximum_width_for_this_height = intdiv( $maximum_pixels_from_budget, $height );
-	}
-
-	return $width <= $maximum_width_for_this_height;
-}
-
-
-/**
  * Determine whether prepared output dimensions satisfy the model-input canvas limit.
  *
- * @param int $width  Image width in pixels.
- * @param int $height Image height in pixels.
+ * @param int         $width          Image width in pixels.
+ * @param int         $height         Image height in pixels.
+ * @param string|null $failure_reason Optional reason when the budget is exceeded.
  * @return bool Whether the image can be submitted without further resizing.
  */
-function ai4seo_image_dimensions_fit_model_output_budget( int $width, int $height ): bool {
-	return $width > 0
-		&& $height > 0
-		&& $width <= AI4SEO_ATTACHMENT_GENERATION_MAX_IMAGE_DIMENSION
-		&& $height <= AI4SEO_ATTACHMENT_GENERATION_MAX_IMAGE_DIMENSION
-		&& ai4seo_image_dimensions_fit_decode_budget( $width, $height );
+function ai4seo_image_dimensions_fit_model_output_budget( int $width, int $height, ?string &$failure_reason = null ): bool {
+	return ai4seo_image_dimensions_fit_output_budget(
+		$width,
+		$height,
+		AI4SEO_ATTACHMENT_GENERATION_MAX_IMAGE_DIMENSION,
+		$failure_reason
+	);
 }
 
 
@@ -2031,6 +1948,7 @@ function ai4seo_image_dimensions_fit_model_output_budget( int $width, int $heigh
  * @param string      $reported_mime_type    MIME type reported by the image editor.
  * @param int         $maximum_size_bytes    Maximum permitted derivative size.
  * @param string|null $failure_stage         Safe failure-stage identifier.
+ * @param string|null $failure_reason        Optional decode-budget reason.
  * @return array|WP_Error Validated derivative data, or a normalized validation error.
  */
 function ai4seo_read_validated_image_derivative(
@@ -2038,251 +1956,18 @@ function ai4seo_read_validated_image_derivative(
 	string $required_mime_type,
 	string $reported_mime_type,
 	int $maximum_size_bytes,
-	?string &$failure_stage = null
+	?string &$failure_stage = null,
+	?string &$failure_reason = null
 ) {
-	$failure_stage = '';
-
-	// A save result is not usable unless it identifies a readable local file.
-	if ( '' === $derivative_path || ! is_file( $derivative_path ) || ! is_readable( $derivative_path ) ) {
-		$failure_stage = 'derivative_path';
-		return new WP_Error( 'ai4seo_image_derivative_path_invalid', 'Could not read the generated image derivative.' );
-	}
-
-	$derivative_size_bytes = ai4seo_get_file_size( $derivative_path );
-
-	// Empty files and sizes that exceed the model-input bound must never be loaded into memory.
-	if ( $derivative_size_bytes <= 0 ) {
-		$failure_stage = 'derivative_read';
-		return new WP_Error( 'ai4seo_image_derivative_empty', 'The generated image derivative is empty.' );
-	}
-
-	if ( $maximum_size_bytes <= 0 || $derivative_size_bytes > $maximum_size_bytes ) {
-		$failure_stage = 'derivative_size';
-		return new WP_Error( 'ai4seo_image_derivative_too_large', 'The generated image derivative exceeds the target file size.' );
-	}
-
-	// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- The derivative is a size-bounded local temporary file.
-	$derivative_image_data = file_get_contents( $derivative_path );
-
-	// Require a complete read so a partial body cannot be submitted with otherwise plausible metadata.
-	if ( ! is_string( $derivative_image_data ) || strlen( $derivative_image_data ) !== $derivative_size_bytes ) {
-		$failure_stage = 'derivative_read';
-		return new WP_Error( 'ai4seo_image_derivative_read_failed', 'Could not read the complete generated image derivative.' );
-	}
-
-	// Compare both the requested and backend-reported types against the independently detected container.
-	$required_mime_type  = ai4seo_normalize_mime_type_string( $required_mime_type ) ?? '';
-	$reported_mime_type  = ai4seo_normalize_mime_type_string( $reported_mime_type ) ?? '';
-	$signature_result    = ai4seo_is_probably_image_content( $derivative_image_data );
-	$signature_mime_type = ai4seo_get_mime_type_from_detected_image_format(
-		(string) ( $signature_result['detected_format'] ?? '' )
-	);
-
-	// Reject a recognizable incompatible container even when PHP cannot parse its dimensions.
-	if ( ! empty( $signature_result['is_probably_image'] )
-		&& ( $signature_mime_type !== $required_mime_type
-			|| ( '' !== $reported_mime_type && $signature_mime_type !== $reported_mime_type ) ) ) {
-		$failure_stage = 'derivative_mime';
-		return new WP_Error( 'ai4seo_image_derivative_mime_mismatch', 'The generated image derivative has an unexpected MIME type.' );
-	}
-
-	// Dimension and MIME metadata must be available before the derivative can be trusted.
-	if ( ! function_exists( 'getimagesizefromstring' ) ) {
-		$failure_stage = 'derivative_metadata';
-		return new WP_Error( 'ai4seo_image_derivative_metadata_unavailable', 'Image metadata inspection is unavailable.' );
-	}
-
-	// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- Invalid image bytes are an expected validation result.
-	$image_info = @getimagesizefromstring( $derivative_image_data );
-
-	if ( ! is_array( $image_info )
-		|| empty( $image_info[0] )
-		|| empty( $image_info[1] )
-		|| empty( $image_info['mime'] ) ) {
-		$failure_stage = 'derivative_metadata';
-		return new WP_Error( 'ai4seo_image_derivative_metadata_invalid', 'The generated image derivative has invalid metadata.' );
-	}
-
-	$actual_mime_type = ai4seo_normalize_mime_type_string( (string) $image_info['mime'] ) ?? '';
-
-	// The sniffed type must satisfy the requested conversion and agree with any backend claim.
-	if ( '' === $actual_mime_type
-		|| $actual_mime_type !== $required_mime_type
-		|| ( '' !== $reported_mime_type && $actual_mime_type !== $reported_mime_type ) ) {
-		$failure_stage = 'derivative_mime';
-		return new WP_Error( 'ai4seo_image_derivative_mime_mismatch', 'The generated image derivative has an unexpected MIME type.' );
-	}
-
-	$metadata_width  = (int) $image_info[0];
-	$metadata_height = (int) $image_info[1];
-
-	// Reject oversized pixel canvases before a backend allocates memory to reopen the compressed derivative.
-	if ( ! ai4seo_image_dimensions_fit_model_output_budget( $metadata_width, $metadata_height ) ) {
-		$failure_stage = 'decode_budget';
-		return new WP_Error( 'ai4seo_image_derivative_decode_budget_exceeded', 'The generated image derivative exceeds the image decode budget.' );
-	}
-
-	// Reopen the bytes from disk through WordPress so header-only or truncated images fail locally.
-	$validation_editor = wp_get_image_editor(
+	return ai4seo_read_image_derivative(
 		$derivative_path,
-		array(
-			'mime_type'        => $actual_mime_type,
-			'output_mime_type' => $actual_mime_type,
-		)
+		$required_mime_type,
+		$reported_mime_type,
+		$maximum_size_bytes,
+		AI4SEO_ATTACHMENT_GENERATION_MAX_IMAGE_DIMENSION,
+		$failure_stage,
+		$failure_reason
 	);
-
-	if ( is_wp_error( $validation_editor ) ) {
-		$failure_stage = 'derivative_reopen';
-		return new WP_Error( 'ai4seo_image_derivative_reopen_failed', 'WordPress could not reopen the generated image derivative.' );
-	}
-
-	// Capture the reopened dimensions before releasing the backend-specific editor resource.
-	$validation_dimensions = $validation_editor->get_size();
-	unset( $validation_editor );
-
-	// A decoder without dimensions did not successfully reopen the complete derivative.
-	if ( ! is_array( $validation_dimensions ) ) {
-		$failure_stage = 'derivative_reopen';
-		return new WP_Error( 'ai4seo_image_derivative_dimensions_mismatch', 'The generated image derivative dimensions could not be verified.' );
-	}
-
-	// Compare the decoder result with the independently sniffed dimensions before returning the bytes.
-	$validation_width  = (int) ( $validation_dimensions['width'] ?? 0 );
-	$validation_height = (int) ( $validation_dimensions['height'] ?? 0 );
-
-	if ( $metadata_width !== $validation_width
-		|| $metadata_height !== $validation_height ) {
-		$failure_stage = 'derivative_reopen';
-		return new WP_Error( 'ai4seo_image_derivative_dimensions_mismatch', 'The generated image derivative dimensions could not be verified.' );
-	}
-
-	return array(
-		'data'      => $derivative_image_data,
-		'mime_type' => $actual_mime_type,
-		'width'     => $metadata_width,
-		'height'    => $metadata_height,
-		'size'      => $derivative_size_bytes,
-	);
-}
-
-
-/**
- * Delete temporary image sources and derivatives.
- *
- * @param array $temporary_image_file_paths Temporary paths created during image conversion.
- * @return void
- */
-function ai4seo_delete_temporary_image_files( array $temporary_image_file_paths ): void {
-	// De-duplicate backend paths before removing every source, placeholder, and derivative still present.
-	foreach ( array_unique( $temporary_image_file_paths ) as $temporary_image_file_path ) {
-		// Ignore invalid or already-removed entries while cleaning every remaining local file.
-		if ( is_string( $temporary_image_file_path ) && '' !== $temporary_image_file_path && file_exists( $temporary_image_file_path ) ) {
-			wp_delete_file( $temporary_image_file_path );
-		}
-	}
-}
-
-
-/**
- * Scale image dimensions while keeping each side valid for WordPress image editors.
- *
- * @param array $current_dimensions Current width and height.
- * @param float $scale              Proportional scale to apply.
- * @return array{width: int, height: int} Scaled dimensions.
- */
-function ai4seo_get_scaled_image_dimensions( array $current_dimensions, float $scale ): array {
-	// Preserve the aspect ratio and prevent rounding from producing an invalid zero-sized side.
-	return array(
-		'width'  => max( 1, (int) floor( $current_dimensions['width'] * $scale ) ),
-		'height' => max( 1, (int) floor( $current_dimensions['height'] * $scale ) ),
-	);
-}
-
-
-/**
- * Resolve source dimensions before WordPress allocates an image-editor canvas.
- *
- * The fetched bytes are the only safe authority. Attachment metadata can describe a stale or
- * filtered source and therefore must never authorize a decoded image allocation.
- *
- * @param string $image_data       Raw source image bytes.
- * @param string $source_mime_type MIME type detected from the source bytes.
- * @return array{width: int, height: int}|false Safe dimensions, or false when unavailable.
- */
-function ai4seo_get_source_image_dimensions_before_decode( string $image_data, string $source_mime_type = '' ) {
-	if ( function_exists( 'getimagesizefromstring' ) ) {
-		// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- Malformed or unsupported image bytes are an expected probe failure; callers fail closed when dimensions are unavailable.
-		$image_info = @getimagesizefromstring( $image_data );
-
-		if ( is_array( $image_info ) ) {
-			$parsed_width  = absint( $image_info[0] ?? 0 );
-			$parsed_height = absint( $image_info[1] ?? 0 );
-
-			if ( $parsed_width > 0 && $parsed_height > 0 ) {
-				return array(
-					'width'  => $parsed_width,
-					'height' => $parsed_height,
-				);
-			}
-		}
-	}
-
-	// PHP versions before 8.2 can recognize AVIF while reporting zero dimensions. WordPress'
-	// bounded AVIF parser reads an owned local file without allocating a decoded pixel canvas.
-	if ( 'image/avif' === ai4seo_normalize_mime_type_string( $source_mime_type ) ) {
-		return ai4seo_get_avif_source_image_dimensions_from_owned_temporary_file( $image_data );
-	}
-
-	return false;
-}
-
-
-/**
- * Read AVIF dimensions through WordPress' container parser using an operation-owned temp file.
- *
- * @param string $image_data Raw AVIF bytes.
- * @return array{width: int, height: int}|false Parsed dimensions, or false on any failure.
- */
-function ai4seo_get_avif_source_image_dimensions_from_owned_temporary_file( string $image_data ) {
-	if ( ! function_exists( 'wp_tempnam' ) ) {
-		require_once ABSPATH . 'wp-admin/includes/file.php';
-	}
-
-	if ( ! function_exists( 'wp_tempnam' ) || ! function_exists( 'wp_get_avif_info' ) ) {
-		return false;
-	}
-
-	$source_file_path = wp_tempnam( 'ai4seo-avif-source-inspection' );
-
-	if ( ! is_string( $source_file_path ) || '' === $source_file_path ) {
-		return false;
-	}
-
-	try {
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- The core AVIF parser requires an operation-owned local source path.
-		$written_bytes = file_put_contents( $source_file_path, $image_data );
-
-		if ( strlen( $image_data ) !== $written_bytes ) {
-			return false;
-		}
-
-		$avif_info = wp_get_avif_info( $source_file_path );
-		$width     = absint( $avif_info['width'] ?? 0 );
-		$height    = absint( $avif_info['height'] ?? 0 );
-
-		if ( $width < 1 || $height < 1 ) {
-			return false;
-		}
-
-		return array(
-			'width'  => $width,
-			'height' => $height,
-		);
-	} finally {
-		if ( file_exists( $source_file_path ) ) {
-			wp_delete_file( $source_file_path );
-		}
-	}
 }
 
 
@@ -2293,18 +1978,20 @@ function ai4seo_get_avif_source_image_dimensions_from_owned_temporary_file( stri
  * @param string      $source_mime_type  MIME type detected from the source bytes.
  * @param string|null $encoded_mime_type Actual MIME type of the encoded output.
  * @param string|null $failure_stage     Safe failure-stage identifier.
+ * @param string|null $failure_reason    Optional decode-budget reason.
  * @return string The base64-encoded image data, or an empty string on error.
- * @throws Exception When a derivative cannot be generated or validated.
  */
 function ai4seo_smart_image_base64_encode(
 	string $image_data,
 	string $source_mime_type = '',
 	?string &$encoded_mime_type = null,
-	?string &$failure_stage = null
+	?string &$failure_stage = null,
+	?string &$failure_reason = null
 ): string {
 	// Default to the detected source MIME; a derivative branch replaces it with a compatible format below.
 	$encoded_mime_type = ai4seo_normalize_mime_type_string( $source_mime_type ) ?? '';
 	$failure_stage     = '';
+	$failure_reason    = '';
 
 	// Preserve the existing recursion guard before allocating temporary files or image-editor resources.
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
@@ -2313,203 +2000,22 @@ function ai4seo_smart_image_base64_encode(
 		return '';
 	}
 
-	// Keep encoded images near the shared model-input target using a bounded conversion loop.
-	$target_image_size_bytes    = AI4SEO_ATTACHMENT_GENERATION_TARGET_IMAGE_SIZE_BYTES;
-	$temporary_image_file_paths = array();
-
-	// Isolate backend and filesystem failures so every conversion error retains the established return contract.
-	try {
-		// Inspect every source before pass-through so compressed bytes cannot bypass canvas limits.
-		$source_image_size_bytes        = strlen( $image_data );
-		$requires_compatible_derivative = 'image/avif' === $encoded_mime_type;
-		$source_dimensions              = ai4seo_get_source_image_dimensions_before_decode( $image_data, $encoded_mime_type );
-
-		// Reject unsafe or unknown canvases before GD or Imagick can allocate decoded pixel memory.
-		if ( false === $source_dimensions
-			|| ! ai4seo_image_dimensions_fit_decode_budget( $source_dimensions['width'], $source_dimensions['height'] ) ) {
-			$failure_stage = 'decode_budget';
-			throw new Exception( 'The source image exceeds the safe decode budget.' );
-		}
-
-		$source_fits_output_canvas = ai4seo_image_dimensions_fit_model_output_budget(
-			$source_dimensions['width'],
-			$source_dimensions['height']
-		);
-		$requires_derivative       = $requires_compatible_derivative
-			|| $source_image_size_bytes > $target_image_size_bytes
-			|| ! $source_fits_output_canvas;
-
-		if ( ! $requires_derivative ) {
-			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- Encode the validated bounded source payload for the model request.
-			return base64_encode( $image_data );
-		}
-
-		// PNG preserves AVIF transparency across WordPress image backends; other derivatives use JPEG.
-		$derivative_mime_type = $requires_compatible_derivative ? 'image/png' : 'image/jpeg';
-
-		$image_editor = ai4seo_get_image_editor_from_data(
-			$image_data,
-			$encoded_mime_type,
-			$derivative_mime_type,
-			$temporary_image_file_paths
-		);
-
-		// Backend-selection failures are normalized through the common conversion error path.
-		if ( is_wp_error( $image_editor ) ) {
-			$failure_stage = 'image_editor';
-			throw new Exception( $image_editor->get_error_message() );
-		}
-
-		// Use the declared derivative quality consistently across whichever backend WordPress selected.
-		$quality_result = $image_editor->set_quality( AI4SEO_ATTACHMENT_GENERATION_DERIVATIVE_QUALITY );
-
-		// Quality configuration failures make all following derivative measurements unreliable.
-		if ( is_wp_error( $quality_result ) ) {
-			$failure_stage = 'derivative_encode';
-			throw new Exception( $quality_result->get_error_message() );
-		}
-
-		// Capture dimensions after loading because the correction loop always scales the current editor state.
-		$current_dimensions = $image_editor->get_size();
-
-		// Reject editor states that cannot support proportional resizing.
-		if ( empty( $current_dimensions['width'] ) || empty( $current_dimensions['height'] ) ) {
-			$failure_stage = 'image_metadata';
-			throw new Exception( 'Could not determine image dimensions.' );
-		}
-
-		// Enforce the output canvas and byte estimate together, then correct against measured bytes below.
-		$initial_scale = min(
-			1,
-			AI4SEO_ATTACHMENT_GENERATION_MAX_IMAGE_DIMENSION / $current_dimensions['width'],
-			AI4SEO_ATTACHMENT_GENERATION_MAX_IMAGE_DIMENSION / $current_dimensions['height']
-		);
-
-		if ( $source_image_size_bytes > $target_image_size_bytes ) {
-			$initial_scale = min( $initial_scale, sqrt( $target_image_size_bytes / $source_image_size_bytes ) );
-		}
-
-		if ( $initial_scale < 1 ) {
-			$initial_dimensions = ai4seo_get_scaled_image_dimensions( $current_dimensions, $initial_scale );
-
-			// Avoid a no-op resize when integer rounding retains the loaded dimensions.
-			if ( $initial_dimensions['width'] < $current_dimensions['width'] || $initial_dimensions['height'] < $current_dimensions['height'] ) {
-				$resize_result = $image_editor->resize(
-					$initial_dimensions['width'],
-					$initial_dimensions['height'],
-					false
-				);
-
-				// Surface backend-specific resizing failures through the shared conversion error contract.
-				if ( is_wp_error( $resize_result ) ) {
-					$failure_stage = 'derivative_resize';
-					throw new Exception( $resize_result->get_error_message() );
-				}
-			}
-		}
-
-		// Re-encode only a bounded number of times while using measured derivative bytes for correction.
-		for ( $encoding_attempt = 1; $encoding_attempt <= AI4SEO_ATTACHMENT_GENERATION_MAX_ENCODING_ATTEMPTS; ++$encoding_attempt ) {
-			$saved_derivative = ai4seo_save_temporary_image_derivative(
-				$image_editor,
-				$derivative_mime_type,
-				$temporary_image_file_paths
-			);
-
-			// Normalize image-editor save errors before attempting to read an output path.
-			if ( is_wp_error( $saved_derivative ) ) {
-				$failure_stage = 'derivative_save';
-				throw new Exception( $saved_derivative->get_error_message() );
-			}
-
-			// Use the actual path returned by the selected backend rather than assuming the placeholder extension.
-			$derivative_path = $saved_derivative['path'] ?? '';
-
-			// A successful save result still needs a readable local derivative path.
-			if ( ! is_string( $derivative_path )
-				|| '' === $derivative_path
-				|| ! is_file( $derivative_path )
-				|| ! is_readable( $derivative_path ) ) {
-				$failure_stage = 'derivative_path';
-				throw new Exception( 'Could not read the generated image derivative.' );
-			}
-
-			// Measure the file before loading it so oversized attempts can be corrected without another allocation.
-			$derivative_image_size_bytes = ai4seo_get_file_size( $derivative_path );
-
-			if ( $derivative_image_size_bytes <= 0 ) {
-				$failure_stage = 'derivative_read';
-				throw new Exception( 'The generated image derivative is empty.' );
-			}
-
-			// The first size-compliant derivative must also pass independent MIME and decoder validation.
-			if ( $derivative_image_size_bytes <= $target_image_size_bytes ) {
-				// Release the source decoder before validation opens a second potentially large pixel canvas.
-				unset( $image_editor );
-
-				$validated_derivative = ai4seo_read_validated_image_derivative(
-					$derivative_path,
-					$derivative_mime_type,
-					(string) ( $saved_derivative['mime-type'] ?? '' ),
-					$target_image_size_bytes,
-					$failure_stage
-				);
-
-				if ( is_wp_error( $validated_derivative ) ) {
-					throw new Exception( $validated_derivative->get_error_message() );
-				}
-
-				$encoded_mime_type     = $validated_derivative['mime_type'];
-				$derivative_image_data = $validated_derivative['data'];
-				// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- Encode the bounded derivative for the model request.
-				return base64_encode( $derivative_image_data );
-			}
-
-			// Stop at the configured bound instead of performing an unbounded size-correction cycle.
-			if ( AI4SEO_ATTACHMENT_GENERATION_MAX_ENCODING_ATTEMPTS === $encoding_attempt ) {
-				$failure_stage = 'derivative_size';
-				throw new Exception( 'Could not reduce the image derivative to the target file size.' );
-			}
-
-			// Add a small reduction margin so the next derivative converges below the byte target.
-			$current_dimensions   = $image_editor->get_size();
-			$corrective_scale     = min( 0.95, sqrt( $target_image_size_bytes / $derivative_image_size_bytes ) * 0.95 );
-			$corrected_dimensions = ai4seo_get_scaled_image_dimensions( $current_dimensions, $corrective_scale );
-
-			// Stop when integer rounding leaves both dimensions unchanged.
-			if ( $current_dimensions['width'] === $corrected_dimensions['width']
-				&& $current_dimensions['height'] === $corrected_dimensions['height'] ) {
-				$failure_stage = 'derivative_resize';
-				throw new Exception( 'Could not reduce the image derivative dimensions further.' );
-			}
-
-			$resize_result = $image_editor->resize(
-				$corrected_dimensions['width'],
-				$corrected_dimensions['height'],
-				false
-			);
-
-			// Any corrective resize failure makes the conversion attempt unusable.
-			if ( is_wp_error( $resize_result ) ) {
-				$failure_stage = 'derivative_resize';
-				throw new Exception( $resize_result->get_error_message() );
-			}
-		}
-	} catch ( Throwable $e ) {
-		// Keep backend failures observable while preserving the established empty-string error contract.
-		if ( '' === $failure_stage ) {
-			$failure_stage = 'derivative_encode';
-		}
-
-		ai4seo_debug_message( 578877568, $e->getMessage(), true );
-		return '';
-	} finally {
-		// Always clean backend-generated files, including early returns and failed conversions.
-		ai4seo_delete_temporary_image_files( $temporary_image_file_paths );
-	}
-
-	// Every bounded attempt returns or throws above; retain the declared string contract defensively.
-	return '';
+	// Preserve the generation policy while the image helper operates only on bytes and explicit limits.
+	return ai4seo_encode_image_data_to_base64(
+		$image_data,
+		$source_mime_type,
+		array(
+			'target_size_bytes'    => AI4SEO_ATTACHMENT_GENERATION_TARGET_IMAGE_SIZE_BYTES,
+			'maximum_dimension'    => AI4SEO_ATTACHMENT_GENERATION_MAX_IMAGE_DIMENSION,
+			'quality'              => AI4SEO_ATTACHMENT_GENERATION_DERIVATIVE_QUALITY,
+			'maximum_attempts'     => AI4SEO_ATTACHMENT_GENERATION_MAX_ENCODING_ATTEMPTS,
+			'derivative_mime_type' => 'image/avif' === $encoded_mime_type ? 'image/png' : 'image/jpeg',
+			'force_derivative'     => 'image/avif' === $encoded_mime_type,
+		),
+		$encoded_mime_type,
+		$failure_stage,
+		$failure_reason
+	);
 }
 
 
@@ -4004,39 +3510,6 @@ function ai4seo_normalize_generation_image_url( string $url, string $base_url ):
 
 
 /**
- * Read URL tokens from srcset without treating descriptors as image URLs.
- *
- * @param string $srcset Complete srcset attribute.
- * @return array Source URLs in document order.
- */
-function ai4seo_get_generation_srcset_urls( string $srcset ): array {
-	$urls   = array();
-	$offset = 0;
-	$length = strlen( $srcset );
-
-	while ( $offset < $length ) {
-		$offset += strspn( $srcset, " \t\r\n\f,", $offset );
-		$size    = strcspn( $srcset, " \t\r\n\f", $offset );
-		$url     = substr( $srcset, $offset, $size );
-		$offset += $size;
-
-		if ( '' === $url ) {
-			break;
-		}
-
-		$urls[] = rtrim( $url, ',' );
-
-		if ( ',' !== substr( $url, -1 ) ) {
-			// Skip the density/width descriptor up to the next candidate separator.
-			$offset += strcspn( $srcset, ',', $offset );
-		}
-	}
-
-	return $urls;
-}
-
-
-/**
  * Match an actual image token by exact attachment identity or source URL.
  *
  * @param WP_HTML_Tag_Processor $processor Processor positioned at an IMG token.
@@ -5415,57 +4888,6 @@ function ai4seo_handle_deep_context_search_statement_timeout(): void {
 	}
 
 	ai4seo_disable_deep_context_search_for_images();
-}
-
-// =========================================================================================== \
-
-/**
- * Detects whether the current database can enforce per-statement SELECT timeouts.
- *
- * @return array
- */
-function ai4seo_get_database_statement_timeout_support(): array {
-	global $wpdb;
-
-	static $timeout_support = null;
-
-	if ( null !== $timeout_support ) {
-		return $timeout_support;
-	}
-
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Database capability detection is immutable for the request and retained in the function-local static cache.
-	$db_version_string = (string) $wpdb->get_var( 'SELECT VERSION()' );
-	$db_version_number = preg_replace( '/[^0-9.].*$/', '', $db_version_string );
-	$is_mariadb        = ( stripos( $db_version_string, 'mariadb' ) !== false );
-
-	$timeout_support = array(
-		'supported' => false,
-		'engine'    => '',
-		'version'   => $db_version_string,
-	);
-
-	if ( $is_mariadb ) {
-		$mariadb_version_matches = array();
-
-		if ( preg_match( '/([0-9]+(?:\.[0-9]+){1,2})-MariaDB/i', $db_version_string, $mariadb_version_matches ) ) {
-			$db_version_number = $mariadb_version_matches[1];
-		}
-	}
-
-	if ( ! $db_version_number ) {
-		return $timeout_support;
-	}
-
-	if ( $is_mariadb ) {
-		$timeout_support['engine']    = 'mariadb';
-		$timeout_support['supported'] = version_compare( $db_version_number, '10.1.1', '>=' );
-		return $timeout_support;
-	}
-
-	$timeout_support['engine']    = 'mysql';
-	$timeout_support['supported'] = version_compare( $db_version_number, '5.7.4', '>=' );
-
-	return $timeout_support;
 }
 
 // =========================================================================================== \

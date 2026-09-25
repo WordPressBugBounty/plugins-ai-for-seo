@@ -2219,109 +2219,6 @@ function ai4seo_get_combined_post_content(
 
 
 /**
- * Render an exact Elementor source snapshot without emitting renderer output.
- *
- * @param mixed $source Serialized Elementor elements from the existing source read.
- * @return string Content HTML, or empty when the source/renderer is unavailable.
- */
-function ai4seo_get_elementor_generation_content( $source ): string {
-	if ( ! is_string( $source ) || '' === trim( $source ) || ! class_exists( '\Elementor\Plugin', false ) ) {
-		return '';
-	}
-
-	$data = json_decode( $source, true, 64 );
-
-	if ( ! is_array( $data ) || JSON_ERROR_NONE !== json_last_error() || '[' !== substr( ltrim( $source ), 0, 1 ) ) {
-		return '';
-	}
-
-	// Validate nested containers as well as roots before third-party widget traversal.
-	$pending = array( $data );
-
-	while ( $pending ) {
-		foreach ( array_pop( $pending ) as $key => $element ) {
-			if ( ! is_int( $key )
-				|| ! is_array( $element )
-				|| ! is_string( $element['elType'] ?? null )
-				|| ( isset( $element['settings'] ) && ! is_array( $element['settings'] ) ) ) {
-				return '';
-			}
-
-			if ( isset( $element['elements'] ) ) {
-				if ( ! is_array( $element['elements'] ) ) {
-					return '';
-				}
-
-				$pending[] = $element['elements'];
-			}
-		}
-	}
-
-	$buffer_level = ob_get_level();
-	$content      = '';
-
-	try {
-		$plugin  = \Elementor\Plugin::$instance;
-		$manager = is_object( $plugin ) ? ( $plugin->elements_manager ?? null ) : null;
-
-		if ( ! is_object( $manager ) || ! is_callable( array( $manager, 'create_element_instance' ) ) ) {
-			return '';
-		}
-
-		// Keep a discard boundary outside the capture buffer to protect the caller's output.
-		ob_start(
-			static function () {
-				return '';
-			}
-		);
-		$pending = array_reverse( $data );
-
-		while ( $pending ) {
-			$element = array_pop( $pending );
-
-			if ( 'widget' === $element['elType'] ) {
-				$widget = $manager->create_element_instance( $element );
-
-				if ( is_object( $widget ) && is_callable( array( $widget, 'render_plain_content' ) ) ) {
-					ob_start();
-					$capture_level = ob_get_level();
-					$widget->render_plain_content();
-
-					// Include nested widget buffers without losing intact tags or image identity.
-					while ( ob_get_level() > $capture_level ) {
-						if ( ! ob_end_flush() ) {
-							return '';
-						}
-					}
-
-					if ( ob_get_level() !== $capture_level ) {
-						return '';
-					}
-
-					$content .= ' ' . ob_get_clean();
-				}
-			}
-
-			foreach ( array_reverse( $element['elements'] ?? array() ) as $child ) {
-				$pending[] = $child;
-			}
-		}
-	} catch ( Throwable $exception ) {
-		// Saved post content remains available; never reuse serialized configuration.
-		$content = '';
-	} finally {
-		while ( ob_get_level() > $buffer_level ) {
-			if ( ! ob_end_clean() ) {
-				break;
-			}
-		}
-	}
-
-	return trim( $content );
-}
-
-
-/**
  * Normalize extracted text without reinterpreting decoded text as markup.
  *
  * @param string $text Text emitted by the HTML tokenizer.
@@ -2812,6 +2709,52 @@ function ai4seo_prepare_metadata_generation_content_data(
 
 
 /**
+ * Remove an unfinished builder attribute tail from an already cleaned, bounded excerpt.
+ *
+ * Complete markup is handled by the shared visible-text extractor before this helper runs.
+ * Ordinary brackets, escaped openers, and unknown shortcode names remain visible prose.
+ *
+ * @param string $excerpt Visible excerpt text from the bounded generation extractor.
+ * @return string Visible text preceding any unterminated builder attribute token.
+ */
+function ai4seo_remove_incomplete_builder_excerpt_tail( string $excerpt ): string {
+	$offset = 0;
+	$length = strlen( $excerpt );
+
+	// Require attribute syntax so a mention of a builder tag is not enough to discard prose.
+	while ( preg_match( '~(?<!\[)\[(?:vc_|et_pb_)[a-zA-Z0-9_]+\s+[a-zA-Z_][a-zA-Z0-9_-]*\s*=~', $excerpt, $matches, PREG_OFFSET_CAPTURE, $offset ) ) {
+		$token_start = (int) $matches[0][1];
+		$offset      = $token_start + strlen( $matches[0][0] );
+		$quote       = '';
+		$closed      = false;
+
+		// Advance past a complete token once; never rescan its quoted attributes for openers.
+		for ( ; $offset < $length; ++$offset ) {
+			$character = $excerpt[ $offset ];
+
+			if ( '' !== $quote ) {
+				if ( $character === $quote ) {
+					$quote = '';
+				}
+			} elseif ( '"' === $character || "'" === $character ) {
+				$quote = $character;
+			} elseif ( ']' === $character ) {
+				$closed = true;
+				++$offset;
+				break;
+			}
+		}
+
+		if ( ! $closed ) {
+			return rtrim( substr( $excerpt, 0, $token_start ) );
+		}
+	}
+
+	return $excerpt;
+}
+
+
+/**
  * Replace content with the existing post-context string and optionally expose clean language evidence.
  *
  * The optional structured output lets metadata generation reuse the title and excerpt lookups that
@@ -2837,10 +2780,8 @@ function ai4seo_add_post_context(
 		return;
 	}
 
-	// Treat an explicitly supplied output argument as structured negotiation even when its variable starts as null.
-	$use_structured_context = func_num_args() >= 5;
-	$context                = '';
-	$structured_context     = array(
+	$context            = '';
+	$structured_context = array(
 		'post_title'   => '',
 		'excerpt_text' => '',
 	);
@@ -2982,14 +2923,16 @@ function ai4seo_add_post_context(
 		: ( $authoritative_post_row['post_excerpt'] ?? '' );
 
 	if ( $post_excerpt ) {
-		$strict_post_excerpt = '';
-		ai4seo_condense_raw_post_content( $post_excerpt, 150, 250, $strict_post_excerpt ); // Condense the excerpt.
+		// Strip complete markup first, then remove incomplete builder tails before applying the excerpt cap.
+		$strict_post_excerpt = ai4seo_extract_generation_visible_text( $post_excerpt );
+		$strict_post_excerpt = ai4seo_remove_incomplete_builder_excerpt_tail( $strict_post_excerpt );
+		$strict_post_excerpt = ai4seo_truncate_sentence( ai4seo_remove_double_sentences( $strict_post_excerpt ), 150, 250 );
+
 		$structured_context['excerpt_text'] = $strict_post_excerpt;
 
-		// Structured requests must not reintroduce builder markup through their legacy post-context field.
-		if ( ! $use_structured_context || $strict_post_excerpt ) {
-			$context_excerpt = $use_structured_context ? $strict_post_excerpt : $post_excerpt;
-			$context        .= "Excerpt: '" . $context_excerpt . "'. ";
+		// Both attachment and structured metadata contexts omit excerpts with no visible text.
+		if ( '' !== $strict_post_excerpt ) {
+			$context .= "Excerpt: '" . $strict_post_excerpt . "'. ";
 		}
 	}
 

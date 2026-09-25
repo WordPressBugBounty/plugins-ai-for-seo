@@ -103,23 +103,6 @@ function ai4seo_user_has_at_least_plan( string $required_plan ): bool {
 }
 
 /**
- * Determine whether the current account exactly matches the required plan.
- *
- * @param string $required_plan Plan identifier or name to compare against.
- * @return bool True when the current plan exactly matches the requirement.
- */
-function ai4seo_user_has_exact_plan( string $required_plan ): bool {
-	// Exact checks share the same normalization source as tier-gated settings checks.
-	$required_plan = ai4seo_normalize_plan_identifier( $required_plan );
-
-	if ( ! $required_plan ) {
-		return false;
-	}
-
-	return ai4seo_get_current_user_plan() === $required_plan;
-}
-
-/**
  * Determine whether the current account has an active paid subscription.
  *
  * Credits packs and Pay-As-You-Go do not unlock subscription-only limits.
