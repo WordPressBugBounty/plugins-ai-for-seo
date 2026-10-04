@@ -494,14 +494,16 @@ function ai4seo_read_active_metadata_from_post_meta( int $post_id, bool $active_
  * @param bool       $active_meta_tags_only Whether only currently active tags should be returned.
  * @param bool|null  $read_succeeded Receives whether every query and stored JSON decode succeeded.
  * @param array|null $storage_views Receives resolved storage and conflicts by post ID.
+ * @param bool       $is_multi_post_read Whether this batch belongs to a larger multi-post read.
  * @return array
  */
-function ai4seo_read_active_metadata_by_post_ids( array $post_ids, bool $active_meta_tags_only = true, ?bool &$read_succeeded = null, ?array &$storage_views = null ): array {
+function ai4seo_read_active_metadata_by_post_ids( array $post_ids, bool $active_meta_tags_only = true, ?bool &$read_succeeded = null, ?array &$storage_views = null, bool $is_multi_post_read = false ): array {
 	global $wpdb;
 
-	$read_succeeded = false;
-	$storage_views  = array();
-	$post_ids       = array_values( array_filter( array_map( 'absint', $post_ids ) ) );
+	$read_succeeded     = false;
+	$storage_views      = array();
+	$post_ids           = array_values( array_filter( array_map( 'absint', $post_ids ) ) );
+	$is_multi_post_read = $is_multi_post_read || count( $post_ids ) > 1;
 
 	if ( ! $post_ids ) {
 		$read_succeeded = true;
@@ -536,7 +538,7 @@ function ai4seo_read_active_metadata_by_post_ids( array $post_ids, bool $active_
 		}
 		foreach ( $bounds as $bound ) {
 			if ( (int) $bound['row_count'] > AI4SEO_ACTIVE_METADATA_MAX_ROWS || (int) $bound['max_bytes'] > AI4SEO_ACTIVE_METADATA_MAX_ROW_BYTES ) {
-				if ( count( $post_ids ) === 1 ) {
+				if ( ! $is_multi_post_read ) {
 					return array();
 				}
 				$invalid_post_id                                 = (int) $bound['post_id'];
@@ -593,7 +595,7 @@ function ai4seo_read_active_metadata_by_post_ids( array $post_ids, bool $active_
 
 			$this_post_id = ai4seo_normalize_database_id( $this_row['post_id'] );
 
-			if ( false === $this_post_id || ! in_array( $this_post_id, $post_ids, true ) ) {
+			if ( false === $this_post_id || ! isset( $rows_by_post_id[ $this_post_id ] ) ) {
 				return array();
 			}
 
@@ -605,7 +607,7 @@ function ai4seo_read_active_metadata_by_post_ids( array $post_ids, bool $active_
 			$view                           = ai4seo_classify_active_metadata_rows( $this_post_id, $rows );
 			$storage_views[ $this_post_id ] = $view;
 			if ( 'unreadable' === $view['classification'] ) {
-				if ( count( $post_ids ) === 1 ) {
+				if ( ! $is_multi_post_read ) {
 					return array();
 				}
 				$active_metadata_by_post_ids[ $this_post_id ] = array();
@@ -2014,9 +2016,10 @@ function ai4seo_run_active_metadata_migration_v235_batch(): bool {
  * @param array      $post_ids of post ids (all int).
  * @param bool|null  $read_succeeded Receives whether every own-metadata read succeeded.
  * @param array|null $storage_views Receives resolved storage and conflicts by post ID.
+ * @param bool       $is_multi_post_read Whether this batch belongs to a larger multi-post read.
  * @return array
  */
-function ai4seo_read_our_plugins_metadata_by_post_ids( array $post_ids, ?bool &$read_succeeded = null, ?array &$storage_views = null ): array {
+function ai4seo_read_our_plugins_metadata_by_post_ids( array $post_ids, ?bool &$read_succeeded = null, ?array &$storage_views = null, bool $is_multi_post_read = false ): array {
 	$read_succeeded = false;
 
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
@@ -2047,7 +2050,7 @@ function ai4seo_read_our_plugins_metadata_by_post_ids( array $post_ids, ?bool &$
 	// sanitize IDs.
 	$post_ids                       = array_map( 'absint', $post_ids );
 	$active_metadata_read_succeeded = false;
-	$reordered_results              = ai4seo_read_active_metadata_by_post_ids( $post_ids, true, $active_metadata_read_succeeded, $storage_views );
+	$reordered_results              = ai4seo_read_active_metadata_by_post_ids( $post_ids, true, $active_metadata_read_succeeded, $storage_views, $is_multi_post_read );
 
 	if ( ! $active_metadata_read_succeeded ) {
 		return array();
@@ -2890,9 +2893,10 @@ function ai4seo_read_available_metadata( int $post_id, bool $consider_third_part
  * @param bool       $consider_third_party_seo_plugin_metadata if true, the own plugin's metadata will be preferred.
  * @param bool|null  $read_succeeded Receives whether every metadata-source read succeeded.
  * @param array|null $storage_views Receives active storage classifications for coverage decisions.
+ * @param bool       $is_multi_post_read Whether this batch belongs to a larger multi-post read.
  * @return array the post meta coverage by post ids
  */
-function ai4seo_read_available_metadata_by_post_ids( array $post_ids, bool $consider_third_party_seo_plugin_metadata = true, ?bool &$read_succeeded = null, ?array &$storage_views = null ): array {
+function ai4seo_read_available_metadata_by_post_ids( array $post_ids, bool $consider_third_party_seo_plugin_metadata = true, ?bool &$read_succeeded = null, ?array &$storage_views = null, bool $is_multi_post_read = false ): array {
 	$read_succeeded = false;
 
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
@@ -2923,7 +2927,7 @@ function ai4seo_read_available_metadata_by_post_ids( array $post_ids, bool $cons
 	// 1. read our own plugin's metadata
 	$our_metadata_read_succeeded      = false;
 	$storage_views                    = array();
-	$our_plugins_metadata_by_post_ids = ai4seo_read_our_plugins_metadata_by_post_ids( $post_ids, $our_metadata_read_succeeded, $storage_views );
+	$our_plugins_metadata_by_post_ids = ai4seo_read_our_plugins_metadata_by_post_ids( $post_ids, $our_metadata_read_succeeded, $storage_views, $is_multi_post_read );
 
 	if ( ! $our_metadata_read_succeeded ) {
 		return array();
@@ -3055,9 +3059,79 @@ function ai4seo_read_num_available_metadata_by_post_ids( array $post_ids, ?bool 
 		$overwrite_metadata = array();
 	}
 
+	// Validate the complete request before a later invalid ID can follow successful batch reads.
+	foreach ( $post_ids as $post_id ) {
+		if ( ! is_numeric( $post_id ) ) {
+			ai4seo_debug_message( 964175850, 'post_id is not numeric: ' . ai4seo_stringify( $post_id ), true );
+			return array();
+		}
+	}
+
+	$coverage_settings = array(
+		'active_meta_tags'         => $active_meta_tags,
+		'focus_keyphrase_behavior' => $focus_keyphrase_behavior,
+		'overwrite_metadata'       => $overwrite_metadata,
+	);
+	// The storage reader counts positive normalized IDs, including repeated IDs, for this contract.
+	$is_multi_post_read                 = count( array_filter( array_map( 'absint', $post_ids ) ) ) > 1;
+	$num_available_metadata_by_post_ids = array();
+
+	foreach ( array_chunk( $post_ids, ai4seo_get_database_chunk_size() ) as $post_ids_chunk ) {
+		$chunk_read_succeeded = false;
+		$chunk_field_states   = null !== $field_states ? array() : null;
+		$chunk_counts         = ai4seo_read_metadata_coverage_chunk(
+			$post_ids_chunk,
+			$coverage_settings,
+			$is_multi_post_read,
+			$chunk_read_succeeded,
+			$chunk_field_states
+		);
+
+		if ( ! $chunk_read_succeeded ) {
+			if ( null !== $field_states ) {
+				$field_states = array();
+			}
+			return array();
+		}
+
+		foreach ( $chunk_counts as $post_id => $count ) {
+			$num_available_metadata_by_post_ids[ $post_id ] = $count;
+		}
+		if ( null !== $field_states ) {
+			foreach ( $chunk_field_states as $post_id => $states ) {
+				$field_states[ $post_id ] = $states;
+			}
+		}
+	}
+
+	$read_succeeded = true;
+	return $num_available_metadata_by_post_ids;
+}
+
+
+/**
+ * Read and reduce one coverage batch without retaining its raw metadata across batches.
+ *
+ * @internal
+ * @param array      $post_ids One bounded batch from the validated coverage request.
+ * @param array      $coverage_settings Count settings captured once for the complete request.
+ * @param bool       $is_multi_post_read Preserve the parent request's unreadable-post handling.
+ * @param bool|null  $read_succeeded Receives whether every metadata source was read successfully.
+ * @param array|null $field_states Optional filled/missing/exempt presentation states for this batch.
+ * @return array Metadata field counts keyed by the original requested post IDs.
+ */
+function ai4seo_read_metadata_coverage_chunk( array $post_ids, array $coverage_settings, bool $is_multi_post_read, ?bool &$read_succeeded = null, ?array &$field_states = null ): array {
+	$read_succeeded = false;
+	if ( null !== $field_states ) {
+		$field_states = array();
+	}
+	$active_meta_tags         = $coverage_settings['active_meta_tags'];
+	$focus_keyphrase_behavior = $coverage_settings['focus_keyphrase_behavior'];
+	$overwrite_metadata       = $coverage_settings['overwrite_metadata'];
+
 	$available_metadata_read_succeeded = false;
 	$storage_views                     = array();
-	$available_metadata                = ai4seo_read_available_metadata_by_post_ids( $post_ids, true, $available_metadata_read_succeeded, $storage_views );
+	$available_metadata                = ai4seo_read_available_metadata_by_post_ids( $post_ids, true, $available_metadata_read_succeeded, $storage_views, $is_multi_post_read );
 
 	if ( ! $available_metadata_read_succeeded ) {
 		return array();

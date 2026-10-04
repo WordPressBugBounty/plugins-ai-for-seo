@@ -243,12 +243,12 @@ function ai4seo_get_editor_mode_switch_tag( string $default_view_mode ): string 
 	}
 
 	// The group wrapper supplies one accessible name for both mutually exclusive controls.
-	$output = '<div class="ai4seo-editor-mode-switch" role="group" aria-label="' . esc_attr__( 'Editor display mode', 'ai-for-seo' ) . '">';
+	$output = '<div class="ai4seo-editor-mode-switch" role="radiogroup" aria-label="' . esc_attr__( 'Editor display mode', 'ai-for-seo' ) . '">';
 
 	// Reuse the settings option registry so the stored modes, labels, and switch order stay aligned.
 	foreach ( ai4seo_get_editor_view_mode_options() as $view_mode => $view_mode_label ) {
-		$is_active = $view_mode === $default_view_mode ? 'true' : 'false';
-		$output   .= '<button type="button" class="ai4seo-editor-mode-switch-button" data-ai4seo-editor-view-mode="' . esc_attr( $view_mode ) . '" aria-pressed="' . esc_attr( $is_active ) . '">';
+		$is_active = $view_mode === $default_view_mode;
+		$output   .= '<button type="button" role="radio" class="ai4seo-editor-mode-switch-button" data-ai4seo-editor-view-mode="' . esc_attr( $view_mode ) . '" aria-checked="' . esc_attr( $is_active ? 'true' : 'false' ) . '" tabindex="' . ( $is_active ? '0' : '-1' ) . '">';
 		$output   .= esc_html( $view_mode_label );
 		$output   .= '</button>';
 	}

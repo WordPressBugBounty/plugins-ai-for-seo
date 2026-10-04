@@ -103,8 +103,6 @@ $ai4seo_setting_display_source_code_notes       = ai4seo_get_setting( AI4SEO_SET
 $ai4seo_setting_source_code_notes_content_start = ai4seo_get_setting( AI4SEO_SETTING_META_TAGS_BLOCK_STARTING_HINT );
 $ai4seo_setting_source_code_notes_content_end   = ai4seo_get_setting( AI4SEO_SETTING_META_TAGS_BLOCK_ENDING_HINT );
 
-$ai4seo_current_credits_balance = ai4seo_robhub_api()->get_credits_balance();
-
 $ai4seo_robhub_subscription_plan              = $ai4seo_robhub_subscription['plan'] ?? 'free';
 $ai4seo_robhub_subscription_end_date_and_time = $ai4seo_robhub_subscription['subscription_end'] ?? false;
 $ai4seo_robhub_subscription_end_timestamp     = $ai4seo_robhub_subscription_end_date_and_time

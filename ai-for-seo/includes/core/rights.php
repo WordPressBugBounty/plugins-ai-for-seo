@@ -233,16 +233,10 @@ function ai4seo_can_use_plugin_content(): bool {
 		return $ai4seo_can_manage_this_plugin;
 	}
 
-	// check if is_user_logged_in() is defined.
-	if ( ! function_exists( 'is_user_logged_in' ) ) {
-		return false;
-	}
-
-	if ( ! function_exists( 'get_current_user_id' ) ) {
-		return false;
-	}
-
-	if ( ! function_exists( 'wp_get_current_user' ) ) {
+	// Wait until all WordPress functions required for the permission check are available.
+	if ( ! function_exists( 'is_user_logged_in' )
+		|| ! function_exists( 'get_current_user_id' )
+		|| ! function_exists( 'wp_get_current_user' ) ) {
 		return false;
 	}
 

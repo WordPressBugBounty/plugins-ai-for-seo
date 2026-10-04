@@ -368,13 +368,7 @@ function ai4seo_consume_purchase_return_token( string $token ): bool {
 	}
 
 	// Core option deletion is database-authoritative, so concurrent requests have one storage-level winner.
-	$consumed = delete_option( $option_name );
-
-	if ( $consumed ) {
-		wp_clear_scheduled_hook( AI4SEO_PURCHASE_RETURN_TOKEN_EXPIRY_CRON_HOOK, array( $option_name ) );
-	}
-
-	return $consumed;
+	return ai4seo_delete_purchase_return_token( $token );
 }
 
 /**
@@ -1006,12 +1000,8 @@ function ai4seo_get_recommended_credits_pack_size_by_num_missing_entries(): int 
 		$this_credits_amount = (int) $this_credits_pack['credits_amount'];
 		++$credits_pack_position;
 
-		if ( $this_credits_amount >= $approximate_credits_needed ) {
-			return $this_credits_amount;
-		}
-
 		// The purchase modal intentionally limits automatic recommendations to its first three packs.
-		if ( $credits_pack_position >= 3 ) {
+		if ( $this_credits_amount >= $approximate_credits_needed || $credits_pack_position >= 3 ) {
 			return $this_credits_amount;
 		}
 	}

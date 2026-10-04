@@ -1,4 +1,12 @@
 == Changelog ==
+= 2.5.8 =
+* Reduced memory use when analyzing SEO coverage on larger websites.
+* Improved recognition of older generation history so supported saved values can be included in SEO analysis without changing stored content.
+* Fixed clearing custom instructions for multiple selected entries when the text box is left empty.
+* Improved keyboard and screen-reader navigation in metadata and media editors, settings, and media lists, with clearer field warnings and link descriptions.
+* Kept keyboard focus in the Related Media search field after searching or clearing filters.
+* Bug Fixes & Maintenance: Fixed 1 minor bug and implemented 2 performance improvements.
+
 = 2.5.7 =
 * Improved image generation reliability by using available local image files when preparing image data, with clearer guidance when an image cannot be processed.
 * Improved account connection recovery to avoid repeated unsuccessful recovery attempts while keeping valid connections usable.

@@ -2709,13 +2709,13 @@ function ai4seo_prepare_metadata_generation_content_data(
 
 
 /**
- * Remove an unfinished builder attribute tail from an already cleaned, bounded excerpt.
+ * Remove an unfinished builder attribute or ellipsis tail from a cleaned, bounded excerpt.
  *
  * Complete markup is handled by the shared visible-text extractor before this helper runs.
  * Ordinary brackets, escaped openers, and unknown shortcode names remain visible prose.
  *
  * @param string $excerpt Visible excerpt text from the bounded generation extractor.
- * @return string Visible text preceding any unterminated builder attribute token.
+ * @return string Visible text preceding any recognized unfinished builder tail.
  */
 function ai4seo_remove_incomplete_builder_excerpt_tail( string $excerpt ): string {
 	$offset = 0;
@@ -2748,6 +2748,11 @@ function ai4seo_remove_incomplete_builder_excerpt_tail( string $excerpt ): strin
 		if ( ! $closed ) {
 			return rtrim( substr( $excerpt, 0, $token_start ) );
 		}
+	}
+
+	// A terminal ellipsis also identifies a truncated tag; plain builder mentions remain prose.
+	if ( preg_match( '~(?<!\[)\[(?:vc_|et_pb_)[a-zA-Z0-9_]+(?:…|\.{3})\s*\z~', $excerpt, $matches, PREG_OFFSET_CAPTURE, $offset ) ) {
+		return rtrim( substr( $excerpt, 0, $matches[0][1] ) );
 	}
 
 	return $excerpt;

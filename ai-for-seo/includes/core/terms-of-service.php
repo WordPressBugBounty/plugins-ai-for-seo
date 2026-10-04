@@ -69,11 +69,7 @@ function ai4seo_get_latest_tos_or_toc_or_pp_update_timestamp(): int {
 		$last_website_toc_and_pp_update_time = time() - 1;
 	}
 
-	if ( AI4SEO_TOS_VERSION_TIMESTAMP > $last_website_toc_and_pp_update_time ) {
-		return AI4SEO_TOS_VERSION_TIMESTAMP;
-	} else {
-		return $last_website_toc_and_pp_update_time;
-	}
+	return max( AI4SEO_TOS_VERSION_TIMESTAMP, $last_website_toc_and_pp_update_time );
 }
 
 

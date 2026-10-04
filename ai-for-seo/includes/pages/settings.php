@@ -992,12 +992,14 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 						echo '</div>';
 
 						// Display input for prefix.
-						echo "<input type='text' class='ai4seo-prefix-suffix-setting-textfield' name='" . esc_attr( $ai4seo_this_metadata_prefix_setting_input_name ) . "' value='" . esc_attr( $ai4seo_this_metadata_prefix_setting_input_value ) . "' placeholder='" . esc_attr( 'Prefix' ) . "' maxlength='48' />";
+						/* translators: %s: Metadata or media attribute field name. */
+						echo "<input type='text' class='ai4seo-prefix-suffix-setting-textfield' name='" . esc_attr( $ai4seo_this_metadata_prefix_setting_input_name ) . "' value='" . esc_attr( $ai4seo_this_metadata_prefix_setting_input_value ) . "' placeholder='" . esc_attr( 'Prefix' ) . "' aria-label='" . esc_attr( sprintf( __( '%s prefix', 'ai-for-seo' ), $ai4seo_this_translated_setting_label ) ) . "' maxlength='48' />";
 
 						echo ' {' . esc_html__( 'TEXT', 'ai-for-seo' ) . '} ';
 
 						// Display input for suffix.
-						echo "<input type='text' class='ai4seo-prefix-suffix-setting-textfield' name='" . esc_attr( $ai4seo_this_metadata_suffix_setting_input_name ) . "' value='" . esc_attr( $ai4seo_this_metadata_suffix_setting_input_value ) . "' placeholder='" . esc_attr( 'Suffix' ) . "' maxlength='48' />";
+						/* translators: %s: Metadata or media attribute field name. */
+						echo "<input type='text' class='ai4seo-prefix-suffix-setting-textfield' name='" . esc_attr( $ai4seo_this_metadata_suffix_setting_input_name ) . "' value='" . esc_attr( $ai4seo_this_metadata_suffix_setting_input_value ) . "' placeholder='" . esc_attr( 'Suffix' ) . "' aria-label='" . esc_attr( sprintf( __( '%s suffix', 'ai-for-seo' ), $ai4seo_this_translated_setting_label ) ) . "' maxlength='48' />";
 					echo '</div>';
 				}
 
@@ -1735,12 +1737,14 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 						echo '</div>';
 
 						// Display input for prefix.
-						echo "<input type='text' class='ai4seo-prefix-suffix-setting-textfield' name='" . esc_attr( $ai4seo_this_attachment_attributes_prefix_setting_input_name ) . "' value='" . esc_attr( $ai4seo_this_attachment_attributes_prefix_setting_input_value ) . "' placeholder='" . esc_attr( 'Prefix' ) . "' maxlength='48' />";
+						/* translators: %s: Metadata or media attribute field name. */
+						echo "<input type='text' class='ai4seo-prefix-suffix-setting-textfield' name='" . esc_attr( $ai4seo_this_attachment_attributes_prefix_setting_input_name ) . "' value='" . esc_attr( $ai4seo_this_attachment_attributes_prefix_setting_input_value ) . "' placeholder='" . esc_attr( 'Prefix' ) . "' aria-label='" . esc_attr( sprintf( __( '%s prefix', 'ai-for-seo' ), $ai4seo_this_translated_setting_label ) ) . "' maxlength='48' />";
 
 						echo ' {' . esc_html__( 'TEXT', 'ai-for-seo' ) . '} ';
 
 						// Display input for suffix.
-						echo "<input type='text' class='ai4seo-prefix-suffix-setting-textfield' name='" . esc_attr( $ai4seo_this_attachment_attributes_suffix_setting_input_name ) . "' value='" . esc_attr( $ai4seo_this_attachment_attributes_suffix_setting_input_value ) . "' placeholder='" . esc_attr( 'Suffix' ) . "' maxlength='48' />";
+						/* translators: %s: Metadata or media attribute field name. */
+						echo "<input type='text' class='ai4seo-prefix-suffix-setting-textfield' name='" . esc_attr( $ai4seo_this_attachment_attributes_suffix_setting_input_name ) . "' value='" . esc_attr( $ai4seo_this_attachment_attributes_suffix_setting_input_value ) . "' placeholder='" . esc_attr( 'Suffix' ) . "' aria-label='" . esc_attr( sprintf( __( '%s suffix', 'ai-for-seo' ), $ai4seo_this_translated_setting_label ) ) . "' maxlength='48' />";
 					echo '</div>';
 				}
 

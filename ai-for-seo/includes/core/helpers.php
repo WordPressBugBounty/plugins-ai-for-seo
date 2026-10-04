@@ -1644,6 +1644,11 @@ function ai4seo_is_safe_unserialized_value( $value, int $depth, int &$remaining_
  * @return bool Whether the serialized grammar contains an enum token.
  */
 function ai4seo_serialized_value_contains_enum_token( string $serialized_value ): bool {
+	// Every enum token contains this marker; numeric ID collections need no PHP grammar walk without it.
+	if ( false === strpos( $serialized_value, 'E:' ) ) {
+		return false;
+	}
+
 	$serialized_length = strlen( $serialized_value );
 	$offset            = 0;
 

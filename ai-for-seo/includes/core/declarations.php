@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 // Centralize plugin identity and asset-cache declarations consumed throughout bootstrap.
-const AI4SEO_PLUGIN_VERSION_NUMBER              = '2.5.7';
+const AI4SEO_PLUGIN_VERSION_NUMBER              = '2.5.8';
 const AI4SEO_PLUGIN_NAME                        = 'SOOZ - AI for SEO';
 const AI4SEO_SHORT_PLUGIN_NAME                  = 'SOOZ';
 const AI4SEO_PLUGIN_DESCRIPTION                 = 'One-Click SEO solution. SOOZ - AI for SEO helps your website to rank higher in Web Search results.';
@@ -238,6 +238,19 @@ const AI4SEO_METADATA_KEYWORDS_RECOMMENDED_MAX_ITEMS = 10;
  */
 function ai4seo_get_change_log(): array {
 	return array(
+		array(
+			'date'      => '2026-10-04',
+			'version'   => '2.5.8',
+			'important' => false,
+			'updates'   => array(
+				'Reduced memory use when analyzing SEO coverage on larger websites.',
+				'Improved recognition of older generation history so supported saved values can be included in SEO analysis without changing stored content.',
+				'Fixed clearing custom instructions for multiple selected entries when the text box is left empty.',
+				'Improved keyboard and screen-reader navigation in metadata and media editors, settings, and media lists, with clearer field warnings and link descriptions.',
+				'Kept keyboard focus in the Related Media search field after searching or clearing filters.',
+				'Bug Fixes & Maintenance: Fixed 1 minor bug and implemented 2 performance improvements.',
+			),
+		),
 		array(
 			'date'      => '2026-09-25',
 			'version'   => '2.5.7',
@@ -1989,7 +2002,6 @@ const AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES = array(
 $ai4seo_environmental_variables            = AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES;
 $ai4seo_environmental_variables_are_loaded = false; // cache variable.
 
-$ai4seo_persistent_does_user_need_to_accept_tos_toc_and_pp = null; // cache variable
 // Debug cache-busting remains request-wide; update refreshes are scoped later to authorized plugin admin pages.
 // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only cache-busting flag; no state is changed.
 $ai4seo_scripts_version_number = isset( $_GET['ai4seo_debug_uncached_assets'] ) && sanitize_text_field( wp_unslash( $_GET['ai4seo_debug_uncached_assets'] ) )
@@ -2447,6 +2459,7 @@ function ai4seo_get_allowed_html_tags_and_attributes(): array {
 			'onclick'        => array(),
 			'data-time-left' => array(),
 			'aria-label'     => array(),
+			'aria-current'   => array(),
 		),
 		'i'        => array(
 			'onclick'     => array(),

@@ -4,7 +4,7 @@ Contributors: spacecodes
 Donate link: https://spa.ce.codes
 Requires at least: 6.6
 Tested up to: 7.1
-Stable tag: 2.5.7
+Stable tag: 2.5.8
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -225,6 +225,14 @@ It depends on how the generated data is stored and used. If *SOOZ - AI for SEO* 
 We welcome feature requests, editor integration ideas, page builder compatibility requests, and SEO workflow feedback. Please email [support@sooz.ai](mailto:support@sooz.ai) with your suggestions.
 
 == Changelog ==
+
+= 2.5.8 =
+* Reduced memory use when analyzing SEO coverage on larger websites.
+* Improved recognition of older generation history so supported saved values can be included in SEO analysis without changing stored content.
+* Fixed clearing custom instructions for multiple selected entries when the text box is left empty.
+* Improved keyboard and screen-reader navigation in metadata and media editors, settings, and media lists, with clearer field warnings and link descriptions.
+* Kept keyboard focus in the Related Media search field after searching or clearing filters.
+* Bug Fixes & Maintenance: Fixed 1 minor bug and implemented 2 performance improvements.
 
 = 2.5.7 =
 * Improved image generation reliability by using available local image files when preparing image data, with clearer guidance when an image cannot be processed.

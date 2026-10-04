@@ -4082,13 +4082,15 @@ function ai4seo_read_generated_data_post_ids_by_post_ids( array $post_ids, ?bool
 			$seen_post_id_lookup[ $this_generated_data_post_id ] = true;
 			$this_generated_data_details                         = array();
 			$this_generated_data_repair_required                 = false;
+			$this_generated_data_diagnostics                     = array();
 
 			// Validate supported content before publication; unrelated fields do not contribute to coverage.
 			if ( ! ai4seo_decode_generated_data_postmeta_value_authoritatively(
 				$this_generated_data_row['meta_value'],
 				$this_generated_data_details,
 				$this_generated_data_repair_required,
-				true
+				true,
+				$this_generated_data_diagnostics
 			) ) {
 				// Keep malformed relevant data identifiable without changing the existing repair policy.
 				$failure = array(
@@ -4100,6 +4102,7 @@ function ai4seo_read_generated_data_post_ids_by_post_ids( array $post_ids, ?bool
 					ai4seo_debug_message(
 						746205318,
 						esc_html( __FUNCTION__ ) . ' > Generated-data value failed authoritative decoding. Post ID: ' . esc_html( $this_generated_data_post_id ) . '; meta ID: ' . esc_html( $this_generated_data_meta_id )
+							. '; reason: ' . esc_html( $this_generated_data_diagnostics['reason'] ) . '; field: ' . esc_html( $this_generated_data_diagnostics['field'] )
 					);
 				}
 

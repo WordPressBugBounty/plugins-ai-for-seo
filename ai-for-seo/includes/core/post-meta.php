@@ -167,24 +167,171 @@ function ai4seo_canonicalize_legacy_generated_data_field_aliases( array $generat
 
 
 /**
- * Strictly decodes one raw generated-data postmeta value into normalized details.
+ * Normalizes recoverable historical values exclusively for in-memory analysis.
  *
- * @param mixed     $raw_value Raw database meta_value.
- * @param array     $generated_data_details Receives normalized generated-data details.
- * @param bool|null $repair_required Receives whether obsolete storage fields require persistence repair.
- * @param bool      $ignore_unsupported_fields Ignore unused field values for analysis without authorizing their deletion.
+ * @param array $generated_data Snapshot after obsolete fields have been removed.
+ * @param array $diagnostics Receives bounded reason codes without source values.
+ * @return array|false Normalized snapshot, or false for ambiguous relevant data.
+ */
+function ai4seo_normalize_generated_data_analysis_snapshot( array $generated_data, array &$diagnostics ) {
+	$supported_fields = ai4seo_get_supported_generated_data_field_identifiers();
+	$legacy_aliases   = array( 'social-media-title', 'social-media-description' );
+	$normalizations   = array();
+
+	foreach ( $generated_data as $field => $value ) {
+		if ( ! is_string( $field ) || '' === $field || sanitize_key( $field ) !== $field ) {
+			$diagnostics['reason'] = 'invalid_field_name';
+			$diagnostics['field']  = 'generated_data';
+			return false;
+		}
+
+		$is_alias = in_array( $field, $legacy_aliases, true );
+		if ( ! $is_alias && ! in_array( $field, $supported_fields, true ) ) {
+			continue;
+		}
+
+		if ( null !== $value && ! is_string( $value ) && ! is_int( $value ) && ( ! is_float( $value ) || ! is_finite( $value ) ) ) {
+			$diagnostics['reason'] = 'invalid_field_type';
+			$diagnostics['field']  = $field;
+			return false;
+		}
+
+		// String aliases already normalize against each destination's limits in the shared alias reader.
+		$prepared_value = $is_alias ? (string) $value : trim( ai4seo_prepare_generated_data_field_value( $field, $value ) );
+		if ( $prepared_value !== $value ) {
+			$category                    = null === $value ? 'empty_field' : ( is_string( $value ) ? 'text_format' : 'numeric_text' );
+			$normalizations[ $category ] = true;
+			$generated_data[ $field ]    = $prepared_value;
+		}
+	}
+
+	$provenance = $generated_data['generated_at_by_field'] ?? array();
+	if ( ! is_array( $provenance ) ) {
+		$diagnostics['reason'] = 'invalid_provenance_container';
+		$diagnostics['field']  = 'generated_at_by_field';
+		return false;
+	}
+
+	$timestamp_containers = array(
+		'generated_at'          => array_key_exists( 'generated_at', $generated_data ) ? array( 'generated_at' => $generated_data['generated_at'] ) : array(),
+		'generated_at_by_field' => $provenance,
+	);
+	foreach ( $timestamp_containers as $container => $timestamps ) {
+		foreach ( $timestamps as $field => $timestamp ) {
+			$is_field_timestamp = 'generated_at_by_field' === $container;
+			if ( $is_field_timestamp ) {
+				if ( ! is_string( $field ) || '' === $field || sanitize_key( $field ) !== $field ) {
+					$diagnostics['reason'] = 'invalid_field_name';
+					$diagnostics['field']  = $container;
+					return false;
+				}
+				if ( ! in_array( $field, $supported_fields, true ) && ! in_array( $field, $legacy_aliases, true ) ) {
+					continue;
+				}
+				// The existing reader drops provenance for empty canonical fields before validating it.
+				if ( in_array( $field, $supported_fields, true ) && isset( $generated_data[ $field ] ) && '' === $generated_data[ $field ] ) {
+					continue;
+				}
+			}
+
+			$normalized_timestamp = $timestamp;
+			if ( is_string( $timestamp ) && preg_match( '/^[0-9]+$/D', $timestamp ) ) {
+				$digits  = ltrim( $timestamp, '0' );
+				$maximum = (string) PHP_INT_MAX;
+				// Compare decimal strings before casting so overflow cannot silently change provenance.
+				if ( strlen( $digits ) < strlen( $maximum ) || ( strlen( $digits ) === strlen( $maximum ) && strcmp( $digits, $maximum ) <= 0 ) ) {
+					$normalized_timestamp = (int) $digits;
+				}
+			}
+
+			if ( null !== $normalized_timestamp && ( ! is_int( $normalized_timestamp ) || $normalized_timestamp < 0 ) ) {
+				$diagnostics['reason'] = 'invalid_timestamp';
+				$diagnostics['field']  = $is_field_timestamp ? $container . '.' . $field : $container;
+				return false;
+			}
+
+			if ( null === $normalized_timestamp || 0 === $normalized_timestamp ) {
+				$normalizations['absent_timestamp'] = true;
+				if ( $is_field_timestamp ) {
+					unset( $generated_data[ $container ][ $field ] );
+				} else {
+					unset( $generated_data[ $container ] );
+				}
+			} elseif ( $normalized_timestamp !== $timestamp ) {
+				$normalizations['timestamp_integer'] = true;
+				if ( $is_field_timestamp ) {
+					$generated_data[ $container ][ $field ] = $normalized_timestamp;
+				} else {
+					$generated_data[ $container ] = $normalized_timestamp;
+				}
+			}
+
+			if ( $is_field_timestamp && in_array( $field, $legacy_aliases, true ) && null !== $normalized_timestamp && 0 !== $normalized_timestamp && ! array_key_exists( $field, $generated_data ) ) {
+				$diagnostics['reason'] = 'orphan_provenance';
+				$diagnostics['field']  = $container . '.' . $field;
+				return false;
+			}
+		}
+	}
+
+	$generated_data = ai4seo_canonicalize_legacy_generated_data_field_aliases( $generated_data );
+	if ( false === $generated_data ) {
+		$diagnostics['reason'] = 'invalid_alias_or_provenance';
+		return false;
+	}
+	// Legacy aliases can supply a canonical field whose explicit timestamp already existed.
+	foreach ( $generated_data['generated_at_by_field'] ?? array() as $field => $timestamp ) {
+		if ( in_array( $field, $supported_fields, true ) && ! array_key_exists( $field, $generated_data ) ) {
+			$diagnostics['reason'] = 'orphan_provenance';
+			$diagnostics['field']  = 'generated_at_by_field.' . $field;
+			return false;
+		}
+	}
+	// Alias destination caps can introduce trailing whitespace even when the source was trimmed.
+	foreach ( $generated_data as $field => $value ) {
+		if ( in_array( $field, $supported_fields, true ) && trim( $value ) !== $value ) {
+			$generated_data[ $field ]      = trim( $value );
+			$normalizations['text_format'] = true;
+		}
+	}
+
+	$diagnostics['normalizations'] = array_keys( $normalizations );
+	return $generated_data;
+}
+
+
+/**
+ * Decodes one generated-data value, keeping storage validation strict by default.
+ *
+ * @param mixed      $raw_value Raw database meta_value.
+ * @param array      $generated_data_details Receives normalized generated-data details.
+ * @param bool|null  $repair_required Receives whether obsolete storage fields require persistence repair.
+ * @param bool       $ignore_unsupported_fields Enable analysis-only normalization and unused-field exclusion without authorizing writes.
+ * @param array|null $diagnostics Receives reason, field, and normalization category codes without source values.
  * @return bool True only for a supported JSON or legacy serialized array value.
  */
 function ai4seo_decode_generated_data_postmeta_value_authoritatively(
 	$raw_value,
 	array &$generated_data_details,
 	?bool &$repair_required = null,
-	bool $ignore_unsupported_fields = false
+	bool $ignore_unsupported_fields = false,
+	?array &$diagnostics = null
 ): bool {
 	$generated_data_details = array();
 	$repair_required        = false;
+	$diagnostics            = array(
+		'reason'         => '',
+		'field'          => '',
+		'normalizations' => array(),
+	);
 
 	if ( ! is_string( $raw_value ) ) {
+		$diagnostics['reason'] = 'invalid_storage_type';
+		return false;
+	}
+
+	if ( $ignore_unsupported_fields && 1 !== preg_match( '//u', $raw_value ) ) {
+		$diagnostics['reason'] = 'invalid_encoding';
 		return false;
 	}
 
@@ -195,15 +342,29 @@ function ai4seo_decode_generated_data_postmeta_value_authoritatively(
 		$generated_data = ai4seo_safe_maybe_unserialize( $raw_value );
 
 		if ( ! is_array( $generated_data ) ) {
+			$diagnostics['reason'] = 'invalid_payload';
 			return false;
 		}
 	}
 
 	// Remove only the explicitly repairable fields before aliases and current-contract validation run.
 	$repair_required = ai4seo_remove_obsolete_generated_data_fields( $generated_data );
-	$generated_data  = ai4seo_canonicalize_legacy_generated_data_field_aliases( $generated_data );
+	if ( $ignore_unsupported_fields ) {
+		$generated_data = ai4seo_normalize_generated_data_analysis_snapshot( $generated_data, $diagnostics );
+		if ( false === $generated_data ) {
+			$repair_required = false;
+			return false;
+		}
+		// Normalization permits counting only; never feed a transformed snapshot to persistent cleanup.
+		if ( $diagnostics['normalizations'] ) {
+			$repair_required = false;
+		}
+	} else {
+		$generated_data = ai4seo_canonicalize_legacy_generated_data_field_aliases( $generated_data );
+	}
 
 	if ( false === $generated_data ) {
+		$diagnostics['reason'] = 'invalid_alias_or_provenance';
 		return false;
 	}
 
@@ -211,6 +372,8 @@ function ai4seo_decode_generated_data_postmeta_value_authoritatively(
 	$generated_at_by_field           = $generated_data['generated_at_by_field'] ?? array();
 
 	if ( ! is_array( $generated_at_by_field ) ) {
+		$diagnostics['reason'] = 'invalid_provenance_container';
+		$diagnostics['field']  = 'generated_at_by_field';
 		return false;
 	}
 
@@ -219,11 +382,15 @@ function ai4seo_decode_generated_data_postmeta_value_authoritatively(
 			|| '' === $generated_data_key
 			|| sanitize_key( $generated_data_key ) !== $generated_data_key
 		) {
+			$diagnostics['reason'] = 'invalid_field_name';
+			$diagnostics['field']  = 'generated_data';
 			return false;
 		}
 
 		if ( 'generated_at' === $generated_data_key ) {
 			if ( ! is_int( $generated_data_value ) || $generated_data_value <= 0 ) {
+				$diagnostics['reason'] = 'invalid_timestamp';
+				$diagnostics['field']  = 'generated_at';
 				return false;
 			}
 
@@ -247,6 +414,8 @@ function ai4seo_decode_generated_data_postmeta_value_authoritatively(
 			|| ! is_string( $generated_data_value )
 			|| ai4seo_prepare_generated_data_field_value( $generated_data_key, $generated_data_value ) !== $generated_data_value
 		) {
+			$diagnostics['reason'] = ! $is_supported_generated_data_field ? 'unsupported_field' : ( is_string( $generated_data_value ) ? 'noncanonical_text' : 'invalid_field_type' );
+			$diagnostics['field']  = $is_supported_generated_data_field ? $generated_data_key : 'generated_data';
 			return false;
 		}
 
@@ -274,6 +443,8 @@ function ai4seo_decode_generated_data_postmeta_value_authoritatively(
 			|| ! is_int( $generated_timestamp )
 			|| $generated_timestamp <= 0
 		) {
+			$diagnostics['reason'] = 'invalid_provenance';
+			$diagnostics['field']  = 'generated_at_by_field';
 			return false;
 		}
 	}
@@ -397,15 +568,16 @@ function ai4seo_debug_generated_data_postmeta( int $post_id, bool $inspect_post 
 			$logged     = $row_logged && $logged;
 			continue;
 		}
-		$raw_value      = $row['raw_value'];
-		$raw_is_string  = is_string( $raw_value );
-		$captured_bytes = $raw_is_string ? strlen( $raw_value ) : 0;
-		$is_truncated   = $raw_is_string && (int) $row['raw_bytes'] > $captured_bytes;
-		$details        = array();
-		$needs_repair   = false;
-		$accepted       = null;
+		$raw_value          = $row['raw_value'];
+		$raw_is_string      = is_string( $raw_value );
+		$captured_bytes     = $raw_is_string ? strlen( $raw_value ) : 0;
+		$is_truncated       = $raw_is_string && (int) $row['raw_bytes'] > $captured_bytes;
+		$details            = array();
+		$needs_repair       = false;
+		$accepted           = null;
+		$decode_diagnostics = null;
 		if ( ! $is_truncated && AI4SEO_POST_META_GENERATED_DATA_META_KEY === $meta_key ) {
-			$accepted = ai4seo_decode_generated_data_postmeta_value_authoritatively( $raw_value, $details, $needs_repair, true );
+			$accepted = ai4seo_decode_generated_data_postmeta_value_authoritatively( $raw_value, $details, $needs_repair, true, $decode_diagnostics );
 		} elseif ( ! $is_truncated && AI4SEO_POST_META_ACTIVE_METADATA_META_KEY === $meta_key ) {
 			$accepted = $raw_is_string && ai4seo_decode_active_metadata_postmeta_value_authoritatively( $raw_value );
 		}
@@ -430,6 +602,9 @@ function ai4seo_debug_generated_data_postmeta( int $post_id, bool $inspect_post 
 			'raw_value_json'        => false === $value_json ? null : $value_json,
 			'raw_value_hex'         => $raw_is_string ? bin2hex( $raw_value ) : null,
 		);
+		if ( null !== $decode_diagnostics ) {
+			$row_report['decoder_diagnostics'] = $decode_diagnostics;
+		}
 		if ( $inspect_post ) {
 			$row_report['meta_key']        = $meta_key; // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Diagnostic label, not a query.
 			$row_report['captured_sha256'] = $raw_is_string ? hash( 'sha256', $raw_value ) : null;

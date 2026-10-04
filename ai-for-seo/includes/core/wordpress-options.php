@@ -4280,6 +4280,28 @@ function ai4seo_remove_post_ids_from_option( string $remove_from_this_option, $p
 
 
 /**
+ * Atomically removes post IDs from one ordered queue option.
+ *
+ * @param string $option_name Queue option name.
+ * @param array  $post_ids Post IDs to remove.
+ * @return bool True after a successful removal or authoritative no-op.
+ */
+function ai4seo_remove_post_ids_from_option_atomically( string $option_name, array $post_ids ): bool {
+	$option_name = sanitize_key( $option_name );
+	$post_ids    = ai4seo_normalize_option_post_id_collection( $post_ids );
+
+	if ( '' === $option_name || ! $post_ids ) {
+		return true;
+	}
+
+	$membership_changed = false;
+
+	// The caller already owns the shared transition fence, so reuse only the bounded single-option CAS.
+	return ai4seo_mutate_post_id_option_membership( $option_name, array(), $post_ids, $membership_changed );
+}
+
+
+/**
  * Removes post IDs from a complete option set under one checked transition fence.
  *
  * @param array     $remove_from_these_options Option names to update.

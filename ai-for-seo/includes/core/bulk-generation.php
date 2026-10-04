@@ -48,6 +48,17 @@ function ai4seo_order_auto_queue_eligible_post_ids( array $candidate_post_ids, a
 }
 
 /**
+ * Normalizes post IDs from an option value without changing their queue order.
+ *
+ * @param mixed $option_value Raw option value or decoded post-ID collection.
+ * @return array Ordered unique positive integer post IDs.
+ */
+function ai4seo_normalize_ordered_auto_queue_post_ids( $option_value ): array {
+	return ai4seo_normalize_option_post_id_collection( $option_value );
+}
+
+
+/**
  * Normalize enabled bulk-generation post types to their canonical string domain.
  *
  * @param mixed $enabled_bulk_generation_post_types Candidate post-type collection.
@@ -840,6 +851,269 @@ function ai4seo_get_bulk_generation_queue_options_by_context( string $context ):
 	}
 
 	return array();
+}
+
+
+/**
+ * Add automatically discovered entries to a generation queue without losing retained force-overwrite markers.
+ *
+ * @param array  $post_ids Post IDs selected by automatic queue excavation.
+ * @param string $context  Bulk generation queue context.
+ * @return bool True only when the complete queue transition was verified.
+ */
+function ai4seo_add_auto_queue_post_ids_preserving_force_overwrite( array $post_ids, string $context ): bool {
+	$post_ids      = ai4seo_normalize_option_post_id_collection( $post_ids );
+	$queue_options = ai4seo_get_bulk_generation_queue_options_by_context( $context );
+
+	if (
+		! $post_ids
+		|| ! isset( $queue_options['pending'], $queue_options['processing'] )
+	) {
+		return false;
+	}
+
+	// Reuse the fully fenced eligibility barrier; Processing and every other blocker remain untouched.
+	return null !== ai4seo_add_bounded_auto_queue_post_ids_preserving_force_overwrite(
+		$post_ids,
+		$context,
+		PHP_INT_MAX
+	);
+}
+
+
+/**
+ * Persist exact rollback owners before an automatic Pending admission can become visible.
+ *
+ * @param string $context Bulk generation queue context.
+ * @param array  $post_ids Exact planned admission IDs.
+ * @param array  $force_post_id_lookup Authoritative Force membership lookup.
+ * @param array  $rollback_tokens Receives rollback tokens keyed by post ID, including an ambiguous final write.
+ * @return bool Whether every exact rollback owner was verified.
+ */
+function ai4seo_persist_auto_queue_admission_rollback_leases_under_lock(
+	string $context,
+	array $post_ids,
+	array $force_post_id_lookup,
+	array &$rollback_tokens
+): bool {
+	$post_ids             = ai4seo_normalize_ordered_auto_queue_post_ids( $post_ids );
+	$membership_snapshots = array();
+
+	foreach ( $post_ids as $post_id ) {
+		$membership_snapshots[ $post_id ] = array(
+			'pending_was_present' => false,
+			'force_was_present'   => isset( $force_post_id_lookup[ $post_id ] ),
+		);
+	}
+
+	return ai4seo_persist_queue_membership_rollback_leases_under_lock(
+		$context,
+		$membership_snapshots,
+		$rollback_tokens
+	);
+}
+
+
+/**
+ * Atomically admits post IDs to one queue option without exceeding its cap.
+ *
+ * @param string $option_name Queue option name.
+ * @param array  $candidate_post_ids Ordered candidate IDs.
+ * @param int    $maximum_post_ids Maximum number of IDs retained in the option.
+ * @param array  $admitted_post_ids IDs inserted by the successful compare-and-swap.
+ * @return bool True after a successful admission or an authoritative no-op.
+ */
+function ai4seo_add_bounded_post_ids_to_option(
+	string $option_name,
+	array $candidate_post_ids,
+	int $maximum_post_ids,
+	array &$admitted_post_ids
+): bool {
+	$option_name        = sanitize_key( $option_name );
+	$candidate_post_ids = ai4seo_normalize_ordered_auto_queue_post_ids( $candidate_post_ids );
+	$maximum_post_ids   = max( 0, $maximum_post_ids );
+	$admitted_post_ids  = array();
+
+	if ( '' === $option_name || 0 === $maximum_post_ids || ! $candidate_post_ids ) {
+		return true;
+	}
+
+	// Retry from an authoritative snapshot so simultaneous admissions retain both workers' IDs.
+	for ( $write_attempt = 0; $write_attempt < 5; ++$write_attempt ) {
+		if ( ! ai4seo_renew_post_id_option_transition_semaphore() ) {
+			return false;
+		}
+
+		$option_snapshot = ai4seo_get_raw_option_snapshot( $option_name );
+
+		if ( null === $option_snapshot ) {
+			return false;
+		}
+
+		$current_post_ids        = ai4seo_normalize_ordered_auto_queue_post_ids( $option_snapshot['value'] );
+		$new_post_ids            = $current_post_ids;
+		$post_id_lookup          = array_fill_keys( $current_post_ids, true );
+		$newly_admitted_post_ids = array();
+
+		foreach ( $candidate_post_ids as $candidate_post_id ) {
+			if ( count( $new_post_ids ) >= $maximum_post_ids ) {
+				break;
+			}
+
+			if ( isset( $post_id_lookup[ $candidate_post_id ] ) ) {
+				continue;
+			}
+
+			$new_post_ids[]                       = $candidate_post_id;
+			$post_id_lookup[ $candidate_post_id ] = true;
+			$newly_admitted_post_ids[]            = $candidate_post_id;
+		}
+
+		if ( ! $newly_admitted_post_ids ) {
+			return ai4seo_renew_post_id_option_transition_semaphore();
+		}
+
+		if (
+			in_array(
+				$option_name,
+				array(
+					AI4SEO_PENDING_METADATA_POST_IDS_OPTION_NAME,
+					AI4SEO_FORCE_OVERWRITE_METADATA_POST_IDS_OPTION_NAME,
+					AI4SEO_PENDING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME,
+					AI4SEO_FORCE_OVERWRITE_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME,
+				),
+				true
+			)
+			&& ! ai4seo_clear_disabled_queue_inspection_state_under_lock()
+		) {
+			return false;
+		}
+
+		if ( ! ai4seo_renew_post_id_option_transition_semaphore() ) {
+			return false;
+		}
+
+		$compare_and_swap_result = ai4seo_compare_and_swap_option_snapshot(
+			$option_name,
+			$option_snapshot,
+			$new_post_ids
+		);
+
+		if ( null === $compare_and_swap_result ) {
+			return false;
+		}
+
+		if ( $compare_and_swap_result ) {
+			$admitted_post_ids = $newly_admitted_post_ids;
+			return ai4seo_renew_post_id_option_transition_semaphore();
+		}
+	}
+
+	return false;
+}
+
+
+/**
+ * Removes only Pending queue memberships observed in authoritative snapshots.
+ *
+ * Processing belongs to a live worker and is never inferred to be owned by the cleanup caller.
+ * The storage primitive observes Pending and matching Force state only after acquiring the shared
+ * fence, then fails closed if any out-of-band writer changes either exact snapshot.
+ *
+ * @param array $contexts Bulk generation queue contexts.
+ * @return bool True only when every requested snapshot removal was verified.
+ */
+function ai4seo_remove_bulk_generation_pending_queue_snapshot_memberships( array $contexts ): bool {
+	$contexts                       = array_values( array_unique( array_map( 'sanitize_key', $contexts ) ) );
+	$primary_to_paired_option_names = array();
+
+	if ( ! $contexts ) {
+		return false;
+	}
+
+	foreach ( $contexts as $context ) {
+		$queue_options = ai4seo_get_bulk_generation_queue_options_by_context( $context );
+
+		if ( ! isset( $queue_options['pending'], $queue_options['force_overwrite'] ) ) {
+			return false;
+		}
+
+		$primary_to_paired_option_names[ $queue_options['pending'] ] = $queue_options['force_overwrite'];
+	}
+
+	if ( ! ai4seo_clear_primary_post_id_option_pairs( $primary_to_paired_option_names ) ) {
+		ai4seo_debug_message( 641476228, 'Could not safely remove bulk generation queue snapshot memberships.', true );
+		return false;
+	}
+
+	return true;
+}
+
+
+/**
+ * Resolve one terminal transition to its single queue ownership context.
+ *
+ * @param array $destination_option_names Requested destination or explicit removal options.
+ * @return string Bulk generation context, or an empty string when mixed/unknown.
+ */
+function ai4seo_get_bulk_generation_result_transition_context( array $destination_option_names ): string {
+	$resolved_context = '';
+
+	foreach ( $destination_option_names as $destination_option_name ) {
+		$destination_option_name = sanitize_key( $destination_option_name );
+		$this_context            = '';
+
+		foreach ( ai4seo_get_bulk_generation_queue_contexts() as $context ) {
+			$context_option_names = array_values( ai4seo_get_bulk_generation_queue_options_by_context( $context ) );
+
+			if ( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA === $context ) {
+				$context_option_names[] = AI4SEO_FULLY_COVERED_METADATA_POST_IDS_OPTION_NAME;
+				$context_option_names[] = AI4SEO_GENERATED_METADATA_POST_IDS_OPTION_NAME;
+			} elseif ( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES === $context ) {
+				$context_option_names[] = AI4SEO_FULLY_COVERED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME;
+				$context_option_names[] = AI4SEO_GENERATED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME;
+			}
+
+			if ( in_array( $destination_option_name, $context_option_names, true ) ) {
+				$this_context = $context;
+				break;
+			}
+		}
+
+		if ( '' === $this_context || ( '' !== $resolved_context && $resolved_context !== $this_context ) ) {
+			return '';
+		}
+
+		$resolved_context = $this_context;
+	}
+
+	return $resolved_context;
+}
+
+
+/**
+ * Apply a terminal bulk-generation result for one exact durable owner without a cron registry.
+ *
+ * @param int    $post_id Post ID whose generation state changed.
+ * @param array  $destination_option_names Options that must contain the post ID after the transition;
+ *                                         empty for an exact owned removal-only result.
+ * @param string $claim_token Exact durable lease token.
+ * @param array  $removal_option_names Additional exact removals in the same queue context.
+ * @return bool True only when the owned terminal transition and lease removal were verified.
+ */
+function ai4seo_apply_owned_bulk_generation_result_transition(
+	int $post_id,
+	array $destination_option_names,
+	string $claim_token,
+	array $removal_option_names = array()
+): bool {
+	$claim_token = trim( $claim_token );
+
+	if ( '' === $claim_token || 128 < strlen( $claim_token ) ) {
+		return false;
+	}
+
+	return ai4seo_apply_bulk_generation_result_transition( $post_id, $destination_option_names, $claim_token, $removal_option_names );
 }
 
 

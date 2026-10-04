@@ -632,10 +632,20 @@ foreach ( $ai4seo_all_attachment_posts as $ai4seo_this_attachment ) {
 		$ai4seo_this_attachment_source_url = $ai4seo_this_attachment->guid ?? '';
 	}
 
-	$ai4seo_this_post_link = get_edit_post_link( $ai4seo_this_attachment );
+	$ai4seo_this_post_link             = get_edit_post_link( $ai4seo_this_attachment );
+	$ai4seo_this_post_link_description = sprintf(
+		/* translators: %d: Media ID. */
+		__( 'Edit media ID %d in WordPress (opens in a new tab)', 'ai-for-seo' ),
+		$ai4seo_this_post_attachment_id
+	);
 
 	if ( ! $ai4seo_this_post_link ) {
-		$ai4seo_this_post_link = $ai4seo_this_attachment_source_url;
+		$ai4seo_this_post_link             = $ai4seo_this_attachment_source_url;
+		$ai4seo_this_post_link_description = sprintf(
+			/* translators: %d: Media ID. */
+			__( 'View media file ID %d (opens in a new tab)', 'ai-for-seo' ),
+			$ai4seo_this_post_attachment_id
+		);
 	}
 	$ai4seo_this_attachment_language            = ai4seo_try_get_post_language_by_checking_multilanguage_plugins( $ai4seo_this_post_attachment_id );
 	$ai4seo_this_attachment_title_with_language = $ai4seo_this_attachment_title;
@@ -826,7 +836,7 @@ foreach ( $ai4seo_all_attachment_posts as $ai4seo_this_attachment ) {
 		// Image or File Preview.
 		echo "<td class='ai4seo-attachment-list-image-preview'>";
 	if ( $ai4seo_this_post_link ) {
-		echo "<a href='" . esc_url( $ai4seo_this_post_link ) . "' target='_blank'>";
+		echo "<a href='" . esc_url( $ai4seo_this_post_link ) . "' target='_blank' aria-label='" . esc_attr( $ai4seo_this_post_link_description ) . "' title='" . esc_attr( $ai4seo_this_post_link_description ) . "'>";
 	}
 
 		echo "<img src='" . esc_url( $ai4seo_preview_image_url ) . "' alt='" . esc_attr( $ai4seo_preview_image_alt_text ) . "'/>";
@@ -838,10 +848,16 @@ foreach ( $ai4seo_all_attachment_posts as $ai4seo_this_attachment ) {
 		echo '</td>';
 
 		// Title.
+		$ai4seo_this_post_title_link_label = sprintf(
+			/* translators: 1: Visible media title, 2: Link destination and new-tab description. */
+			__( '%1$s — %2$s', 'ai-for-seo' ),
+			$ai4seo_this_attachment_title_with_language,
+			$ai4seo_this_post_link_description
+		);
 		echo "<td class='title column-title has-row-actions column-primary post-title ai4seo-hidden-on-mobile'>";
 			echo '<strong>';
 	if ( $ai4seo_this_post_link ) {
-		echo "<a href='" . esc_url( $ai4seo_this_post_link ) . "' target='_blank'>";
+		echo "<a href='" . esc_url( $ai4seo_this_post_link ) . "' target='_blank' aria-label='" . esc_attr( $ai4seo_this_post_title_link_label ) . "' title='" . esc_attr( $ai4seo_this_post_link_description ) . "'>";
 	}
 
 		echo esc_html( $ai4seo_this_attachment_title_with_language );
@@ -960,7 +976,7 @@ foreach ( $ai4seo_all_attachment_posts as $ai4seo_this_attachment ) {
 			// Title display for mobile version.
 			echo "<div class='ai4seo-visible-on-mobile'>";
 				echo '<strong>';
-					echo "<a href='" . esc_url( $ai4seo_this_post_link ) . "' target='_blank'>";
+					echo "<a href='" . esc_url( $ai4seo_this_post_link ) . "' target='_blank' aria-label='" . esc_attr( $ai4seo_this_post_title_link_label ) . "' title='" . esc_attr( $ai4seo_this_post_link_description ) . "'>";
 						echo esc_html( $ai4seo_this_attachment_title_with_language );
 					echo '</a>';
 				echo '</strong>';
