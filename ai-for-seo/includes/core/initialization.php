@@ -2420,6 +2420,10 @@ function ai4seo_get_primary_asset_contexts( string $hook_suffix = '' ): array {
 	}
 
 	// Deduplicate core results before integrations receive their opt-in extension point.
+	if ( is_admin() && $can_administer_plugin && ! ai4seo_does_user_need_to_accept_tos_toc_and_pp()
+		&& function_exists( 'ai4seo_get_activation_offer' ) && ai4seo_get_activation_offer() ) {
+		$asset_contexts[] = 'activation-offer';
+	}
 	$core_asset_contexts = array_values( array_unique( $asset_contexts ) );
 
 	/**

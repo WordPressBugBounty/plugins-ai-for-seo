@@ -228,6 +228,7 @@ class Ai4Seo_RobHubApiCommunicator {
 	private const SINGLE_ATTEMPT_ENDPOINTS = array(
 		// Checkout resumption is an explicit administrator action using the saved attempt, not a transport retry.
 		'client/init-purchase',
+		'client/activation-preferences',
 		'client/get-free-account',
 		'client/send-licence-data',
 		self::ROTATE_API_PASSWORD_ENDPOINT,
@@ -260,6 +261,7 @@ class Ai4Seo_RobHubApiCommunicator {
 	private const SENSITIVE_CREDENTIAL_ENDPOINTS = array(
 		'client/get-free-account',
 		'client/init-purchase',
+		'client/activation-preferences',
 		self::PREPARE_SUBSCRIPTION_PRICING_ENDPOINT,
 		self::PREPARE_API_PASSWORD_ROTATION_ENDPOINT,
 		self::ROTATE_API_PASSWORD_ENDPOINT,
@@ -565,6 +567,7 @@ class Ai4Seo_RobHubApiCommunicator {
 		'client/changed-api-user'                    => 5,
 		'client/payg-settings'                       => 5,
 		'client/init-purchase'                       => 5,
+		'client/activation-preferences'              => 5,
 		self::PREPARE_SUBSCRIPTION_PRICING_ENDPOINT  => 0,
 		self::PREPARE_API_PASSWORD_ROTATION_ENDPOINT => 0,
 		self::ROTATE_API_PASSWORD_ENDPOINT           => 0,
@@ -645,6 +648,7 @@ class Ai4Seo_RobHubApiCommunicator {
 		'client/changed-api-user',
 		'client/payg-settings',
 		'client/init-purchase',
+		'client/activation-preferences',
 		self::PREPARE_SUBSCRIPTION_PRICING_ENDPOINT,
 		self::PREPARE_API_PASSWORD_ROTATION_ENDPOINT,
 		self::ROTATE_API_PASSWORD_ENDPOINT,
@@ -677,6 +681,7 @@ class Ai4Seo_RobHubApiCommunicator {
 		'client/changed-api-user',
 		'client/payg-settings',
 		'client/init-purchase',
+		'client/activation-preferences',
 		self::PREPARE_SUBSCRIPTION_PRICING_ENDPOINT,
 		self::PREPARE_API_PASSWORD_ROTATION_ENDPOINT,
 		self::ROTATE_API_PASSWORD_ENDPOINT,
@@ -2041,6 +2046,9 @@ class Ai4Seo_RobHubApiCommunicator {
 	 * @return array The API response from the free account creation call, or an error array if the process failed.
 	 */
 	public function init_free_account( string $base_username = '', bool $update_to_database = true ): array {
+		// Bootstrap uses temporary transport credentials, so retain the authoritative pre-call state.
+		$auth_snapshot = ai4seo_get_raw_option_snapshot( $this->environmental_variables_option_name );
+
 		// build pseudo api username and password first.
 		$new_api_username = $this->build_api_username( $base_username );
 
@@ -2058,10 +2066,16 @@ class Ai4Seo_RobHubApiCommunicator {
 		if ( ! $this->was_call_successful( $response ) || ! isset( $response['data']['api_username'] ) || ! isset( $response['data']['api_password'] ) ) {
 			$this->api_username = '';
 			$this->api_password = '';
-			$response_keys      = is_array( $response )
+
+			if ( false === ( $response['success'] ?? null ) && 41228125 === ( $response['code'] ?? null )
+				&& ! $this->conditionally_lock_rejected_bootstrap( $auth_snapshot ) ) {
+				ai4seo_debug_message( 86100626, 'Could not confirm a durable authentication lock after bootstrap rejection.', true );
+			}
+
+			$response_keys = is_array( $response )
 				? ai4seo_get_debug_array_key_summary( $response )
 				: 'none';
-			$data_keys          = isset( $response['data'] ) && is_array( $response['data'] )
+			$data_keys     = isset( $response['data'] ) && is_array( $response['data'] )
 				? ai4seo_get_debug_array_key_summary( $response['data'] )
 				: 'none';
 			ai4seo_debug_message(
@@ -2082,6 +2096,88 @@ class Ai4Seo_RobHubApiCommunicator {
 
 		// everything went fine.
 		return $response;
+	}
+
+
+	/**
+	 * Lock a rejected purchased-identity bootstrap without overwriting a newer auth generation.
+	 *
+	 * @param array|null $expected_snapshot Authoritative storage before temporary bootstrap credentials.
+	 * @return bool Whether the durable lock was verified or newer/protected auth state was preserved.
+	 */
+	private function conditionally_lock_rejected_bootstrap( ?array $expected_snapshot ): bool {
+		if ( ! is_array( $expected_snapshot )
+			|| ( $expected_snapshot['exists'] && ! is_array( $expected_snapshot['value'] ) )
+			|| ! $this->acquire_api_password_rotation_lock() ) {
+			return false;
+		}
+
+		try {
+			$auth_keys     = array_fill_keys(
+				array( self::ENVIRONMENTAL_VARIABLE_API_USERNAME, self::ENVIRONMENTAL_VARIABLE_API_PASSWORD, self::ENVIRONMENTAL_VARIABLE_IS_AUTH_LOCKED ),
+				true
+			);
+			$expected_auth = array_intersect_key( $expected_snapshot['exists'] ? $expected_snapshot['value'] : array(), $auth_keys );
+
+			for ( $storage_attempt = 0; $storage_attempt < self::API_PASSWORD_ROTATION_STORAGE_MAX_ATTEMPTS; ++$storage_attempt ) {
+				$snapshot = ai4seo_get_raw_option_snapshot( $this->environmental_variables_option_name );
+				if ( ! is_array( $snapshot ) || ( $snapshot['exists'] && ! is_array( $snapshot['value'] ) ) ) {
+					return false;
+				}
+
+				$current_values                = $snapshot['exists'] ? $snapshot['value'] : array();
+				$this->environmental_variables = $this->normalize_environmental_variables( $current_values );
+				$this->synchronize_runtime_credentials_from_environmental_variables();
+
+				// Preserve raw auth changes, including partial reconnects, rather than comparing normalized defaults.
+				if ( array_intersect_key( $current_values, $auth_keys ) !== $expected_auth
+					|| ( $this->is_non_empty_api_username_valid( $this->api_username ) && $this->is_non_empty_api_password_valid( $this->api_password ) )
+					|| ( '' === $this->api_username && '' === $this->api_password && $this->is_auth_data_locked() ) ) {
+					return true;
+				}
+
+				$pending_inspection  = $this->inspect_pending_api_password_rotation();
+				$recovery_inspection = $this->inspect_api_password_rotation_recovery_intent();
+				if ( 'missing' !== $pending_inspection['state'] || 'missing' !== $recovery_inspection['state'] ) {
+					ai4seo_debug_message( 87100626, 'Bootstrap rejection retained protected credential recovery state.', true );
+					return 'unavailable' !== $pending_inspection['state'] && 'unavailable' !== $recovery_inspection['state'];
+				}
+
+				// Change only the auth/reset fields; unrelated raw option entries must survive this repair.
+				$reset_values = $this->build_invalidated_auth_environmental_variables( array() );
+				$replacement  = array_replace( $current_values, $reset_values );
+				foreach ( $reset_values as $name => $value ) {
+					if ( self::DEFAULT_ENVIRONMENTAL_VARIABLES[ $name ] === $value ) {
+						unset( $replacement[ $name ] );
+					}
+				}
+
+				$write_result = $this->compare_and_swap_environmental_variables_snapshot( $snapshot, $replacement );
+				if ( null === $write_result ) {
+					return false;
+				}
+				if ( false === $write_result ) {
+					continue;
+				}
+
+				$verified = $this->read_fresh_environmental_variables();
+				if ( ! $verified ) {
+					return false;
+				}
+				$this->environmental_variables = $verified;
+				$this->synchronize_runtime_credentials_from_environmental_variables();
+
+				if ( '' === $this->api_username && '' === $this->api_password && $this->is_auth_data_locked()
+					&& 0 === (int) $verified[ self::ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC ]
+					&& ! $verified[ self::ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED ] ) {
+					return true;
+				}
+			}
+		} finally {
+			$this->release_api_password_rotation_lock();
+		}
+
+		return false;
 	}
 
 
@@ -2114,6 +2210,7 @@ class Ai4Seo_RobHubApiCommunicator {
 
 		return array(
 			'generation_status_summary'          => $generation_status_summary,
+			'activation_capability'              => 'v1',
 			'costs_per_post'                     => ai4seo_calculate_metadata_credits_cost_per_post(),
 			'costs_per_attachment'               => ai4seo_calculate_attachment_attributes_credits_cost_per_attachment_post(),
 			'enabled_bulk_generation_post_types' => $enabled_bulk_generation_post_types,
@@ -3038,14 +3135,9 @@ class Ai4Seo_RobHubApiCommunicator {
 				return false;
 			}
 
-			$invalidated_environmental_variables = $current_environmental_variables;
-			$invalidated_environmental_variables[ self::ENVIRONMENTAL_VARIABLE_API_USERNAME ]      = '';
-			$invalidated_environmental_variables[ self::ENVIRONMENTAL_VARIABLE_API_PASSWORD ]      = '';
-			$invalidated_environmental_variables[ self::ENVIRONMENTAL_VARIABLE_IS_AUTH_LOCKED ]    = true;
-			$invalidated_environmental_variables[ self::ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC ] = 0;
-			$invalidated_environmental_variables[ self::ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED ] = false;
-			$invalidated_overrides = $this->build_environmental_variable_overrides( $invalidated_environmental_variables );
-			$write_result          = $this->compare_and_swap_environmental_variables_snapshot( $environmental_snapshot, $invalidated_overrides );
+			$invalidated_environmental_variables = $this->build_invalidated_auth_environmental_variables( $current_environmental_variables );
+			$invalidated_overrides               = $this->build_environmental_variable_overrides( $invalidated_environmental_variables );
+			$write_result                        = $this->compare_and_swap_environmental_variables_snapshot( $environmental_snapshot, $invalidated_overrides );
 
 			if ( null === $write_result ) {
 				return false;
@@ -5087,6 +5179,26 @@ class Ai4Seo_RobHubApiCommunicator {
 
 
 	/**
+	 * Apply the shared credential invalidation and reconnect-required state.
+	 *
+	 * @param array $environmental_variables Existing values to preserve outside authentication state.
+	 * @return array Values with both credentials cleared and account synchronization reset.
+	 */
+	private function build_invalidated_auth_environmental_variables( array $environmental_variables ): array {
+		return array_replace(
+			$environmental_variables,
+			array(
+				self::ENVIRONMENTAL_VARIABLE_API_USERNAME => '',
+				self::ENVIRONMENTAL_VARIABLE_API_PASSWORD => '',
+				self::ENVIRONMENTAL_VARIABLE_IS_AUTH_LOCKED => true,
+				self::ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC => 0,
+				self::ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED => false,
+			)
+		);
+	}
+
+
+	/**
 	 * Persist invalidated credentials and optionally set their lock state atomically.
 	 *
 	 * @param bool|null $is_auth_locked Lock state to persist, or null to preserve it.
@@ -5250,6 +5362,13 @@ class Ai4Seo_RobHubApiCommunicator {
 	 */
 	public function deep_sanitize_for_endpoint( $data, string $endpoint, string $sanitize_value_function_name = 'sanitize_text_field', array $path = array() ) {
 		if ( ! is_array( $data ) ) {
+			// Activation validators require JSON integers; keep other endpoint and request contracts unchanged.
+			if ( is_int( $data ) && 'ai4seo_wp_kses' === $sanitize_value_function_name
+				&& ( 'client/activation-preferences' === $endpoint
+					|| ( 'client/sync' === $endpoint && 'activation' === ( $path[0] ?? '' ) ) ) ) {
+				return $data;
+			}
+
 			// The optional diagnostic contract uses typed numbers, not sanitized numeric strings.
 			if ( 2 === count( $path ) && 'rotation_context' === $path[0]
 				&& in_array( $path[1], array( 'version', 'attempt_count', 'due_in_seconds', 'proof_index' ), true ) && is_int( $data ) ) {

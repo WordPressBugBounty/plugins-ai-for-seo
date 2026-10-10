@@ -1032,6 +1032,7 @@ function ai4seo_get_posts_table_analysis_status( bool $allow_debug_heavy_db_oper
 	$status   = 'failed';
 	$message  = __( 'Analysis state could not be read. Please run the plugin performance analysis from Help to collect diagnostics.', 'ai-for-seo' );
 	$progress = array();
+	$warning  = '';
 
 	// All consumers use the same precedence: intentional pause, recorded failure, then completion.
 	if ( ! empty( $snapshot['success'] ) ) {
@@ -1061,10 +1062,29 @@ function ai4seo_get_posts_table_analysis_status( bool $allow_debug_heavy_db_oper
 		}
 	}
 
+	if ( ! empty( $progress['warnings']['count'] ) ) {
+		if ( 'completed' === $status ) {
+			$message = __( 'Analysis completed with warnings.', 'ai-for-seo' );
+		}
+		$warning = sprintf(
+			/* translators: 1: Number of isolated entries. 2: Sample post IDs. */
+			_n(
+				'%1$s entry has unreadable or ambiguous generated history and is excluded from coverage statistics and SEO Autopilot. Stored data is unchanged. Example post IDs: %2$s. Run the plugin performance analysis from Help for details.',
+				'%1$s entries have unreadable or ambiguous generated history and are excluded from coverage statistics and SEO Autopilot. Stored data is unchanged. Example post IDs: %2$s. Run the plugin performance analysis from Help for details.',
+				(int) $progress['warnings']['count'],
+				'ai-for-seo'
+			),
+			ai4seo_format_number_i18n( (int) $progress['warnings']['count'] ),
+			implode( ', ', array_column( $progress['warnings']['samples'], 'post_id' ) )
+		);
+		$message .= ' ' . $warning;
+	}
+
 	// Keep the worker marker available for debug consumers that must distinguish lock deferral.
 	return array(
 		'status'   => $status,
 		'message'  => $message,
+		'warning'  => $warning,
 		'progress' => $progress,
 		'state'    => $snapshot['values'][ AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_STATE ] ?? '',
 	);
@@ -1224,6 +1244,7 @@ function ai4seo_get_verified_posts_table_analysis_summary_batches( array $summar
  * @param bool  $debug Whether debug messages should be emitted.
  * @param int   $num_examined_rows Number of physical rows examined in this chunk.
  * @param int   $previous_post_id Cursor at the start of this chunk.
+ * @param array $isolated_rows Corrupt generated-data rows excluded from coverage, with identifiers and reason codes only.
  * @return bool True only when coverage, summary, cursor, and examined count were all persisted.
  */
 function ai4seo_commit_posts_table_analysis_chunk(
@@ -1232,9 +1253,19 @@ function ai4seo_commit_posts_table_analysis_chunk(
 	int $last_processed_post_id,
 	bool $debug,
 	int $num_examined_rows,
-	int $previous_post_id
+	int $previous_post_id,
+	array $isolated_rows = array()
 ): bool {
-	$transition = ai4seo_prepare_posts_table_analysis_option_transition( $new_post_ids_by_option );
+	$transition        = ai4seo_prepare_posts_table_analysis_option_transition( $new_post_ids_by_option );
+	$isolated_post_ids = array_column( $isolated_rows, 'post_id' );
+
+	// Missing membership is the existing automatic-admission barrier. Clear stale coverage too,
+	// while leaving Pending/Processing ownership and the strict generation preflight untouched.
+	if ( $isolated_post_ids ) {
+		foreach ( AI4SEO_SEO_COVERAGE_POST_ID_OPTIONS as $option_name ) {
+			$transition['removals'][ $option_name ] = array_values( array_unique( array_merge( $transition['removals'][ $option_name ] ?? array(), $isolated_post_ids ) ) );
+		}
+	}
 
 	if ( $debug ) {
 		foreach ( $transition['additions'] as $option_name => $post_ids ) {
@@ -1259,11 +1290,22 @@ function ai4seo_commit_posts_table_analysis_chunk(
 	$summary_did_change                   = false;
 	$current_generation_status_summary    = null;
 	$generation_status_summary_was_stored = ai4seo_mutate_generation_status_summary(
-		static function ( array $latest_summary ) use ( $verified_summary_batches ): array {
+		static function ( array $latest_summary ) use ( $verified_summary_batches, $isolated_post_ids ): array {
 			$updated_summary = ai4seo_merge_generation_status_summary_post_id_batches(
 				$latest_summary,
 				$verified_summary_batches
 			);
+			if ( $isolated_post_ids ) {
+				foreach ( AI4SEO_SEO_COVERAGE_POST_ID_OPTIONS as $option_name ) {
+					foreach ( $updated_summary[ $option_name ] ?? array() as $post_type => $entry ) {
+						$remaining_ids                                 = array_values( array_diff( $entry['post_ids'], $isolated_post_ids ) );
+						$updated_summary[ $option_name ][ $post_type ] = array(
+							'total'    => count( $remaining_ids ),
+							'post_ids' => $remaining_ids,
+						);
+					}
+				}
+			}
 
 			return array(
 				'summary' => $updated_summary,
@@ -1302,7 +1344,17 @@ function ai4seo_commit_posts_table_analysis_chunk(
 	// Publish cursor and count in one environmental CAS so retrying a failed write cannot double-count.
 	$progress['examined_rows'] = (int) $progress['examined_rows'] + $num_examined_rows;
 	$progress['failure']       = array();
-	$progress_transition       = ai4seo_bulk_update_environmental_variables(
+	if ( $isolated_rows ) {
+		$warnings             = $progress['warnings'] ?? array(
+			'count'   => 0,
+			'samples' => array(),
+		);
+		$progress['warnings'] = array(
+			'count'   => (int) $warnings['count'] + count( $isolated_rows ),
+			'samples' => array_slice( array_merge( $warnings['samples'], $isolated_rows ), 0, AI4SEO_POSTS_TABLE_ANALYSIS_WARNING_SAMPLE_LIMIT ),
+		);
+	}
+	$progress_transition = ai4seo_bulk_update_environmental_variables(
 		array(
 			AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_LAST_POST_ID => $last_processed_post_id,
 			AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_PROGRESS     => $progress,
@@ -1670,7 +1722,9 @@ function ai4seo_perform_posts_table_analysis( int $posts_table_analysis_last_pos
 	// Unsupported records never need generated-data reads, even when they contain malformed metadata.
 	$generated_data_read_succeeded      = false;
 	$generated_data_failure             = array();
-	$generated_data_all_post_ids        = ai4seo_read_generated_data_post_ids_by_post_ids( $supported_post_ids, $generated_data_read_succeeded, $debug, $generated_data_failure );
+	$isolated_generated_data_rows       = array();
+	$generated_data_all_post_ids        = ai4seo_read_generated_data_post_ids_by_post_ids( $supported_post_ids, $generated_data_read_succeeded, $debug, $generated_data_failure, $isolated_generated_data_rows );
+	$isolated_generated_data_lookup     = array_fill_keys( array_column( $isolated_generated_data_rows, 'post_id' ), true );
 	$generated_data_post_ids            = array();
 	$generated_data_attachment_post_ids = array();
 
@@ -1728,7 +1782,11 @@ function ai4seo_perform_posts_table_analysis( int $posts_table_analysis_last_pos
 
 	if ( $supported_post_types || $supported_attachment_post_types ) {
 		foreach ( $raw_posts as $this_raw_post ) {
-			$this_post_id            = (int) $this_raw_post['ID'];
+			$this_post_id = (int) $this_raw_post['ID'];
+			// Unknown generated history must never be interpreted as missing or fully covered.
+			if ( isset( $isolated_generated_data_lookup[ $this_post_id ] ) ) {
+				continue;
+			}
 			$this_post_type          = $this_raw_post['post_type'];
 			$is_post_type            = $supported_post_types && in_array( $this_post_type, $supported_post_types, true );
 			$is_attachment_post_type = $supported_attachment_post_types && in_array( $this_post_type, $supported_attachment_post_types, true );
@@ -2027,7 +2085,8 @@ function ai4seo_perform_posts_table_analysis( int $posts_table_analysis_last_pos
 			$last_processed_post_id,
 			$debug,
 			$num_raw_posts,
-			$posts_table_analysis_last_post_id
+			$posts_table_analysis_last_post_id,
+			$isolated_generated_data_rows
 		)
 	) {
 		return false;
@@ -3947,11 +4006,17 @@ function ai4seo_remove_contradictory_post_ids_from_generation_status_summary( ar
  * @param bool|null  $read_succeeded Receives whether every authoritative read succeeded.
  * @param bool       $debug Whether diagnostic messages should be emitted for rejected storage.
  * @param array|null $failure Receives the diagnostic code and post ID for rejected generated data.
+ * @param array|null $isolated_rows Pass an empty array to isolate corrupt or duplicate history once per post; null retains fail-closed reads. Published only after the entire batch succeeds.
  * @return array Sanitized list of post IDs with generated data.
  */
-function ai4seo_read_generated_data_post_ids_by_post_ids( array $post_ids, ?bool &$read_succeeded = null, bool $debug = false, ?array &$failure = null ): array {
+function ai4seo_read_generated_data_post_ids_by_post_ids( array $post_ids, ?bool &$read_succeeded = null, bool $debug = false, ?array &$failure = null, ?array &$isolated_rows = null ): array {
 	global $wpdb;
 
+	$isolation_enabled = null !== $isolated_rows;
+	$isolated_batch    = array();
+	if ( $isolation_enabled ) {
+		$isolated_rows = array();
+	}
 	$read_succeeded = false;
 	$failure        = array();
 
@@ -3986,16 +4051,28 @@ function ai4seo_read_generated_data_post_ids_by_post_ids( array $post_ids, ?bool
 	foreach ( $post_ids_chunks as $this_post_ids_chunk ) {
 		$this_query_template = 'SELECT meta_id, post_id, meta_value FROM {{postmeta_table}} ' .
 			'WHERE meta_key = {{meta_key}} AND post_id IN ({{post_ids}}) ORDER BY meta_id ASC LIMIT {{query_limit}}';
-		$this_query          = ai4seo_prepare_database_query(
-			$this_query_template,
-			array(
-				'postmeta_table' => ai4seo_database_identifier_binding( 'table.postmeta' ),
+		$this_query_bindings = array(
+			'postmeta_table' => ai4seo_database_identifier_binding( 'table.postmeta' ),
 				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- The key lookup is paired with a bounded post-ID chunk for an indexed postmeta batch read.
-				'meta_key'       => ai4seo_database_scalar_binding( '%s', AI4SEO_POST_META_GENERATED_DATA_META_KEY ),
-				'post_ids'       => ai4seo_database_list_binding( '%d', array_values( $this_post_ids_chunk ) ),
-				'query_limit'    => ai4seo_database_scalar_binding( '%d', count( $this_post_ids_chunk ) + 1 ),
-			)
+			'meta_key'       => ai4seo_database_scalar_binding( '%s', AI4SEO_POST_META_GENERATED_DATA_META_KEY ),
+			'post_ids'       => ai4seo_database_list_binding( '%d', array_values( $this_post_ids_chunk ) ),
+			'query_limit'    => ai4seo_database_scalar_binding( '%d', count( $this_post_ids_chunk ) + 1 ),
 		);
+		if ( $isolation_enabled ) {
+			// Group before reading values: duplicate histories cannot consume the row limit, hide
+			// healthy posts, or trigger cleanup. One statement observes ownership and content together.
+			$this_query_template                         = 'SELECT generated_owners.meta_id, generated_owners.post_id, generated_value.meta_value, generated_owners.owner_count
+				FROM (
+					SELECT MIN(meta_id) AS meta_id, post_id, COUNT(*) AS owner_count
+					FROM {{postmeta_table}} WHERE meta_key = {{meta_key}} AND post_id IN ({{post_ids}})
+					GROUP BY post_id
+				) AS generated_owners
+				LEFT JOIN {{value_postmeta_table}} AS generated_value
+					ON generated_owners.owner_count = 1 AND generated_value.meta_id = generated_owners.meta_id
+				ORDER BY generated_owners.meta_id ASC LIMIT {{query_limit}}';
+			$this_query_bindings['value_postmeta_table'] = ai4seo_database_identifier_binding( 'table.postmeta' );
+		}
+		$this_query = ai4seo_prepare_database_query( $this_query_template, $this_query_bindings );
 
 		if ( false === $this_query ) {
 			if ( $debug ) {
@@ -4032,7 +4109,8 @@ function ai4seo_read_generated_data_post_ids_by_post_ids( array $post_ids, ?bool
 				|| ! array_key_exists( 'meta_id', $this_generated_data_row )
 				|| ! array_key_exists( 'post_id', $this_generated_data_row )
 				|| ! array_key_exists( 'meta_value', $this_generated_data_row )
-				|| ! is_string( $this_generated_data_row['meta_value'] ) ) {
+				|| ( ! is_string( $this_generated_data_row['meta_value'] )
+					&& ( ! $isolation_enabled || null !== $this_generated_data_row['meta_value'] ) ) ) {
 				if ( $debug ) {
 					ai4seo_debug_message( 837261945, esc_html( __FUNCTION__ ) . ' > Generated-data query returned a malformed row.' );
 				}
@@ -4040,11 +4118,15 @@ function ai4seo_read_generated_data_post_ids_by_post_ids( array $post_ids, ?bool
 				return array();
 			}
 
-			$this_generated_data_meta_id = ai4seo_normalize_database_id( $this_generated_data_row['meta_id'] );
-			$this_generated_data_post_id = ai4seo_normalize_database_id( $this_generated_data_row['post_id'] );
+			$this_generated_data_meta_id     = ai4seo_normalize_database_id( $this_generated_data_row['meta_id'] );
+			$this_generated_data_post_id     = ai4seo_normalize_database_id( $this_generated_data_row['post_id'] );
+			$this_generated_data_owner_count = $isolation_enabled
+				? ai4seo_normalize_database_id( $this_generated_data_row['owner_count'] ?? null )
+				: 1;
 
 			if ( false === $this_generated_data_meta_id
 				|| false === $this_generated_data_post_id
+				|| false === $this_generated_data_owner_count
 				|| ! isset( $requested_post_id_lookup[ $this_generated_data_post_id ] ) ) {
 				if ( $debug ) {
 					ai4seo_debug_message( 291840653, esc_html( __FUNCTION__ ) . ' > Generated-data query returned invalid or unexpected ownership identifiers.' );
@@ -4080,9 +4162,22 @@ function ai4seo_read_generated_data_post_ids_by_post_ids( array $post_ids, ?bool
 
 			$seen_meta_id_lookup[ $this_generated_data_meta_id ] = true;
 			$seen_post_id_lookup[ $this_generated_data_post_id ] = true;
-			$this_generated_data_details                         = array();
-			$this_generated_data_repair_required                 = false;
-			$this_generated_data_diagnostics                     = array();
+			if ( $this_generated_data_owner_count > 1 ) {
+				// The representative meta ID is diagnostic only; never choose, merge, or repair an owner.
+				$isolated_batch[] = array(
+					'post_id' => $this_generated_data_post_id,
+					'meta_id' => $this_generated_data_meta_id,
+					'reason'  => 'duplicate_owners',
+					'field'   => '',
+				);
+				if ( $debug ) {
+					ai4seo_debug_message( 408572136, 'Generated-data post isolated. Post ID: ' . $this_generated_data_post_id . '; meta ID: ' . $this_generated_data_meta_id . '; reason: duplicate_owners; row count: ' . $this_generated_data_owner_count );
+				}
+				continue;
+			}
+			$this_generated_data_details         = array();
+			$this_generated_data_repair_required = false;
+			$this_generated_data_diagnostics     = array();
 
 			// Validate supported content before publication; unrelated fields do not contribute to coverage.
 			if ( ! ai4seo_decode_generated_data_postmeta_value_authoritatively(
@@ -4092,6 +4187,18 @@ function ai4seo_read_generated_data_post_ids_by_post_ids( array $post_ids, ?bool
 				true,
 				$this_generated_data_diagnostics
 			) ) {
+				if ( $isolation_enabled ) {
+					$isolated_batch[] = array(
+						'post_id' => $this_generated_data_post_id,
+						'meta_id' => $this_generated_data_meta_id,
+						'reason'  => $this_generated_data_diagnostics['reason'],
+						'field'   => $this_generated_data_diagnostics['field'],
+					);
+					if ( $debug ) {
+						ai4seo_debug_message( 746205318, 'Generated-data row isolated. Post ID: ' . $this_generated_data_post_id . '; meta ID: ' . $this_generated_data_meta_id . '; reason: ' . $this_generated_data_diagnostics['reason'] . '; field: ' . $this_generated_data_diagnostics['field'] );
+					}
+					continue;
+				}
 				// Keep malformed relevant data identifiable without changing the existing repair policy.
 				$failure = array(
 					'code'    => 746205318,
@@ -4151,6 +4258,9 @@ function ai4seo_read_generated_data_post_ids_by_post_ids( array $post_ids, ?bool
 		}
 	}
 
+	if ( $isolation_enabled ) {
+		$isolated_rows = $isolated_batch;
+	}
 	$read_succeeded = true;
 	return array_map( 'intval', array_keys( $generated_data_post_id_lookup ) );
 }

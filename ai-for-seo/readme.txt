@@ -4,7 +4,7 @@ Contributors: spacecodes
 Donate link: https://spa.ce.codes
 Requires at least: 6.6
 Tested up to: 7.1
-Stable tag: 2.5.8
+Stable tag: 2.5.9
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -225,6 +225,14 @@ It depends on how the generated data is stored and used. If *SOOZ - AI for SEO* 
 We welcome feature requests, editor integration ideas, page builder compatibility requests, and SEO workflow feedback. Please email [support@sooz.ai](mailto:support@sooz.ai) with your suggestions.
 
 == Changelog ==
+
+= 2.5.9 =
+* Improved SEO coverage analysis so unreadable or duplicate generation history no longer stops scans, with clear warnings and affected entries excluded from SEO Autopilot until resolved.
+* Improved account connection recovery to stop repeated unsuccessful setup attempts while preserving valid connections and allowing manual reconnection.
+* Fixed incorrect unsaved-change warnings after saving metadata that WordPress normalizes, while preserving edits made during saving.
+* Clarified where media titles, alt text, captions, and descriptions are saved and when they appear on your website.
+* Made restoring default settings safer by initially focusing Cancel in the confirmation dialog.
+* Bug Fixes & Maintenance: Fixed 2 minor bugs.
 
 = 2.5.8 =
 * Reduced memory use when analyzing SEO coverage on larger websites.

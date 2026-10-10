@@ -484,13 +484,11 @@ function ai4seo_truncate_sentence( string $input, int $soft_cap, int $hard_cap =
 
 	// If an end of sentence is found, adjust the truncation to include it.
 	if ( PHP_INT_MAX !== $first_sentence_after_soft_cap_end ) {
-		$truncated_sentence = ai4seo_mb_substr( $truncated_at_hard_cap, 0, $soft_cap + $first_sentence_after_soft_cap_end + 1 );
-	} else {
-		// If no sentence end is found, ensure the truncation is at hard cap.
-		$truncated_sentence = $truncated_at_hard_cap;
+		return ai4seo_mb_substr( $truncated_at_hard_cap, 0, $soft_cap + $first_sentence_after_soft_cap_end + 1 );
 	}
 
-	return $truncated_sentence;
+	// If no sentence end is found, ensure the truncation is at hard cap.
+	return $truncated_at_hard_cap;
 }
 
 
@@ -919,17 +917,6 @@ function ai4seo_get_includes_ajax_display_path( string $sub_path = '' ): string 
  */
 function ai4seo_get_includes_ajax_process_path( string $sub_path = '' ): string {
 	return ai4seo_get_plugin_dir_path( "includes/ajax/process/{$sub_path}" );
-}
-
-
-/**
- * Returns the path to includes/elements
- *
- * @param string $sub_path The sub path to append to the includes/elements path (optional).
- * @return string The path to the file
- */
-function ai4seo_get_includes_elements_path( string $sub_path = '' ): string {
-	return ai4seo_get_plugin_dir_path( "includes/elements/{$sub_path}" );
 }
 
 

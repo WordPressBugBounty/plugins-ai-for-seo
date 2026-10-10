@@ -224,12 +224,8 @@ function ai4seo_read_environmental_variable( string $environmental_variable_name
 
 	$current_environmental_variables = ai4seo_read_all_environmental_variables( $use_cache );
 
-	// Check if the $environmental_variable_name-parameter exists in environmental variables-array.
-	if ( isset( $current_environmental_variables[ $environmental_variable_name ] ) ) {
-		return $current_environmental_variables[ $environmental_variable_name ];
-	} else {
-		return AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES[ $environmental_variable_name ];
-	}
+	// Missing or null request entries retain the declared default.
+	return $current_environmental_variables[ $environmental_variable_name ] ?? AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES[ $environmental_variable_name ];
 }
 
 
@@ -419,7 +415,8 @@ function ai4seo_mutate_environmental_variable_value(
 				return array();
 			}
 
-			$replacement_value     = ai4seo_deep_sanitize( $replacement_value );
+			$value_sanitizer       = AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVATION === $environmental_variable_name ? 'ai4seo_sanitize_activation_state_value' : 'sanitize_text_field';
+			$replacement_value     = ai4seo_deep_sanitize( $replacement_value, $value_sanitizer );
 			$replacement_overrides = $current_overrides;
 			$did_change            = false;
 
@@ -491,7 +488,8 @@ function ai4seo_update_environmental_variable( string $environmental_variable_na
 	}
 
 	// sanitize.
-	$new_environmental_variable_value = ai4seo_deep_sanitize( $new_environmental_variable_value );
+	$value_sanitizer                  = AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVATION === $environmental_variable_name ? 'ai4seo_sanitize_activation_state_value' : 'sanitize_text_field';
+	$new_environmental_variable_value = ai4seo_deep_sanitize( $new_environmental_variable_value, $value_sanitizer );
 
 	return ai4seo_mutate_environmental_variable_value(
 		$environmental_variable_name,
@@ -907,7 +905,14 @@ function ai4seo_validate_environmental_variable_value( string $environmental_var
 
 			// Reject incomplete schemas before accessing counters or diagnostic fields.
 			if ( ! is_array( $environmental_variable_value )
-				|| array_keys( $environmental_variable_value ) !== array( 'version', 'upper_post_id', 'total_rows', 'examined_rows', 'failure' ) ) {
+				|| ! in_array(
+					array_keys( $environmental_variable_value ),
+					array(
+						array( 'version', 'upper_post_id', 'total_rows', 'examined_rows', 'failure' ),
+						array( 'version', 'upper_post_id', 'total_rows', 'examined_rows', 'failure', 'warnings' ),
+					),
+					true
+				) ) {
 				return false;
 			}
 
@@ -928,6 +933,27 @@ function ai4seo_validate_environmental_variable_value( string $environmental_var
 					|| $environmental_variable_value['examined_rows']
 				) ) ) {
 				return false;
+			}
+
+			// Older progress snapshots have no warnings; newer ones retain only a bounded sample.
+			if ( array_key_exists( 'warnings', $environmental_variable_value ) ) {
+				$warnings = $environmental_variable_value['warnings'];
+				if ( ! is_array( $warnings ) || array_keys( $warnings ) !== array( 'count', 'samples' )
+					|| false === ai4seo_normalize_option_post_id( $warnings['count'] )
+					|| (int) $warnings['count'] > (int) $environmental_variable_value['examined_rows']
+					|| ! is_array( $warnings['samples'] ) || array_values( $warnings['samples'] ) !== $warnings['samples']
+					|| count( $warnings['samples'] ) !== min( (int) $warnings['count'], AI4SEO_POSTS_TABLE_ANALYSIS_WARNING_SAMPLE_LIMIT ) ) {
+					return false;
+				}
+				foreach ( $warnings['samples'] as $sample ) {
+					if ( ! is_array( $sample ) || array_keys( $sample ) !== array( 'post_id', 'meta_id', 'reason', 'field' )
+						|| false === ai4seo_normalize_option_post_id( $sample['post_id'] )
+						|| false === ai4seo_normalize_option_post_id( $sample['meta_id'] )
+						|| ! is_string( $sample['reason'] ) || 1 !== preg_match( '/^[a-z_]{1,64}$/D', $sample['reason'] )
+						|| ! is_string( $sample['field'] ) || 1 !== preg_match( '/^[a-z0-9_.-]{0,128}$/D', $sample['field'] ) ) {
+						return false;
+					}
+				}
 			}
 
 			// Store only bounded identifiers that dashboard and debug output can safely display.
@@ -984,6 +1010,9 @@ function ai4seo_validate_environmental_variable_value( string $environmental_var
 		case AI4SEO_ENVIRONMENTAL_VARIABLE_GENERATION_STATUS_SUMMARY_REBUILD_STATE:
 			// A required rebuild restarts once; processing resumes the same bounded replacement analysis.
 			return is_string( $environmental_variable_value ) && in_array( $environmental_variable_value, array( 'idle', 'required', 'processing' ), true );
+
+		case AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVATION:
+			return ai4seo_validate_activation_state( $environmental_variable_value );
 
 		case AI4SEO_ENVIRONMENTAL_VARIABLE_CURRENT_DISCOUNT:
 			// empty or array with at least name and percentage.

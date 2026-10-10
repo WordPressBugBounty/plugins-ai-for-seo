@@ -3063,6 +3063,69 @@ function ai4seo_get_slider_input_tag( array $args ): string {
 
 
 /**
+ * Returns a tooltip icon that explains the available bulk generation queue actions.
+ *
+ * @param string $surface Active surface: all, native, or custom.
+ * @param string $active_status_filter Active SOOZ list status filter.
+ * @param string $context Active queue context: all, metadata, or attachment_attributes.
+ * @param string $list_location Active list location, such as main or related_attachments_modal.
+ * @return string HTML.
+ */
+function ai4seo_get_bulk_generation_queue_action_help_icon_html( string $surface = 'all', string $active_status_filter = 'all', string $context = 'all', string $list_location = 'main' ): string {
+	// Keep tooltip rendering separate from select rendering while both consume the same action metadata.
+	$tooltip_html = ai4seo_get_bulk_generation_queue_action_tooltip_html( $surface, $active_status_filter, $context, $list_location );
+
+	if ( ! $tooltip_html ) {
+		return '';
+	}
+
+	// Keep this specialized trigger contextual so screen readers distinguish it from generic help icons.
+	return "<span class='ai4seo-bulk-generation-queue-action-help'>"
+		. ai4seo_get_icon_with_tooltip_tag( $tooltip_html, '', 'circle-question', __( 'Explain bulk actions', 'ai-for-seo' ) )
+	. '</span>';
+}
+
+
+/**
+ * Returns tooltip content for the available bulk generation queue actions.
+ *
+ * @param string $surface Active surface: all, native, or custom.
+ * @param string $active_status_filter Active SOOZ list status filter.
+ * @param string $context Active queue context: all, metadata, or attachment_attributes.
+ * @param string $list_location Active list location, such as main or related_attachments_modal.
+ * @return string Tooltip HTML.
+ */
+function ai4seo_get_bulk_generation_queue_action_tooltip_html( string $surface = 'all', string $active_status_filter = 'all', string $context = 'all', string $list_location = 'main' ): string {
+	$surface              = sanitize_key( $surface );
+	$active_status_filter = sanitize_key( $active_status_filter );
+	$context              = sanitize_key( $context );
+	$list_location        = sanitize_key( $list_location );
+
+	// The surface and filter choose the same action subset that the SOOZ custom table select renders.
+	$bulk_generation_queue_actions = ai4seo_get_bulk_generation_queue_actions( $surface, $active_status_filter, $context, $list_location );
+	$tooltip_parts                 = array();
+
+	foreach ( $bulk_generation_queue_actions as $this_action_identifier => $this_action_details ) {
+		// Actions without descriptions remain valid bulk actions but are not useful in the help tooltip.
+		$this_action_description = trim( (string) ( $this_action_details['description'] ?? '' ) );
+
+		if ( ! $this_action_description ) {
+			continue;
+		}
+
+		$this_action_label = (string) ( $this_action_details['label'] ?? $this_action_identifier );
+
+		$tooltip_parts[] = '<strong>'
+			. esc_html( $this_action_label )
+		. ':</strong> '
+		. esc_html( $this_action_description );
+	}
+
+	return implode( '<br><br>', $tooltip_parts );
+}
+
+
+/**
  * Returns the custom SOOZ list bulk queue action controls.
  *
  * @param string $context Queue context.

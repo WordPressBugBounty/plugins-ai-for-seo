@@ -4583,22 +4583,6 @@ function ai4seo_read_attachment_attributes_editor_source_details( int $attachmen
 
 
 /**
- * Normalizes a postmeta value for comparisons against WordPress read-back values.
- *
- * @param mixed $meta_value Metadata value.
- * @return string
- */
-function ai4seo_normalize_post_meta_value_for_comparison( $meta_value ): string {
-	// WordPress returns scalar postmeta as strings and unserializes supported complex values.
-	if ( is_scalar( $meta_value ) || null === $meta_value ) {
-		return (string) $meta_value;
-	}
-
-	return maybe_serialize( $meta_value );
-}
-
-
-/**
  * Checks whether a postmeta update reached its requested effective state.
  *
  * @param int    $post_id              Post ID used by update_post_meta().

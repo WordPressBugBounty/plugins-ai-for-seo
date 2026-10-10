@@ -14,6 +14,22 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 /**
+ * Normalizes a postmeta value for comparisons against WordPress read-back values.
+ *
+ * @param mixed $meta_value Metadata value.
+ * @return string
+ */
+function ai4seo_normalize_post_meta_value_for_comparison( $meta_value ): string {
+	// WordPress returns scalar postmeta as strings and unserializes supported complex values.
+	if ( is_scalar( $meta_value ) || null === $meta_value ) {
+		return (string) $meta_value;
+	}
+
+	return maybe_serialize( $meta_value );
+}
+
+
+/**
  * Function to update a post meta if it is empty
  *
  * @param int    $post_id the post id.

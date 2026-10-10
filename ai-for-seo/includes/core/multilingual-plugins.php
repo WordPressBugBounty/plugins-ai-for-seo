@@ -28,13 +28,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 function ai4seo_remove_translatepress_tags( string $input ): string {
 	// Replace TranslatePress wrapped text with its inner content.
-	$cleaned_text = preg_replace_callback(
-		'/#!trpst#trp-gettext#(.*?)#!trpen#/us',
-		function ( $matches ) {
-			return ' ' . $matches[1] . ' ';
-		},
-		$input
-	);
+	$cleaned_text = preg_replace( '/#!trpst#trp-gettext#(.*?)#!trpen#/us', ' $1 ', $input );
 
 	// Handle inline variant like #trp-gettext data-trpgettextoriginal=157#!trpen#.
 	$cleaned_text = preg_replace( '/#trp-gettext[^#]*#!trpen#/us', ' ', $cleaned_text );

@@ -2022,6 +2022,12 @@ function ai4seo_get_notification_buttons( string $notification_index, array $not
  * @return bool Whether the notification conditions are satisfied.
  */
 function ai4seo_check_notification_conditions( string $notification_index, array $additional_fields = array(), bool $skip_num_displayable_notification_condition = false ): bool {
+	if ( isset( $additional_fields['activation_offer_id'] ) ) {
+		$offer = ai4seo_get_activation_offer();
+		if ( ! ai4seo_can_administer_plugin() || ! $offer || $offer['id'] !== $additional_fields['activation_offer_id'] ) {
+			return false;
+		}
+	}
 	if ( ai4seo_prevent_loops( __FUNCTION__, 3 ) ) {
 		ai4seo_debug_message( 283333336, 'Prevented loop', true );
 		return false;
@@ -2674,6 +2680,7 @@ function ai4seo_check_for_new_notifications() {
 
 		// push these notifications, even when the user is not inside our plugin admin pages ->.
 		ai4seo_check_for_low_credits_balance_notification();
+		ai4seo_check_activation_notification();
 		ai4seo_check_for_inefficient_cron_jobs_notification();
 		ai4seo_check_for_finished_seo_autopilot_notification();
 		ai4seo_check_for_unfinished_posts_table_analysis_notification( true );

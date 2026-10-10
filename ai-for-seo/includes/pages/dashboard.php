@@ -14,6 +14,8 @@ if ( ! ai4seo_can_use_plugin_content() ) {
 	return;
 }
 
+ai4seo_render_activation_area();
+
 
 // ___________________________________________________________________________________________ \\
 // === PREPARE =============================================================================== \\
@@ -283,10 +285,10 @@ if ( $ai4seo_all_supported_post_types || $ai4seo_statistics_filter_labels ) {
 	}
 		echo '</div>';
 
-	// Explain incomplete statistics without animating intentional pauses or recorded failures.
-	if ( 'completed' !== $ai4seo_posts_table_analysis_state ) {
+	// Completed scans retain a visible warning when corrupt history was excluded from coverage.
+	if ( 'completed' !== $ai4seo_posts_table_analysis_state || $ai4seo_posts_table_analysis_status['warning'] ) {
 		echo "<div class='ai4seo-dashboard-posts-table-analysis-not-completed-hint'>";
-			ai4seo_echo_wp_kses( ai4seo_get_svg_tag( 'gear', '', 'incomplete' === $ai4seo_posts_table_analysis_status['status'] ? 'ai4seo-spinning-icon' : '' ) );
+			ai4seo_echo_wp_kses( ai4seo_get_svg_tag( 'completed' === $ai4seo_posts_table_analysis_state ? 'triangle-exclamation' : 'gear', '', 'incomplete' === $ai4seo_posts_table_analysis_status['status'] ? 'ai4seo-spinning-icon' : '' ) );
 			echo ' ';
 			echo esc_html( $ai4seo_posts_table_analysis_status['message'] );
 		echo '</div>';

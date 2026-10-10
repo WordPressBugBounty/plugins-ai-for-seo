@@ -14,6 +14,197 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 /**
+ * Prepares one metadata Auto Queue candidate query with a literal ordering policy.
+ *
+ * @param array  $post_ids Candidate post IDs.
+ * @param string $post_type Post type to select.
+ * @param string $post_date_filter Validated date-filter mode.
+ * @param string $post_date_gmt Validated UTC boundary.
+ * @param string $bulk_generation_order Requested queue order.
+ * @return string|false Prepared query, or false when its typed bindings are invalid.
+ */
+function ai4seo_prepare_metadata_auto_queue_candidate_query(
+	array $post_ids,
+	string $post_type,
+	string $post_date_filter,
+	string $post_date_gmt,
+	string $bulk_generation_order
+) {
+	return ai4seo_prepare_metadata_auto_queue_candidate_query_for_post_types(
+		$post_ids,
+		array( $post_type ),
+		$post_date_filter,
+		$post_date_gmt,
+		$bulk_generation_order
+	);
+}
+
+
+/**
+ * Prepares one metadata Auto Queue candidate query across all enabled post types.
+ *
+ * @param array  $post_ids Candidate post IDs.
+ * @param array  $post_types Post types to select.
+ * @param string $post_date_filter Validated date-filter mode.
+ * @param string $post_date_gmt Validated UTC boundary.
+ * @param string $bulk_generation_order Requested queue order.
+ * @return string|false Prepared query, or false when its typed bindings are invalid.
+ */
+function ai4seo_prepare_metadata_auto_queue_candidate_query_for_post_types(
+	array $post_ids,
+	array $post_types,
+	string $post_date_filter,
+	string $post_date_gmt,
+	string $bulk_generation_order
+) {
+	// Ordered modes need only two rows; random mode must expose the complete bounded eligibility set to PHP.
+	$result_limit = in_array( $bulk_generation_order, array( 'oldest', 'newest' ), true ) ? 2 : count( $post_ids );
+
+	// Keep each supported ORDER BY policy as literal SQL so no caller-provided fragment reaches compilation.
+	$query_template = "SELECT ID
+		FROM {{posts_table}}
+		WHERE post_type IN ({{post_types}})
+		AND ID IN ({{post_ids}})
+		AND post_status IN ({{post_statuses}})
+		AND (
+			{{date_filter_both}} = 'both'
+			OR ({{date_filter_new}} = 'new' AND post_date_gmt > {{new_post_date_gmt}})
+			OR ({{date_filter_existing}} = 'existing' AND post_date_gmt <= {{existing_post_date_gmt}})
+		)
+		LIMIT {{result_limit}}";
+
+	if ( 'oldest' === $bulk_generation_order ) {
+		$query_template = "SELECT ID
+			FROM {{posts_table}}
+			WHERE post_type IN ({{post_types}})
+			AND ID IN ({{post_ids}})
+			AND post_status IN ({{post_statuses}})
+			AND (
+				{{date_filter_both}} = 'both'
+				OR ({{date_filter_new}} = 'new' AND post_date_gmt > {{new_post_date_gmt}})
+				OR ({{date_filter_existing}} = 'existing' AND post_date_gmt <= {{existing_post_date_gmt}})
+			)
+			ORDER BY ID ASC
+			LIMIT {{result_limit}}";
+	} elseif ( 'newest' === $bulk_generation_order ) {
+		$query_template = "SELECT ID
+			FROM {{posts_table}}
+			WHERE post_type IN ({{post_types}})
+			AND ID IN ({{post_ids}})
+			AND post_status IN ({{post_statuses}})
+			AND (
+				{{date_filter_both}} = 'both'
+				OR ({{date_filter_new}} = 'new' AND post_date_gmt > {{new_post_date_gmt}})
+				OR ({{date_filter_existing}} = 'existing' AND post_date_gmt <= {{existing_post_date_gmt}})
+			)
+			ORDER BY ID DESC
+			LIMIT {{result_limit}}";
+	}
+
+	return ai4seo_prepare_database_query(
+		$query_template,
+		array(
+			'posts_table'            => ai4seo_database_identifier_binding( 'table.posts' ),
+			'post_types'             => ai4seo_database_list_binding( '%s', array_slice( $post_types, 0, 256 ) ),
+			'post_ids'               => ai4seo_database_list_binding( '%d', $post_ids ),
+			'post_statuses'          => ai4seo_database_list_binding( '%s', array( 'publish', 'future' ) ),
+			'date_filter_both'       => ai4seo_database_scalar_binding( '%s', $post_date_filter ),
+			'date_filter_new'        => ai4seo_database_scalar_binding( '%s', $post_date_filter ),
+			'new_post_date_gmt'      => ai4seo_database_scalar_binding( '%s', $post_date_gmt ),
+			'date_filter_existing'   => ai4seo_database_scalar_binding( '%s', $post_date_filter ),
+			'existing_post_date_gmt' => ai4seo_database_scalar_binding( '%s', $post_date_gmt ),
+			'result_limit'           => ai4seo_database_scalar_binding( '%d', $result_limit ),
+		)
+	);
+}
+
+
+/**
+ * Prepares one attachment Auto Queue candidate query with a literal ordering policy.
+ *
+ * @param array  $post_ids Candidate attachment post IDs.
+ * @param array  $post_types Supported attachment post types.
+ * @param array  $mime_types Supported attachment MIME types.
+ * @param string $post_date_filter Validated date-filter mode.
+ * @param string $post_date_gmt Validated UTC boundary.
+ * @param string $bulk_generation_order Requested queue order.
+ * @return string|false Prepared query, or false when its typed bindings are invalid.
+ */
+function ai4seo_prepare_attachment_auto_queue_candidate_query(
+	array $post_ids,
+	array $post_types,
+	array $mime_types,
+	string $post_date_filter,
+	string $post_date_gmt,
+	string $bulk_generation_order
+) {
+	// Ordered modes need only two rows; random mode must expose the complete bounded eligibility set to PHP.
+	$result_limit = in_array( $bulk_generation_order, array( 'oldest', 'newest' ), true ) ? 2 : count( $post_ids );
+
+	// Keep each supported ORDER BY policy as literal SQL so no caller-provided fragment reaches compilation.
+	$query_template = "SELECT ID
+		FROM {{posts_table}}
+		WHERE post_type IN ({{post_types}})
+		AND ID IN ({{post_ids}})
+		AND post_status IN ({{post_statuses}})
+		AND post_mime_type IN ({{mime_types}})
+		AND (
+			{{date_filter_both}} = 'both'
+			OR ({{date_filter_new}} = 'new' AND post_date_gmt > {{new_post_date_gmt}})
+			OR ({{date_filter_existing}} = 'existing' AND post_date_gmt <= {{existing_post_date_gmt}})
+		)
+		LIMIT {{result_limit}}";
+
+	if ( 'oldest' === $bulk_generation_order ) {
+		$query_template = "SELECT ID
+			FROM {{posts_table}}
+			WHERE post_type IN ({{post_types}})
+			AND ID IN ({{post_ids}})
+			AND post_status IN ({{post_statuses}})
+			AND post_mime_type IN ({{mime_types}})
+			AND (
+				{{date_filter_both}} = 'both'
+				OR ({{date_filter_new}} = 'new' AND post_date_gmt > {{new_post_date_gmt}})
+				OR ({{date_filter_existing}} = 'existing' AND post_date_gmt <= {{existing_post_date_gmt}})
+			)
+			ORDER BY ID ASC
+			LIMIT {{result_limit}}";
+	} elseif ( 'newest' === $bulk_generation_order ) {
+		$query_template = "SELECT ID
+			FROM {{posts_table}}
+			WHERE post_type IN ({{post_types}})
+			AND ID IN ({{post_ids}})
+			AND post_status IN ({{post_statuses}})
+			AND post_mime_type IN ({{mime_types}})
+			AND (
+				{{date_filter_both}} = 'both'
+				OR ({{date_filter_new}} = 'new' AND post_date_gmt > {{new_post_date_gmt}})
+				OR ({{date_filter_existing}} = 'existing' AND post_date_gmt <= {{existing_post_date_gmt}})
+			)
+			ORDER BY ID DESC
+			LIMIT {{result_limit}}";
+	}
+
+	return ai4seo_prepare_database_query(
+		$query_template,
+		array(
+			'posts_table'            => ai4seo_database_identifier_binding( 'table.posts' ),
+			'post_types'             => ai4seo_database_list_binding( '%s', $post_types ),
+			'post_ids'               => ai4seo_database_list_binding( '%d', $post_ids ),
+			'post_statuses'          => ai4seo_database_list_binding( '%s', array( 'publish', 'future', 'inherit' ) ),
+			'mime_types'             => ai4seo_database_list_binding( '%s', $mime_types ),
+			'date_filter_both'       => ai4seo_database_scalar_binding( '%s', $post_date_filter ),
+			'date_filter_new'        => ai4seo_database_scalar_binding( '%s', $post_date_filter ),
+			'new_post_date_gmt'      => ai4seo_database_scalar_binding( '%s', $post_date_gmt ),
+			'date_filter_existing'   => ai4seo_database_scalar_binding( '%s', $post_date_filter ),
+			'existing_post_date_gmt' => ai4seo_database_scalar_binding( '%s', $post_date_gmt ),
+			'result_limit'           => ai4seo_database_scalar_binding( '%d', $result_limit ),
+		)
+	);
+}
+
+
+/**
  * Restores PHP's candidate order after an unordered eligibility query.
  *
  * Ordered SQL variants already return their requested ID order. Random mode
@@ -618,69 +809,6 @@ function ai4seo_get_bulk_generation_queue_action_label( string $action, bool $in
 
 
 /**
- * Returns a tooltip icon that explains the available bulk generation queue actions.
- *
- * @param string $surface Active surface: all, native, or custom.
- * @param string $active_status_filter Active SOOZ list status filter.
- * @param string $context Active queue context: all, metadata, or attachment_attributes.
- * @param string $list_location Active list location, such as main or related_attachments_modal.
- * @return string HTML.
- */
-function ai4seo_get_bulk_generation_queue_action_help_icon_html( string $surface = 'all', string $active_status_filter = 'all', string $context = 'all', string $list_location = 'main' ): string {
-	// Keep tooltip rendering separate from select rendering while both consume the same action metadata.
-	$tooltip_html = ai4seo_get_bulk_generation_queue_action_tooltip_html( $surface, $active_status_filter, $context, $list_location );
-
-	if ( ! $tooltip_html ) {
-		return '';
-	}
-
-	// Keep this specialized trigger contextual so screen readers distinguish it from generic help icons.
-	return "<span class='ai4seo-bulk-generation-queue-action-help'>"
-		. ai4seo_get_icon_with_tooltip_tag( $tooltip_html, '', 'circle-question', __( 'Explain bulk actions', 'ai-for-seo' ) )
-	. '</span>';
-}
-
-
-/**
- * Returns tooltip content for the available bulk generation queue actions.
- *
- * @param string $surface Active surface: all, native, or custom.
- * @param string $active_status_filter Active SOOZ list status filter.
- * @param string $context Active queue context: all, metadata, or attachment_attributes.
- * @param string $list_location Active list location, such as main or related_attachments_modal.
- * @return string Tooltip HTML.
- */
-function ai4seo_get_bulk_generation_queue_action_tooltip_html( string $surface = 'all', string $active_status_filter = 'all', string $context = 'all', string $list_location = 'main' ): string {
-	$surface              = sanitize_key( $surface );
-	$active_status_filter = sanitize_key( $active_status_filter );
-	$context              = sanitize_key( $context );
-	$list_location        = sanitize_key( $list_location );
-
-	// The surface and filter choose the same action subset that the SOOZ custom table select renders.
-	$bulk_generation_queue_actions = ai4seo_get_bulk_generation_queue_actions( $surface, $active_status_filter, $context, $list_location );
-	$tooltip_parts                 = array();
-
-	foreach ( $bulk_generation_queue_actions as $this_action_identifier => $this_action_details ) {
-		// Actions without descriptions remain valid bulk actions but are not useful in the help tooltip.
-		$this_action_description = trim( (string) ( $this_action_details['description'] ?? '' ) );
-
-		if ( ! $this_action_description ) {
-			continue;
-		}
-
-		$this_action_label = (string) ( $this_action_details['label'] ?? $this_action_identifier );
-
-		$tooltip_parts[] = '<strong>'
-			. esc_html( $this_action_label )
-		. ':</strong> '
-		. esc_html( $this_action_description );
-	}
-
-	return implode( '<br><br>', $tooltip_parts );
-}
-
-
-/**
  * Checks whether a bulk generation queue action exists.
  *
  * @param string $action Action identifier.
@@ -796,28 +924,6 @@ function ai4seo_is_bulk_generation_queue_context( string $context ): bool {
 
 
 /**
- * Returns the entry-level custom-instruction postmeta key for a bulk generation queue context.
- *
- * @param string $context Queue context.
- * @return string Postmeta key.
- */
-function ai4seo_get_custom_instructions_postmeta_key_by_bulk_generation_queue_context( string $context ): string {
-	$context = sanitize_key( $context );
-
-	// Context decides which editor-owned postmeta key the bulk action writes to.
-	switch ( $context ) {
-		case AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA:
-			return AI4SEO_POST_META_METADATA_CUSTOM_INSTRUCTIONS_META_KEY;
-
-		case AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES:
-			return AI4SEO_POST_META_ATTACHMENT_ATTRIBUTES_CUSTOM_INSTRUCTIONS_META_KEY;
-	}
-
-	return '';
-}
-
-
-/**
  * Returns the queue option names for a bulk generation queue context.
  *
  * @param string $context Queue context.
@@ -911,6 +1017,21 @@ function ai4seo_persist_auto_queue_admission_rollback_leases_under_lock(
 		$membership_snapshots,
 		$rollback_tokens
 	);
+}
+
+
+/**
+ * Exact-token remove verified admission rollback owners while preserving a replacement owner.
+ *
+ * @param string $context Bulk generation queue context.
+ * @param array  $rollback_tokens Rollback tokens keyed by post ID; resolved entries are removed.
+ * @return bool Whether every owned token was removed, absent, or already replaced.
+ */
+function ai4seo_clear_auto_queue_admission_rollback_leases_under_lock(
+	string $context,
+	array &$rollback_tokens
+): bool {
+	return ai4seo_clear_queue_membership_rollback_leases_under_lock( $context, $rollback_tokens );
 }
 
 

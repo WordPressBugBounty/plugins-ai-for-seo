@@ -625,6 +625,28 @@ function ai4seo_get_custom_instructions_setting_form_item_tag(
 
 
 /**
+ * Returns the entry-level custom-instruction postmeta key for a bulk generation queue context.
+ *
+ * @param string $context Queue context.
+ * @return string Postmeta key.
+ */
+function ai4seo_get_custom_instructions_postmeta_key_by_bulk_generation_queue_context( string $context ): string {
+	$context = sanitize_key( $context );
+
+	// Context decides which editor-owned postmeta key the bulk action writes to.
+	switch ( $context ) {
+		case AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA:
+			return AI4SEO_POST_META_METADATA_CUSTOM_INSTRUCTIONS_META_KEY;
+
+		case AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES:
+			return AI4SEO_POST_META_ATTACHMENT_ATTRIBUTES_CUSTOM_INSTRUCTIONS_META_KEY;
+	}
+
+	return '';
+}
+
+
+/**
  * Save custom instructions to a postmeta entry.
  *
  * @param int    $post_id  Post ID.

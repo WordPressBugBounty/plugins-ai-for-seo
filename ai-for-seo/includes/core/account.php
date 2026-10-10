@@ -540,6 +540,10 @@ function ai4seo_build_credit_pack_purchase_parameters(
 		'stripe_price_id' => $stripe_price_id,
 		'redirect_url'    => $redirect_url,
 	);
+	if ( ai4seo_is_activation_purchase_selection( $stripe_price_id ) ) {
+		unset( $endpoint_parameters['stripe_price_id'] );
+		$endpoint_parameters['offer_id'] = substr( $stripe_price_id, 11 );
+	}
 
 	if ( '' !== $rotation_claim_token ) {
 		$endpoint_parameters['rotation_claim_token'] = $rotation_claim_token;
@@ -551,6 +555,28 @@ function ai4seo_build_credit_pack_purchase_parameters(
 	}
 
 	return $endpoint_parameters;
+}
+
+/**
+ * Internal purchase-selection identity; amount and ownership are checked by RobHub.
+ *
+ * @param string $selection Pack or personal-offer selection.
+ */
+function ai4seo_is_activation_purchase_selection( string $selection ): bool {
+	return 1 === preg_match( '/^activation-[a-f0-9]{32}$/D', $selection );
+}
+
+/**
+ * Preserve one selection identity across preparation, retries, and checkout return.
+ *
+ * @param array $parameters Saved purchase parameters.
+ */
+function ai4seo_credit_purchase_selection( array $parameters ): string {
+	if ( isset( $parameters['offer_id'] ) && ! isset( $parameters['stripe_price_id'] ) && is_string( $parameters['offer_id'] )
+		&& ai4seo_is_activation_purchase_selection( 'activation-' . $parameters['offer_id'] ) ) {
+		return 'activation-' . $parameters['offer_id'];
+	}
+	return ! isset( $parameters['offer_id'] ) && is_string( $parameters['stripe_price_id'] ?? null ) ? $parameters['stripe_price_id'] : '';
 }
 
 /**
@@ -587,7 +613,7 @@ function ai4seo_is_credit_purchase_attempt_state_valid( $attempt, string $option
 
 	// An unfinished local preparation may omit its UUID parameter, but a ready request must match it.
 	if (
-		( $attempt['parameters']['stripe_price_id'] ?? '' ) !== $stripe_price_id
+		ai4seo_credit_purchase_selection( $attempt['parameters'] ) !== $stripe_price_id
 		|| ! is_string( $attempt['parameters']['redirect_url'] ?? null )
 		|| ( $attempt['ready'] && ( $attempt['parameters']['purchase_attempt_id'] ?? '' ) !== $attempt['id'] )
 	) {
@@ -633,7 +659,7 @@ function ai4seo_is_credit_purchase_return_link_valid( array $return_state ): boo
  */
 function ai4seo_prepare_credit_purchase_attempt( string $stripe_price_id ): array {
 	// Preserve the administrator and known-price boundary before any state lookup or mutation.
-	if ( ! ai4seo_can_administer_plugin() || ! isset( ai4seo_get_credits_packs()[ $stripe_price_id ] ) ) {
+	if ( ! ai4seo_can_administer_plugin() || ( ! isset( ai4seo_get_credits_packs()[ $stripe_price_id ] ) && ! ai4seo_is_activation_purchase_selection( $stripe_price_id ) ) ) {
 		return array();
 	}
 
@@ -849,12 +875,12 @@ function ai4seo_confirm_credit_purchase_return( array $return_state, string $tok
 	if ( ! is_array( $attempt ) || ( $attempt['id'] ?? '' ) !== $attempt_id || ( $attempt['option_name'] ?? '' ) !== $option_name
 		|| ( $attempt['return_token'] ?? '' ) !== $token || true !== ( $attempt['ready'] ?? false )
 		|| ! is_array( $attempt['parameters'] ?? null ) || ( $attempt['parameters']['purchase_attempt_id'] ?? '' ) !== $attempt_id
-		|| ! is_string( $attempt['parameters']['stripe_price_id'] ?? null ) ) {
+		|| '' === ai4seo_credit_purchase_selection( $attempt['parameters'] ) ) {
 		return false;
 	}
 
 	// An administrator switching RobHub accounts cannot reconcile an older account's checkout.
-	$expected_option_name = ai4seo_get_credit_purchase_attempt_option_name( $attempt['parameters']['stripe_price_id'], ai4seo_robhub_api()->get_api_username() );
+	$expected_option_name = ai4seo_get_credit_purchase_attempt_option_name( ai4seo_credit_purchase_selection( $attempt['parameters'] ), ai4seo_robhub_api()->get_api_username() );
 	if ( $expected_option_name !== $option_name ) {
 		return false;
 	}
@@ -1707,6 +1733,7 @@ function ai4seo_sync_robhub_account( string $sync_reason = 'unknown', bool $allo
 
 	// Apply the validated response through the existing setting, state, and notification mechanisms.
 	$synced_account_data = $api_response['data'];
+	ai4seo_store_activation_data( $synced_account_data['activation'] ?? array( 'available' => false ) );
 
 	// Persist one-shot remote retry authorization before any destructive local queue mutation.
 	$auto_retry_failed_was_requested = isset( $synced_account_data['auto_retry_failed'] ) && $synced_account_data['auto_retry_failed'];

@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 // Centralize plugin identity and asset-cache declarations consumed throughout bootstrap.
-const AI4SEO_PLUGIN_VERSION_NUMBER              = '2.5.8';
+const AI4SEO_PLUGIN_VERSION_NUMBER              = '2.5.9';
 const AI4SEO_PLUGIN_NAME                        = 'SOOZ - AI for SEO';
 const AI4SEO_SHORT_PLUGIN_NAME                  = 'SOOZ';
 const AI4SEO_PLUGIN_DESCRIPTION                 = 'One-Click SEO solution. SOOZ - AI for SEO helps your website to rank higher in Web Search results.';
@@ -88,6 +88,7 @@ const AI4SEO_SCRIPTS_FILE_NAME           = 'ai-for-seo-scripts-' . AI4SEO_PLUGIN
 const AI4SEO_INJECTION_SCRIPTS_FILE_NAME = 'ai-for-seo-alt-text-injection-' . AI4SEO_PLUGIN_VERSION_NUMBER . '.js';
 // Keep PHP context validation and the localized JavaScript dispatcher on one stable vocabulary.
 const AI4SEO_PRIMARY_ASSET_CONTEXTS                     = array(
+	'activation-offer',
 	'plugin-ui',
 	'frontend-metadata-editor',
 	'content-list',
@@ -238,6 +239,19 @@ const AI4SEO_METADATA_KEYWORDS_RECOMMENDED_MAX_ITEMS = 10;
  */
 function ai4seo_get_change_log(): array {
 	return array(
+		array(
+			'date'      => '2026-10-09',
+			'version'   => '2.5.9',
+			'important' => false,
+			'updates'   => array(
+				'Improved SEO coverage analysis so unreadable or duplicate generation history no longer stops scans, with clear warnings and affected entries excluded from SEO Autopilot until resolved.',
+				'Improved account connection recovery to stop repeated unsuccessful setup attempts while preserving valid connections and allowing manual reconnection.',
+				'Fixed incorrect unsaved-change warnings after saving metadata that WordPress normalizes, while preserving edits made during saving.',
+				'Clarified where media titles, alt text, captions, and descriptions are saved and when they appear on your website.',
+				'Made restoring default settings safer by initially focusing Cancel in the confirmation dialog.',
+				'Bug Fixes & Maintenance: Fixed 2 minor bugs.',
+			),
+		),
 		array(
 			'date'      => '2026-10-04',
 			'version'   => '2.5.8',
@@ -750,6 +764,9 @@ const AI4SEO_SEO_COVERAGE_POST_ID_OPTIONS = array(
 	AI4SEO_FULLY_COVERED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME,
 	AI4SEO_GENERATED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME,
 );
+
+// Keep persisted analysis diagnostics bounded even when many historical rows are corrupt.
+const AI4SEO_POSTS_TABLE_ANALYSIS_WARNING_SAMPLE_LIMIT = 20;
 
 // all wp-Options that define the generation status of a given post
 // a post id cannot be in PENDING and PROCESSING at the same time.
@@ -1920,8 +1937,9 @@ const AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_LAST_KNOWN_POSTS_TABLE_ENTRIES          
 const AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_CURRENT_POSTS_TABLE_ENTRIES                       = 'num_current_posts_table_entries';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_CURRENT_POSTMETA_TABLE_ENTRIES                    = 'num_current_postmeta_table_entries';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_CURRENT_DISCOUNT                                      = 'current_discount';
-const AI4SEO_ENVIRONMENTAL_VARIABLE_PLUGIN_ACTIVATION_TIME                                = 'plugin_activation_time';
-const AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_PERFORMANCE_ANALYSIS_TIME                        = 'last_performance_analysis_time';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVATION                                       = 'activation_offers';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_PLUGIN_ACTIVATION_TIME                           = 'plugin_activation_time';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_PERFORMANCE_ANALYSIS_TIME                   = 'last_performance_analysis_time';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_STATUS                                      = 'payg_status';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_FAILURE_REASON                              = 'payg_failure_reason';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_JUST_PURCHASED_SOMETHING_TIME                    = 'just_purchased_something_time';
@@ -1971,6 +1989,7 @@ const AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES = array(
 	AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_CURRENT_POSTS_TABLE_ENTRIES => 0,
 	AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_CURRENT_POSTMETA_TABLE_ENTRIES => 0,
 	AI4SEO_ENVIRONMENTAL_VARIABLE_CURRENT_DISCOUNT         => array(),
+	AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVATION               => array(),
 	AI4SEO_ENVIRONMENTAL_VARIABLE_PLUGIN_ACTIVATION_TIME   => 0,
 	AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_PERFORMANCE_ANALYSIS_TIME => 0,
 	AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_STATUS              => 'idle',
@@ -2121,7 +2140,7 @@ add_action(
 					'icon'                   => 'headline',
 					'mime-type-restrictions' => array(),
 					'input-type'             => 'textarea',
-					'hint'                   => __( '<strong>Best Practice:</strong> A descriptive and unique title for your image that helps users and search engines understand the content of the image. This title is displayed when the image is loaded in the browser and may be used as the default filename if someone downloads the image.<br><br>The AI aims to generate an image title within a natural quality window of <strong>50 to 80</strong> characters.<br><br>The image title is not directly visible on your website but is stored in the <strong>image metadata</strong>. A well-crafted title can aid in organizing your media library and improve searchability within WordPress.', 'ai-for-seo' ),
+					'hint'                   => __( '<strong>Best Practice:</strong> Use a descriptive title to organize and find this item in the <strong>WordPress Media Library</strong>. This field changes the WordPress media title. The image filename stays unchanged.<br><br>Whether the title appears on your website depends on your theme and plugins. SOOZ - AI for SEO can also use it for the HTML image title attribute according to your image-title injection setting.<br><br>The AI aims to generate an image title within a natural quality window of <strong>50 to 80</strong> characters.', 'ai-for-seo' ),
 					'api-identifier'         => 'image_title',
 					'flat-credits-cost'      => 1,
 				),
@@ -2141,7 +2160,7 @@ add_action(
 					),
 					'input-type'             => 'textarea',
 					// phpcs:ignore -- Keep this translated registry entry aligned with the neighboring field declarations.
-					'hint'                   => __( '<strong>Best Practice:</strong> An informative and clear alt text for your image that describes its content and function. This text is used by screen readers to assist visually impaired users and is displayed in place of the image if it cannot be loaded. It also contributes to SEO by providing context to search engines.<br><br>Alt text is added to the <strong>alt attribute</strong> of the image HTML tag.', 'ai-for-seo' ),
+					'hint'                   => __( '<strong>Best Practice:</strong> An informative and clear alt text for your image that describes its content and function. This text is used by screen readers to assist visually impaired users and is displayed in place of the image if it cannot be loaded. It also contributes to SEO by providing context to search engines.<br><br>This field saves alt text in the WordPress Media Library. Whether it appears in an image\'s HTML alt attribute depends on how your theme or page builder uses that value. Images already inserted into pages can keep their own alt text. If the saved text is missing on your website, review the Alt Text Injection setting under Troubleshooting &amp; Experimental.', 'ai-for-seo' ),
 					'api-identifier'         => 'image_alt_text',
 					'flat-credits-cost'      => 2,
 				),
@@ -2150,7 +2169,7 @@ add_action(
 					'icon'                   => 'subtitle',
 					'mime-type-restrictions' => array(),
 					'input-type'             => 'textarea',
-					'hint'                   => __( '<strong>Best Practice:</strong> A brief and engaging caption for your image that provides additional context or credit information. Captions are typically displayed below the image on your website and can help enhance user engagement and provide useful information.<br><br>The AI aims to generate a caption within a natural quality window of <strong>130 to 160</strong> characters.<br><br>The caption is added to the <strong>caption field</strong> in the WordPress Media Library and is displayed directly on the page where the image appears.', 'ai-for-seo' ),
+					'hint'                   => __( '<strong>Best Practice:</strong> A brief and engaging caption for your image that provides additional context or credit information. Captions are typically displayed below the image on your website and can help enhance user engagement and provide useful information.<br><br>The AI aims to generate a caption within a natural quality window of <strong>130 to 160</strong> characters.<br><br>This field saves the caption in the <strong>WordPress Media Library</strong>. Whether it appears below an image on your website depends on the image block, theme or plugin using the caption. Saving it here does not guarantee a visible caption wherever the image appears.', 'ai-for-seo' ),
 					'api-identifier'         => 'image_caption',
 					'flat-credits-cost'      => 1,
 				),
@@ -2159,7 +2178,7 @@ add_action(
 					'icon'                   => 'subtitles',
 					'mime-type-restrictions' => array(),
 					'input-type'             => 'textarea',
-					'hint'                   => __( "<strong>Best Practice:</strong> A detailed and informative description of your image, which helps users understand the image's content and context. This description is particularly useful for internal reference and can aid in organizing and managing your media library.<br><br>The AI aims to generate a description within a natural quality window of <strong>180 to 240</strong> characters.<br><br>The description is stored in the <strong>image metadata</strong> and is not directly visible to users on your website. A well-crafted description can aid in organizing your media library and improve searchability within WordPress.", 'ai-for-seo' ),
+					'hint'                   => __( "<strong>Best Practice:</strong> A detailed and informative description of your image, which helps users understand the image's content and context. This description is particularly useful for internal reference and can aid in organizing and managing your media library.<br><br>The AI aims to generate a description within a natural quality window of <strong>180 to 240</strong> characters.<br><br>This field saves the description in the WordPress Media Library; it does not change metadata embedded in the image file. Website display depends on your theme or plugins. SOOZ can also use this text as the image title attribute when selected in the image-title injection setting.", 'ai-for-seo' ),
 					'api-identifier'         => 'image_description',
 					'flat-credits-cost'      => 1,
 				),
@@ -2678,6 +2697,7 @@ const AI4SEO_ALLOWED_AJAX_FUNCTIONS = array(
 	'ai4seo_retry_all_failed_metadata',
 	'ai4seo_disable_payg',
 	'ai4seo_init_purchase',
+	'ai4seo_update_activation_preferences',
 	'ai4seo_init_subscription_pricing',
 	'ai4seo_import_nextgen_gallery_images',
 	'ai4seo_export_settings',
@@ -2705,6 +2725,7 @@ const AI4SEO_ADMINISTRATIVE_AJAX_FUNCTIONS = array(
 	'ai4seo_retry_all_failed_metadata',
 	'ai4seo_disable_payg',
 	'ai4seo_init_purchase',
+	'ai4seo_update_activation_preferences',
 	'ai4seo_init_subscription_pricing',
 	'ai4seo_import_nextgen_gallery_images',
 	'ai4seo_export_settings',

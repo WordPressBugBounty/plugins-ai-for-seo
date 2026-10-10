@@ -1557,14 +1557,16 @@ function ai4seo_init_purchase() {
 	}
 
 	// Accept only a scalar Stripe price selected from the server-rendered pack registry.
-	if ( ! isset( $_POST['stripe_price_id'] ) || ! is_string( $_POST['stripe_price_id'] ) ) {
+	$is_activation_purchase = isset( $_POST['offer_id'] ) && is_string( $_POST['offer_id'] )
+		&& ai4seo_is_activation_purchase_selection( 'activation-' . sanitize_text_field( wp_unslash( $_POST['offer_id'] ) ) ) && ! isset( $_POST['stripe_price_id'] );
+	if ( ! $is_activation_purchase && ( ! isset( $_POST['stripe_price_id'] ) || ! is_string( $_POST['stripe_price_id'] ) || isset( $_POST['offer_id'] ) ) ) {
 		ai4seo_send_ajax_error( esc_html__( 'Invalid stripe_price_id', 'ai-for-seo' ), 551818325 );
 		wp_die();
 	}
 
-	$stripe_price_id = sanitize_text_field( wp_unslash( $_POST['stripe_price_id'] ) );
+	$stripe_price_id = $is_activation_purchase ? 'activation-' . sanitize_text_field( wp_unslash( $_POST['offer_id'] ) ) : sanitize_text_field( wp_unslash( $_POST['stripe_price_id'] ) );
 
-	if ( ! array_key_exists( $stripe_price_id, ai4seo_get_credits_packs() ) ) {
+	if ( ! $is_activation_purchase && ! array_key_exists( $stripe_price_id, ai4seo_get_credits_packs() ) ) {
 		ai4seo_send_ajax_error( esc_html__( 'Invalid stripe_price_id', 'ai-for-seo' ), 551818326 );
 		return;
 	}
@@ -4474,6 +4476,16 @@ function ai4seo_dismiss_notification() {
 	}
 
 	// mark the notification as dismissed.
+	if ( ai4seo_is_activation_purchase_selection( $notification_index ) ) {
+		$preference = array(
+			'action'   => 'dismiss',
+			'offer_id' => substr( $notification_index, 11 ),
+		);
+		$response   = ai4seo_robhub_api()->call( 'client/activation-preferences', array( 'preferences' => wp_json_encode( $preference ) ) );
+		if ( ai4seo_robhub_api()->was_call_successful( $response ) ) {
+			ai4seo_store_activation_data( $response['data'] ?? array() );
+		}
+	}
 	$result = ai4seo_mark_notification_as_dismissed( $notification_index );
 
 	if ( $result ) {

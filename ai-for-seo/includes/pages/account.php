@@ -56,6 +56,8 @@ if ( ! ai4seo_can_administer_plugin() ) {
 	);
 }
 
+ai4seo_render_activation_area( true );
+
 $ai4seo_robhub_subscription      = ai4seo_robhub_api()->read_environmental_variable( ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION );
 $ai4seo_is_robhub_account_synced = ai4seo_robhub_api()->is_account_synced();
 $ai4seo_is_auth_locked           = ai4seo_robhub_api()->is_auth_data_locked();

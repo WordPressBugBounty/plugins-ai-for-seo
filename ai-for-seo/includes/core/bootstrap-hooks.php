@@ -21,6 +21,7 @@ add_action( 'init', 'ai4seo_load_language_files', 0 );
 
 // init settings.
 add_action( 'init', 'ai4seo_init_settings', 8 );
+add_action( 'admin_notices', 'ai4seo_activation_admin_notice' );
 
 // Invalidate content type list caches when the posts table changes.
 ai4seo_add_content_type_list_cache_invalidation_hooks();
