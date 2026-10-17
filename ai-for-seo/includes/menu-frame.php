@@ -51,13 +51,25 @@ $ai4seo_account_page_url  = ai4seo_get_subpage_url( 'account' );
 $ai4seo_help_page_url     = ai4seo_get_subpage_url( 'help' );
 $ai4seo_plugin_home_url   = $ai4seo_can_use_plugin_content ? $ai4seo_dashboard_url : $ai4seo_account_page_url;
 
-$ai4seo_current_post_type = ai4seo_get_active_post_type_subpage();
-$ai4seo_menu_registry     = ai4seo_get_plugins_menu_registry();
+$ai4seo_current_post_type  = ai4seo_get_active_post_type_subpage();
+$ai4seo_menu_registry      = ai4seo_get_plugins_menu_registry();
+$ai4seo_content_navigation = ai4seo_get_content_navigation_groups( $ai4seo_menu_registry );
+$ai4seo_current_taxonomy   = '';
+if ( AI4SEO_TAXONOMY_PROXY_POST_TYPE === $ai4seo_current_post_type ) {
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only, capability-gated navigation.
+	$ai4seo_current_taxonomy = isset( $_GET['ai4seo_taxonomy'] ) && is_string( $_GET['ai4seo_taxonomy'] ) ? sanitize_key( wp_unslash( $_GET['ai4seo_taxonomy'] ) ) : '';
+	if ( '' === $ai4seo_current_taxonomy ) {
+		$ai4seo_current_taxonomy = (string) array_key_first( $ai4seo_content_navigation['taxonomies']['post_types'] );
+	}
+}
 
 $ai4seo_page_heading_label = '';
 
 if ( 'post' === $ai4seo_active_plugin_page ) {
 	$ai4seo_page_heading_label = $ai4seo_menu_registry['post_types'][ $ai4seo_current_post_type ]['label'] ?? '';
+	if ( AI4SEO_TAXONOMY_PROXY_POST_TYPE === $ai4seo_current_post_type ) {
+		$ai4seo_page_heading_label = $ai4seo_menu_registry['taxonomies'][ $ai4seo_current_taxonomy ]['label'] ?? __( 'Taxonomies', 'ai-for-seo' );
+	}
 } else {
 	$ai4seo_page_heading_label = $ai4seo_menu_registry[ $ai4seo_active_plugin_page ]['label'] ?? '';
 }
@@ -65,9 +77,9 @@ if ( 'post' === $ai4seo_active_plugin_page ) {
 $ai4seo_page_heading = AI4SEO_PLUGIN_NAME . ( '' !== $ai4seo_page_heading_label ? ': ' . $ai4seo_page_heading_label : '' );
 
 $ai4seo_active_attachment_attributes = ai4seo_get_active_attachment_attributes();
-$ai4seo_supported_post_types         = array_keys( $ai4seo_menu_registry['post_types'] ?? array() );
+$ai4seo_navigation_storage_scope     = 'ai4seo:navigation:' . get_site_url() . ':' . get_current_user_id() . ':';
 
-if ( $ai4seo_is_dashboard_open ) {
+if ( $ai4seo_is_dashboard_open || ! ai4seo_get_setting( AI4SEO_SETTING_SHOW_MENU_COUNTERS ) ) {
 	$ai4seo_unread_notifications_count = 0;
 } else {
 	$ai4seo_unread_notifications_count = ai4seo_get_num_unread_notification();
@@ -217,27 +229,6 @@ if ( $ai4seo_can_use_plugin_content ) {
 				echo '</span>';
 			echo '</a>';
 
-			// Pages for supported post-types.
-	foreach ( $ai4seo_supported_post_types as $ai4seo_this_post_type ) {
-		$ai4seo_this_menu_item_label = ai4seo_get_post_type_translation( $ai4seo_this_post_type, true );
-		$ai4seo_this_menu_item_label = ai4seo_get_nice_label( $ai4seo_this_menu_item_label );
-		$ai4seo_this_menu_item_icon  = ai4seo_get_dashicon_tag_for_navigation( $ai4seo_this_post_type );
-		$ai4seo_this_page_is_active  = ( $ai4seo_current_post_type === $ai4seo_this_post_type );
-		$ai4seo_this_page_url        = ai4seo_get_post_type_page_url( $ai4seo_this_post_type );
-
-		echo "<a href='" . esc_url( $ai4seo_this_page_url ) . "'"
-		. " class='nav-tab ai4seo-menu-item"
-		. ( $ai4seo_this_page_is_active ? ' nav-tab-active ai4seo-active-menu-item' : '' )
-		. "'"
-		. ( $ai4seo_this_page_is_active ? " aria-current='page'" : '' )
-		. '>';
-		ai4seo_echo_wp_kses( $ai4seo_this_menu_item_icon );
-		echo '<div>';
-			echo esc_html( $ai4seo_this_menu_item_label );
-		echo '</div>';
-		echo '</a>';
-	}
-
 	if ( $ai4seo_active_attachment_attributes ) {
 		// Media page.
 		echo "<a href='" . esc_url( $ai4seo_media_page_url ) . "'"
@@ -251,6 +242,45 @@ if ( $ai4seo_can_use_plugin_content ) {
 			echo esc_html( ai4seo_get_media_menu_label() );
 		echo '</span>';
 		echo '</a>';
+	}
+
+	foreach ( $ai4seo_content_navigation as $ai4seo_group_key => $ai4seo_navigation_group ) {
+		if ( ! $ai4seo_navigation_group['post_types'] ) {
+			continue;
+		}
+
+		$ai4seo_is_navigation_group = 'primary' !== $ai4seo_group_key
+			&& ( 'taxonomies' !== $ai4seo_group_key || count( $ai4seo_navigation_group['post_types'] ) > 1 );
+
+		if ( $ai4seo_is_navigation_group ) {
+			$ai4seo_group_is_active = 'taxonomies' === $ai4seo_group_key
+				? AI4SEO_TAXONOMY_PROXY_POST_TYPE === $ai4seo_current_post_type
+				: isset( $ai4seo_navigation_group['post_types'][ $ai4seo_current_post_type ] );
+			echo "<details class='ai4seo-navigation-group'"
+				. " data-ai4seo-navigation-storage-key='" . esc_attr( $ai4seo_navigation_storage_scope . $ai4seo_group_key ) . "'"
+				. ( $ai4seo_group_is_active ? ' open' : '' ) . '>';
+			echo "<summary class='ai4seo-navigation-group-trigger'>" . esc_html( $ai4seo_navigation_group['label'] ) . '</summary>';
+			echo "<div class='ai4seo-navigation-group-links'>";
+		}
+
+		foreach ( $ai4seo_navigation_group['post_types'] as $ai4seo_this_post_type => $ai4seo_navigation_entry ) {
+			$ai4seo_this_page_is_active = isset( $ai4seo_navigation_entry['taxonomy'] )
+				? AI4SEO_TAXONOMY_PROXY_POST_TYPE === $ai4seo_current_post_type && $ai4seo_current_taxonomy === $ai4seo_navigation_entry['taxonomy']
+				: $ai4seo_current_post_type === $ai4seo_this_post_type;
+			$ai4seo_this_page_url       = $ai4seo_navigation_entry['url'] ?? ai4seo_get_post_type_page_url( $ai4seo_this_post_type );
+
+			echo "<a href='" . esc_url( $ai4seo_this_page_url ) . "'"
+				. " class='nav-tab ai4seo-menu-item"
+				. ( $ai4seo_this_page_is_active ? ' nav-tab-active ai4seo-active-menu-item' : '' ) . "'"
+				. ( $ai4seo_this_page_is_active ? " aria-current='page'" : '' ) . '>';
+			ai4seo_echo_wp_kses( ai4seo_get_dashicon_tag_for_navigation( $ai4seo_this_post_type ) );
+			echo '<div>' . esc_html( $ai4seo_navigation_entry['label'] ) . '</div>';
+			echo '</a>';
+		}
+
+		if ( $ai4seo_is_navigation_group ) {
+			echo '</div></details>';
+		}
 	}
 }
 
@@ -309,6 +339,10 @@ if ( $ai4seo_can_use_plugin_content ) {
 	// ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 	echo "<div class='ai4seo-content-wrapper'>";
+if ( 'help' !== $ai4seo_active_plugin_page && $ai4seo_can_administer_plugin ) {
+	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Shared renderer escapes all update diagnostics.
+	echo ai4seo_get_plugin_update_notice_html();
+}
 
 		// Keep one accessible page-specific heading as WordPress' notice-placement anchor.
 		echo "<h1 class='screen-reader-text'>" . esc_html( $ai4seo_page_heading ) . '</h1>';
@@ -342,7 +376,7 @@ switch ( $ai4seo_active_plugin_page ) {
 		require_once ai4seo_get_includes_pages_path( 'settings.php' );
 		break;
 	case 'post':
-		require_once ai4seo_get_includes_pages_content_types_path( 'post.php' );
+		require_once ai4seo_get_includes_pages_content_types_path( AI4SEO_TAXONOMY_PROXY_POST_TYPE === $ai4seo_current_post_type ? 'taxonomy.php' : 'post.php' );
 		break;
 	case 'media':
 		require_once ai4seo_get_includes_pages_content_types_path( 'attachment.php' );

@@ -57,6 +57,7 @@ if ( ! ai4seo_can_administer_plugin() ) {
 }
 
 ai4seo_render_activation_area( true );
+ai4seo_echo_wp_kses( ai4seo_get_account_quality_notice( false ) );
 
 $ai4seo_robhub_subscription      = ai4seo_robhub_api()->read_environmental_variable( ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION );
 $ai4seo_is_robhub_account_synced = ai4seo_robhub_api()->is_account_synced();
@@ -105,12 +106,8 @@ $ai4seo_setting_display_source_code_notes       = ai4seo_get_setting( AI4SEO_SET
 $ai4seo_setting_source_code_notes_content_start = ai4seo_get_setting( AI4SEO_SETTING_META_TAGS_BLOCK_STARTING_HINT );
 $ai4seo_setting_source_code_notes_content_end   = ai4seo_get_setting( AI4SEO_SETTING_META_TAGS_BLOCK_ENDING_HINT );
 
-$ai4seo_robhub_subscription_plan              = $ai4seo_robhub_subscription['plan'] ?? 'free';
-$ai4seo_robhub_subscription_end_date_and_time = $ai4seo_robhub_subscription['subscription_end'] ?? false;
-$ai4seo_robhub_subscription_end_timestamp     = $ai4seo_robhub_subscription_end_date_and_time
-	? strtotime( $ai4seo_robhub_subscription_end_date_and_time ) : 0;
-$ai4seo_user_is_on_free_plan                  = ( 'free' === $ai4seo_robhub_subscription_plan ) || $ai4seo_robhub_subscription_end_timestamp < time();
-$ai4seo_has_purchased_something               = (bool) ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_HAS_PURCHASED_SOMETHING );
+$ai4seo_robhub_subscription_plan = ai4seo_get_account_readiness()['plan'];
+$ai4seo_has_purchased_something  = (bool) ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_HAS_PURCHASED_SOMETHING );
 
 
 // ___________________________________________________________________________________________ \\
@@ -118,6 +115,11 @@ $ai4seo_has_purchased_something               = (bool) ai4seo_read_environmental
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
+	ai4seo_echo_wp_kses( ai4seo_get_settings_form_state_tag() );
+// Empty license-entry fields must not disconnect the hidden free account during an Account save.
+if ( ! $ai4seo_show_license_details ) {
+	echo '<input type="hidden" name="ai4seo_account_license_entry_mode" value="true">';
+}
 
 // A server-generated replacement is intentionally never returned to this site.
 // Keep the administrator on secure recovery guidance until the emailed pair verifies.
@@ -246,8 +248,8 @@ if ( ! $ai4seo_is_robhub_account_synced || ! $ai4seo_show_license_details ) {
 	ai4seo_echo_wp_kses( ai4seo_get_icon_button_tag( 'key-slash', esc_html__( 'Lost your license data?', 'ai-for-seo' ), '', 'ai4seo_open_lost_key_modal();' ) );
 }
 
-				// Button to manage subscription if user has an active subscription.
-if ( ! $ai4seo_user_is_on_free_plan ) {
+				// Keep billing access available from purchase history or the last confirmed paid plan.
+if ( $ai4seo_has_purchased_something || in_array( $ai4seo_robhub_subscription_plan, array( 's', 'm', 'l' ), true ) ) {
 	ai4seo_echo_wp_kses( ai4seo_get_a_tag_icon_button_tag( AI4SEO_STRIPE_BILLING_URL, '', '_blank', 'stripe', esc_html__( 'Manage Subscription / Invoices', 'ai-for-seo' ) ) );
 }
 
@@ -262,7 +264,22 @@ if ( $ai4seo_has_purchased_something && $ai4seo_is_robhub_account_synced ) {
 }
 
 if ( $ai4seo_license_username && $ai4seo_license_key && $ai4seo_show_license_details ) {
+	if ( $ai4seo_has_purchased_something && $ai4seo_is_robhub_account_synced
+		&& ai4seo_robhub_api()->read_environmental_variable( ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_CREDENTIAL_CHANGES_SUPPORTED ) ) {
+		$ai4seo_license_change_disabled = $ai4seo_is_auth_locked || $ai4seo_has_rotation_recovery || ai4seo_robhub_api()->has_pending_api_password_rotation();
+		foreach ( array(
+			'username' => __( 'Change license owner', 'ai-for-seo' ),
+			'password' => __( 'Rotate license key', 'ai-for-seo' ),
+		) as $ai4seo_change_kind => $ai4seo_change_label ) {
+			echo '<button type="button" class="ai4seo-button ai4seo-secondary-button ai4seo-license-change-open" data-kind="' . esc_attr( $ai4seo_change_kind ) . '" data-current-owner="' . esc_attr( $ai4seo_license_username ) . '"' . disabled( $ai4seo_license_change_disabled, true, false ) . '>';
+			ai4seo_echo_wp_kses( ai4seo_get_svg_tag( 'username' === $ai4seo_change_kind ? 'pen-to-square' : 'key', '', 'ai4seo-button-icon-left', true ) );
+			echo '<span>' . esc_html( $ai4seo_change_label ) . '</span></button>';
+		}
+	}
 	ai4seo_echo_wp_kses( ai4seo_get_icon_button_tag( 'trash', esc_html__( 'Remove license', 'ai-for-seo' ), 'ai4seo-secondary-button', 'ai4seo_remove_license(this);' ) );
+}
+if ( ai4seo_robhub_api()->has_pending_license_change() ) {
+	echo '<button type="button" class="ai4seo-button ai4seo-license-change-open" data-kind="status">' . esc_html__( 'Resume license change', 'ai-for-seo' ) . '</button>';
 }
 			echo '</div>';
 		echo '</div>';
@@ -483,7 +500,7 @@ if ( $ai4seo_license_username && $ai4seo_license_key && $ai4seo_show_license_det
 			// Headline.
 			echo '<h2>';
 			ai4seo_echo_wp_kses( ai4seo_get_dashicon_tag( 'shield', 'ai4seo-menu-item-icon', true ) );
-			echo esc_html__( 'Privacy & Agreements', 'ai-for-seo' );
+			echo esc_html__( 'Privacy, Notifications & Agreements', 'ai-for-seo' );
 			echo '</h2>';
 
 			// TERMS OF SERVICE BUTTON.
@@ -553,6 +570,8 @@ if ( $ai4seo_license_username && $ai4seo_license_key && $ai4seo_show_license_det
 						echo '</p>';
 						echo '</div>';
 						echo '</div>';
+						ai4seo_render_activation_preferences();
+						ai4seo_render_notification_preferences();
 						echo '</div>';
 
 						// Submit button.

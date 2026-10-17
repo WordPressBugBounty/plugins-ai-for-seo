@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 // Centralize plugin identity and asset-cache declarations consumed throughout bootstrap.
-const AI4SEO_PLUGIN_VERSION_NUMBER              = '2.5.9';
+const AI4SEO_PLUGIN_VERSION_NUMBER              = '2.6.0';
 const AI4SEO_PLUGIN_NAME                        = 'SOOZ - AI for SEO';
 const AI4SEO_SHORT_PLUGIN_NAME                  = 'SOOZ';
 const AI4SEO_PLUGIN_DESCRIPTION                 = 'One-Click SEO solution. SOOZ - AI for SEO helps your website to rank higher in Web Search results.';
@@ -107,6 +107,15 @@ const AI4SEO_BLUE_GET_MORE_CREDITS_BUTTON_THRESHOLD     = 100;
 const AI4SEO_GIVING_FEEDBACK_CREDITS                    = 100;
 const AI4SEO_GIVING_FEEDBACK_DISCOUNT                   = 10; // in percent.
 const AI4SEO_NEXTGEN_GALLERY_POST_TYPE                  = 'ai4seo_ngg';
+const AI4SEO_TAXONOMY_PROXY_POST_TYPE                   = 'ai4seo_taxonomy';
+const AI4SEO_TAXONOMY_PROXY_SOURCE_META_KEY             = '_ai4seo_taxonomy_source';
+const AI4SEO_TAXONOMY_PROXY_NAME_META_KEY               = '_ai4seo_taxonomy_name';
+const AI4SEO_TAXONOMY_PROXY_AVAILABILITY_META_KEY       = '_ai4seo_taxonomy_availability';
+const AI4SEO_TAXONOMY_PROXY_SYNC_OPTION_NAME            = 'ai4seo_taxonomy_proxy_sync_v1';
+const AI4SEO_TAXONOMY_PROXY_SYNC_CRON_HOOK              = 'ai4seo_taxonomy_proxy_sync';
+const AI4SEO_TAXONOMY_PROXY_CONTINUATION_CRON_HOOK      = 'ai4seo_taxonomy_proxy_sync_continue';
+const AI4SEO_TAXONOMY_PROXY_SYNC_BATCH_SIZE             = 200;
+const AI4SEO_TAXONOMY_PROXY_SYNC_TIME_LIMIT             = 10;
 const AI4SEO_MAX_DISPLAYABLE_ALREADY_READ_NOTIFICATIONS = 2;
 const AI4SEO_ANALYZE_PERFORMANCE_INTERVAL               = 7200; // 2h
 const AI4SEO_GLOBAL_NONCE_IDENTIFIER                    = 'ai4seo_ajax_nonce';
@@ -239,6 +248,24 @@ const AI4SEO_METADATA_KEYWORDS_RECOMMENDED_MAX_ITEMS = 10;
  */
 function ai4seo_get_change_log(): array {
 	return array(
+		array(
+			'date'      => '2026-10-17',
+			'version'   => '2.6.0',
+			'important' => true,
+			'updates'   => array(
+				'Added metadata editing and generation for category, tag, and public taxonomy archives, with separate SEO coverage and SEO Autopilot selection.',
+				'Added support for generating image attributes from validated static SVGs while preserving the original media file, including native WordPress media controls.',
+				'Added email-confirmed license owner changes and license key rotation for eligible accounts, with recovery when a confirmation result is uncertain.',
+				'Added separate controls for offers, optional notifications, menu counters, and email preferences, with reliable saving and dismissal across admin pages.',
+				'Improved SEO Autopilot and bulk generation with clearer queue status, retained jobs when data is unavailable, and safer retries after interruptions.',
+				'Improved metadata and settings editors to preserve unsaved work, explain unavailable data, and recover from conflicting or incomplete saves.',
+				'Improved account refresh and offer handling so stale account data or expired offers cannot silently replace current information.',
+				'Improved plugin upgrades with visible progress, safe retries, and preservation of legacy metadata when an update step cannot finish.',
+				'Improved synchronization with supported SEO plugins and navigation between filtered content entries, with clearer responsive dialogs and keyboard focus.',
+				'Simplified taxonomy navigation and Credits Pack dialogs, named the processed content types in Autopilot completion messages, and clarified metadata help and notification labels.',
+				'Bug Fixes & Maintenance: Fixed 8 minor bugs and addressed 1 security issue.',
+			),
+		),
 		array(
 			'date'      => '2026-10-09',
 			'version'   => '2.5.9',
@@ -811,6 +838,7 @@ const AI4SEO_ANALYSE_PLUGIN_PERFORMANCE_CRON_JOB_NAME        = 'ai4seo_analyze_p
 const AI4SEO_GENERATION_STATUS_SUMMARY_REBUILD_CRON_JOB_NAME = 'ai4seo_rebuild_generation_status_summary';
 const AI4SEO_ACTIVE_METADATA_MIGRATION_V235_CRON_JOB_NAME    = 'ai4seo_active_metadata_migration_v235_cron_job';
 const AI4SEO_ACTIVE_METADATA_MIGRATION_V235_BATCH_SIZE       = 500;
+const AI4SEO_PLUGIN_UPDATE_PROGRESS_OPTION_NAME              = 'ai4seo_plugin_update_progress';
 
 
 // endregion
@@ -989,6 +1017,270 @@ function ai4seo_get_third_party_seo_plugin_details(): array {
 				'meta-description' => 'seokey-metadesc',
 			),
 		),
+	);
+}
+
+/**
+ * Return translatable country names keyed by their two-letter identifiers.
+ *
+ * Based on WooCommerce's country registry; availability never grants campaign permission.
+ *
+ * @link https://github.com/woocommerce/woocommerce/blob/trunk/plugins/woocommerce/i18n/countries.php
+ *
+ * @return array Country codes and display names.
+ */
+function ai4seo_get_country_names(): array {
+	return array(
+		'AF' => __( 'Afghanistan', 'ai-for-seo' ),
+		'AX' => __( 'Åland Islands', 'ai-for-seo' ),
+		'AL' => __( 'Albania', 'ai-for-seo' ),
+		'DZ' => __( 'Algeria', 'ai-for-seo' ),
+		'AS' => __( 'American Samoa', 'ai-for-seo' ),
+		'AD' => __( 'Andorra', 'ai-for-seo' ),
+		'AO' => __( 'Angola', 'ai-for-seo' ),
+		'AI' => __( 'Anguilla', 'ai-for-seo' ),
+		'AQ' => __( 'Antarctica', 'ai-for-seo' ),
+		'AG' => __( 'Antigua and Barbuda', 'ai-for-seo' ),
+		'AR' => __( 'Argentina', 'ai-for-seo' ),
+		'AM' => __( 'Armenia', 'ai-for-seo' ),
+		'AW' => __( 'Aruba', 'ai-for-seo' ),
+		'AU' => __( 'Australia', 'ai-for-seo' ),
+		'AT' => __( 'Austria', 'ai-for-seo' ),
+		'AZ' => __( 'Azerbaijan', 'ai-for-seo' ),
+		'BS' => __( 'Bahamas', 'ai-for-seo' ),
+		'BH' => __( 'Bahrain', 'ai-for-seo' ),
+		'BD' => __( 'Bangladesh', 'ai-for-seo' ),
+		'BB' => __( 'Barbados', 'ai-for-seo' ),
+		'BY' => __( 'Belarus', 'ai-for-seo' ),
+		'BE' => __( 'Belgium', 'ai-for-seo' ),
+		'PW' => __( 'Belau', 'ai-for-seo' ),
+		'BZ' => __( 'Belize', 'ai-for-seo' ),
+		'BJ' => __( 'Benin', 'ai-for-seo' ),
+		'BM' => __( 'Bermuda', 'ai-for-seo' ),
+		'BT' => __( 'Bhutan', 'ai-for-seo' ),
+		'BO' => __( 'Bolivia', 'ai-for-seo' ),
+		'BQ' => __( 'Bonaire, Saint Eustatius and Saba', 'ai-for-seo' ),
+		'BA' => __( 'Bosnia and Herzegovina', 'ai-for-seo' ),
+		'BW' => __( 'Botswana', 'ai-for-seo' ),
+		'BV' => __( 'Bouvet Island', 'ai-for-seo' ),
+		'BR' => __( 'Brazil', 'ai-for-seo' ),
+		'IO' => __( 'British Indian Ocean Territory', 'ai-for-seo' ),
+		'BN' => __( 'Brunei', 'ai-for-seo' ),
+		'BG' => __( 'Bulgaria', 'ai-for-seo' ),
+		'BF' => __( 'Burkina Faso', 'ai-for-seo' ),
+		'BI' => __( 'Burundi', 'ai-for-seo' ),
+		'KH' => __( 'Cambodia', 'ai-for-seo' ),
+		'CM' => __( 'Cameroon', 'ai-for-seo' ),
+		'CA' => __( 'Canada', 'ai-for-seo' ),
+		'CV' => __( 'Cape Verde', 'ai-for-seo' ),
+		'KY' => __( 'Cayman Islands', 'ai-for-seo' ),
+		'CF' => __( 'Central African Republic', 'ai-for-seo' ),
+		'TD' => __( 'Chad', 'ai-for-seo' ),
+		'CL' => __( 'Chile', 'ai-for-seo' ),
+		'CN' => __( 'China', 'ai-for-seo' ),
+		'CX' => __( 'Christmas Island', 'ai-for-seo' ),
+		'CC' => __( 'Cocos (Keeling) Islands', 'ai-for-seo' ),
+		'CO' => __( 'Colombia', 'ai-for-seo' ),
+		'KM' => __( 'Comoros', 'ai-for-seo' ),
+		'CG' => __( 'Congo (Brazzaville)', 'ai-for-seo' ),
+		'CD' => __( 'Congo (Kinshasa)', 'ai-for-seo' ),
+		'CK' => __( 'Cook Islands', 'ai-for-seo' ),
+		'CR' => __( 'Costa Rica', 'ai-for-seo' ),
+		'HR' => __( 'Croatia', 'ai-for-seo' ),
+		'CU' => __( 'Cuba', 'ai-for-seo' ),
+		'CW' => __( 'Curaçao', 'ai-for-seo' ),
+		'CY' => __( 'Cyprus', 'ai-for-seo' ),
+		'CZ' => __( 'Czech Republic', 'ai-for-seo' ),
+		'DK' => __( 'Denmark', 'ai-for-seo' ),
+		'DJ' => __( 'Djibouti', 'ai-for-seo' ),
+		'DM' => __( 'Dominica', 'ai-for-seo' ),
+		'DO' => __( 'Dominican Republic', 'ai-for-seo' ),
+		'EC' => __( 'Ecuador', 'ai-for-seo' ),
+		'EG' => __( 'Egypt', 'ai-for-seo' ),
+		'SV' => __( 'El Salvador', 'ai-for-seo' ),
+		'GQ' => __( 'Equatorial Guinea', 'ai-for-seo' ),
+		'ER' => __( 'Eritrea', 'ai-for-seo' ),
+		'EE' => __( 'Estonia', 'ai-for-seo' ),
+		'ET' => __( 'Ethiopia', 'ai-for-seo' ),
+		'FK' => __( 'Falkland Islands', 'ai-for-seo' ),
+		'FO' => __( 'Faroe Islands', 'ai-for-seo' ),
+		'FJ' => __( 'Fiji', 'ai-for-seo' ),
+		'FI' => __( 'Finland', 'ai-for-seo' ),
+		'FR' => __( 'France', 'ai-for-seo' ),
+		'GF' => __( 'French Guiana', 'ai-for-seo' ),
+		'PF' => __( 'French Polynesia', 'ai-for-seo' ),
+		'TF' => __( 'French Southern Territories', 'ai-for-seo' ),
+		'GA' => __( 'Gabon', 'ai-for-seo' ),
+		'GM' => __( 'Gambia', 'ai-for-seo' ),
+		'GE' => __( 'Georgia', 'ai-for-seo' ),
+		'DE' => __( 'Germany', 'ai-for-seo' ),
+		'GH' => __( 'Ghana', 'ai-for-seo' ),
+		'GI' => __( 'Gibraltar', 'ai-for-seo' ),
+		'GR' => __( 'Greece', 'ai-for-seo' ),
+		'GL' => __( 'Greenland', 'ai-for-seo' ),
+		'GD' => __( 'Grenada', 'ai-for-seo' ),
+		'GP' => __( 'Guadeloupe', 'ai-for-seo' ),
+		'GU' => __( 'Guam', 'ai-for-seo' ),
+		'GT' => __( 'Guatemala', 'ai-for-seo' ),
+		'GG' => __( 'Guernsey', 'ai-for-seo' ),
+		'GN' => __( 'Guinea', 'ai-for-seo' ),
+		'GW' => __( 'Guinea-Bissau', 'ai-for-seo' ),
+		'GY' => __( 'Guyana', 'ai-for-seo' ),
+		'HT' => __( 'Haiti', 'ai-for-seo' ),
+		'HM' => __( 'Heard Island and McDonald Islands', 'ai-for-seo' ),
+		'HN' => __( 'Honduras', 'ai-for-seo' ),
+		'HK' => __( 'Hong Kong', 'ai-for-seo' ),
+		'HU' => __( 'Hungary', 'ai-for-seo' ),
+		'IS' => __( 'Iceland', 'ai-for-seo' ),
+		'IN' => __( 'India', 'ai-for-seo' ),
+		'ID' => __( 'Indonesia', 'ai-for-seo' ),
+		'IR' => __( 'Iran', 'ai-for-seo' ),
+		'IQ' => __( 'Iraq', 'ai-for-seo' ),
+		'IE' => __( 'Ireland', 'ai-for-seo' ),
+		'IM' => __( 'Isle of Man', 'ai-for-seo' ),
+		'IL' => __( 'Israel', 'ai-for-seo' ),
+		'IT' => __( 'Italy', 'ai-for-seo' ),
+		'CI' => __( 'Ivory Coast', 'ai-for-seo' ),
+		'JM' => __( 'Jamaica', 'ai-for-seo' ),
+		'JP' => __( 'Japan', 'ai-for-seo' ),
+		'JE' => __( 'Jersey', 'ai-for-seo' ),
+		'JO' => __( 'Jordan', 'ai-for-seo' ),
+		'KZ' => __( 'Kazakhstan', 'ai-for-seo' ),
+		'KE' => __( 'Kenya', 'ai-for-seo' ),
+		'KI' => __( 'Kiribati', 'ai-for-seo' ),
+		'XK' => __( 'Kosovo', 'ai-for-seo' ),
+		'KW' => __( 'Kuwait', 'ai-for-seo' ),
+		'KG' => __( 'Kyrgyzstan', 'ai-for-seo' ),
+		'LA' => __( 'Laos', 'ai-for-seo' ),
+		'LV' => __( 'Latvia', 'ai-for-seo' ),
+		'LB' => __( 'Lebanon', 'ai-for-seo' ),
+		'LS' => __( 'Lesotho', 'ai-for-seo' ),
+		'LR' => __( 'Liberia', 'ai-for-seo' ),
+		'LY' => __( 'Libya', 'ai-for-seo' ),
+		'LI' => __( 'Liechtenstein', 'ai-for-seo' ),
+		'LT' => __( 'Lithuania', 'ai-for-seo' ),
+		'LU' => __( 'Luxembourg', 'ai-for-seo' ),
+		'MO' => __( 'Macao', 'ai-for-seo' ),
+		'MK' => __( 'North Macedonia', 'ai-for-seo' ),
+		'MG' => __( 'Madagascar', 'ai-for-seo' ),
+		'MW' => __( 'Malawi', 'ai-for-seo' ),
+		'MY' => __( 'Malaysia', 'ai-for-seo' ),
+		'MV' => __( 'Maldives', 'ai-for-seo' ),
+		'ML' => __( 'Mali', 'ai-for-seo' ),
+		'MT' => __( 'Malta', 'ai-for-seo' ),
+		'MH' => __( 'Marshall Islands', 'ai-for-seo' ),
+		'MQ' => __( 'Martinique', 'ai-for-seo' ),
+		'MR' => __( 'Mauritania', 'ai-for-seo' ),
+		'MU' => __( 'Mauritius', 'ai-for-seo' ),
+		'YT' => __( 'Mayotte', 'ai-for-seo' ),
+		'MX' => __( 'Mexico', 'ai-for-seo' ),
+		'FM' => __( 'Micronesia', 'ai-for-seo' ),
+		'MD' => __( 'Moldova', 'ai-for-seo' ),
+		'MC' => __( 'Monaco', 'ai-for-seo' ),
+		'MN' => __( 'Mongolia', 'ai-for-seo' ),
+		'ME' => __( 'Montenegro', 'ai-for-seo' ),
+		'MS' => __( 'Montserrat', 'ai-for-seo' ),
+		'MA' => __( 'Morocco', 'ai-for-seo' ),
+		'MZ' => __( 'Mozambique', 'ai-for-seo' ),
+		'MM' => __( 'Myanmar', 'ai-for-seo' ),
+		'NA' => __( 'Namibia', 'ai-for-seo' ),
+		'NR' => __( 'Nauru', 'ai-for-seo' ),
+		'NP' => __( 'Nepal', 'ai-for-seo' ),
+		'NL' => __( 'Netherlands', 'ai-for-seo' ),
+		'NC' => __( 'New Caledonia', 'ai-for-seo' ),
+		'NZ' => __( 'New Zealand', 'ai-for-seo' ),
+		'NI' => __( 'Nicaragua', 'ai-for-seo' ),
+		'NE' => __( 'Niger', 'ai-for-seo' ),
+		'NG' => __( 'Nigeria', 'ai-for-seo' ),
+		'NU' => __( 'Niue', 'ai-for-seo' ),
+		'NF' => __( 'Norfolk Island', 'ai-for-seo' ),
+		'MP' => __( 'Northern Mariana Islands', 'ai-for-seo' ),
+		'KP' => __( 'North Korea', 'ai-for-seo' ),
+		'NO' => __( 'Norway', 'ai-for-seo' ),
+		'OM' => __( 'Oman', 'ai-for-seo' ),
+		'PK' => __( 'Pakistan', 'ai-for-seo' ),
+		'PS' => __( 'Palestinian Territory', 'ai-for-seo' ),
+		'PA' => __( 'Panama', 'ai-for-seo' ),
+		'PG' => __( 'Papua New Guinea', 'ai-for-seo' ),
+		'PY' => __( 'Paraguay', 'ai-for-seo' ),
+		'PE' => __( 'Peru', 'ai-for-seo' ),
+		'PH' => __( 'Philippines', 'ai-for-seo' ),
+		'PN' => __( 'Pitcairn', 'ai-for-seo' ),
+		'PL' => __( 'Poland', 'ai-for-seo' ),
+		'PT' => __( 'Portugal', 'ai-for-seo' ),
+		'PR' => __( 'Puerto Rico', 'ai-for-seo' ),
+		'QA' => __( 'Qatar', 'ai-for-seo' ),
+		'RE' => __( 'Reunion', 'ai-for-seo' ),
+		'RO' => __( 'Romania', 'ai-for-seo' ),
+		'RU' => __( 'Russia', 'ai-for-seo' ),
+		'RW' => __( 'Rwanda', 'ai-for-seo' ),
+		'BL' => __( 'Saint Barthélemy', 'ai-for-seo' ),
+		'SH' => __( 'Saint Helena', 'ai-for-seo' ),
+		'KN' => __( 'Saint Kitts and Nevis', 'ai-for-seo' ),
+		'LC' => __( 'Saint Lucia', 'ai-for-seo' ),
+		'MF' => __( 'Saint Martin (French part)', 'ai-for-seo' ),
+		'SX' => __( 'Saint Martin (Dutch part)', 'ai-for-seo' ),
+		'PM' => __( 'Saint Pierre and Miquelon', 'ai-for-seo' ),
+		'VC' => __( 'Saint Vincent and the Grenadines', 'ai-for-seo' ),
+		'SM' => __( 'San Marino', 'ai-for-seo' ),
+		'ST' => __( 'São Tomé and Príncipe', 'ai-for-seo' ),
+		'SA' => __( 'Saudi Arabia', 'ai-for-seo' ),
+		'SN' => __( 'Senegal', 'ai-for-seo' ),
+		'RS' => __( 'Serbia', 'ai-for-seo' ),
+		'SC' => __( 'Seychelles', 'ai-for-seo' ),
+		'SL' => __( 'Sierra Leone', 'ai-for-seo' ),
+		'SG' => __( 'Singapore', 'ai-for-seo' ),
+		'SK' => __( 'Slovakia', 'ai-for-seo' ),
+		'SI' => __( 'Slovenia', 'ai-for-seo' ),
+		'SB' => __( 'Solomon Islands', 'ai-for-seo' ),
+		'SO' => __( 'Somalia', 'ai-for-seo' ),
+		'ZA' => __( 'South Africa', 'ai-for-seo' ),
+		'GS' => __( 'South Georgia/Sandwich Islands', 'ai-for-seo' ),
+		'KR' => __( 'South Korea', 'ai-for-seo' ),
+		'SS' => __( 'South Sudan', 'ai-for-seo' ),
+		'ES' => __( 'Spain', 'ai-for-seo' ),
+		'LK' => __( 'Sri Lanka', 'ai-for-seo' ),
+		'SD' => __( 'Sudan', 'ai-for-seo' ),
+		'SR' => __( 'Suriname', 'ai-for-seo' ),
+		'SJ' => __( 'Svalbard and Jan Mayen', 'ai-for-seo' ),
+		'SZ' => __( 'Eswatini', 'ai-for-seo' ),
+		'SE' => __( 'Sweden', 'ai-for-seo' ),
+		'CH' => __( 'Switzerland', 'ai-for-seo' ),
+		'SY' => __( 'Syria', 'ai-for-seo' ),
+		'TW' => __( 'Taiwan', 'ai-for-seo' ),
+		'TJ' => __( 'Tajikistan', 'ai-for-seo' ),
+		'TZ' => __( 'Tanzania', 'ai-for-seo' ),
+		'TH' => __( 'Thailand', 'ai-for-seo' ),
+		'TL' => __( 'Timor-Leste', 'ai-for-seo' ),
+		'TG' => __( 'Togo', 'ai-for-seo' ),
+		'TK' => __( 'Tokelau', 'ai-for-seo' ),
+		'TO' => __( 'Tonga', 'ai-for-seo' ),
+		'TT' => __( 'Trinidad and Tobago', 'ai-for-seo' ),
+		'TN' => __( 'Tunisia', 'ai-for-seo' ),
+		'TR' => __( 'Türkiye', 'ai-for-seo' ),
+		'TM' => __( 'Turkmenistan', 'ai-for-seo' ),
+		'TC' => __( 'Turks and Caicos Islands', 'ai-for-seo' ),
+		'TV' => __( 'Tuvalu', 'ai-for-seo' ),
+		'UG' => __( 'Uganda', 'ai-for-seo' ),
+		'UA' => __( 'Ukraine', 'ai-for-seo' ),
+		'AE' => __( 'United Arab Emirates', 'ai-for-seo' ),
+		'GB' => __( 'United Kingdom (UK)', 'ai-for-seo' ),
+		'US' => __( 'United States (US)', 'ai-for-seo' ),
+		'UM' => __( 'United States (US) Minor Outlying Islands', 'ai-for-seo' ),
+		'UY' => __( 'Uruguay', 'ai-for-seo' ),
+		'UZ' => __( 'Uzbekistan', 'ai-for-seo' ),
+		'VU' => __( 'Vanuatu', 'ai-for-seo' ),
+		'VA' => __( 'Vatican', 'ai-for-seo' ),
+		'VE' => __( 'Venezuela', 'ai-for-seo' ),
+		'VN' => __( 'Vietnam', 'ai-for-seo' ),
+		'VG' => __( 'Virgin Islands (British)', 'ai-for-seo' ),
+		'VI' => __( 'Virgin Islands (US)', 'ai-for-seo' ),
+		'WF' => __( 'Wallis and Futuna', 'ai-for-seo' ),
+		'EH' => __( 'Western Sahara', 'ai-for-seo' ),
+		'WS' => __( 'Samoa', 'ai-for-seo' ),
+		'YE' => __( 'Yemen', 'ai-for-seo' ),
+		'ZM' => __( 'Zambia', 'ai-for-seo' ),
+		'ZW' => __( 'Zimbabwe', 'ai-for-seo' ),
 	);
 }
 
@@ -1199,6 +1491,17 @@ const AI4SEO_SETTING_SYNC_ONLY_THESE_METADATA                    = 'sync_only_th
 const AI4SEO_SETTING_METADATA_GENERATION_LANGUAGE                = 'metadata_generation_language';
 const AI4SEO_SETTING_ATTACHMENT_ATTRIBUTES_GENERATION_LANGUAGE   = 'attachment_attributes_generation_language';
 const AI4SEO_SETTING_ACTIVE_ATTACHMENT_ATTRIBUTES                = 'active_attachment_attributes';
+const AI4SEO_SETTING_ENABLED_ATTACHMENT_FILE_TYPES               = 'enabled_attachment_file_types';
+const AI4SEO_ATTACHMENT_FILE_TYPE_MIME_TYPES                     = array(
+	'jpeg' => 'image/jpeg',
+	'png'  => 'image/png',
+	'gif'  => 'image/gif',
+	'webp' => 'image/webp',
+	'avif' => 'image/avif',
+	'svg'  => 'image/svg+xml',
+);
+const AI4SEO_LEGACY_ATTACHMENT_FILE_TYPES                        = array( 'jpeg', 'png', 'gif', 'webp', 'avif' );
+const AI4SEO_SVG_MAX_SOURCE_BYTES                                = 1048576;
 const AI4SEO_SETTING_OVERWRITE_EXISTING_METADATA                 = 'overwrite_existing_metadata';
 const AI4SEO_SETTING_OVERWRITE_EXISTING_ATTACHMENT_ATTRIBUTES    = 'overwrite_existing_attachment_attributes';
 const AI4SEO_SETTING_GENERATE_METADATA_FOR_FULLY_COVERED_ENTRIES = 'generate_metadata_for_fully_covered_entries';
@@ -1588,6 +1891,7 @@ const AI4SEO_EXPORTABLE_SETTING_PAGE_SETTINGS = array(
 	AI4SEO_SETTING_METADATA_GENERATION_LANGUAGE,
 	AI4SEO_SETTING_ATTACHMENT_ATTRIBUTES_GENERATION_LANGUAGE,
 	AI4SEO_SETTING_ACTIVE_ATTACHMENT_ATTRIBUTES,
+	AI4SEO_SETTING_ENABLED_ATTACHMENT_FILE_TYPES,
 	AI4SEO_SETTING_OVERWRITE_EXISTING_METADATA,
 	AI4SEO_SETTING_OVERWRITE_EXISTING_ATTACHMENT_ATTRIBUTES,
 	AI4SEO_SETTING_GENERATE_METADATA_FOR_FULLY_COVERED_ENTRIES,
@@ -1653,11 +1957,14 @@ const AI4SEO_ALL_SETTING_PAGE_SETTINGS = AI4SEO_EXPORTABLE_SETTING_PAGE_SETTINGS
 
 // SETTINGS FROM THE SEO AUTOPILOT MODAL.
 const AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES     = 'enabled_bulk_generation_post_types';
+const AI4SEO_SETTING_ENABLED_BULK_GENERATION_TAXONOMIES     = 'enabled_bulk_generation_taxonomies';
+const AI4SEO_TAXONOMY_GENERATION_INDEX_OPTION               = 'ai4seo_taxonomy_generation_index_requested';
 const AI4SEO_SETTING_BULK_GENERATION_AUTO_QUEUE_ENTRIES     = 'bulk_generation_auto_queue_entries';
 const AI4SEO_SETTING_BULK_GENERATION_ORDER                  = 'bulk_generation_order';
 const AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER = 'bulk_generation_new_or_existing_filter';
 
 const AI4SEO_EXPORTABLE_SEO_AUTOPILOT_SETTINGS = array(
+	AI4SEO_SETTING_ENABLED_BULK_GENERATION_TAXONOMIES,
 	AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES,
 	AI4SEO_SETTING_BULK_GENERATION_AUTO_QUEUE_ENTRIES,
 	AI4SEO_SETTING_BULK_GENERATION_ORDER,
@@ -1665,6 +1972,16 @@ const AI4SEO_EXPORTABLE_SEO_AUTOPILOT_SETTINGS = array(
 );
 
 // SETTINGS FROM THE ACCOUNT PAGE.
+const AI4SEO_SETTING_SHOW_ADMIN_OFFERS                    = 'show_admin_offers';
+const AI4SEO_SETTING_SHOW_PLUGIN_OFFERS                   = 'show_plugin_offers';
+const AI4SEO_SETTING_SHOW_OTHER_NOTIFICATIONS             = 'show_other_notifications';
+const AI4SEO_SETTING_SHOW_MENU_COUNTERS                   = 'show_menu_counters';
+const AI4SEO_NOTIFICATION_SETTINGS                        = array(
+	AI4SEO_SETTING_SHOW_ADMIN_OFFERS,
+	AI4SEO_SETTING_SHOW_PLUGIN_OFFERS,
+	AI4SEO_SETTING_SHOW_OTHER_NOTIFICATIONS,
+	AI4SEO_SETTING_SHOW_MENU_COUNTERS,
+);
 const AI4SEO_SETTING_ENABLE_INCOGNITO_MODE                = 'enable_incognito_mode';
 const AI4SEO_SETTING_INCOGNITO_MODE_USER_ID               = 'incognito_mode_user_id';
 const AI4SEO_SETTING_ENABLE_WHITE_LABEL                   = 'enable_white_label';
@@ -1675,6 +1992,10 @@ const AI4SEO_SETTING_META_TAGS_BLOCK_STARTING_HINT        = 'meta_tags_block_sta
 const AI4SEO_SETTING_META_TAGS_BLOCK_ENDING_HINT          = 'meta_tags_block_ending_hint';
 
 const AI4SEO_EXPORTABLE_ACCOUNT_PAGE_SETTINGS = array(
+	AI4SEO_SETTING_SHOW_ADMIN_OFFERS,
+	AI4SEO_SETTING_SHOW_PLUGIN_OFFERS,
+	AI4SEO_SETTING_SHOW_OTHER_NOTIFICATIONS,
+	AI4SEO_SETTING_SHOW_MENU_COUNTERS,
 	AI4SEO_SETTING_ENABLE_WHITE_LABEL,
 	AI4SEO_SETTING_INSTALLED_PLUGINS_PLUGIN_NAME,
 	AI4SEO_SETTING_INSTALLED_PLUGINS_PLUGIN_DESCRIPTION,
@@ -1704,6 +2025,10 @@ const AI4SEO_NOT_IMPORTABLE_SETTINGS = array(
 
 // DEFAULT SETTINGS.
 const AI4SEO_DEFAULT_SETTINGS = array(
+	AI4SEO_SETTING_SHOW_ADMIN_OFFERS                      => true,
+	AI4SEO_SETTING_SHOW_PLUGIN_OFFERS                     => true,
+	AI4SEO_SETTING_SHOW_OTHER_NOTIFICATIONS               => true,
+	AI4SEO_SETTING_SHOW_MENU_COUNTERS                     => true,
 	AI4SEO_SETTING_SHOW_ADVANCED_SETTINGS                 => 'hide',
 	AI4SEO_SETTING_GLOBAL_CUSTOM_INSTRUCTIONS             => '',
 	AI4SEO_SETTING_DEFAULT_EDITOR_VIEW_MODE               => AI4SEO_EDITOR_VIEW_MODE_PREVIEW,
@@ -1722,6 +2047,7 @@ const AI4SEO_DEFAULT_SETTINGS = array(
 	AI4SEO_SETTING_DISABLED_TAXONOMY_TERMS                => array(),
 	AI4SEO_SETTING_EXCLUDE_POSTS_IF_ANY_DISABLED_TAXONOMY_TERM => false,
 	AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES     => array(),
+	AI4SEO_SETTING_ENABLED_BULK_GENERATION_TAXONOMIES     => array(),
 	AI4SEO_SETTING_BULK_GENERATION_AUTO_QUEUE_ENTRIES     => true,
 	AI4SEO_SETTING_BULK_GENERATION_ORDER                  => 'newest',
 	AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER => 'both',
@@ -1737,6 +2063,7 @@ const AI4SEO_DEFAULT_SETTINGS = array(
 	AI4SEO_SETTING_METADATA_FALLBACK_TWITTER_TITLE        => 'no-fallback',
 	AI4SEO_SETTING_METADATA_FALLBACK_TWITTER_DESCRIPTION  => 'no-fallback',
 	AI4SEO_SETTING_ACTIVE_ATTACHMENT_ATTRIBUTES           => array( 'title', 'alt-text', 'caption', 'description' ),
+	AI4SEO_SETTING_ENABLED_ATTACHMENT_FILE_TYPES          => array( 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg' ),
 	AI4SEO_SETTING_OVERWRITE_EXISTING_METADATA            => array(),
 	AI4SEO_SETTING_OVERWRITE_EXISTING_ATTACHMENT_ATTRIBUTES => array(),
 	AI4SEO_SETTING_GENERATE_METADATA_FOR_FULLY_COVERED_ENTRIES => false,
@@ -1937,24 +2264,29 @@ const AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_LAST_KNOWN_POSTS_TABLE_ENTRIES          
 const AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_CURRENT_POSTS_TABLE_ENTRIES                       = 'num_current_posts_table_entries';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_CURRENT_POSTMETA_TABLE_ENTRIES                    = 'num_current_postmeta_table_entries';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_CURRENT_DISCOUNT                                      = 'current_discount';
-const AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVATION                                       = 'activation_offers';
-const AI4SEO_ENVIRONMENTAL_VARIABLE_PLUGIN_ACTIVATION_TIME                           = 'plugin_activation_time';
-const AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_PERFORMANCE_ANALYSIS_TIME                   = 'last_performance_analysis_time';
-const AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_STATUS                                      = 'payg_status';
-const AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_FAILURE_REASON                              = 'payg_failure_reason';
-const AI4SEO_ENVIRONMENTAL_VARIABLE_JUST_PURCHASED_SOMETHING_TIME                    = 'just_purchased_something_time';
-const AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_LOW_CREDITS_FIRST_OCCURRENCE_TIME           = 'payg_low_credits_first_occurrence_time';
-const AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_LOW_CREDITS_LAST_SYNC_TIME                  = 'payg_low_credits_last_sync_time';
-const AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_LAST_POST_ID                = 'posts_table_analysis_last_post_id';
-const AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_PROGRESS                    = 'posts_table_analysis_progress';
-const AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_STATE                       = 'posts_table_analysis_state';
-const AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_START_TIME                  = 'posts_table_analysis_start_time';
-const AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_LAST_CORE_RUN_TIME          = 'posts_table_analysis_last_core_run_time';
-const AI4SEO_ENVIRONMENTAL_VARIABLE_GENERATION_STATUS_SUMMARY_REBUILD_STATE          = 'generation_status_summary_rebuild_state';
-const AI4SEO_ENVIRONMENTAL_VARIABLE_AUTO_RETRY_FAILED_REQUIRED                       = 'auto_retry_failed_required';
-const AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STATE             = 'active_metadata_migration_v235_state';
-const AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STARTED_TIME      = 'active_metadata_migration_v235_started_time';
-const AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_LAST_RUN_TIME     = 'active_metadata_migration_v235_last_run_time';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVATION                                   = 'activation_offers';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_NOTIFICATION_PREFERENCES                     = 'notification_preferences';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_PLUGIN_ACTIVATION_TIME                       = 'plugin_activation_time';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_PERFORMANCE_ANALYSIS_TIME               = 'last_performance_analysis_time';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_STATUS                                  = 'payg_status';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_FAILURE_REASON                          = 'payg_failure_reason';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_JUST_PURCHASED_SOMETHING_TIME                = 'just_purchased_something_time';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_LOW_CREDITS_FIRST_OCCURRENCE_TIME       = 'payg_low_credits_first_occurrence_time';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_LOW_CREDITS_LAST_SYNC_TIME              = 'payg_low_credits_last_sync_time';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_LAST_POST_ID            = 'posts_table_analysis_last_post_id';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_PROGRESS                = 'posts_table_analysis_progress';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_AUTO_QUEUE_SELECTION_PROGRESS                = 'auto_queue_selection_progress';
+const AI4SEO_AUTO_QUEUE_SELECTION_CHUNK_SIZE                                     = 100;
+const AI4SEO_AUTO_QUEUE_SELECTION_CHUNKS_PER_RUN                                 = 4;
+const AI4SEO_AUTO_QUEUE_RETAINED_BLOCKER_LIMIT                                   = 10;
+const AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_STATE                   = 'posts_table_analysis_state';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_START_TIME              = 'posts_table_analysis_start_time';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_LAST_CORE_RUN_TIME      = 'posts_table_analysis_last_core_run_time';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_GENERATION_STATUS_SUMMARY_REBUILD_STATE      = 'generation_status_summary_rebuild_state';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_AUTO_RETRY_FAILED_REQUIRED                   = 'auto_retry_failed_required';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STATE         = 'active_metadata_migration_v235_state';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STARTED_TIME  = 'active_metadata_migration_v235_started_time';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_LAST_RUN_TIME = 'active_metadata_migration_v235_last_run_time';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_PROCESSED_ENTRIES = 'active_metadata_migration_v235_processed_entries';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_SUPPORTED_POST_TYPES_CACHE                       = 'supported_post_types_cache';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_AVAILABLE_POST_AUTHORS_CACHE                     = 'available_post_authors_cache';
@@ -1967,6 +2299,7 @@ const AI4SEO_ENVIRONMENTAL_VARIABLE_MAX_POST_ID_CACHE                           
 const AI4SEO_ENVIRONMENTAL_VARIABLE_CLAIMED_FEEDBACK_OFFER                           = 'claimed_feedback_offer';
 
 const AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES = array(
+	AI4SEO_ENVIRONMENTAL_VARIABLE_AUTO_QUEUE_SELECTION_PROGRESS => array(),
 	AI4SEO_ENVIRONMENTAL_VARIABLE_WELCOME_NOTIFICATION_STATE => 'unknown',
 	AI4SEO_ENVIRONMENTAL_VARIABLE_ATTACHMENT_BASE64_RECOVERY_STREAK => 0,
 	AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_KNOWN_PLUGIN_VERSION => '0.0.0',
@@ -1990,6 +2323,7 @@ const AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES = array(
 	AI4SEO_ENVIRONMENTAL_VARIABLE_NUM_CURRENT_POSTMETA_TABLE_ENTRIES => 0,
 	AI4SEO_ENVIRONMENTAL_VARIABLE_CURRENT_DISCOUNT         => array(),
 	AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVATION               => array(),
+	AI4SEO_ENVIRONMENTAL_VARIABLE_NOTIFICATION_PREFERENCES => array(),
 	AI4SEO_ENVIRONMENTAL_VARIABLE_PLUGIN_ACTIVATION_TIME   => 0,
 	AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_PERFORMANCE_ANALYSIS_TIME => 0,
 	AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_STATUS              => 'idle',
@@ -2041,7 +2375,7 @@ add_action(
 					'name'              => esc_html__( 'Focus Keyphrase', 'ai-for-seo' ),
 					'icon'              => 'flag',
 					'input'             => 'textfield',
-					'hint'              => __( '<strong>Best Practice:</strong> A primary SEO keyword or keyphrase that best represents the main topic of this entry. It should be specific, relevant, and reflect the content accurately to help improve search engine rankings.<br><br>The focus keyphrase is added to the meta title and meta description for best SEO results. Make sure to first generate the keyphrase before generating the meta title and meta description or just generate all at once.', 'ai-for-seo' ),
+					'hint'              => __( '<strong>Best Practice:</strong> A primary SEO keyword or keyphrase that best represents the main topic of this entry. It should be specific, relevant, and reflect the content accurately to help improve search engine rankings.<br><br>Enter your own focus keyphrase or generate one with SOOZ before generating the meta title and meta description. SOOZ uses the keyphrase as guidance when generating those fields. Changing the keyphrase alone does not update existing titles or descriptions. You can also generate all fields together.', 'ai-for-seo' ),
 					'api-identifier'    => 'focus_keyphrase',
 					'flat-credits-cost' => 2,
 				),
@@ -2049,7 +2383,7 @@ add_action(
 					'name'                       => esc_html__( 'Meta Title', 'ai-for-seo' ),
 					'icon'                       => 'globe',
 					'input'                      => 'textarea',
-					'hint'                       => __( '<strong>Best Practice:</strong> A unique and concise title for this entry, which will be displayed on search engine results pages (SERPs) and in the browser tab. This helps users understand your content and enhances visibility.<br><br>The recommended natural quality window is <strong>45 to 65</strong> characters. Your active Generation Length setting may use a different target.<br><br>The meta title is added to the <strong>title tag</strong> of your website.', 'ai-for-seo' ),
+					'hint'                       => __( '<strong>Best Practice:</strong> A unique and concise title for this entry, used for the browser tab and as your preferred search-result title. Search engines such as Google may display a different title based on page content and other signals. A clear title helps users understand your content.<br><br>The recommended natural quality window is <strong>45 to 65</strong> characters. Your active Generation Length setting may use a different target.<br><br>The meta title is added to the <strong>title tag</strong> of your website.', 'ai-for-seo' ),
 					'api-identifier'             => 'meta_title',
 					'output-tag-type'            => 'title',
 					'output-tag-identifier'      => '',
@@ -2061,7 +2395,7 @@ add_action(
 					'name'                       => esc_html__( 'Meta Description', 'ai-for-seo' ),
 					'icon'                       => 'globe',
 					'input'                      => 'textarea',
-					'hint'                       => __( '<strong>Best Practice:</strong> A compelling and relevant meta description for your page or post, which will appear on search engine results pages (SERPs) beneath the meta title. This description provides a summary of your content, helping to attract clicks and improve visibility.<br><br>The recommended natural quality window is <strong>130 to 160</strong> characters. Your active Generation Length setting may use a different target.<br><br>The meta description is added to the <strong>meta description tag</strong> of your website.', 'ai-for-seo' ),
+					'hint'                       => __( '<strong>Best Practice:</strong> A compelling and relevant summary of your page or post, which search engines may use as the description beneath the search-result title. Google may show a different snippet from your page content depending on the search query. A clear description helps users understand your content and decide whether to visit your page.<br><br>The recommended natural quality window is <strong>130 to 160</strong> characters. Your active Generation Length setting may use a different target.<br><br>The meta description is added to the <strong>meta description tag</strong> of your website.', 'ai-for-seo' ),
 					'api-identifier'             => 'meta_description',
 					'output-tag-type'            => 'meta name',
 					'output-tag-identifier'      => 'description',
@@ -2237,6 +2571,9 @@ function ai4seo_get_remote_notification_allowed_html_tags_and_attributes(): arra
 function ai4seo_get_allowed_html_tags_and_attributes(): array {
 	static $ai4seo_allowed_html_tags_and_attributes = array(
 		'div'      => array(
+			'data-offer-surface'                         => array(),
+			'data-offer-id'                              => array(),
+			'data-notification-index'                    => array(),
 			'id'                                         => array(),
 			'class'                                      => array(),
 			'hidden'                                     => array(),
@@ -2250,6 +2587,8 @@ function ai4seo_get_allowed_html_tags_and_attributes(): array {
 			'aria-live'                                  => array(),
 			'aria-label'                                 => array(),
 			'data-ai4seo-non-persistent'                 => array(),
+			'data-ai4seo-read-state'                     => array(),
+			'data-ai4seo-settings-state'                 => array(),
 			'data-ai4seo-slider-input'                   => array(),
 			'data-ai4seo-preview-card'                   => array(),
 			'data-ai4seo-preview-field'                  => array(),
@@ -2265,11 +2604,13 @@ function ai4seo_get_allowed_html_tags_and_attributes(): array {
 			'class' => array(),
 		),
 		'img'      => array(
-			'class'   => array(),
-			'src'     => array(),
-			'alt'     => array(),
-			'onclick' => array(),
-			'style'   => array(),
+			'class'                          => array(),
+			'src'                            => array(),
+			'alt'                            => array(),
+			'onclick'                        => array(),
+			'style'                          => array(),
+			'data-ai4seo-image-fallback-src' => array(),
+			'data-ai4seo-image-fallback-alt' => array(),
 		),
 		'meta'     => array(
 			'name'     => array(),
@@ -2409,6 +2750,12 @@ function ai4seo_get_allowed_html_tags_and_attributes(): array {
 			'fill'        => array(),
 		),
 		'button'   => array(
+			'data-offer-setting'              => array(),
+			'data-preferences'                => array(),
+			'data-signature'                  => array(),
+			'data-notification-index'         => array(),
+			'data-offer-id'                   => array(),
+			'data-activation-action'          => array(),
 			'type'                            => array(),
 			'onclick'                         => array(),
 			'class'                           => array(),
@@ -2508,26 +2855,33 @@ function ai4seo_get_allowed_html_tags_and_attributes(): array {
 			'class' => array(),
 		),
 		'input'    => array(
-			'type'                           => array(),
-			'id'                             => array(),
-			'class'                          => array(),
-			'style'                          => array(),
-			'value'                          => array(),
-			'name'                           => array(),
-			'placeholder'                    => array(),
-			'checked'                        => array(),
-			'onchange'                       => array(),
-			'onclick'                        => array(),
-			'disabled'                       => array(),
-			'data-target'                    => array(),
-			'data-ai4seo-non-persistent'     => array(),
-			'data-ai4seo-slider-description' => array(),
-			'data-ai4seo-slider-note'        => array(),
-			'aria-describedby'               => array(),
-			'data-ai4seo-min-length'         => array(),
-			'data-ai4seo-max-length'         => array(),
+			'readonly'                           => array(),
+			'aria-readonly'                      => array(),
+			'data-ai4seo-generation-unavailable' => array(),
+			'type'                               => array(),
+			'id'                                 => array(),
+			'class'                              => array(),
+			'style'                              => array(),
+			'value'                              => array(),
+			'name'                               => array(),
+			'placeholder'                        => array(),
+			'checked'                            => array(),
+			'onchange'                           => array(),
+			'onclick'                            => array(),
+			'disabled'                           => array(),
+			'data-target'                        => array(),
+			'data-ai4seo-non-persistent'         => array(),
+			'data-ai4seo-slider-description'     => array(),
+			'data-ai4seo-slider-note'            => array(),
+			'aria-describedby'                   => array(),
+			'data-ai4seo-min-length'             => array(),
+			'data-ai4seo-max-length'             => array(),
 		),
 		'textarea' => array(
+			'readonly'                              => array(),
+			'aria-readonly'                         => array(),
+			'data-ai4seo-non-persistent'            => array(),
+			'data-ai4seo-generation-unavailable'    => array(),
 			'id'                                    => array(),
 			'name'                                  => array(),
 			'class'                                 => array(),
@@ -2611,7 +2965,7 @@ $ai4seo_allowed_image_file_type_names                   = array( 'jpg', 'jpeg', 
  * @return array
  */
 function ai4seo_get_allowed_attachment_mime_types(): array {
-	return array( 'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif' );
+	return array_values( AI4SEO_ATTACHMENT_FILE_TYPE_MIME_TYPES );
 }
 
 
@@ -2706,6 +3060,9 @@ const AI4SEO_ALLOWED_AJAX_FUNCTIONS = array(
 	'ai4seo_restore_default_settings',
 	'ai4seo_refresh_dashboard_statistics',
 	'ai4seo_refresh_robhub_account',
+	'ai4seo_request_license_change',
+	'ai4seo_confirm_license_change',
+	'ai4seo_get_license_change_status',
 	'ai4seo_submit_feedback',
 	'ai4seo_request_lost_licence_data',
 );
@@ -2734,6 +3091,9 @@ const AI4SEO_ADMINISTRATIVE_AJAX_FUNCTIONS = array(
 	'ai4seo_restore_default_settings',
 	'ai4seo_refresh_dashboard_statistics',
 	'ai4seo_refresh_robhub_account',
+	'ai4seo_request_license_change',
+	'ai4seo_confirm_license_change',
+	'ai4seo_get_license_change_status',
 	'ai4seo_submit_feedback',
 	'ai4seo_request_lost_licence_data',
 );

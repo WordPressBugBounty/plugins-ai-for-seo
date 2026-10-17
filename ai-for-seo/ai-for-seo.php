@@ -3,7 +3,7 @@
  * Plugin Name: SOOZ - AI for SEO
  * Plugin URI: https://sooz.ai
  * Description: One-Click SEO solution. SOOZ - AI for SEO helps your website to rank higher in Web Search results.
- * Version: 2.5.9
+ * Version: 2.6.0
  * Author: spacecodes
  * Author URI: https://spa.ce.codes
  * Text Domain: ai-for-seo
@@ -49,9 +49,11 @@ require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/database.php';
 
 // WordPress option primitives depend on generic helpers and must load before option-using modules.
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/wordpress-options.php';
+require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/update-state.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/semaphores.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/posts.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/taxonomies.php';
+require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/taxonomy-generation.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/output.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/third-party-seo-plugins.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/external-plugins.php';
@@ -70,12 +72,14 @@ require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/metadata-fallbacks.php';
 // Custom-instruction helpers extend metadata and use the shared render helpers loaded above.
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/custom-instructions.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/attachments-media.php';
+require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/editor-read-state.php';
 
 // Frontend injection callbacks depend on attachment helpers and load before bootstrap registers their hooks.
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/frontend-injections.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/post-meta.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/post-inspection.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/settings.php';
+require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/settings-state.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/ajax.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/bulk-generation.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/native-bulk-actions.php';
@@ -87,7 +91,9 @@ require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/latest-activity.php';
 
 // Account operations load after their plan, storage, notification, and API dependencies.
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/account.php';
+require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/license-changes.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/activation-offers.php';
+require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/notification-preferences.php';
 
 // Register hooks last and return the bootstrap result so its early blockers exit this plugin file.
 return require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/bootstrap-hooks.php';

@@ -42,8 +42,10 @@ if ( $ai4seo_post_id <= 0 ) {
 	ai4seo_send_ajax_error( esc_html__( 'Post id is invalid.', 'ai-for-seo' ), 2306230638 );
 }
 
-// The plugin-level role gate does not replace WordPress's object-level post permission check.
-if ( ! ai4seo_can_edit_post( $ai4seo_post_id ) ) {
+$ai4seo_is_taxonomy_editor = ai4seo_is_taxonomy_proxy( $ai4seo_post_id );
+$ai4seo_taxonomy_context   = $ai4seo_is_taxonomy_editor ? ai4seo_get_taxonomy_proxy_editor_context( $ai4seo_post_id ) : null;
+$ai4seo_taxonomy_readonly  = $ai4seo_is_taxonomy_editor && ( is_wp_error( $ai4seo_taxonomy_context ) || ! $ai4seo_taxonomy_context['available'] );
+if ( $ai4seo_is_taxonomy_editor ? ! ai4seo_can_view_taxonomy_proxy( $ai4seo_post_id ) : ! ai4seo_can_edit_post( $ai4seo_post_id ) ) {
 	ai4seo_send_ajax_error( esc_html__( 'You are not allowed to edit this entry.', 'ai-for-seo' ), 2306230643 );
 }
 
@@ -53,7 +55,19 @@ $ai4seo_all_post_ids = isset( $_REQUEST['all_post_ids'] ) && is_array( $_REQUEST
 	: array();
 
 // Keep only editable navigation targets so one unrelated entry cannot block the authorized editor.
-$ai4seo_all_post_ids = ai4seo_filter_editable_post_ids( $ai4seo_all_post_ids );
+if ( $ai4seo_is_taxonomy_editor ) {
+	$ai4seo_all_post_ids = array_values(
+		array_filter(
+			$ai4seo_all_post_ids,
+			static function ( $id ) use ( $ai4seo_taxonomy_context ): bool {
+				$context = ai4seo_get_taxonomy_proxy_editor_context( $id );
+				return ! is_wp_error( $context ) && $context['source']['taxonomy'] === $ai4seo_taxonomy_context['source']['taxonomy'] && ai4seo_can_view_taxonomy_proxy( $id, $context );
+			}
+		)
+	);
+} else {
+	$ai4seo_all_post_ids = ai4seo_filter_editable_post_ids( $ai4seo_all_post_ids );
+}
 
 // Reuse the ordered-list helper so metadata and media editors calculate their next-entry targets identically.
 $ai4seo_next_post_id = ai4seo_get_next_post_id_from_ordered_post_ids( $ai4seo_post_id, $ai4seo_all_post_ids );
@@ -62,32 +76,22 @@ $ai4seo_next_post_id = ai4seo_get_next_post_id_from_ordered_post_ids( $ai4seo_po
 // === GET ADDITIONAL DETAILS ===================================================================== \\
 
 // Read post- or page-title and post custom fields.
-$ai4seo_this_post_title = get_the_title( $ai4seo_post_id );
+$ai4seo_this_post_title = $ai4seo_is_taxonomy_editor ? $ai4seo_taxonomy_context['name'] : get_the_title( $ai4seo_post_id );
 
-// Read all metadata values authoritatively; blank controls must never stand in for a storage failure.
-$ai4seo_storage_view = ai4seo_recover_active_metadata( $ai4seo_post_id );
-if ( 'unreadable' === $ai4seo_storage_view['classification'] ) {
-	ai4seo_debug_metadata_recovery( $ai4seo_post_id, 'editor_unreadable', $ai4seo_storage_view );
-	ai4seo_echo_wp_kses( ai4seo_get_modal_headline_tag( __( 'Metadata Editor', 'ai-for-seo' ) ) );
-	echo '<div class="notice notice-warning"><p>' . esc_html__( 'The stored metadata for this entry contains unreadable or oversized data. Metadata editing is unavailable for this entry to preserve the original data. An administrator can use Help → Inspect post and contact support. Other entries remain available.', 'ai-for-seo' ) . '</p></div>';
-	return;
+// Retain the existing compatible-duplicate recovery before taking the editor snapshot.
+if ( ! $ai4seo_is_taxonomy_editor ) {
+	ai4seo_recover_active_metadata( $ai4seo_post_id );
+} else {
+	$ai4seo_read_page_content_via_js = 'false';
 }
-$ai4seo_metadata_read_succeeded = false;
-$ai4seo_this_metadata_values    = ai4seo_read_available_metadata_by_post_ids(
-	array( $ai4seo_post_id ),
-	true,
-	$ai4seo_metadata_read_succeeded
-);
 
-if ( ! $ai4seo_metadata_read_succeeded ) {
+$ai4seo_editor_read_state    = ai4seo_read_editor_state( $ai4seo_post_id, 'metadata' );
+$ai4seo_storage_view         = $ai4seo_editor_read_state['storage'];
+$ai4seo_this_metadata_values = $ai4seo_editor_read_state['values'];
+
+if ( ! $ai4seo_editor_read_state['read_succeeded'] ) {
 	ai4seo_send_ajax_error( esc_html__( 'Metadata could not be loaded. Please refresh the page and try again.', 'ai-for-seo' ), 2208262601 );
 	return;
-}
-
-if ( is_array( $ai4seo_this_metadata_values ) ) {
-	$ai4seo_this_metadata_values = $ai4seo_this_metadata_values[ $ai4seo_post_id ] ?? array();
-} else {
-	$ai4seo_this_metadata_values = array();
 }
 
 // Start with no client snapshot so persisted metadata remains authoritative outside the current page editor.
@@ -101,10 +105,11 @@ if ( isset( $_REQUEST['live_yoast_metadata'] ) && is_array( $_REQUEST['live_yoas
 }
 
 // Prefer Yoast's current editor values only for fields actively configured to synchronize with Yoast.
-$ai4seo_yoast_sync_metadata_identifiers = ai4seo_get_third_party_seo_plugin_sync_metadata_identifiers( AI4SEO_THIRD_PARTY_PLUGIN_YOAST_SEO );
+$ai4seo_yoast_sync_metadata_identifiers = $ai4seo_is_taxonomy_editor ? array() : ai4seo_get_third_party_seo_plugin_sync_metadata_identifiers( AI4SEO_THIRD_PARTY_PLUGIN_YOAST_SEO );
 
 foreach ( $ai4seo_yoast_sync_metadata_identifiers as $ai4seo_live_yoast_metadata_identifier ) {
 	if ( ! array_key_exists( $ai4seo_live_yoast_metadata_identifier, $ai4seo_live_yoast_metadata )
+		|| empty( $ai4seo_editor_read_state['fields'][ $ai4seo_live_yoast_metadata_identifier ]['writable'] )
 		|| isset( $ai4seo_storage_view['conflicts'][ $ai4seo_live_yoast_metadata_identifier ] )
 		|| ! is_scalar( $ai4seo_live_yoast_metadata[ $ai4seo_live_yoast_metadata_identifier ] ) ) {
 		continue;
@@ -142,7 +147,7 @@ $ai4seo_active_meta_tags = ai4seo_get_active_meta_tags();
 
 $ai4seo_can_administer_plugin        = ai4seo_can_administer_plugin();
 $ai4seo_settings_url                 = $ai4seo_can_administer_plugin ? ai4seo_get_subpage_url( 'settings' ) : '';
-$ai4seo_metadata_custom_instructions = ai4seo_read_custom_instructions_postmeta( $ai4seo_post_id, AI4SEO_POST_META_METADATA_CUSTOM_INSTRUCTIONS_META_KEY );
+$ai4seo_metadata_custom_instructions = $ai4seo_editor_read_state['instructions']['value'];
 $ai4seo_this_post                    = get_post( $ai4seo_post_id );
 $ai4seo_this_post_type_object        = $ai4seo_this_post ? get_post_type_object( $ai4seo_this_post->post_type ) : null;
 $ai4seo_this_post_status_object      = $ai4seo_this_post ? get_post_status_object( $ai4seo_this_post->post_status ) : null;
@@ -223,6 +228,7 @@ foreach ( AI4SEO_METADATA_DETAILS as $ai4seo_metadata_identifier => $ai4seo_meta
 	}
 
 	$ai4seo_metadata_evaluation_details[ $ai4seo_metadata_identifier ] = array(
+		'read_state'         => $ai4seo_editor_read_state['fields'][ $ai4seo_metadata_identifier ],
 		'count_label'        => $ai4seo_metadata_is_focus_keyphrase || $ai4seo_metadata_is_keywords ? '' : wp_strip_all_tags( $ai4seo_metadata_details['name'] ?? '' ),
 		'evaluation_id'      => $ai4seo_metadata_length_feedback_id,
 		'feedback_maximum'   => $ai4seo_metadata_feedback_maximum,
@@ -247,6 +253,8 @@ ai4seo_echo_wp_kses( ai4seo_get_modal_headline_tag( __( 'Metadata Editor', 'ai-f
 echo '<div'
 	. " class='ai4seo-form ai4seo-editor-form ai4seo-editor-workspace ai4seo-metadata-editor-workspace'"
 	. " data-ai4seo-editor-context='metadata'"
+	. ( $ai4seo_is_taxonomy_editor ? " data-ai4seo-taxonomy-editor='1'" : '' )
+	. ( $ai4seo_taxonomy_readonly ? " data-ai4seo-editor-readonly='1'" : '' )
 	. " data-ai4seo-default-view-mode='" . esc_attr( $ai4seo_editor_default_view_mode ) . "'"
 	. " data-ai4seo-preview-context='" . esc_attr( wp_json_encode( $ai4seo_metadata_preview_context ) ) . "'"
 	. '>';
@@ -255,6 +263,9 @@ echo '<div'
 		echo "<div class='ai4seo-editor-workspace-identity'>";
 			echo "<h2 class='ai4seo-editor-workspace-title'>" . esc_html( $ai4seo_this_post_title ) . '</h2>';
 			echo "<p class='ai4seo-editor-workspace-subtitle'>";
+			if ( $ai4seo_is_taxonomy_editor ) {
+				echo esc_html( $ai4seo_taxonomy_context['label'] . ' · ' . ( $ai4seo_taxonomy_readonly ? __( 'Inactive — read only', 'ai-for-seo' ) : __( 'Active', 'ai-for-seo' ) ) );
+			} else {
 				ai4seo_echo_wp_kses(
 					sprintf(
 						/* translators: 1: Post type label. 2: Post ID. 3: Post status. 4: Last-modified date and time. */
@@ -265,12 +276,15 @@ echo '<div'
 						$ai4seo_this_post_modified_time
 					)
 				);
+			}
 			echo '</p>';
 		echo '</div>';
 
 		echo "<div class='ai4seo-editor-workspace-header-actions'>";
 			// Related media uses a dedicated AJAX modal id so it can stack above the metadata editor.
-			ai4seo_echo_wp_kses( ai4seo_get_related_attachments_button( $ai4seo_post_id, esc_html__( 'Related Media', 'ai-for-seo' ) ) );
+			if ( ! $ai4seo_is_taxonomy_editor ) {
+				ai4seo_echo_wp_kses( ai4seo_get_related_attachments_button( $ai4seo_post_id, esc_html__( 'Related Media', 'ai-for-seo' ) ) );
+			}
 			ai4seo_echo_wp_kses( ai4seo_get_editor_mode_switch_tag( $ai4seo_editor_default_view_mode ) );
 		echo '</div>';
 	echo '</div>';
@@ -278,6 +292,21 @@ echo '<div'
 	$ai4seo_skipped_meta_tags = array();
 
 	echo "<div class='ai4seo-editor-workspace-scroll'>";
+	if ( $ai4seo_is_taxonomy_editor ) {
+		$ai4seo_taxonomy_output_notice = ai4seo_get_taxonomy_output_notice();
+		if ( '' !== $ai4seo_taxonomy_output_notice ) {
+			ai4seo_echo_wp_kses( '<p class="ai4seo-sub-info">' . $ai4seo_taxonomy_output_notice . '</p>' );
+		}
+		if ( ! $ai4seo_taxonomy_readonly ) {
+			$ai4seo_archive_generation = ai4seo_get_taxonomy_generation_eligibility( $ai4seo_post_id, 'manual' );
+			if ( is_wp_error( $ai4seo_archive_generation ) ) {
+				echo '<p class="ai4seo-sub-info">' . esc_html__( 'The archive content could not be read. Generation will remain blocked until its source is available again.', 'ai-for-seo' ) . '</p>';
+			} elseif ( ! $ai4seo_archive_generation['has_sufficient_content'] ) {
+				echo '<p class="ai4seo-sub-info">' . esc_html__( 'This archive has little readable content. Automatic generation skips it; manual generation uses the available term and website context.', 'ai-for-seo' ) . '</p>';
+			}
+		}
+	}
+	ai4seo_echo_wp_kses( ai4seo_get_editor_read_state_tag( $ai4seo_editor_read_state, 'metadata', $ai4seo_active_meta_tags ) );
 	echo "<div class='ai4seo-metadata-recovery' data-ai4seo-recovery='" . esc_attr( wp_json_encode( ai4seo_metadata_recovery_editor_state( $ai4seo_storage_view ) ) ) . "'></div>";
 		echo "<div class='ai4seo-editor-shared-context-grid ai4seo-metadata-editor-shared-context-grid'>";
 		// Place the shared generation instructions before the focus keyphrase in both modes.
@@ -547,10 +576,15 @@ echo '<div'
 
 		// Collect footer buttons before rendering the shared wrapper so the optional next-entry action keeps its current order.
 		$ai4seo_modal_footer_button_tags = array(
-			ai4seo_get_modal_close_button_tag( esc_html__( 'Abort', 'ai-for-seo' ), 'ai4seo-big-button' ),
-			"<div id='ai4seo-generate-all-metadata-button-hook' class='ai4seo-editor-generate-all-hook'></div>",
+			ai4seo_get_modal_close_button_tag( $ai4seo_taxonomy_readonly ? esc_html__( 'Close', 'ai-for-seo' ) : esc_html__( 'Abort', 'ai-for-seo' ), 'ai4seo-big-button' ),
+			$ai4seo_taxonomy_readonly ? '' : "<div id='ai4seo-generate-all-metadata-button-hook' class='ai4seo-editor-generate-all-hook'></div>",
 		);
 
+		if ( $ai4seo_taxonomy_readonly ) {
+			if ( $ai4seo_next_post_id ) {
+				$ai4seo_modal_footer_button_tags[] = ai4seo_get_icon_button_tag( 'arrow-right', __( 'Next entry', 'ai-for-seo' ), '', 'ai4seo_open_metadata_editor_modal(' . absint( $ai4seo_next_post_id ) . ', false, ' . wp_json_encode( $ai4seo_all_post_ids ) . ');' );
+			}
+		} else {
 		// Let the shared editor helper add the next-entry action only when this list has another post to edit.
 		$ai4seo_modal_footer_button_tags[] = ai4seo_get_editor_save_next_button_tag(
 			$ai4seo_next_post_id,
@@ -569,6 +603,7 @@ echo '<div'
 			'ai4seo-big-button ai4seo-lockable ai4seo-start-inactive',
 			'ai4seo_save_anything(jQuery(this), ai4seo_validate_metadata_editor_inputs, ai4seo_handle_metadata_editor_save_success);'
 		);
+		}
 
 		// Render the action row through the shared footer helper used by AJAX modals.
 		ai4seo_echo_wp_kses( ai4seo_get_modal_footer_tag( $ai4seo_modal_footer_button_tags, 'ai4seo-editor-workspace-footer' ) );

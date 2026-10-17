@@ -127,7 +127,7 @@ function ai4seo_init_admin_area_essentials() {
 					'admin_notices',
 					function () {
 						echo '<div class="notice notice-error"><p>';
-						sprintf(
+						printf(
 							/* translators: %s: plugin name */
 							esc_html__( "The %s plugin could not be initialized. Class 'Ai4Seo_RobHubApiCommunicator' could not be initialized. Please check your server configuration and try again.", 'ai-for-seo' ),
 							esc_html( AI4SEO_PLUGIN_NAME )
@@ -137,17 +137,18 @@ function ai4seo_init_admin_area_essentials() {
 				);
 			}
 
-			// exit here.
+			add_action( 'admin_menu', 'ai4seo_register_local_update_diagnostics' );
 			return;
 		}
 	} catch ( Throwable $e ) {
+		add_action( 'admin_menu', 'ai4seo_register_local_update_diagnostics' );
 		// could not initialize the robhub api communicator -> abort here, echoing a notice.
 		if ( ai4seo_can_use_plugin_content() ) {
 			add_action(
 				'admin_notices',
 				function () {
 					echo '<div class="notice notice-error"><p>';
-					sprintf(
+					printf(
 						/* translators: %s: plugin name */
 						esc_html__( "The %s plugin could not be initialized. Class 'Ai4Seo_RobHubApiCommunicator' could not be initialized. Please check your server configuration and try again.", 'ai-for-seo' ),
 						esc_html( AI4SEO_PLUGIN_NAME )
@@ -360,6 +361,7 @@ function ai4seo_reset_settings_request_cache_for_current_site(): bool {
 		return false;
 	}
 
+	unset( $GLOBALS['ai4seo_settings_loaded_views'][ $current_scope ], $GLOBALS['ai4seo_settings_loaded_states'][ $current_scope ] );
 	if ( is_array( $ai4seo_settings_request_cache_by_site ) ) {
 		unset( $ai4seo_settings_request_cache_by_site[ $current_scope ] );
 	} else {
@@ -407,48 +409,11 @@ function ai4seo_init_settings() {
 
 	try {
 
-		// Read settings from database.
-		$from_database_settings = ai4seo_read_settings();
-
-		// Loop through settings and add the new values to $ai4seo_settings.
-		foreach ( $from_database_settings as $setting_name => $setting_value ) {
-			// Normalize legacy or imported instruction values before generic setting validation runs.
-			$setting_value = ai4seo_normalize_custom_instructions_setting_value( $setting_name, $setting_value );
-
-			// Convert supported stored boolean representations before strict type validation.
-			$setting_value = ai4seo_normalize_boolean_setting_value( $setting_name, $setting_value );
-
-			// Canonicalize integer-equivalent legacy owner values before the permission boundary consumes them.
-			$setting_value = ai4seo_normalize_incognito_mode_user_id_setting_value( $setting_name, $setting_value );
-
-			// Make sure that this setting is valid.
-			if ( ! ai4seo_validate_setting_value( $setting_name, $setting_value ) ) {
-				if ( AI4SEO_SETTING_INCOGNITO_MODE_USER_ID === $setting_name ) {
-					// Keep invalid persisted owner state present so recovery-required evidence cannot fall back to a default owner.
-					$ai4seo_settings[ $setting_name ] = false;
-				}
-
-				continue;
-			}
-
-			// Save the new values to $ai4seo_settings.
-			$ai4seo_settings[ $setting_name ] = $setting_value;
-		}
-
-		// Enabled persisted state without an explicit owner must not inherit the shared-access default.
-		$persisted_incognito_mode_is_enabled = array_key_exists( AI4SEO_SETTING_ENABLE_INCOGNITO_MODE, $from_database_settings )
-		&& true === ai4seo_normalize_boolean_setting_value(
-			AI4SEO_SETTING_ENABLE_INCOGNITO_MODE,
-			$from_database_settings[ AI4SEO_SETTING_ENABLE_INCOGNITO_MODE ]
-		);
-
-		if ( $persisted_incognito_mode_is_enabled
-		&& ! array_key_exists( AI4SEO_SETTING_INCOGNITO_MODE_USER_ID, $from_database_settings )
-		) {
-			$ai4seo_settings[ AI4SEO_SETTING_INCOGNITO_MODE_USER_ID ] = false;
-		}
-
-		$ai4seo_are_settings_initialized = true;
+		$state           = ai4seo_inspect_settings();
+		$ai4seo_settings = $state['settings'];
+		$GLOBALS['ai4seo_settings_loaded_views'][ $current_scope ]  = $ai4seo_settings;
+		$GLOBALS['ai4seo_settings_loaded_states'][ $current_scope ] = $state;
+		$ai4seo_are_settings_initialized                            = true;
 		ai4seo_store_settings_request_cache_for_current_site();
 	} finally {
 		unset( $ai4seo_settings_scopes_being_initialized[ $current_scope ] );
@@ -644,63 +609,81 @@ function ai4seo_is_deferred_modal_loading_suspended_for_self_update(): bool {
 /**
  * Function to check if we have updated recently and do some actions accordingly
  *
+ * @param bool $force Whether to retry unresolved steps immediately.
  * @return void
  */
-function ai4seo_check_and_handle_plugin_update() {
-	if ( ! ai4seo_singleton( __FUNCTION__ ) ) {
+function ai4seo_check_and_handle_plugin_update( bool $force = false ) {
+	if ( ! $force && ! ai4seo_singleton( __FUNCTION__ ) ) {
 		return;
 	}
-
-	// Activation may have been skipped, so resolve enrollment before replacing version history.
-	$welcome_state_ready       = ai4seo_initialize_welcome_notification_state( true );
-	$last_known_plugin_version = strval( ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_KNOWN_PLUGIN_VERSION ) );
-
-	// same plugin version as last known version? -> skip.
-	if ( AI4SEO_PLUGIN_VERSION_NUMBER === $last_known_plugin_version ) {
+	$origin   = ai4seo_inspect_plugin_update_origin();
+	$progress = ai4seo_read_plugin_update_progress();
+	if ( null === $progress || 'newer' === $origin['status'] ) {
 		return;
 	}
-
-	// workaround for version 0.0.0 -> remove $last_known_plugin_version.
-	if ( AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES[ AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_KNOWN_PLUGIN_VERSION ] === $last_known_plugin_version ) {
-		$last_known_plugin_version = '';
-	}
-
-	// Do not consume fresh-install evidence after failed enrollment; established updates remain independent.
-	if ( ! $welcome_state_ready && '' === $last_known_plugin_version ) {
+	if ( ! $force && AI4SEO_PLUGIN_VERSION_NUMBER === $origin['source'] && AI4SEO_PLUGIN_VERSION_NUMBER === $progress['target']
+		&& 'completed' === ( $progress['steps']['initialization']['status'] ?? '' )
+		&& ! array_filter(
+			$progress['steps'],
+			static function ( array $step ): bool {
+				return 'completed' !== $step['status'];
+			}
+		) ) {
 		return;
 	}
-
-	// Keep the previous version authoritative until every required migration has completed.
-	if ( ! ai4seo_tidy_up( $last_known_plugin_version ) ) {
-		ai4seo_restore_plugin_update_retry_after_failed_setting_migration( false, $last_known_plugin_version );
+	$welcome_ready = ai4seo_initialize_welcome_notification_state();
+	if ( 'fresh' === $origin['status'] && ! $welcome_ready ) {
 		return;
 	}
-
-	// Commit the new version only after tidy-up succeeds so fatal or partial migrations remain retryable.
-	if ( ! ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_KNOWN_PLUGIN_VERSION, AI4SEO_PLUGIN_VERSION_NUMBER ) ) {
-		ai4seo_restore_plugin_update_retry_after_failed_setting_migration( false, $last_known_plugin_version );
+	$ready = ai4seo_tidy_up( $origin['source'], $force, $origin['status'] );
+	// Local background work remains independent of optional preferences and remote availability.
+	ai4seo_schedule_active_metadata_migration_v235_cron_job();
+	if ( ! $ready || ! in_array( $origin['status'], array( 'known', 'fresh' ), true ) ) {
 		return;
 	}
-
-	// call "product-updated" endpoint to RobHub if we are not on a fresh install.
-	if ( $last_known_plugin_version ) {
-		// call robhub api endpoint "client/product-updated" with the old and new plugin version.
-		$robhub_api_parameters = array(
-			'old_version' => $last_known_plugin_version,
-			'new_version' => AI4SEO_PLUGIN_VERSION_NUMBER,
-		);
-
-		ai4seo_robhub_api()->call( 'client/product-updated', $robhub_api_parameters );
-		ai4seo_sync_robhub_account( 'product_updated' );
-
-		// maybe push a new plugin update notification.
-		ai4seo_check_for_plugin_update_notification( $last_known_plugin_version, true );
+	if ( AI4SEO_PLUGIN_VERSION_NUMBER === $origin['source'] ) {
+		return;
 	}
-
-	// A failed migration or version write above must leave the welcome pending.
+	$lock = ai4seo_get_plugin_update_lock_name();
+	if ( ! ai4seo_acquire_database_advisory_lock( $lock ) ) {
+		return;
+	}
+	try {
+		// Re-read version identity under the lock; a competing upgrade must never be rewound.
+		$current = ai4seo_inspect_plugin_update_origin();
+		if ( $current['status'] !== $origin['status'] || $current['source'] !== $origin['source'] ) {
+			return;
+		}
+		$raw = $current['snapshot']['value'] ?? array();
+		$raw[ AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_KNOWN_PLUGIN_VERSION ] = AI4SEO_PLUGIN_VERSION_NUMBER;
+		if ( ! ai4seo_is_database_advisory_lock_owned_by_current_connection( $lock )
+			|| true !== ai4seo_compare_and_swap_option_snapshot( AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME, $current['snapshot'], $raw, false ) ) {
+			return;
+		}
+		ai4seo_read_all_environmental_variables( false );
+	} finally {
+		ai4seo_release_database_advisory_lock( $lock );
+	}
+	if ( $origin['source'] ) {
+		try {
+			ai4seo_robhub_api()->call(
+				'client/product-updated',
+				array(
+					'old_version' => $origin['source'],
+					'new_version' => AI4SEO_PLUGIN_VERSION_NUMBER,
+				)
+			);
+			ai4seo_sync_robhub_account( 'product_updated' );
+			ai4seo_check_for_plugin_update_notification( $origin['source'], true );
+		} catch ( Throwable $throwable ) {
+			ai4seo_debug_message( 418620981, 'Local update completed; remote update reporting is unavailable.', true );
+		}
+		if ( ai4seo_is_user_inside_our_plugin_admin_pages() ) {
+			add_action( 'admin_init', 'ai4seo_refresh_plugin_page_assets_after_update', 0 );
+		}
+	}
 	ai4seo_check_for_welcome_notification();
 }
-
 
 /**
  * Classify retained site history without confusing normalized defaults with missing data.
@@ -885,22 +868,7 @@ function ai4seo_restore_plugin_update_retry_after_failed_setting_migration(
  * @return bool True when the complete batch is durable or no setting migration is required.
  */
 function ai4seo_apply_required_setting_migration_values( array $setting_migration_values ): bool {
-	global $ai4seo_settings;
-
-	if ( ! $setting_migration_values ) {
-		return true;
-	}
-
-	$settings_before_migration = ai4seo_get_all_settings();
-
-	if ( ai4seo_bulk_update_settings( $setting_migration_values ) ) {
-		return true;
-	}
-
-	// The failed database write must not leave an optimistic in-memory migration visible this request.
-	$ai4seo_settings = $settings_before_migration;
-	ai4seo_store_settings_request_cache_for_current_site();
-	return false;
+	return ai4seo_patch_plugin_update_settings( $setting_migration_values );
 }
 
 
@@ -908,420 +876,509 @@ function ai4seo_apply_required_setting_migration_values( array $setting_migratio
  * Function to clean up old version's options, variables etc. "Cleanup". "Clean_up", "Tidy-up"
  *
  * @param string $last_known_plugin_version The last known plugin version, used to determine which cleanup actions to perform.
+ * @param bool   $force Whether to retry unresolved steps immediately.
+ * @param string $origin_status Verified installation-history classification.
  * @return bool True when every required update migration completed, false when the update must retry.
  */
-function ai4seo_tidy_up( string $last_known_plugin_version = AI4SEO_PLUGIN_VERSION_NUMBER ): bool {
-	if ( ! ai4seo_singleton( __FUNCTION__ ) ) {
+function ai4seo_tidy_up( string $last_known_plugin_version = AI4SEO_PLUGIN_VERSION_NUMBER, bool $force = false, string $origin_status = 'known' ): bool {
+	$lock = ai4seo_get_plugin_update_lock_name();
+	if ( ai4seo_is_database_advisory_lock_owned_by_current_connection( $lock ) || ! ai4seo_acquire_database_advisory_lock( $lock ) ) {
 		return false;
 	}
-
-	// Derived cache values must not survive a plugin update because their source logic or data shape may have changed.
-	if ( ! ai4seo_invalidate_all_environmental_variable_caches() ) {
-		return false;
-	}
-
-	// reestablish cron jobs.
-	ai4seo_un_schedule_cron_jobs();
-	ai4seo_init_cron_jobs();
-
-	// start cron jobs in 10 seconds.
-	ai4seo_inject_additional_cronjob_call( AI4SEO_BULK_GENERATION_CRON_JOB_NAME, 10 );
-	ai4seo_inject_additional_cronjob_call( AI4SEO_ANALYSE_PLUGIN_PERFORMANCE_CRON_JOB_NAME, 10 );
-
-	// unset temporary environmental variables.
-	ai4seo_robhub_api()->reset_last_account_sync();
-	ai4seo_robhub_api()->tidy_up_api_locks();
-	if ( ! ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_CRON_JOB_CALL, time() - 300 )
-		|| ! ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_SPECIFIC_CRON_JOB_CALLS, array() ) ) {
-		return false;
-	}
-
-	// we need the raw settings to check for old variations of the settings.
-	$raw_settings = ai4seo_read_settings();
-
-	// Required setting changes are validated and persisted in one checked write near the end of tidy-up.
-	$required_setting_migration_values      = array();
-	$should_start_active_metadata_migration = false;
-
-	// we need the raw environmental variables to check for old variations.
-	$raw_environmental_variables = ai4seo_get_option( AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME );
-
-	if ( $raw_environmental_variables ) {
-		// Retain environmental state written with an additional legacy serialization layer.
-		$raw_environmental_variables = ai4seo_safe_maybe_unserialize( $raw_environmental_variables );
-		$raw_environmental_variables = ai4seo_deep_sanitize( $raw_environmental_variables );
-	}
-
-	// region V1.1.X ==============================================================================.
-
-	// remove old options (from older versions)
-	// required after V1.1.1.
-	if ( $last_known_plugin_version && version_compare( $last_known_plugin_version, '1.1.1', '<' ) ) {
-		ai4seo_delete_option( '_ai4seo_current_credits_balance' );
-	}
-
-	// if old option ai4seo_missing_seo_data_post_ids is set, rename it to ai4seo_processing_metadata_post_ids
-	// required after V1.1.2.
-	if ( $last_known_plugin_version && version_compare( $last_known_plugin_version, '1.1.2', '<' ) ) {
-		if ( ai4seo_get_option( 'ai4seo_missing_seo_data_post_ids' ) ) {
-			$missing_seo_data_post_ids = ai4seo_get_option( 'ai4seo_missing_seo_data_post_ids' );
-
-			if ( ! ai4seo_update_option( 'ai4seo_processing_metadata_post_ids', $missing_seo_data_post_ids ) ) {
-				return false;
-			}
-
-			ai4seo_delete_option( 'ai4seo_missing_seo_data_post_ids' );
-		}
-
-		// if old option _ai4seo_num_existing_going_to_fill_this_post_ids_by_post_type is set, rename it to _ai4seo_num_processing_metadata_post_ids_by_post_type
-		// required after V1.1.2.
-		if ( ai4seo_get_option( '_ai4seo_num_existing_going_to_fill_this_post_ids_by_post_type' ) ) {
-			$num_existing_going_to_fill_this_post_ids_by_post_type = ai4seo_get_option( '_ai4seo_num_existing_going_to_fill_this_post_ids_by_post_type' );
-
-			if ( ! ai4seo_update_option( '_ai4seo_num_processing_metadata_post_ids_by_post_type', $num_existing_going_to_fill_this_post_ids_by_post_type ) ) {
-				return false;
-			}
-
-			ai4seo_delete_option( '_ai4seo_num_existing_going_to_fill_this_post_ids_by_post_type' );
-		}
-
-		// clear schedule of old cronjobs, as of V1.1.2 we use new cronjobs.
-		wp_clear_scheduled_hook( 'ai4seo_search_missing_seo_data_posts' );
-		wp_clear_scheduled_hook( 'ai4seo_search_missing_metadata_posts' );
-		wp_clear_scheduled_hook( 'ai4seo_automated_seo_data_generation' );
-	}
-
-	// V1.1.8: clear schedule of old cronjob "ai4seo_automated_metadata_generation", it's now called "ai4seo_automated_generation_cron_job".
-	if ( $last_known_plugin_version && version_compare( $last_known_plugin_version, '1.1.8', '<' ) ) {
-		wp_clear_scheduled_hook( 'ai4seo_automated_metadata_generation' );
-
-		ai4seo_delete_option( 'ai4seo_is_automation_activated_for_posts' );
-		ai4seo_delete_option( 'ai4seo_is_automation_activated_for_pages' );
-		ai4seo_delete_option( 'ai4seo_is_automation_activated_for_products' );
-	}
-
-	// region V1.2.X ==============================================================================.
-
-	// if old option ai4seo_already_filled_post_ids is set, rename it to ai4seo_already_filled_metadata_post_ids
-	// required after V1.2.
-	if ( $last_known_plugin_version && version_compare( $last_known_plugin_version, '1.2', '<' ) ) {
-		if ( ai4seo_get_option( 'ai4seo_already_filled_post_ids' ) ) {
-			$already_filled_metadata_post_ids = ai4seo_get_option( 'ai4seo_already_filled_post_ids' );
-
-			if ( ! ai4seo_update_option( 'ai4seo_already_filled_metadata_post_ids', $already_filled_metadata_post_ids ) ) {
-				return false;
-			}
-
-			ai4seo_delete_option( 'ai4seo_already_filled_post_ids' );
-		}
-
-		// if old option ai4seo_failed_to_fill_post_ids is set, rename it to ai4seo_failed_to_fill_metadata_post_ids
-		// required after V1.2.
-		if ( ai4seo_get_option( 'ai4seo_failed_to_fill_post_ids' ) ) {
-			$failed_to_fill_metadata_post_ids = ai4seo_get_option( 'ai4seo_failed_to_fill_post_ids' );
-
-			if ( ! ai4seo_update_option( 'ai4seo_failed_to_fill_metadata_post_ids', $failed_to_fill_metadata_post_ids ) ) {
-				return false;
-			}
-
-			ai4seo_delete_option( 'ai4seo_failed_to_fill_post_ids' );
-		}
-
-		// V1.2: migrate one bounded legacy-cache batch and retry the update until the source table is exhausted.
-		$legacy_cache_migration_result = ai4seo_tidy_up_old_ai4seo_cache_table();
-
-		if ( empty( $legacy_cache_migration_result['success'] ) || empty( $legacy_cache_migration_result['complete'] ) ) {
-			ai4seo_debug_message(
-				872118426,
-				'Legacy cache migration requires retry (status: '
-				. sanitize_key( $legacy_cache_migration_result['status'] ?? 'unknown' )
-				. ').',
-				true
-			);
+	try {
+		$results                     = array();
+		$raw_settings                = ai4seo_read_plugin_update_settings();
+		$environment                 = ai4seo_get_raw_option_snapshot( AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME );
+		$raw_environmental_variables = null !== $environment && is_array( $environment['value'] ) ? $environment['value'] : array();
+		$history_known               = in_array( $origin_status, array( 'known', 'fresh' ), true );
+		$results[]                   = ai4seo_run_plugin_update_step(
+			'history',
+			static function () use ( $history_known ) {
+				return $history_known ? true : ai4seo_plugin_update_step_result( 'blocked', 'history_unknown' );
+			},
+			$force,
+			true
+		);
+		// Optional preferences cannot stop compatibility work or rewrite an unreadable settings container.
+		ai4seo_run_plugin_update_step(
+			'notifications',
+			static function () use ( $raw_settings, $environment ) {
+				return null !== $raw_settings && null !== $environment && ( ! $environment['exists'] || is_array( $environment['value'] ) ) && ai4seo_initialize_notification_preferences();
+			},
+			$force
+		);
+		$results[] = ai4seo_run_plugin_update_step(
+			'legacy_cache',
+			static function ( array $previous ): array {
+				$result = ai4seo_tidy_up_old_ai4seo_cache_table( 250, $previous );
+				return $result['step'];
+			},
+			$force
+		);
+		if ( ! $history_known ) {
 			return false;
 		}
-	}
-
-	// V1.2.1: Delete old summary options.
-	if ( $last_known_plugin_version && version_compare( $last_known_plugin_version, '1.2.1', '<' ) ) {
-		if ( ai4seo_get_option( '_ai4seo_num_processing_metadata_post_ids_by_post_type' ) ) {
-			ai4seo_delete_option( '_ai4seo_num_processing_metadata_post_ids_by_post_type' );
-		}
-
-		if ( ai4seo_get_option( '_ai4seo_num_failed_to_fill_post_ids_by_post_type' ) ) {
-			ai4seo_delete_option( '_ai4seo_num_failed_to_fill_post_ids_by_post_type' );
-		}
-
-		if ( ai4seo_get_option( '_ai4seo_num_already_filled_post_ids_by_post_type' ) ) {
-			ai4seo_delete_option( '_ai4seo_num_already_filled_post_ids_by_post_type' );
-		}
-
-		if ( ai4seo_get_option( '_ai4seo_num_posts_not_filled_by_post_type' ) ) {
-			ai4seo_delete_option( '_ai4seo_num_posts_not_filled_by_post_type' );
-		}
-
-		if ( ai4seo_get_option( 'ai4seo_already_filled_metadata_post_ids' ) ) {
-			ai4seo_delete_option( 'ai4seo_already_filled_metadata_post_ids' );
-		}
-
-		if ( ai4seo_get_option( 'ai4seo_already_filled_attributes_attachment_post_ids' ) ) {
-			ai4seo_delete_option( 'ai4seo_already_filled_attributes_attachment_post_ids' );
-		}
-
-		// V1.2.1: Rename some post ids options
-		// (ai4seo_failed_to_fill_metadata_post_ids -> ai4seo_failed_metadata_post_ids)
-		// (ai4seo_failed_to_fill_attributes_attachment_post_ids -> ai4seo_failed_attributes_attachment_post_ids).
-		if ( ai4seo_get_option( 'ai4seo_failed_to_fill_metadata_post_ids' ) ) {
-			$failed_metadata_post_ids = ai4seo_get_option( 'ai4seo_failed_to_fill_metadata_post_ids' );
-
-			if ( ! ai4seo_update_option( 'ai4seo_failed_metadata_post_ids', $failed_metadata_post_ids ) ) {
-				return false;
-			}
-
-			ai4seo_delete_option( 'ai4seo_failed_to_fill_metadata_post_ids' );
-		}
-
-		if ( ai4seo_get_option( 'ai4seo_failed_to_fill_attributes_attachment_post_ids' ) ) {
-			$failed_attributes_attachment_post_ids = ai4seo_get_option( 'ai4seo_failed_to_fill_attributes_attachment_post_ids' );
-
-			if ( ! ai4seo_update_option( 'ai4seo_failed_attributes_attachment_post_ids', $failed_attributes_attachment_post_ids ) ) {
-				return false;
-			}
-
-			ai4seo_delete_option( 'ai4seo_failed_to_fill_attributes_attachment_post_ids' );
-		}
-	}
-
-	// V1.2.6: Save various options into the new environmental variables option.
-	if ( $last_known_plugin_version && version_compare( $last_known_plugin_version, '1.2.6', '<' ) ) {
-		if ( ai4seo_get_option( '_ai4seo_robhub_last_credit_balance_check' ) !== false ) {
-			ai4seo_delete_option( '_ai4seo_robhub_last_credit_balance_check' );
-		}
-
-		if ( ai4seo_get_option( 'ai4seo_robhub_auth_data' ) !== false ) {
-			$old_robhub_auth_data = ai4seo_get_option( 'ai4seo_robhub_auth_data' );
-			$old_api_username     = sanitize_text_field( $old_robhub_auth_data[0] ?? '' );
-			$old_api_password     = sanitize_text_field( $old_robhub_auth_data[1] ?? '' );
-
-			if ( ! ai4seo_robhub_api()->update_environmental_variable( ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_API_USERNAME, $old_api_username )
-				|| ! ai4seo_robhub_api()->update_environmental_variable( ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_API_PASSWORD, $old_api_password ) ) {
-				return false;
-			}
-
-			ai4seo_delete_option( 'ai4seo_robhub_auth_data' );
-		}
-
-		if ( ai4seo_get_option( '_ai4seo_robhub_credits_balance' ) !== false ) {
-			if ( ! ai4seo_robhub_api()->update_environmental_variable( ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_CREDITS_BALANCE, (int) ai4seo_get_option( '_ai4seo_robhub_credits_balance' ) ) ) {
-				return false;
-			}
-
-			ai4seo_delete_option( '_ai4seo_robhub_credits_balance' );
-		}
-
-		if ( ai4seo_get_option( '_ai4seo_version' ) !== false ) {
-			if ( ! ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_KNOWN_PLUGIN_VERSION, ai4seo_get_option( '_ai4seo_version' ) ) ) {
-				return false;
-			}
-
-			ai4seo_delete_option( '_ai4seo_version' );
-		}
-
-		if ( ai4seo_get_option( '_ai4seo_licence_key_shown' ) !== false ) {
-			ai4seo_delete_option( '_ai4seo_licence_key_shown' );
-		}
-
-		if ( ai4seo_get_option( '_ai4seo_last_cronjob_call' ) !== false ) {
-			// we defined the new variable earlier in this function, therefore we can safely delete the old one.
-			ai4seo_delete_option( '_ai4seo_last_cronjob_call' );
-		}
-
-		if ( ai4seo_get_option( '_ai4seo_last_cronjob_call_for_ai4seo_automated_generation_cron_job' ) !== false ) {
-			// we defined the new variable earlier in this function, therefore we can safely delete the old one.
-			ai4seo_delete_option( '_ai4seo_last_cronjob_call_for_ai4seo_automated_generation_cron_job' );
-		}
-
-		if ( ai4seo_get_option( '_ai4seo_last_cronjob_call_for_ai4seo_automated_metadata_generation' ) !== false ) {
-			// we defined the new variable earlier in this function, therefore we can safely delete the old one.
-			ai4seo_delete_option( '_ai4seo_last_cronjob_call_for_ai4seo_automated_metadata_generation' );
-		}
-
-		if ( ai4seo_get_option( '_ai4seo_performance_notice_dismissed_timestamp' ) !== false ) {
-			// we defined the new variable earlier in this function, therefore we can safely delete the old one.
-			ai4seo_delete_option( '_ai4seo_performance_notice_dismissed_timestamp' );
-		}
-	}
-
-	// region V2.0.X ==============================================================================.
-
-	// V2.0.0:
-	// robhub auth data changed from environmental variable "auth_data" to "api_username" and "api_password".
-	if ( $last_known_plugin_version && version_compare( $last_known_plugin_version, '2.0.0', '<' ) ) {
-		ai4seo_robhub_api()->tidy_up_deprecated_auth_data();
-
-		// V2.0.0: Settings migration
-		// enabled_automated_generations -> enabled_bulk_generation_post_types.
-		if ( isset( $raw_settings['enabled_automated_generations'] ) && is_array( $raw_settings['enabled_automated_generations'] ) ) {
-			$new_enabled_bulk_generation_post_types = array();
-
-			foreach ( $raw_settings['enabled_automated_generations'] as $this_post_type => $this_is_enabled ) {
-				if ( $this_is_enabled ) {
-					$new_enabled_bulk_generation_post_types[] = $this_post_type;
+		$results[] = ai4seo_run_plugin_update_step(
+			'cache_invalidation',
+			static function (): bool {
+				return ai4seo_invalidate_all_environmental_variable_caches();
+			},
+			$force
+		);
+		// Account maintenance is independent of local migrations and never resets queue ownership.
+		ai4seo_run_plugin_update_step(
+			'account_maintenance',
+			static function (): bool {
+				$api = ai4seo_robhub_api( true );
+				if ( ! $api || ! $api->is_initialized ) {
+					return false;
 				}
-			}
-
-			if ( $new_enabled_bulk_generation_post_types ) {
-				$required_setting_migration_values[ AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES ] = $new_enabled_bulk_generation_post_types;
-			}
-		}
-
-		// automated_generation_order (array) -> bulk_generation_order (string).
-		if ( isset( $raw_settings['automated_generation_order'] ) && is_array( $raw_settings['automated_generation_order'] ) ) {
-			// get first element of the array, set it as the new value.
-			if ( count( $raw_settings['automated_generation_order'] ) >= 1 ) {
-				$new_bulk_generation_order = reset( $raw_settings['automated_generation_order'] );
-
-				if ( $new_bulk_generation_order ) {
-					$required_setting_migration_values[ AI4SEO_SETTING_BULK_GENERATION_ORDER ] = $new_bulk_generation_order;
+				$snapshot = ai4seo_get_raw_option_snapshot( AI4SEO_ROBHUB_ENVIRONMENTAL_VARIABLES_OPTION_NAME );
+				return null !== $snapshot && $api->apply_plugin_update_environmental_changes(
+					$snapshot,
+					array(
+						$api::ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC => 0,
+						$api::ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED => false,
+					)
+				);
+			},
+			$force
+		);
+		$results[] = ai4seo_run_plugin_update_step(
+			'attachment_formats',
+			static function () use ( $raw_settings, $last_known_plugin_version ) {
+				return null === $raw_settings ? ai4seo_plugin_update_step_result( 'blocked', 'settings_unreadable' )
+				: ai4seo_apply_plugin_update_setting_group( ai4seo_get_attachment_file_type_migration_values( $last_known_plugin_version, $raw_settings ), $raw_settings );
+			},
+			$force
+		);
+		$results[] = ai4seo_run_plugin_update_step(
+			'legacy_111',
+			static function () use ( $last_known_plugin_version ) {
+				// remove old options (from older versions)
+				// required after V1.1.1.
+				if ( $last_known_plugin_version && version_compare( $last_known_plugin_version, '1.1.1', '<' ) ) {
+					ai4seo_delete_option( '_ai4seo_current_credits_balance' );
 				}
-			}
-		}
+				return true;
+			},
+			$force
+		);
+		$results[] = ai4seo_run_plugin_update_step(
+			'legacy_112',
+			static function () use ( $last_known_plugin_version ) {
+				// if old option ai4seo_missing_seo_data_post_ids is set, rename it to ai4seo_processing_metadata_post_ids
+				// required after V1.1.2.
+				if ( $last_known_plugin_version && version_compare( $last_known_plugin_version, '1.1.2', '<' ) ) {
+					if ( ! ai4seo_migrate_plugin_update_option( 'ai4seo_missing_seo_data_post_ids', 'ai4seo_processing_metadata_post_ids' ) ) {
+						return false;
+					}
 
-		// automated_generation_new_or_existing_filter (array) -> bulk_generation_new_or_existing_filter (string).
-		if ( isset( $raw_settings['automated_generation_new_or_existing_filter'] ) && is_array( $raw_settings['automated_generation_new_or_existing_filter'] ) ) {
-			// get first element of the array, set it as the new value.
-			if ( count( $raw_settings['automated_generation_new_or_existing_filter'] ) >= 1 ) {
-				$new_bulk_generation_new_or_existing_filter = reset( $raw_settings['automated_generation_new_or_existing_filter'] );
+					// if old option _ai4seo_num_existing_going_to_fill_this_post_ids_by_post_type is set, rename it to _ai4seo_num_processing_metadata_post_ids_by_post_type
+					// required after V1.1.2.
+					if ( ! ai4seo_migrate_plugin_update_option( '_ai4seo_num_existing_going_to_fill_this_post_ids_by_post_type', '_ai4seo_num_processing_metadata_post_ids_by_post_type' ) ) {
+						return false;
+					}
 
-				if ( $new_bulk_generation_new_or_existing_filter ) {
-					$required_setting_migration_values[ AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER ] = $new_bulk_generation_new_or_existing_filter;
+					// clear schedule of old cronjobs, as of V1.1.2 we use new cronjobs.
+					wp_clear_scheduled_hook( 'ai4seo_search_missing_seo_data_posts' );
+					wp_clear_scheduled_hook( 'ai4seo_search_missing_metadata_posts' );
+					wp_clear_scheduled_hook( 'ai4seo_automated_seo_data_generation' );
 				}
-			}
-		}
+				return true;
+			},
+			$force
+		);
+		$results[] = ai4seo_run_plugin_update_step(
+			'legacy_118',
+			static function () use ( $last_known_plugin_version ) {
+				// V1.1.8: clear schedule of old cronjob "ai4seo_automated_metadata_generation", it's now called "ai4seo_automated_generation_cron_job".
+				if ( $last_known_plugin_version && version_compare( $last_known_plugin_version, '1.1.8', '<' ) ) {
+					wp_clear_scheduled_hook( 'ai4seo_automated_metadata_generation' );
 
-		// automated_generation_new_or_existing_filter_reference_times (array) -> bulk_generation_new_or_existing_filter_reference_time (string)
-		// environmental variable.
-		if ( isset( $raw_environmental_variables['automated_generation_new_or_existing_filter_reference_times'] ) && is_array( $raw_environmental_variables['automated_generation_new_or_existing_filter_reference_times'] ) ) {
-			// get first element of the array, set it as the new value.
-			if ( count( $raw_environmental_variables['automated_generation_new_or_existing_filter_reference_times'] ) >= 1 ) {
-				$new_bulk_generation_new_or_existing_filter_reference_time = reset( $raw_environmental_variables['automated_generation_new_or_existing_filter_reference_times'] );
+					ai4seo_delete_option( 'ai4seo_is_automation_activated_for_posts' );
+					ai4seo_delete_option( 'ai4seo_is_automation_activated_for_pages' );
+					ai4seo_delete_option( 'ai4seo_is_automation_activated_for_products' );
+				}
 
-				if ( $new_bulk_generation_new_or_existing_filter_reference_time ) {
-					if ( ! ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME, $new_bulk_generation_new_or_existing_filter_reference_time ) ) {
+				return true;
+			},
+			$force
+		);
+		$results[] = ai4seo_run_plugin_update_step(
+			'legacy_120',
+			static function () use ( $last_known_plugin_version ) {
+				// if old option ai4seo_already_filled_post_ids is set, rename it to ai4seo_already_filled_metadata_post_ids
+				// required after V1.2.
+				if ( $last_known_plugin_version && version_compare( $last_known_plugin_version, '1.2', '<' ) ) {
+					if ( ! ai4seo_migrate_plugin_update_option( 'ai4seo_already_filled_post_ids', 'ai4seo_already_filled_metadata_post_ids' ) ) {
+						return false;
+					}
+
+					// if old option ai4seo_failed_to_fill_post_ids is set, rename it to ai4seo_failed_to_fill_metadata_post_ids
+					// required after V1.2.
+					if ( ! ai4seo_migrate_plugin_update_option( 'ai4seo_failed_to_fill_post_ids', 'ai4seo_failed_to_fill_metadata_post_ids' ) ) {
 						return false;
 					}
 				}
-			}
-		}
+				return true;
+			},
+			$force
+		);
+		$results[] = ai4seo_run_plugin_update_step(
+			'legacy_121',
+			static function () use ( $last_known_plugin_version ) {
+				// V1.2.1: Delete old summary options.
+				if ( $last_known_plugin_version && version_compare( $last_known_plugin_version, '1.2.1', '<' ) ) {
+					if ( ai4seo_get_option( '_ai4seo_num_processing_metadata_post_ids_by_post_type' ) ) {
+						ai4seo_delete_option( '_ai4seo_num_processing_metadata_post_ids_by_post_type' );
+					}
+
+					if ( ai4seo_get_option( '_ai4seo_num_failed_to_fill_post_ids_by_post_type' ) ) {
+						ai4seo_delete_option( '_ai4seo_num_failed_to_fill_post_ids_by_post_type' );
+					}
+
+					if ( ai4seo_get_option( '_ai4seo_num_already_filled_post_ids_by_post_type' ) ) {
+						ai4seo_delete_option( '_ai4seo_num_already_filled_post_ids_by_post_type' );
+					}
+
+					if ( ai4seo_get_option( '_ai4seo_num_posts_not_filled_by_post_type' ) ) {
+						ai4seo_delete_option( '_ai4seo_num_posts_not_filled_by_post_type' );
+					}
+
+					if ( ai4seo_get_option( 'ai4seo_already_filled_metadata_post_ids' ) ) {
+						ai4seo_delete_option( 'ai4seo_already_filled_metadata_post_ids' );
+					}
+
+					if ( ai4seo_get_option( 'ai4seo_already_filled_attributes_attachment_post_ids' ) ) {
+						ai4seo_delete_option( 'ai4seo_already_filled_attributes_attachment_post_ids' );
+					}
+
+					// V1.2.1: Rename some post ids options
+					// (ai4seo_failed_to_fill_metadata_post_ids -> ai4seo_failed_metadata_post_ids)
+					// (ai4seo_failed_to_fill_attributes_attachment_post_ids -> ai4seo_failed_attributes_attachment_post_ids).
+					if ( ! ai4seo_migrate_plugin_update_option( 'ai4seo_failed_to_fill_metadata_post_ids', 'ai4seo_failed_metadata_post_ids' ) ) {
+						return false;
+					}
+
+					if ( ! ai4seo_migrate_plugin_update_option( 'ai4seo_failed_to_fill_attributes_attachment_post_ids', 'ai4seo_failed_attributes_attachment_post_ids' ) ) {
+						return false;
+					}
+				}
+				return true;
+			},
+			$force
+		);
+		$results[] = ai4seo_run_plugin_update_step(
+			'legacy_126',
+			static function () use ( $last_known_plugin_version ) {
+				// V1.2.6: Save various options into the new environmental variables option.
+				if ( $last_known_plugin_version && version_compare( $last_known_plugin_version, '1.2.6', '<' ) ) {
+					if ( ai4seo_get_option( '_ai4seo_robhub_last_credit_balance_check' ) !== false ) {
+						ai4seo_delete_option( '_ai4seo_robhub_last_credit_balance_check' );
+					}
+
+					$credit_source = ai4seo_get_raw_option_snapshot( '_ai4seo_robhub_credits_balance' );
+					if ( null === $credit_source ) {
+						return false;
+					}
+					if ( $credit_source['exists'] ) {
+						$api    = ai4seo_robhub_api( true );
+						$target = ai4seo_get_raw_option_snapshot( AI4SEO_ROBHUB_ENVIRONMENTAL_VARIABLES_OPTION_NAME );
+						$value  = filter_var( $credit_source['value'], FILTER_VALIDATE_INT, array( 'options' => array( 'min_range' => 0 ) ) );
+						if ( ! $api || ! $api->is_initialized || null === $target || ( $target['exists'] && ! is_array( $target['value'] ) ) || false === $value ) {
+							return false;
+						}
+						$raw = $target['exists'] ? $target['value'] : array();
+						if ( array_key_exists( $api::ENVIRONMENTAL_VARIABLE_CREDITS_BALANCE, $raw ) && $value !== $raw[ $api::ENVIRONMENTAL_VARIABLE_CREDITS_BALANCE ] ) {
+							return false;
+						}
+						if ( ! $api->apply_plugin_update_environmental_changes( $target, array( $api::ENVIRONMENTAL_VARIABLE_CREDITS_BALANCE => $value ) )
+						|| true !== ai4seo_compare_and_delete_option_snapshot( '_ai4seo_robhub_credits_balance', $credit_source ) ) {
+							return false;
+						}
+					}
+
+					if ( ai4seo_get_option( '_ai4seo_licence_key_shown' ) !== false ) {
+						ai4seo_delete_option( '_ai4seo_licence_key_shown' );
+					}
+
+					if ( ai4seo_get_option( '_ai4seo_last_cronjob_call' ) !== false ) {
+						// This obsolete diagnostic timestamp is not a current processing lease.
+						ai4seo_delete_option( '_ai4seo_last_cronjob_call' );
+					}
+
+					if ( ai4seo_get_option( '_ai4seo_last_cronjob_call_for_ai4seo_automated_generation_cron_job' ) !== false ) {
+						// This obsolete diagnostic timestamp is not a current processing lease.
+						ai4seo_delete_option( '_ai4seo_last_cronjob_call_for_ai4seo_automated_generation_cron_job' );
+					}
+
+					if ( ai4seo_get_option( '_ai4seo_last_cronjob_call_for_ai4seo_automated_metadata_generation' ) !== false ) {
+						// This obsolete diagnostic timestamp is not a current processing lease.
+						ai4seo_delete_option( '_ai4seo_last_cronjob_call_for_ai4seo_automated_metadata_generation' );
+					}
+
+					if ( ai4seo_get_option( '_ai4seo_performance_notice_dismissed_timestamp' ) !== false ) {
+						// This obsolete diagnostic timestamp is not a current processing lease.
+						ai4seo_delete_option( '_ai4seo_performance_notice_dismissed_timestamp' );
+					}
+				}
+
+				return true;
+			},
+			$force
+		);
+		$results[] = ai4seo_run_plugin_update_step(
+			'account_compatibility',
+			static function () use ( $last_known_plugin_version ): bool {
+				return ! $last_known_plugin_version || version_compare( $last_known_plugin_version, '2.0.0', '>=' ) || ai4seo_migrate_plugin_update_account_data();
+			},
+			$force
+		);
+		$results[] = ai4seo_run_plugin_update_step(
+			'settings_200',
+			static function () use ( $last_known_plugin_version, $raw_settings, $raw_environmental_variables ) {
+				if ( null === $raw_settings ) {
+					return ai4seo_plugin_update_step_result( 'blocked', 'settings_unreadable' );
+				}
+				$required_setting_migration_values = array();
+				// V2.0.0: Convert legacy automatic-generation preferences independently of account data.
+				if ( $last_known_plugin_version && version_compare( $last_known_plugin_version, '2.0.0', '<' ) ) {
+					foreach ( array( 'enabled_automated_generations', 'automated_generation_order', 'automated_generation_new_or_existing_filter' ) as $legacy_key ) {
+						if ( array_key_exists( $legacy_key, $raw_settings ) && ! is_array( $raw_settings[ $legacy_key ] ) ) {
+							return ai4seo_plugin_update_step_result( 'blocked', 'settings_unreadable' );
+						}
+					}
+
+					// V2.0.0: Settings migration
+					// enabled_automated_generations -> enabled_bulk_generation_post_types.
+					if ( isset( $raw_settings['enabled_automated_generations'] ) && is_array( $raw_settings['enabled_automated_generations'] ) ) {
+						$new_enabled_bulk_generation_post_types = array();
+
+						foreach ( $raw_settings['enabled_automated_generations'] as $this_post_type => $this_is_enabled ) {
+							$this_is_enabled = ai4seo_normalize_boolean_setting_value( AI4SEO_SETTING_ENABLE_EXTERNAL_METADATA_GENERATE_BUTTONS, $this_is_enabled );
+							if ( ! is_bool( $this_is_enabled ) ) {
+								return ai4seo_plugin_update_step_result( 'blocked', 'settings_unreadable' );
+							}
+							if ( $this_is_enabled ) {
+								$new_enabled_bulk_generation_post_types[] = $this_post_type;
+							}
+						}
+
+						if ( $new_enabled_bulk_generation_post_types ) {
+							$required_setting_migration_values[ AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES ] = $new_enabled_bulk_generation_post_types;
+						}
+					}
+
+					// automated_generation_order (array) -> bulk_generation_order (string).
+					if ( isset( $raw_settings['automated_generation_order'] ) && is_array( $raw_settings['automated_generation_order'] ) ) {
+						// get first element of the array, set it as the new value.
+						if ( count( $raw_settings['automated_generation_order'] ) >= 1 ) {
+							$new_bulk_generation_order = reset( $raw_settings['automated_generation_order'] );
+
+							if ( $new_bulk_generation_order ) {
+								$required_setting_migration_values[ AI4SEO_SETTING_BULK_GENERATION_ORDER ] = $new_bulk_generation_order;
+							}
+						}
+					}
+
+					// automated_generation_new_or_existing_filter (array) -> bulk_generation_new_or_existing_filter (string).
+					if ( isset( $raw_settings['automated_generation_new_or_existing_filter'] ) && is_array( $raw_settings['automated_generation_new_or_existing_filter'] ) ) {
+						// get first element of the array, set it as the new value.
+						if ( count( $raw_settings['automated_generation_new_or_existing_filter'] ) >= 1 ) {
+							$new_bulk_generation_new_or_existing_filter = reset( $raw_settings['automated_generation_new_or_existing_filter'] );
+
+							if ( $new_bulk_generation_new_or_existing_filter ) {
+								$required_setting_migration_values[ AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER ] = $new_bulk_generation_new_or_existing_filter;
+							}
+						}
+					}
+
+					// automated_generation_new_or_existing_filter_reference_times (array) -> bulk_generation_new_or_existing_filter_reference_time (string)
+					// environmental variable.
+					if ( isset( $raw_environmental_variables['automated_generation_new_or_existing_filter_reference_times'] ) && is_array( $raw_environmental_variables['automated_generation_new_or_existing_filter_reference_times'] ) ) {
+						// get first element of the array, set it as the new value.
+						if ( count( $raw_environmental_variables['automated_generation_new_or_existing_filter_reference_times'] ) >= 1 ) {
+							$new_bulk_generation_new_or_existing_filter_reference_time = reset( $raw_environmental_variables['automated_generation_new_or_existing_filter_reference_times'] );
+
+							if ( $new_bulk_generation_new_or_existing_filter_reference_time ) {
+								if ( ! ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME, $new_bulk_generation_new_or_existing_filter_reference_time ) ) {
+									return false;
+								}
+							}
+						}
+					}
+				}
+
+				if ( ! ai4seo_apply_plugin_update_setting_group( $required_setting_migration_values, $raw_settings ) ) {
+					return ai4seo_plugin_update_step_result( 'blocked', 'settings_not_committed' );
+				}
+				return true;
+			},
+			$force
+		);
+		$results[] = ai4seo_run_plugin_update_step(
+			'legacy_210',
+			static function () use ( $last_known_plugin_version ) {
+				// V2.1.0:.
+				if ( $last_known_plugin_version && version_compare( $last_known_plugin_version, '2.1.0', '<' ) ) {
+					// Remove old environmental variable "performance_notice_dismissed_time" and dismissed_one_time_notices, feature was removed in V2.1.0.
+					ai4seo_delete_environmental_variable( 'performance_notice_dismissed_time' );
+					ai4seo_delete_environmental_variable( 'dismissed_one_time_notices' );
+					ai4seo_delete_environmental_variable( 'is_first_purchase_discount_available' );
+					ai4seo_delete_environmental_variable( 'early_bird_discount_time_left' );
+
+					// delete option "_ai4seo_plugin_activation_time" -> deprecated in V2.1.0.
+					if ( ai4seo_get_option( '_ai4seo_plugin_activation_time' ) !== false ) {
+						ai4seo_delete_option( '_ai4seo_plugin_activation_time' );
+					}
+				}
+				return true;
+			},
+			$force
+		);
+		$results[] = ai4seo_run_plugin_update_step(
+			'legacy_211',
+			static function () use ( $last_known_plugin_version ) {
+				// V2.1.1:.
+				if ( $last_known_plugin_version && version_compare( $last_known_plugin_version, '2.1.1', '<' ) ) {
+					// delete old robhub environmental variable last_credit_balance_check.
+					ai4seo_robhub_api()->delete_environmental_variable( 'last_credit_balance_check' );
+				}
+
+				return true;
+			},
+			$force
+		);
+		$results[] = ai4seo_run_plugin_update_step(
+			'settings_220',
+			static function () use ( $last_known_plugin_version, $raw_settings ) {
+				if ( null === $raw_settings ) {
+					return ai4seo_plugin_update_step_result( 'blocked', 'settings_unreadable' );
+				}
+				$required_setting_migration_values = array();
+				if ( $last_known_plugin_version && version_compare( $last_known_plugin_version, '2.2.0', '<' ) ) {
+					// handle default visible meta tags setting change to new active meta tags setting.
+					if ( ! isset( $raw_settings[ AI4SEO_SETTING_VISIBLE_META_TAGS ] ) || ! $raw_settings[ AI4SEO_SETTING_VISIBLE_META_TAGS ] ) {
+						// old default value for visible meta tags.
+						$required_setting_migration_values[ AI4SEO_SETTING_ACTIVE_META_TAGS ] = array( 'meta-title', 'meta-description', 'facebook-title', 'facebook-description' );
+					}
+
+					// if visible meta tags were set, apply the same to active meta tags.
+					if ( isset( $raw_settings[ AI4SEO_SETTING_VISIBLE_META_TAGS ] ) && $raw_settings[ AI4SEO_SETTING_VISIBLE_META_TAGS ] ) {
+						$required_setting_migration_values[ AI4SEO_SETTING_ACTIVE_META_TAGS ] = $raw_settings[ AI4SEO_SETTING_VISIBLE_META_TAGS ];
+					}
+
+					// set AI4SEO_SETTING_METADATA_FALLBACK_TWITTER_TITLE to 'facebook-title' and set AI4SEO_SETTING_METADATA_FALLBACK_TWITTER_DESCRIPTION to 'facebook-description'.
+					$required_setting_migration_values[ AI4SEO_SETTING_METADATA_FALLBACK_TWITTER_TITLE ]       = 'facebook-title';
+					$required_setting_migration_values[ AI4SEO_SETTING_METADATA_FALLBACK_TWITTER_DESCRIPTION ] = 'facebook-description';
+				}
+
+				if ( ! ai4seo_apply_plugin_update_setting_group( $required_setting_migration_values, $raw_settings ) ) {
+					return ai4seo_plugin_update_step_result( 'blocked', 'settings_not_committed' );
+				}
+				return true;
+			},
+			$force
+		);
+		$results[] = ai4seo_run_plugin_update_step(
+			'settings_235',
+			static function () use ( $last_known_plugin_version, $raw_settings ) {
+				if ( null === $raw_settings ) {
+					return ai4seo_plugin_update_step_result( 'blocked', 'settings_unreadable' );
+				}
+				$required_setting_migration_values      = array();
+				$should_start_active_metadata_migration = false;
+				// V2.3.5: migrate legacy active metadata postmeta keys to one JSON postmeta entry per post.
+				if ( $last_known_plugin_version && version_compare( $last_known_plugin_version, '2.3.5', '<' ) ) {
+					// Preserve pre-2.3.5 external button behavior for existing clients.
+					$required_setting_migration_values[ AI4SEO_SETTING_ENABLE_EXTERNAL_METADATA_GENERATE_BUTTONS ] = true;
+					$required_setting_migration_values[ AI4SEO_SETTING_ENABLE_EXTERNAL_MEDIA_GENERATE_BUTTONS ]    = true;
+
+					if ( ! empty( $raw_settings[ AI4SEO_SETTING_DEEP_CONTEXT_SEARCH_FOR_IMAGES ] )
+					&& ! ai4seo_is_deep_context_search_supported_for_current_site() ) {
+						$required_setting_migration_values[ AI4SEO_SETTING_DEEP_CONTEXT_SEARCH_FOR_IMAGES ] = false;
+					}
+
+					$should_start_active_metadata_migration = true;
+				}
+
+				if ( ! ai4seo_apply_plugin_update_setting_group( $required_setting_migration_values, $raw_settings ) ) {
+					return ai4seo_plugin_update_step_result( 'blocked', 'settings_not_committed' );
+				}
+				if ( $should_start_active_metadata_migration ) {
+					ai4seo_schedule_active_metadata_migration_v235_cron_job();
+				}
+				return true;
+			},
+			$force
+		);
+		$results[] = ai4seo_run_plugin_update_step(
+			'settings_sync',
+			static function () use ( $last_known_plugin_version, $raw_settings ) {
+				if ( null === $raw_settings ) {
+					return ai4seo_plugin_update_step_result( 'blocked', 'settings_unreadable' );
+				}
+				$required_setting_migration_values = array();
+				// V2.4.4: Existing users keep their former third-party SEO sync behavior unless they chose a selection explicitly.
+				if ( ai4seo_should_migrate_default_third_party_seo_plugin_sync( $last_known_plugin_version, $raw_settings ) ) {
+					$required_setting_migration_values[ AI4SEO_SETTING_APPLY_CHANGES_TO_THIRD_PARTY_SEO_PLUGINS ] = AI4SEO_LEGACY_DEFAULT_THIRD_PARTY_SEO_PLUGIN_SYNC_IDENTIFIERS;
+				}
+				if ( ! ai4seo_apply_plugin_update_setting_group( $required_setting_migration_values, $raw_settings ) ) {
+					return ai4seo_plugin_update_step_result( 'blocked', 'settings_not_committed' );
+				}
+				return true;
+			},
+			$force
+		);
+		$results[] = ai4seo_run_plugin_update_step(
+			'settings_editor',
+			static function () use ( $last_known_plugin_version, $raw_settings ) {
+				if ( null === $raw_settings ) {
+					return ai4seo_plugin_update_step_result( 'blocked', 'settings_unreadable' );
+				}
+				$required_setting_migration_values = array();
+				// V2.4.4: Existing users keep the field-first editor experience unless they already chose a mode explicitly.
+				if ( ai4seo_should_migrate_default_editor_view_mode( $last_known_plugin_version, $raw_settings ) ) {
+					$required_setting_migration_values[ AI4SEO_SETTING_DEFAULT_EDITOR_VIEW_MODE ] = AI4SEO_EDITOR_VIEW_MODE_EDITOR;
+				}
+				if ( ! ai4seo_apply_plugin_update_setting_group( $required_setting_migration_values, $raw_settings ) ) {
+					return ai4seo_plugin_update_step_result( 'blocked', 'settings_not_committed' );
+				}
+				return true;
+			},
+			$force
+		);
+		$results[] = ai4seo_run_plugin_update_step(
+			'settings_240',
+			static function () use ( $last_known_plugin_version, $raw_settings ) {
+				if ( null === $raw_settings ) {
+					return ai4seo_plugin_update_step_result( 'blocked', 'settings_unreadable' );
+				}
+				$required_setting_migration_values = array();
+				// V2.4.0: Initialize prompt slider settings for upgraded sites with current-behavior defaults.
+				if ( $last_known_plugin_version && version_compare( $last_known_plugin_version, '2.4.0', '<' ) ) {
+					$prompt_slider_setting_migration_values = ai4seo_get_prompt_slider_setting_pre_240_migration_values( $raw_settings );
+					$required_setting_migration_values      = array_replace( $required_setting_migration_values, $prompt_slider_setting_migration_values );
+				}
+				if ( ! ai4seo_apply_plugin_update_setting_group( $required_setting_migration_values, $raw_settings ) ) {
+					return ai4seo_plugin_update_step_result( 'blocked', 'settings_not_committed' );
+				}
+				return true;
+			},
+			$force
+		);
+		return ! in_array( false, $results, true ) && ai4seo_run_plugin_update_step(
+			'initialization',
+			static function (): bool {
+				return true;
+			},
+			$force
+		);
+	} finally {
+		ai4seo_release_database_advisory_lock( $lock );
 	}
-
-	// region 2.1.X ==============================================================================.
-
-	// V2.1.0:.
-	if ( $last_known_plugin_version && version_compare( $last_known_plugin_version, '2.1.0', '<' ) ) {
-		// Remove old environmental variable "performance_notice_dismissed_time" and dismissed_one_time_notices, feature was removed in V2.1.0.
-		ai4seo_delete_environmental_variable( 'performance_notice_dismissed_time' );
-		ai4seo_delete_environmental_variable( 'dismissed_one_time_notices' );
-		ai4seo_delete_environmental_variable( 'is_first_purchase_discount_available' );
-		ai4seo_delete_environmental_variable( 'early_bird_discount_time_left' );
-
-		// delete option "_ai4seo_plugin_activation_time" -> deprecated in V2.1.0.
-		if ( ai4seo_get_option( '_ai4seo_plugin_activation_time' ) !== false ) {
-			ai4seo_delete_option( '_ai4seo_plugin_activation_time' );
-		}
-	}
-
-	// V2.1.1:.
-	if ( $last_known_plugin_version && version_compare( $last_known_plugin_version, '2.1.1', '<' ) ) {
-		// delete old robhub environmental variable last_credit_balance_check.
-		ai4seo_robhub_api()->delete_environmental_variable( 'last_credit_balance_check' );
-	}
-
-	// region 2.2.X ==============================================================================.
-
-	if ( $last_known_plugin_version && version_compare( $last_known_plugin_version, '2.2.0', '<' ) ) {
-		// handle default visible meta tags setting change to new active meta tags setting.
-		if ( ! isset( $raw_settings[ AI4SEO_SETTING_VISIBLE_META_TAGS ] ) || ! $raw_settings[ AI4SEO_SETTING_VISIBLE_META_TAGS ] ) {
-			// old default value for visible meta tags.
-			$required_setting_migration_values[ AI4SEO_SETTING_ACTIVE_META_TAGS ] = array( 'meta-title', 'meta-description', 'facebook-title', 'facebook-description' );
-		}
-
-		// if visible meta tags were set, apply the same to active meta tags.
-		if ( isset( $raw_settings[ AI4SEO_SETTING_VISIBLE_META_TAGS ] ) && $raw_settings[ AI4SEO_SETTING_VISIBLE_META_TAGS ] ) {
-			$required_setting_migration_values[ AI4SEO_SETTING_ACTIVE_META_TAGS ] = $raw_settings[ AI4SEO_SETTING_VISIBLE_META_TAGS ];
-		}
-
-		// set AI4SEO_SETTING_METADATA_FALLBACK_TWITTER_TITLE to 'facebook-title' and set AI4SEO_SETTING_METADATA_FALLBACK_TWITTER_DESCRIPTION to 'facebook-description'.
-		$required_setting_migration_values[ AI4SEO_SETTING_METADATA_FALLBACK_TWITTER_TITLE ]       = 'facebook-title';
-		$required_setting_migration_values[ AI4SEO_SETTING_METADATA_FALLBACK_TWITTER_DESCRIPTION ] = 'facebook-description';
-	}
-
-	// region 2.3.X ==============================================================================.
-
-	// V2.3.5: migrate legacy active metadata postmeta keys to one JSON postmeta entry per post.
-	if ( $last_known_plugin_version && version_compare( $last_known_plugin_version, '2.3.5', '<' ) ) {
-		// Preserve pre-2.3.5 external button behavior for existing clients.
-		$required_setting_migration_values[ AI4SEO_SETTING_ENABLE_EXTERNAL_METADATA_GENERATE_BUTTONS ] = true;
-		$required_setting_migration_values[ AI4SEO_SETTING_ENABLE_EXTERNAL_MEDIA_GENERATE_BUTTONS ]    = true;
-
-		if ( ! empty( $raw_settings[ AI4SEO_SETTING_DEEP_CONTEXT_SEARCH_FOR_IMAGES ] )
-			&& ! ai4seo_is_deep_context_search_supported_for_current_site() ) {
-			$required_setting_migration_values[ AI4SEO_SETTING_DEEP_CONTEXT_SEARCH_FOR_IMAGES ] = false;
-		}
-
-		$should_start_active_metadata_migration = true;
-	}
-
-	// region 2.4.X ==============================================================================.
-
-	// V2.4.4: Existing users keep their former third-party SEO sync behavior unless they chose a selection explicitly.
-	if ( ai4seo_should_migrate_default_third_party_seo_plugin_sync( $last_known_plugin_version, $raw_settings ) ) {
-		$required_setting_migration_values[ AI4SEO_SETTING_APPLY_CHANGES_TO_THIRD_PARTY_SEO_PLUGINS ] = AI4SEO_LEGACY_DEFAULT_THIRD_PARTY_SEO_PLUGIN_SYNC_IDENTIFIERS;
-	}
-
-	// V2.4.4: Existing users keep the field-first editor experience unless they already chose a mode explicitly.
-	if ( ai4seo_should_migrate_default_editor_view_mode( $last_known_plugin_version, $raw_settings ) ) {
-		$required_setting_migration_values[ AI4SEO_SETTING_DEFAULT_EDITOR_VIEW_MODE ] = AI4SEO_EDITOR_VIEW_MODE_EDITOR;
-	}
-
-	// V2.4.0: Initialize prompt slider settings for upgraded sites with current-behavior defaults.
-	if ( $last_known_plugin_version && version_compare( $last_known_plugin_version, '2.4.0', '<' ) ) {
-		$prompt_slider_setting_migration_values = ai4seo_get_prompt_slider_setting_pre_240_migration_values( $raw_settings );
-		$required_setting_migration_values      = array_replace( $required_setting_migration_values, $prompt_slider_setting_migration_values );
-	}
-
-	if ( ! ai4seo_apply_required_setting_migration_values( $required_setting_migration_values ) ) {
-		ai4seo_debug_message( 986425702, 'Could not persist required plugin update setting migrations.', true );
-		return false;
-	}
-
-	// Start the postmeta migration only after its compatibility settings are durably committed.
-	if ( $should_start_active_metadata_migration ) {
-		ai4seo_start_active_metadata_migration_v235();
-	}
-
-	// to finish the tidy up, we re-analyze the plugin performance and by adding notifications.
-	ai4seo_analyze_plugin_performance();
-
-	// force push various notifications, if applicable.
-	ai4seo_check_for_missing_entries_notification( true );
-	ai4seo_check_for_low_credits_balance_notification( true );
-
-	// refresh unread notifications count.
-	ai4seo_refresh_unread_notifications_count();
-
-	// Reload the current SOOZ page after all update work has completed so its assets receive a fresh request-only version.
-	if (
-		$last_known_plugin_version
-		&& AI4SEO_PLUGIN_VERSION_NUMBER !== $last_known_plugin_version
-		&& ai4seo_is_user_inside_our_plugin_admin_pages()
-	) {
-		add_action( 'admin_init', 'ai4seo_refresh_plugin_page_assets_after_update', 0 );
-	}
-
-	return true;
 }
-
 
 /**
  * Redirects an updated SOOZ admin page once so its assets bypass browser and optimizer caches.
@@ -1548,7 +1605,8 @@ function ai4seo_read_legacy_cache_migration_existing_post_ids( array $validated_
  * Successfully verified source rows are removed after the complete batch persists. The table is
  * dropped only after a separate remaining-row probe proves that no source rows remain.
  *
- * @param int $batch_size Maximum number of legacy rows to process in this request.
+ * @param int        $batch_size Maximum number of legacy rows to process in this request.
+ * @param array|null $progress Opt-in tolerant scan checkpoint; null preserves strict callers.
  * @return array {
  *     Migration result.
  *
@@ -1559,19 +1617,24 @@ function ai4seo_read_legacy_cache_migration_existing_post_ids( array $validated_
  *     @type int    $failed_row_id  Source row ID associated with a failure, when known.
  * }
  */
-function ai4seo_tidy_up_old_ai4seo_cache_table( int $batch_size = 250 ): array {
+function ai4seo_tidy_up_old_ai4seo_cache_table( int $batch_size = 250, ?array $progress = null ): array {
 	global $wpdb;
 
-	$migration_result  = array(
+	$migration_result             = array(
 		'success'        => false,
 		'complete'       => false,
 		'status'         => 'source_read_failed',
 		'processed_rows' => 0,
 		'failed_row_id'  => 0,
 	);
-	$legacy_table_name = "{$wpdb->prefix}ai4seo_cache";
-	$batch_size        = max( 1, min( 250, $batch_size ) );
-	$wpdb->last_error  = '';
+	$cursor                       = null !== $progress ? $progress['cursor'] : 0;
+	$migration_result['cursor']   = $cursor;
+	$migration_result['issues']   = $cursor > 0 ? $progress['issues'] : 0;
+	$migration_result['examples'] = $cursor > 0 ? $progress['examples'] : array();
+	$last_source_id               = $cursor;
+	$legacy_table_name            = "{$wpdb->prefix}ai4seo_cache";
+	$batch_size                   = max( 1, min( 250, $batch_size ) );
+	$wpdb->last_error             = '';
 
 	// Escape LIKE wildcards in the WordPress prefix so only the exact legacy table satisfies the probe.
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- One exact schema probe determines whether migration work exists.
@@ -1584,13 +1647,20 @@ function ai4seo_tidy_up_old_ai4seo_cache_table( int $batch_size = 250 ): array {
 
 	if ( $wpdb->last_error ) {
 		ai4seo_debug_message( 984321667, 'Database error: ' . $wpdb->last_error, true );
-		return $migration_result;
+		return ai4seo_finish_legacy_cache_update_batch( $migration_result, $progress );
 	}
 
 	if ( $legacy_table_name !== $table_exists ) {
 		$migration_result['success']  = true;
 		$migration_result['complete'] = true;
 		$migration_result['status']   = 'not_required';
+		return ai4seo_finish_legacy_cache_update_batch( $migration_result, $progress );
+	}
+
+	// Only resumable updates apply this setting, after verifying that migration work exists.
+	if ( null !== $progress && ai4seo_get_setting( AI4SEO_SETTING_DISABLE_HEAVY_DB_OPERATIONS ) ) {
+		$migration_result['status'] = 'heavy_operations_disabled';
+		$migration_result['step']   = ai4seo_plugin_update_step_result( 'blocked', 'heavy_operations_disabled', $progress['cursor'], $progress['issues'], $progress['examples'] );
 		return $migration_result;
 	}
 
@@ -1603,8 +1673,10 @@ function ai4seo_tidy_up_old_ai4seo_cache_table( int $batch_size = 250 ): array {
 		$wpdb->prepare(
 			"SELECT id, post_id, data
 			 FROM `{$legacy_table_name}`
+			 WHERE id > %d
 			 ORDER BY id ASC
 			 LIMIT %d",
+			$cursor,
 			$batch_size
 		),
 		ARRAY_A
@@ -1613,21 +1685,53 @@ function ai4seo_tidy_up_old_ai4seo_cache_table( int $batch_size = 250 ): array {
 
 	if ( $wpdb->last_error || ! is_array( $source_rows ) ) {
 		ai4seo_debug_message( 984321668, 'Database error: ' . $wpdb->last_error, true );
-		return $migration_result;
+		return ai4seo_finish_legacy_cache_update_batch( $migration_result, $progress );
 	}
 
 	$validated_rows = array();
 
 	// Validate the complete batch first so one malformed row cannot leave earlier source rows partially drained.
 	foreach ( $source_rows as $source_row ) {
+		if ( null !== $progress ) {
+			$source_id = ai4seo_normalize_database_id( $source_row['id'] ?? null );
+			if ( false === $source_id || $source_id <= $last_source_id ) {
+				$migration_result['status'] = 'invalid_identity';
+				return ai4seo_finish_legacy_cache_update_batch( $migration_result, $progress );
+			}
+			$last_source_id = $source_id;
+		}
 		$validated_row = ai4seo_validate_legacy_cache_migration_row( $source_row );
 
 		if ( null === $validated_row ) {
+			if ( null !== $progress ) {
+				++$migration_result['issues'];
+				$migration_result['examples'] = array_slice( array_merge( $migration_result['examples'], array( $last_source_id ) ), 0, 20 );
+				continue;
+			}
 			$migration_result['status']        = 'invalid_row';
 			$migration_result['failed_row_id'] = absint( is_array( $source_row ) ? ( $source_row['id'] ?? 0 ) : 0 );
-			return $migration_result;
+			return ai4seo_finish_legacy_cache_update_batch( $migration_result, $progress );
 		}
 
+		if ( null !== $progress ) {
+			$target = ai4seo_read_authoritative_generated_data_postmeta_snapshot( $validated_row['post_id'], $target_read, $target_failure );
+			if ( ! $target_read && 'damaged_history' !== $target_failure ) {
+				$migration_result['status'] = 'verification_read_failed';
+				return ai4seo_finish_legacy_cache_update_batch( $migration_result, $progress );
+			}
+			$conflict = ! $target_read;
+			foreach ( $validated_row['expected_field_states'] as $field => $value ) {
+				if ( array_key_exists( $field, $target['generated_data_details']['generated_data'] ) && $value !== $target['generated_data_details']['generated_data'][ $field ] ) {
+					$conflict = true;
+				}
+			}
+			if ( $conflict ) {
+				++$migration_result['issues'];
+				$migration_result['examples'] = array_slice( array_merge( $migration_result['examples'], array( $last_source_id ) ), 0, 20 );
+				continue;
+			}
+			$validated_row['target_raw'] = $target['raw_value'];
+		}
 		$validated_rows[] = $validated_row;
 	}
 
@@ -1635,10 +1739,19 @@ function ai4seo_tidy_up_old_ai4seo_cache_table( int $batch_size = 250 ): array {
 
 	if ( null === $existing_post_ids ) {
 		$migration_result['status'] = 'post_read_failed';
-		return $migration_result;
+		return ai4seo_finish_legacy_cache_update_batch( $migration_result, $progress );
 	}
 
 	$existing_post_id_lookup = array_fill_keys( $existing_post_ids, true );
+	if ( null !== $progress ) {
+		foreach ( $validated_rows as $index => $validated_row ) {
+			if ( ! isset( $existing_post_id_lookup[ $validated_row['post_id'] ] ) ) {
+				++$migration_result['issues'];
+				$migration_result['examples'] = array_slice( array_merge( $migration_result['examples'], array( $validated_row['source_row_id'] ) ), 0, 20 );
+				unset( $validated_rows[ $index ] );
+			}
+		}
+	}
 
 	foreach ( $validated_rows as $validated_row ) {
 		// A source row whose post is authoritatively absent has no valid destination and can be drained safely.
@@ -1654,7 +1767,8 @@ function ai4seo_tidy_up_old_ai4seo_cache_table( int $batch_size = 250 ): array {
 			false,
 			0,
 			array(),
-			$operation_details
+			$operation_details,
+			null !== $progress ? array( 'legacy_cache_source' => $validated_row ) : array()
 		);
 		$commit_state      = is_string( $operation_details['commit_state'] ?? null )
 			? $operation_details['commit_state']
@@ -1665,7 +1779,7 @@ function ai4seo_tidy_up_old_ai4seo_cache_table( int $batch_size = 250 ): array {
 				? 'write_possibly_committed'
 				: 'write_failed';
 			$migration_result['failed_row_id'] = $validated_row['source_row_id'];
-			return $migration_result;
+			return ai4seo_finish_legacy_cache_update_batch( $migration_result, $progress );
 		}
 
 		$read_succeeded = false;
@@ -1677,7 +1791,7 @@ function ai4seo_tidy_up_old_ai4seo_cache_table( int $batch_size = 250 ): array {
 		if ( ! $read_succeeded || ! is_array( $snapshot['generated_data_details']['generated_data'] ?? null ) ) {
 			$migration_result['status']        = 'verification_read_failed';
 			$migration_result['failed_row_id'] = $validated_row['source_row_id'];
-			return $migration_result;
+			return ai4seo_finish_legacy_cache_update_batch( $migration_result, $progress );
 		}
 
 		$stored_generated_data = $snapshot['generated_data_details']['generated_data'];
@@ -1691,7 +1805,7 @@ function ai4seo_tidy_up_old_ai4seo_cache_table( int $batch_size = 250 ): array {
 			) {
 				$migration_result['status']        = 'verification_failed';
 				$migration_result['failed_row_id'] = $validated_row['source_row_id'];
-				return $migration_result;
+				return ai4seo_finish_legacy_cache_update_batch( $migration_result, $progress );
 			}
 		}
 
@@ -1699,6 +1813,10 @@ function ai4seo_tidy_up_old_ai4seo_cache_table( int $batch_size = 250 ): array {
 	}
 
 	if ( $validated_rows ) {
+		if ( null !== $progress && ! ai4seo_is_database_advisory_lock_owned_by_current_connection( ai4seo_get_plugin_update_lock_name() ) ) {
+			$migration_result['status'] = 'lock_lost';
+			return ai4seo_finish_legacy_cache_update_batch( $migration_result, $progress );
+		}
 		$source_row_predicates = array();
 		$source_row_values     = array();
 
@@ -1727,11 +1845,12 @@ function ai4seo_tidy_up_old_ai4seo_cache_table( int $batch_size = 250 ): array {
 
 		if ( count( $validated_rows ) !== $delete_result || $wpdb->last_error ) {
 			$migration_result['status'] = 'source_cleanup_failed';
-			return $migration_result;
+			return ai4seo_finish_legacy_cache_update_batch( $migration_result, $progress );
 		}
 	}
 
-	$wpdb->last_error = '';
+	$migration_result['cursor'] = $last_source_id;
+	$wpdb->last_error           = '';
 
 	// Always probe after cleanup; a full-size final batch is indistinguishable from an incomplete batch by count alone.
 	// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Exact bounded completion probe on the internal legacy table.
@@ -1740,13 +1859,19 @@ function ai4seo_tidy_up_old_ai4seo_cache_table( int $batch_size = 250 ): array {
 
 	if ( $wpdb->last_error ) {
 		$migration_result['status'] = 'completion_probe_failed';
-		return $migration_result;
+		return ai4seo_finish_legacy_cache_update_batch( $migration_result, $progress );
 	}
 
+	if ( null !== $progress && null !== $remaining_source_row_id && count( $source_rows ) < $batch_size ) {
+		$migration_result['success'] = true;
+		$migration_result['status']  = $migration_result['issues'] > 0 ? 'blocked' : 'incomplete';
+		$migration_result['cursor']  = 0;
+		return ai4seo_finish_legacy_cache_update_batch( $migration_result, $progress );
+	}
 	if ( null !== $remaining_source_row_id ) {
 		$migration_result['success'] = true;
 		$migration_result['status']  = 'incomplete';
-		return $migration_result;
+		return ai4seo_finish_legacy_cache_update_batch( $migration_result, $progress );
 	}
 
 	$wpdb->last_error = '';
@@ -1759,15 +1884,14 @@ function ai4seo_tidy_up_old_ai4seo_cache_table( int $batch_size = 250 ): array {
 	if ( false === $drop_result || $wpdb->last_error ) {
 		ai4seo_debug_message( 984321669, 'Database error: ' . $wpdb->last_error, true );
 		$migration_result['status'] = 'table_drop_failed';
-		return $migration_result;
+		return ai4seo_finish_legacy_cache_update_batch( $migration_result, $progress );
 	}
 
 	$migration_result['success']  = true;
 	$migration_result['complete'] = true;
 	$migration_result['status']   = 'completed';
-	return $migration_result;
+	return ai4seo_finish_legacy_cache_update_batch( $migration_result, $progress );
 }
-
 
 /**
  * Function to init cron jobs
@@ -1844,6 +1968,11 @@ function ai4seo_filter_admin_title( string $admin_title, string $title ): string
 	} elseif ( 'post' === $active_subpage && ! empty( $active_post_type_subpage ) && isset( $registry['post_types'][ $active_post_type_subpage ] ) ) {
 		// Dynamic post-type subpages.
 		$active_page_label = $registry['post_types'][ $active_post_type_subpage ]['label'];
+	} elseif ( 'post' === $active_subpage && AI4SEO_TAXONOMY_PROXY_POST_TYPE === $active_post_type_subpage ) {
+		// Taxonomies have independent navigation identities rather than a shared post-type label.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only title selection from the authorized registry.
+		$taxonomy          = isset( $_GET['ai4seo_taxonomy'] ) && is_string( $_GET['ai4seo_taxonomy'] ) ? sanitize_key( wp_unslash( $_GET['ai4seo_taxonomy'] ) ) : (string) array_key_first( $registry['taxonomies'] );
+		$active_page_label = $registry['taxonomies'][ $taxonomy ]['label'] ?? __( 'Taxonomies', 'ai-for-seo' );
 	}
 
 	$website_name = get_bloginfo( 'name' );
@@ -1903,7 +2032,8 @@ function ai4seo_get_media_menu_label(): string {
  *   account: array{label:string, slug:string},
  *   settings: array{label:string, slug:string},
  *   help: array{label:string, slug:string},
- *   post_types: array<string, array{label:string, slug:string}>
+ *   post_types: array<string, array{label:string, slug:string}>,
+ *   taxonomies: array<string, array{label:string, slug:string, url:string, taxonomy:string}>
  * }
  */
 function ai4seo_get_plugins_menu_registry(): array {
@@ -1956,7 +2086,57 @@ function ai4seo_get_plugins_menu_registry(): array {
 			'slug'  => $help_slug,
 		),
 		'post_types' => $post_type_map,
+		'taxonomies' => ai4seo_get_taxonomy_content_navigation_entries(),
 	);
+}
+
+
+/**
+ * Group registered content links without changing their labels, routes or eligibility.
+ *
+ * @param array $menu_registry Existing plugin menu registry.
+ * @return array<string, array{label:string, post_types:array}>
+ */
+function ai4seo_get_content_navigation_groups( array $menu_registry ): array {
+	$post_types = $menu_registry['post_types'] ?? array();
+	$groups     = array(
+		'primary'          => array(
+			'label'      => '',
+			'post_types' => array(),
+		),
+		'taxonomies'       => array(
+			'label'      => __( 'Taxonomies', 'ai-for-seo' ),
+			'post_types' => array(),
+		),
+		'other_post_types' => array(
+			'label'      => __( 'Other Post Types', 'ai-for-seo' ),
+			'post_types' => array(),
+		),
+	);
+
+	// Media has its own route even when attachment attributes are currently disabled.
+	foreach ( ai4seo_get_supported_attachment_post_types( false ) as $attachment_post_type ) {
+		unset( $post_types[ $attachment_post_type ] );
+	}
+
+	foreach ( array( 'page', 'post', 'product' ) as $post_type ) {
+		if ( isset( $post_types[ $post_type ] ) ) {
+			$groups['primary']['post_types'][ $post_type ] = $post_types[ $post_type ];
+			unset( $post_types[ $post_type ] );
+		}
+	}
+
+	$groups['taxonomies']['post_types'] = array_filter(
+		$menu_registry['taxonomies'] ?? array(),
+		static function ( $entry ): bool {
+			return false !== ( $entry['has_entries'] ?? true );
+		}
+	);
+	unset( $post_types[ AI4SEO_TAXONOMY_PROXY_POST_TYPE ] );
+
+	$groups['other_post_types']['post_types'] = $post_types;
+
+	return $groups;
 }
 
 
@@ -1988,9 +2168,14 @@ function ai4seo_add_menu_entries() {
 	// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- Base64 is the required transport encoding for the benign SVG data URI.
 	$encoded_svg = 'data:image/svg+xml;base64,' . base64_encode( $svg_tags['ai-for-seo-main-menu-icon'] );
 
+	// The shared stored count may reflect another role's offer visibility, so refresh it before rendering menus.
+	if ( ai4seo_get_setting( AI4SEO_SETTING_SHOW_MENU_COUNTERS ) ) {
+		ai4seo_refresh_unread_notifications_count();
+	}
+
 	// Append the unread-notification count to the normal menu title.
 	$menu_title         = AI4SEO_PLUGIN_NAME;
-	$notification_count = ai4seo_get_num_unread_notification();
+	$notification_count = ai4seo_get_setting( AI4SEO_SETTING_SHOW_MENU_COUNTERS ) ? ai4seo_get_num_unread_notification() : 0;
 
 	if ( $notification_count > 0 ) {
 		// The badge class keeps the WordPress menu count aligned while the plugin menu label remains long.
@@ -1999,6 +2184,7 @@ function ai4seo_add_menu_entries() {
 
 	// Central registry for labels and slugs.
 	$plugins_menu_registries = ai4seo_get_plugins_menu_registry();
+	$content_navigation      = ai4seo_get_content_navigation_groups( $plugins_menu_registries );
 
 	// WordPress grants the exist meta capability to every authenticated user; explicit gates above decide registration.
 	$authenticated_user_menu_capability = 'exist';
@@ -2028,8 +2214,18 @@ function ai4seo_add_menu_entries() {
 			'ai4seo_include_menu_frame_file'
 		);
 
-		// Dynamic post-type submenus.
-		foreach ( $plugins_menu_registries['post_types'] as $this_post_type ) {
+		// Media precedes the three primary post types in both navigation surfaces.
+		$ai4seo_menu_hook_suffixes[] = add_submenu_page(
+			AI4SEO_PLUGIN_IDENTIFIER,
+			$plugins_menu_registries['media']['label'] . ' - ' . AI4SEO_PLUGIN_NAME,
+			$plugins_menu_registries['media']['label'],
+			$authenticated_user_menu_capability,
+			$plugins_menu_registries['media']['slug'],
+			'ai4seo_include_menu_frame_file'
+		);
+
+		// Grouped content stays reachable through the root callback without native submenu entries.
+		foreach ( $content_navigation['primary']['post_types'] as $this_post_type ) {
 			$ai4seo_menu_hook_suffixes[] = add_submenu_page(
 				AI4SEO_PLUGIN_IDENTIFIER,
 				$this_post_type['label'] . ' - ' . AI4SEO_PLUGIN_NAME,
@@ -2039,16 +2235,6 @@ function ai4seo_add_menu_entries() {
 				'ai4seo_include_menu_frame_file'
 			);
 		}
-
-		// Media.
-		$ai4seo_menu_hook_suffixes[] = add_submenu_page(
-			AI4SEO_PLUGIN_IDENTIFIER,
-			$plugins_menu_registries['media']['label'] . ' - ' . AI4SEO_PLUGIN_NAME,
-			$plugins_menu_registries['media']['label'],
-			$authenticated_user_menu_capability,
-			$plugins_menu_registries['media']['slug'],
-			'ai4seo_include_menu_frame_file'
-		);
 	}
 
 	// Account.
@@ -2130,7 +2316,10 @@ function ai4seo_mark_submenu_active( ?string $submenu_file ): ?string {
 		$active_post_type        = ai4seo_get_active_post_type_subpage();
 
 		if ( $active_post_type ) {
-			$submenu_file = $plugins_menu_registries['post_types'][ $active_post_type ]['slug'] ?? $submenu_file;
+			// A grouped route keeps its own slug so WordPress does not highlight Dashboard as a fallback.
+			$submenu_file = AI4SEO_TAXONOMY_PROXY_POST_TYPE === $active_post_type
+				? AI4SEO_PLUGIN_IDENTIFIER . '&ai4seo_subpage=post&ai4seo_post_type=' . AI4SEO_TAXONOMY_PROXY_POST_TYPE
+				: ( $plugins_menu_registries['post_types'][ $active_post_type ]['slug'] ?? $submenu_file );
 		} else {
 			$active_subpage = ai4seo_get_active_subpage();
 
@@ -2420,8 +2609,7 @@ function ai4seo_get_primary_asset_contexts( string $hook_suffix = '' ): array {
 	}
 
 	// Deduplicate core results before integrations receive their opt-in extension point.
-	if ( is_admin() && $can_administer_plugin && ! ai4seo_does_user_need_to_accept_tos_toc_and_pp()
-		&& function_exists( 'ai4seo_get_activation_offer' ) && ai4seo_get_activation_offer() ) {
+	if ( is_admin() && $can_administer_plugin && ai4seo_get_admin_offer() ) {
 		$asset_contexts[] = 'activation-offer';
 	}
 	$core_asset_contexts = array_values( array_unique( $asset_contexts ) );
@@ -2494,8 +2682,10 @@ function ai4seo_enqueue_primary_assets( string $hook_suffix = '' ) {
 	wp_register_style( AI4SEO_STYLES_HANDLE, ai4seo_get_assets_css_path( AI4SEO_STYLES_FILE_NAME ), '', $ai4seo_scripts_version_number );
 	wp_enqueue_style( AI4SEO_STYLES_HANDLE );
 
-	// Enqueue javascript-file.
-	wp_enqueue_script( AI4SEO_SCRIPTS_HANDLE, ai4seo_get_assets_js_path( AI4SEO_SCRIPTS_FILE_NAME ), array( 'jquery', 'wp-i18n' ), $ai4seo_scripts_version_number, true );
+	// Internal pages expose inline handlers as soon as their content renders, before footer scripts can arrive.
+	// Keep other integrations in the footer while making those handlers available before plugin UI markup.
+	$load_scripts_in_footer = ! in_array( 'plugin-ui', $asset_contexts, true );
+	wp_enqueue_script( AI4SEO_SCRIPTS_HANDLE, ai4seo_get_assets_js_path( AI4SEO_SCRIPTS_FILE_NAME ), array( 'jquery', 'wp-i18n' ), $ai4seo_scripts_version_number, $load_scripts_in_footer );
 
 	// Translation JSON files retain the stable logical source path across versioned script filenames.
 	add_filter(

@@ -348,7 +348,8 @@ function ai4seo_get_third_party_seo_plugin_sync_metadata_identifiers( string $pl
 	}
 
 	// Respect the plugin-level synchronization setting before considering individual metadata fields.
-	$sync_third_party_seo_plugin_identifiers = ai4seo_get_setting( AI4SEO_SETTING_APPLY_CHANGES_TO_THIRD_PARTY_SEO_PLUGINS );
+	$policy                                  = ai4seo_read_metadata_sync_policy_snapshot();
+	$sync_third_party_seo_plugin_identifiers = $policy['settings'][ AI4SEO_SETTING_APPLY_CHANGES_TO_THIRD_PARTY_SEO_PLUGINS ];
 
 	if ( ! is_array( $sync_third_party_seo_plugin_identifiers )
 		|| ! in_array( $plugin_identifier, $sync_third_party_seo_plugin_identifiers, true ) ) {
@@ -356,7 +357,7 @@ function ai4seo_get_third_party_seo_plugin_sync_metadata_identifiers( string $pl
 	}
 
 	// Field-level synchronization is the final allowlist shared by modal reads and save responses.
-	$sync_metadata_identifiers = ai4seo_get_setting( AI4SEO_SETTING_SYNC_ONLY_THESE_METADATA );
+	$sync_metadata_identifiers = $policy['settings'][ AI4SEO_SETTING_SYNC_ONLY_THESE_METADATA ];
 
 	if ( ! is_array( $sync_metadata_identifiers ) ) {
 		return array();
@@ -366,6 +367,228 @@ function ai4seo_get_third_party_seo_plugin_sync_metadata_identifiers( string $pl
 
 	// Preserve setting order while removing fields unsupported by the requested plugin.
 	return array_values( array_intersect( $sync_metadata_identifiers, $supported_metadata_identifiers ) );
+}
+
+/**
+ * Read synchronization/output permissions without repairing persisted settings.
+ *
+ * Missing keys retain installation defaults; malformed values never inherit permissions.
+ * Positive lists retain only explicitly selected, recognized members. An incomplete
+ * exclusion list cannot prove that a post type is permitted.
+ *
+ * @return array Settings, issue keys, and a fingerprint for current-state comparisons.
+ */
+function ai4seo_read_metadata_sync_policy_snapshot(): array {
+	$lists           = array(
+		AI4SEO_SETTING_APPLY_CHANGES_TO_THIRD_PARTY_SEO_PLUGINS => array_keys( ai4seo_get_third_party_seo_plugin_details() ),
+		AI4SEO_SETTING_SYNC_ONLY_THESE_METADATA    => AI4SEO_AVAILABLE_METADATA_IDENTIFIERS,
+		AI4SEO_SETTING_ACTIVE_META_TAGS            => AI4SEO_AVAILABLE_METADATA_IDENTIFIERS,
+		AI4SEO_SETTING_OVERWRITE_EXISTING_METADATA => AI4SEO_AVAILABLE_METADATA_IDENTIFIERS,
+	);
+	$scalar_defaults = array(
+		AI4SEO_SETTING_META_TAG_OUTPUT_MODE       => 'disable',
+		AI4SEO_SETTING_IMAGE_TITLE_INJECTION_MODE => 'disabled',
+		AI4SEO_SETTING_ENABLE_RENDER_LEVEL_ALT_TEXT_INJECTION => false,
+		AI4SEO_SETTING_DISABLED_POST_TYPES        => null,
+	);
+	try {
+		$snapshot = ai4seo_get_raw_option_snapshot( AI4SEO_SETTINGS_OPTION_NAME );
+	} catch ( Throwable $throwable ) {
+		$snapshot = null;
+	}
+	$stored = ai4seo_decode_settings_snapshot( $snapshot );
+	$result = array(
+		'settings' => array(),
+		'issues'   => array(),
+	);
+	foreach ( array_merge( array_keys( $lists ), array_keys( $scalar_defaults ) ) as $key ) {
+		$value = is_array( $stored ) ? ( array_key_exists( $key, $stored ) ? $stored[ $key ] : AI4SEO_DEFAULT_SETTINGS[ $key ] ) : null;
+		if ( isset( $lists[ $key ] ) ) {
+			$valid = array();
+			foreach ( is_array( $value ) ? $value : array() as $member ) {
+				if ( is_string( $member ) && in_array( $member, $lists[ $key ], true ) ) {
+					$valid[] = $member;
+				} else {
+					$result['issues'][ $key ] = true;
+				}
+			}
+			if ( ! is_array( $value ) ) {
+				$result['issues'][ $key ] = true;
+			}
+			$result['settings'][ $key ] = array_values( array_unique( $valid ) );
+		} else {
+			$value = ai4seo_normalize_boolean_setting_value( $key, $value );
+			$valid = null !== $value;
+			if ( AI4SEO_SETTING_DISABLED_POST_TYPES === $key ) {
+				$valid = is_array( $value );
+				foreach ( is_array( $value ) ? $value : array() as $type ) {
+					$valid = $valid && is_string( $type ) && '' !== $type && sanitize_key( $type ) === $type;
+				}
+			} else {
+				$allowed = AI4SEO_SETTING_META_TAG_OUTPUT_MODE === $key
+					? AI4SEO_AVAILABLE_META_TAG_OUTPUT_MODE_OPTIONS
+					: ( AI4SEO_SETTING_IMAGE_TITLE_INJECTION_MODE === $key ? AI4SEO_AVAILABLE_IMAGE_TITLE_INJECTION_MODE_OPTIONS : array( true, false ) );
+				$valid   = $valid && in_array( $value, $allowed, true );
+			}
+			$result['settings'][ $key ] = $valid ? $value : $scalar_defaults[ $key ];
+			if ( ! $valid ) {
+				$result['issues'][ $key ] = true;
+			}
+		}
+	}
+	$result['fingerprint'] = hash( 'sha256', wp_json_encode( $result ) );
+	return $result;
+}
+
+/**
+ * Explain restricted settings without exposing stored values or changing them.
+ *
+ * @param array $policy Current policy snapshot.
+ * @return array Translated warnings shared by save responses and administration.
+ */
+function ai4seo_get_metadata_sync_policy_warnings( array $policy ): array {
+	if ( ! $policy['issues'] ) {
+		return array();
+	}
+	return array( __( 'Some SEO synchronization or output settings could not be read reliably. Only explicitly permitted targets and fields are used; affected output remains unchanged. Stored settings were not repaired.', 'ai-for-seo' ) );
+}
+
+/**
+ * Render the read-only troubleshooting notice from current policy evidence.
+ *
+ * @param array $policy Current policy snapshot.
+ * @return string Escaped administration HTML, empty for healthy settings.
+ */
+function ai4seo_get_metadata_sync_policy_notice_html( array $policy ): string {
+	$html = '';
+	foreach ( ai4seo_get_metadata_sync_policy_warnings( $policy ) as $warning ) {
+		$html .= '<div class="card"><h3>' . esc_html__( 'SEO synchronization and output restricted', 'ai-for-seo' ) . '</h3><p>' . esc_html( $warning ) . '</p></div>';
+	}
+	return $html;
+}
+
+/**
+ * Check one real entry without relying on a cached inventory of populated types.
+ *
+ * @param int        $post_id Entry ID.
+ * @param array|null $policy Optional current policy.
+ * @return bool Whether current registration and exclusions permit metadata.
+ */
+function ai4seo_is_metadata_sync_post_supported( int $post_id, ?array $policy = null ): bool {
+	$post     = get_post( $post_id );
+	$policy   = $policy ?? ai4seo_read_metadata_sync_policy_snapshot();
+	$disabled = $policy['settings'][ AI4SEO_SETTING_DISABLED_POST_TYPES ];
+	return $post instanceof WP_Post && is_array( $disabled )
+		&& isset( ai4seo_get_publicly_accessible_post_types()[ $post->post_type ] )
+		&& ! in_array( $post->post_type, $disabled, true );
+}
+
+/**
+ * Read a provider through the shared reader, retaining only reliable requested fields.
+ *
+ * @param int    $post_id Entry ID.
+ * @param string $provider Provider identifier.
+ * @param array  $fields Relevant fields, never inferred from an event's values.
+ * @return array Values, unknown fields, and comparison fingerprint.
+ */
+function ai4seo_read_third_party_metadata_sync_snapshot( int $post_id, string $provider, array $fields ): array {
+	$issues    = array();
+	$succeeded = false;
+	try {
+		$rows = ai4seo_read_third_party_seo_plugin_metadata_by_post_ids( $provider, array( $post_id ), $succeeded, $issues );
+	} catch ( Throwable $throwable ) {
+		$rows      = array();
+		$succeeded = false;
+	}
+	if ( in_array( $provider, array( AI4SEO_THIRD_PARTY_PLUGIN_SQUIRRLY_SEO, AI4SEO_THIRD_PARTY_PLUGIN_ALL_IN_ONE_SEO ), true ) && ! isset( $rows[ $post_id ] ) ) {
+		$succeeded = false;
+	}
+	if ( AI4SEO_THIRD_PARTY_PLUGIN_SLIM_SEO === $provider ) {
+		$exact_succeeded = false;
+		try {
+			$exact_rows = ai4seo_read_exact_third_party_postmeta_rows( $post_id, 'slim_seo', $exact_succeeded );
+		} catch ( Throwable $throwable ) {
+			$exact_rows      = array();
+			$exact_succeeded = false;
+		}
+		$succeeded = $succeeded && $exact_succeeded && count( $exact_rows ) <= 1;
+	}
+	$result = array(
+		'values'  => array(),
+		'unknown' => array(),
+	);
+	foreach ( $fields as $field ) {
+		$value = $rows[ $post_id ][ $field ] ?? '';
+		if ( ! $succeeded || ai4seo_is_posts_table_analysis_field_unknown( $issues, $post_id, $field )
+			|| ! is_string( $value ) || is_serialized( $value ) ) {
+			$result['unknown'][] = $field;
+		} else {
+			$result['values'][ $field ] = $value;
+		}
+	}
+	$result['fingerprint'] = hash( 'sha256', wp_json_encode( $result ) );
+	return $result;
+}
+
+/**
+ * Revalidate source and permission under the active-metadata writer's lock.
+ *
+ * @param int   $post_id Entry ID.
+ * @param array $context Optional internal synchronization preconditions.
+ * @return bool Whether the source is still authoritative for this write.
+ */
+function ai4seo_validate_metadata_sync_source( int $post_id, array $context ): bool {
+	if ( ! empty( $context['taxonomy_generation'] ) ) {
+		return ai4seo_validate_taxonomy_generation_write( $post_id, $context );
+	}
+	if ( ! empty( $context['taxonomy_proxy'] ) ) {
+		return ai4seo_is_database_advisory_lock_owned_by_current_connection( ai4seo_get_taxonomy_proxy_sync_lock_name() )
+			&& ai4seo_can_edit_taxonomy_proxy( $post_id );
+	}
+	if ( ! isset( $context['sync_source'] ) ) {
+		return true;
+	}
+	$source  = $context['sync_source'];
+	$policy  = ai4seo_read_metadata_sync_policy_snapshot();
+	$current = ai4seo_read_third_party_metadata_sync_snapshot( $post_id, $source['provider'], $source['fields'] );
+	return hash_equals( $source['policy'], $policy['fingerprint'] )
+		&& ai4seo_is_metadata_sync_post_supported( $post_id, $policy )
+		&& hash_equals( $source['fingerprint'], $current['fingerprint'] );
+}
+
+/**
+ * Mirror the current reliable subset, preserving unknown fields and all source rows.
+ *
+ * @param int    $post_id Entry ID.
+ * @param string $provider Provider identifier.
+ * @param array  $fields Fields affected by the persisted event.
+ * @return bool Whether every eligible field was synchronized.
+ */
+function ai4seo_sync_current_third_party_metadata( int $post_id, string $provider, array $fields ): bool {
+	$state = ai4seo_manage_third_party_seo_metadata_sync_request_state( 'read' );
+	if ( ! empty( $state['outbound_sync_depth_by_post_id'][ $post_id ] ) || isset( $state['deleting_post_ids'][ $post_id ] ) ) {
+		return true;
+	}
+	$fields = array_values( array_intersect( $fields, ai4seo_get_third_party_seo_plugin_sync_metadata_identifiers( $provider ) ) );
+	if ( ! $fields ) {
+		return true;
+	}
+	$policy   = ai4seo_read_metadata_sync_policy_snapshot();
+	$snapshot = ai4seo_read_third_party_metadata_sync_snapshot( $post_id, $provider, $fields );
+	$context  = array(
+		'preserve_storage' => true,
+		'sync_source'      => array(
+			'provider'    => $provider,
+			'fields'      => $fields,
+			'policy'      => $policy['fingerprint'],
+			'fingerprint' => $snapshot['fingerprint'],
+		),
+	);
+	$saved    = ! $snapshot['values'] || ai4seo_sync_third_party_metadata_values_to_active_metadata( $post_id, $provider, $snapshot['values'], false, $context );
+	if ( $snapshot['unknown'] || ! $saved ) {
+		ai4seo_debug_message( 418620970, 'SEO synchronization restricted for post ' . $post_id . ', provider ' . $provider . ', fields: ' . implode( ', ', $snapshot['unknown'] ? $snapshot['unknown'] : $fields ), true );
+	}
+	return $saved && ! $snapshot['unknown'];
 }
 
 
@@ -691,13 +914,15 @@ function ai4seo_track_deleting_post_for_third_party_seo_metadata_sync( int $post
  * @param string $plugin_identifier The originating third-party SEO plugin.
  * @param array  $raw_metadata_values Raw values indexed by SOOZ metadata identifier.
  * @param bool   $values_were_deleted Whether every supplied field represents an explicit deletion.
+ * @param array  $sync_context Optional current-source preconditions for persisted hooks.
  * @return bool Whether the requested SOOZ state was reached or no eligible change was required.
  */
 function ai4seo_sync_third_party_metadata_values_to_active_metadata(
 	int $post_id,
 	string $plugin_identifier,
 	array $raw_metadata_values,
-	bool $values_were_deleted = false
+	bool $values_were_deleted = false,
+	array $sync_context = array()
 ): bool {
 	// Normalize hook and integration inputs before any post, setting, or active-metadata work.
 	$post_id           = absint( $post_id );
@@ -718,7 +943,7 @@ function ai4seo_sync_third_party_metadata_values_to_active_metadata(
 	// Active metadata is supported only for the post types already exposed by SOOZ.
 	$post = get_post( $post_id );
 
-	if ( ! $post instanceof WP_Post || ! in_array( $post->post_type, ai4seo_get_supported_post_types(), true ) ) {
+	if ( ! $post instanceof WP_Post || ! ai4seo_is_metadata_sync_post_supported( $post_id ) ) {
 		return false;
 	}
 
@@ -766,7 +991,8 @@ function ai4seo_sync_third_party_metadata_values_to_active_metadata(
 	// Let the locked authoritative writer decide both the merge base and whether storage changed.
 	$active_metadata_operation_details = array();
 
-	$active_metadata_succeeded        = ai4seo_save_active_metadata_to_postmeta( $post_id, $prepared_metadata, false, $active_metadata_operation_details );
+	$sync_context['preserve_storage'] = true;
+	$active_metadata_succeeded        = ai4seo_save_active_metadata_to_postmeta( $post_id, $prepared_metadata, false, $active_metadata_operation_details, array(), array(), $sync_context );
 	$active_metadata_commit_state     = isset( $active_metadata_operation_details['commit_state'] )
 		&& is_string( $active_metadata_operation_details['commit_state'] )
 		&& in_array( $active_metadata_operation_details['commit_state'], array( 'not_committed', 'committed', 'possibly_committed' ), true )
@@ -821,33 +1047,12 @@ function ai4seo_sync_third_party_postmeta_change_to_active_metadata( $meta_id_or
 		return;
 	}
 
-	$raw_metadata_values = array();
-
-	if ( $has_compound_metadata_field_mapping ) {
-		// Deleting the shared row clears every mapped field; ordinary writes read each nested value independently.
-		if ( 'deleted_post_meta' === current_filter() || null === $meta_value ) {
-			foreach ( $metadata_identifier_by_array_key as $this_metadata_identifier ) {
-				$raw_metadata_values[ $this_metadata_identifier ] = '';
-			}
-		} elseif ( is_array( $meta_value ) ) {
-			foreach ( $metadata_identifier_by_array_key as $array_key => $this_metadata_identifier ) {
-				$raw_metadata_values[ $this_metadata_identifier ] = $meta_value[ $array_key ] ?? '';
-			}
-		} else {
-			return;
-		}
-	} else {
-		$raw_metadata_values[ $metadata_identifier ] = $meta_value;
-	}
-
-	// Preserve the deletion context established while mapping hook values before calling the shared synchronizer.
-	$is_deleted_post_meta_hook = ( 'deleted_post_meta' === current_filter() );
-
-	ai4seo_sync_third_party_metadata_values_to_active_metadata(
+	// Event payloads can be stale, and deletion may leave another physical row behind.
+	unset( $meta_value );
+	ai4seo_sync_current_third_party_metadata(
 		$post_id,
 		$third_party_seo_plugin_identifier,
-		$raw_metadata_values,
-		$is_deleted_post_meta_hook
+		$has_compound_metadata_field_mapping ? array_values( $metadata_identifier_by_array_key ) : array( $metadata_identifier )
 	);
 }
 
@@ -869,7 +1074,7 @@ function ai4seo_sync_squirrly_seo_metadata_to_active_metadata( int $post_id ): b
 	// Reject unsupported post types before entering Squirrly's unindexed serialized-row lookup.
 	$post = get_post( $post_id );
 
-	if ( ! $post instanceof WP_Post || ! in_array( $post->post_type, ai4seo_get_supported_post_types(), true ) ) {
+	if ( ! $post instanceof WP_Post || ! ai4seo_is_metadata_sync_post_supported( $post_id ) ) {
 		return false;
 	}
 
@@ -882,18 +1087,10 @@ function ai4seo_sync_squirrly_seo_metadata_to_active_metadata( int $post_id ): b
 		return true;
 	}
 
-	// Read Squirrly only after activation and synchronization settings make the row relevant.
-	$squirrly_metadata_by_post_id = ai4seo_read_squirrly_seo_metadata_by_post_ids( array( $post_id ) );
-
-	if ( ! array_key_exists( $post_id, $squirrly_metadata_by_post_id )
-		|| ! is_array( $squirrly_metadata_by_post_id[ $post_id ] ) ) {
-		return false;
-	}
-
-	return ai4seo_sync_third_party_metadata_values_to_active_metadata(
+	return ai4seo_sync_current_third_party_metadata(
 		$post_id,
 		AI4SEO_THIRD_PARTY_PLUGIN_SQUIRRLY_SEO,
-		$squirrly_metadata_by_post_id[ $post_id ]
+		ai4seo_get_third_party_seo_plugin_sync_metadata_identifiers( AI4SEO_THIRD_PARTY_PLUGIN_SQUIRRLY_SEO )
 	);
 }
 

@@ -102,8 +102,15 @@ function ai4seo_process_save_anything_attachment_attributes_editor_values( array
 		$ai4seo_new_attachment_attributes[ $ai4seo_attachment_attribute_identifier ] = $ai4seo_attachment_attribute_value;
 	}
 
+	if ( '2' === (string) ( $upcoming_save_anything_updates['attachment_attributes_editor_read_version'] ?? '' ) ) {
+		return ai4seo_save_editor_field_changes( $ai4seo_this_attachment_post_id, 'attachment_attributes', $ai4seo_new_attachment_attributes, $upcoming_save_anything_updates );
+	}
+
 	// Keep the existing explicit error for editor requests that contain neither values nor instructions.
 	if ( ! $ai4seo_new_attachment_attributes && ! $ai4seo_custom_instructions_were_submitted ) {
+		if ( '1' === (string) ( $upcoming_save_anything_updates['attachment_attributes_editor_read_version'] ?? '' ) ) {
+			return null;
+		}
 		return new WP_Error(
 			5711221025,
 			esc_html__( 'No attachment attributes were provided to update.', 'ai-for-seo' )
@@ -112,6 +119,9 @@ function ai4seo_process_save_anything_attachment_attributes_editor_values( array
 
 	// Instruction-only saves do not affect generation ownership or derived state.
 	if ( ! $ai4seo_new_attachment_attributes ) {
+		if ( ! ai4seo_validate_editor_read_admission( $ai4seo_this_attachment_post_id, 'attachment_attributes', array(), true ) ) {
+			return new WP_Error( 728451920, __( 'Stored instructions could not be read safely. Your changes have not been saved. Reopen this entry after correcting the stored data.', 'ai-for-seo' ) );
+		}
 		$ai4seo_custom_instructions_saved = ai4seo_save_custom_instructions_postmeta(
 			$ai4seo_this_attachment_post_id,
 			AI4SEO_POST_META_ATTACHMENT_ATTRIBUTES_CUSTOM_INSTRUCTIONS_META_KEY,
@@ -151,6 +161,10 @@ function ai4seo_process_save_anything_attachment_attributes_editor_values( array
 			&$ai4seo_attachment_update_details,
 			&$ai4seo_custom_instructions_saved
 		): bool {
+			if ( ! ai4seo_validate_editor_read_admission( $ai4seo_this_attachment_post_id, 'attachment_attributes', array_keys( $ai4seo_new_attachment_attributes ), $ai4seo_custom_instructions_were_submitted ) ) {
+				$ai4seo_attachment_update_details['commit_state'] = 'not_committed';
+				return false;
+			}
 			if ( $ai4seo_custom_instructions_were_submitted ) {
 				$ai4seo_custom_instructions_saved = ai4seo_save_custom_instructions_postmeta(
 					$ai4seo_this_attachment_post_id,
@@ -195,6 +209,19 @@ function ai4seo_process_save_anything_attachment_attributes_editor_values( array
 		return new WP_Error(
 			6611221025,
 			esc_html__( 'Failed to update attachment attributes. Please try again.', 'ai-for-seo' )
+		);
+	}
+
+	// Confirm primary writes separately when only derived statistics remain unavailable.
+	if ( empty( $ai4seo_fenced_save_details['coverage_succeeded'] )
+		&& ! empty( $ai4seo_fenced_save_details['ownership_verified_after_storage'] )
+		&& ! empty( $ai4seo_fenced_save_details['release_succeeded'] )
+	) {
+		return array(
+			'attachment_editor' => array(
+				'texts_saved'        => true,
+				'statistics_pending' => true,
+			),
 		);
 	}
 

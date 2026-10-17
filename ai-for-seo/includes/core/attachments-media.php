@@ -258,11 +258,12 @@ function ai4seo_get_best_attachment_source( int $attachment_post_id ): ?array {
 /**
  * Function to read and analyze the attachment attributes coverage of the given attachment ids (post ids)
  *
- * @param int|array $attachment_post_ids The post ids of the attachments we want to analyze.
- * @param bool|null $read_succeeded Receives whether every authoritative read succeeded.
+ * @param int|array  $attachment_post_ids The post ids of the attachments we want to analyze.
+ * @param bool|null  $read_succeeded Receives whether every authoritative read succeeded.
+ * @param array|null $analysis_issues Opt-in analysis diagnostics; null preserves strict callers.
  * @return array
  */
-function ai4seo_read_and_analyse_attachment_attributes_coverage( $attachment_post_ids, ?bool &$read_succeeded = null ): array {
+function ai4seo_read_and_analyse_attachment_attributes_coverage( $attachment_post_ids, ?bool &$read_succeeded = null, ?array &$analysis_issues = null ): array {
 	global $wpdb;
 
 	$read_succeeded = false;
@@ -307,6 +308,7 @@ function ai4seo_read_and_analyse_attachment_attributes_coverage( $attachment_pos
 	$database_chunk_size        = ai4seo_get_database_chunk_size();
 	$attachment_post_ids_chunks = array_chunk( $attachment_post_ids, $database_chunk_size );
 
+	$seen_alt_values = array();
 	// --- TITLE / CAPTION / DESCRIPTION / GUID ----------------------------------------- \\
 
 	if ( array_intersect( array( 'title', 'caption', 'description' ), $active_attachment_attributes ) ) {
@@ -359,7 +361,11 @@ function ai4seo_read_and_analyse_attachment_attributes_coverage( $attachment_pos
 				}
 
 				if ( in_array( 'title', $active_attachment_attributes, true ) ) {
-					if ( ! array_key_exists( 'post_title', $this_attachment_post ) ) {
+					if ( ! array_key_exists( 'post_title', $this_attachment_post ) || ( null !== $analysis_issues && ! is_string( $this_attachment_post['post_title'] ) ) ) {
+						if ( null !== $analysis_issues ) {
+							ai4seo_add_posts_table_analysis_issue( $analysis_issues, $this_attachment_post_id, 'post_title' );
+							continue;
+						}
 						return array();
 					}
 
@@ -367,7 +373,11 @@ function ai4seo_read_and_analyse_attachment_attributes_coverage( $attachment_pos
 				}
 
 				if ( in_array( 'caption', $active_attachment_attributes, true ) ) {
-					if ( ! array_key_exists( 'post_excerpt', $this_attachment_post ) ) {
+					if ( ! array_key_exists( 'post_excerpt', $this_attachment_post ) || ( null !== $analysis_issues && ! is_string( $this_attachment_post['post_excerpt'] ) ) ) {
+						if ( null !== $analysis_issues ) {
+							ai4seo_add_posts_table_analysis_issue( $analysis_issues, $this_attachment_post_id, 'post_excerpt' );
+							continue;
+						}
 						return array();
 					}
 
@@ -375,7 +385,11 @@ function ai4seo_read_and_analyse_attachment_attributes_coverage( $attachment_pos
 				}
 
 				if ( in_array( 'description', $active_attachment_attributes, true ) ) {
-					if ( ! array_key_exists( 'post_content', $this_attachment_post ) ) {
+					if ( ! array_key_exists( 'post_content', $this_attachment_post ) || ( null !== $analysis_issues && ! is_string( $this_attachment_post['post_content'] ) ) ) {
+						if ( null !== $analysis_issues ) {
+							ai4seo_add_posts_table_analysis_issue( $analysis_issues, $this_attachment_post_id, 'post_content' );
+							continue;
+						}
 						return array();
 					}
 
@@ -428,7 +442,7 @@ function ai4seo_read_and_analyse_attachment_attributes_coverage( $attachment_pos
 				if ( ! is_array( $this_attachment_postmeta )
 					|| ! array_key_exists( 'post_id', $this_attachment_postmeta )
 					|| ! array_key_exists( 'meta_value', $this_attachment_postmeta )
-					|| ! is_string( $this_attachment_postmeta['meta_value'] ) ) {
+					|| ( null === $analysis_issues && ! is_string( $this_attachment_postmeta['meta_value'] ) ) ) {
 					return array();
 				}
 
@@ -438,15 +452,40 @@ function ai4seo_read_and_analyse_attachment_attributes_coverage( $attachment_pos
 					return array();
 				}
 
-				$attachment_attributes_coverage[ $this_attachment_post_id ]['alt-text'] = $this_attachment_postmeta['meta_value'];
+				$alt_text = ai4seo_decode_attachment_text_value( $this_attachment_postmeta['meta_value'] );
+				if ( null === $alt_text || array_key_exists( $this_attachment_post_id, $seen_alt_values ) ) {
+					if ( null === $analysis_issues ) {
+						return array();
+					}
+					ai4seo_add_posts_table_analysis_issue( $analysis_issues, $this_attachment_post_id, 'alt-text', 'ambiguous_metadata' );
+					continue;
+				}
+				$seen_alt_values[ $this_attachment_post_id ]                            = $alt_text;
+				$attachment_attributes_coverage[ $this_attachment_post_id ]['alt-text'] = $alt_text;
 			}
 		}
 	}
 
+	foreach ( $analysis_issues ?? array() as $issue ) {
+		unset( $attachment_attributes_coverage[ $issue['post_id'] ] );
+	}
 	$read_succeeded = true;
 	return $attachment_attributes_coverage;
 }
 
+
+/**
+ * Decode one WordPress storage layer and validate a logical attachment text value.
+ *
+ * @param mixed $value Raw database value.
+ * @return string|null Text, or null when it cannot safely participate in coverage or editing.
+ */
+function ai4seo_decode_attachment_text_value( $value ): ?string {
+	if ( is_string( $value ) && is_serialized( $value ) ) {
+		$value = ai4seo_safe_maybe_unserialize( $value );
+	}
+	return is_string( $value ) && wp_check_invalid_utf8( $value ) === $value && false === strpos( $value, "\0" ) ? $value : null;
+}
 
 /**
  * Function to return the summary of the attachment attributes coverage array
@@ -593,21 +632,26 @@ function ai4seo_get_active_num_attachment_attributes(): int {
 /**
  * Reads one attachment post and its authoritative attachment-attribute values.
  *
- * @param int       $attachment_post_id Attachment post ID.
- * @param bool|null $read_succeeded Receives whether both exact reads and row validation succeeded.
- * @param bool|null $post_exists Receives whether the posts-table owner exists after a successful post read.
+ * @param int         $attachment_post_id Attachment post ID.
+ * @param bool|null   $read_succeeded Receives whether both exact reads and row validation succeeded.
+ * @param bool|null   $post_exists Receives whether the posts-table owner exists after a successful post read.
+ * @param array|null  $editor_issues Explicit opt-in to field-level display quality; strict callers remain unchanged.
+ * @param string|null $failure_reason Receives a source defect or hard read failure classification.
  * @return array{post?: array, alt_text?: array} Validated source snapshot, or an empty array.
  */
 function ai4seo_read_attachment_attribute_source_snapshot(
 	int $attachment_post_id,
 	?bool &$read_succeeded = null,
-	?bool &$post_exists = null
+	?bool &$post_exists = null,
+	?array &$editor_issues = null,
+	?string &$failure_reason = null
 ): array {
 	global $wpdb;
 
 	$attachment_post_id = absint( $attachment_post_id );
 	$read_succeeded     = false;
 	$post_exists        = false;
+	$failure_reason     = 'read_failed';
 
 	if ( $attachment_post_id <= 0 ) {
 		return array();
@@ -657,6 +701,11 @@ function ai4seo_read_attachment_attribute_source_snapshot(
 
 	foreach ( $required_post_string_columns as $required_post_string_column ) {
 		if ( ! array_key_exists( $required_post_string_column, $post_row ) || ! is_string( $post_row[ $required_post_string_column ] ) ) {
+			if ( null !== $editor_issues && 'post_type' !== $required_post_string_column ) {
+				$editor_issues[ $required_post_string_column ] = 'unknown';
+				continue;
+			}
+			$failure_reason = 'damaged_source';
 			return array();
 		}
 	}
@@ -668,11 +717,12 @@ function ai4seo_read_attachment_attribute_source_snapshot(
 		WHERE `post_id` = {{post_id}}
 		AND `meta_key` IN ({{meta_keys}})
 		ORDER BY `meta_id` ASC
-		LIMIT 4',
+		LIMIT {{row_limit}}',
 		array(
 			'postmeta_table' => ai4seo_database_identifier_binding( 'table.postmeta' ),
 			'post_id'        => ai4seo_database_scalar_binding( '%d', $attachment_post_id ),
-			'meta_keys'      => ai4seo_database_list_binding( '%s', array( '_wp_attached_file', '_wp_attachment_image_alt' ) ), // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Exact post ID plus LIMIT 4 bounds both duplicate-owner checks.
+			'meta_keys'      => ai4seo_database_list_binding( '%s', array( '_wp_attached_file', '_wp_attachment_image_alt' ) ), // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Exact post ID and bounded duplicate-owner inspection.
+			'row_limit'      => ai4seo_database_scalar_binding( '%d', null !== $editor_issues ? 128 : 4 ),
 		)
 	);
 
@@ -710,20 +760,27 @@ function ai4seo_read_attachment_attribute_source_snapshot(
 		$raw_meta_value = is_array( $attachment_meta_row ) && array_key_exists( 'meta_value', $attachment_meta_row )
 			? $attachment_meta_row['meta_value']
 			: null;
-		$meta_value     = $raw_meta_value;
+		$meta_value     = ai4seo_decode_attachment_text_value( $raw_meta_value );
 
-		// WordPress wraps serialized-looking scalar metadata in one safe serialized-string layer.
-		if ( is_string( $meta_value ) && is_serialized( $meta_value ) ) {
-			$meta_value = ai4seo_safe_maybe_unserialize( $meta_value );
+		if ( null !== $editor_issues && false !== $meta_id && isset( $meta_states[ $meta_key ] ) ) {
+			if ( null === $meta_value ) {
+				$editor_issues[ $meta_key ] = 'unknown';
+				continue;
+			}
+			if ( $meta_states[ $meta_key ]['exists'] ) {
+				if ( empty( $editor_issues[ $meta_key ] ) || 'duplicate' === $editor_issues[ $meta_key ] ) {
+					$editor_issues[ $meta_key ] = $meta_states[ $meta_key ]['value'] === $meta_value ? 'duplicate' : 'conflict';
+				}
+				continue;
+			}
 		}
-
-		if ( false === $meta_id
-			|| ! isset( $meta_states[ $meta_key ] )
-			|| $meta_states[ $meta_key ]['exists']
-			|| ! is_string( $meta_value )
-			|| wp_check_invalid_utf8( $meta_value ) !== $meta_value
-			|| false !== strpos( $meta_value, "\0" )
+		if ( false === $meta_id || ! isset( $meta_states[ $meta_key ] ) ) {
+			return array();
+		}
+		if ( $meta_states[ $meta_key ]['exists']
+			|| null === $meta_value
 		) {
+			$failure_reason = 'damaged_source';
 			return array();
 		}
 
@@ -732,6 +789,11 @@ function ai4seo_read_attachment_attribute_source_snapshot(
 			'meta_id' => $meta_id,
 			'value'   => $meta_value,
 		);
+	}
+	// At the bounded query limit an unseen duplicate may still contradict either key.
+	if ( null !== $editor_issues && count( $attachment_meta_rows ) >= 128 ) {
+		$editor_issues['_wp_attached_file']        = 'unknown';
+		$editor_issues['_wp_attachment_image_alt'] = 'unknown';
 	}
 
 	$read_succeeded = true;
@@ -1028,6 +1090,209 @@ function ai4seo_is_post_a_valid_attachment( int $attachment_post_id, ?WP_Post $a
 
 
 /**
+ * Resolve generation-only MIME eligibility without changing inventory or editing support.
+ *
+ * @param array|null $settings_snapshot Optional authoritative Settings option snapshot from a queue lock.
+ * @return array Enabled and currently available MIME types. Invalid storage fails closed.
+ */
+function ai4seo_get_enabled_attachment_mime_types( ?array $settings_snapshot = null ): array {
+	$file_types = ai4seo_get_setting( AI4SEO_SETTING_ENABLED_ATTACHMENT_FILE_TYPES );
+	if ( null !== $settings_snapshot ) {
+		$settings = ai4seo_safe_maybe_unserialize( $settings_snapshot['value'] ?? array() );
+		if ( is_string( $settings ) && ai4seo_is_json( $settings ) ) {
+			$settings = json_decode( $settings, true );
+		}
+		if ( ! is_array( $settings ) ) {
+			return array();
+		}
+		$file_types = array_key_exists( AI4SEO_SETTING_ENABLED_ATTACHMENT_FILE_TYPES, $settings )
+			? $settings[ AI4SEO_SETTING_ENABLED_ATTACHMENT_FILE_TYPES ] : AI4SEO_LEGACY_ATTACHMENT_FILE_TYPES;
+	}
+	if ( ! ai4seo_validate_setting_value( AI4SEO_SETTING_ENABLED_ATTACHMENT_FILE_TYPES, $file_types ) ) {
+		return array();
+	}
+	$mime_types = array();
+	foreach ( array_unique( $file_types ) as $file_type ) {
+		if ( 'svg' !== $file_type || ai4seo_robhub_api()->supports_svg_static_v1() ) {
+			$mime_types[] = AI4SEO_ATTACHMENT_FILE_TYPE_MIME_TYPES[ $file_type ];
+		}
+	}
+	return $mime_types;
+}
+
+
+/**
+ * Filter only generation additions; removal, editing, and hiding retain supported media.
+ *
+ * @param array $post_ids Candidate attachment IDs.
+ * @return array Eligible IDs.
+ */
+function ai4seo_filter_generation_enabled_attachment_ids( array $post_ids ): array {
+	$settings_snapshot = ai4seo_get_raw_option_snapshot( AI4SEO_SETTINGS_OPTION_NAME );
+	if ( null === $settings_snapshot ) {
+		return array();
+	}
+	$mime_types = ai4seo_get_enabled_attachment_mime_types( $settings_snapshot );
+	return array_values(
+		array_filter(
+			$post_ids,
+			static function ( $post_id ) use ( $mime_types ): bool {
+				return in_array( ai4seo_get_attachment_post_mime_type( (int) $post_id ), $mime_types, true );
+			}
+		)
+	);
+}
+
+
+/**
+ * Read bounded SVG bytes without parsing XML or passing through a raster decoder.
+ *
+ * @param array $image_source Validated attachment source descriptor.
+ * @return string|WP_Error SVG bytes or a safe error.
+ */
+function ai4seo_read_attachment_svg_source( array $image_source ) {
+	$local_path = ai4seo_get_attachment_generation_local_file_path( $image_source );
+	$body       = false;
+	if ( '' !== $local_path ) {
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Read only the attachment-owned path with a hard byte limit.
+		$body = file_get_contents( $local_path, false, null, 0, AI4SEO_SVG_MAX_SOURCE_BYTES + 1 );
+	}
+	if ( false === $body ) {
+		// Do not use generic URL-to-local mapping: query variants must retain their delivery identity.
+		$body = ai4seo_get_remote_body( (string) $image_source['delivery_url'], 'remote_only', AI4SEO_SVG_MAX_SOURCE_BYTES );
+	}
+	if ( is_wp_error( $body ) ) {
+		return new WP_Error( 'svg_source', __( 'The SVG could not be read securely. Check that its URL is accessible and its size is at most 1 MiB.', 'ai-for-seo' ) );
+	}
+	if ( ! is_string( $body ) || '' === $body || strlen( $body ) > AI4SEO_SVG_MAX_SOURCE_BYTES ) {
+		return new WP_Error( 'svg_source', __( 'The SVG must contain data and be no larger than 1 MiB.', 'ai-for-seo' ) );
+	}
+	return $body;
+}
+
+
+/**
+ * Prepare manual image input from authoritative identity and bounded image bytes.
+ * Storage is never repaired. Filtered/CDN URLs retain their exact identity.
+ *
+ * @param int $post_id Native attachment ID.
+ * @return array|WP_Error Source descriptor and verified bytes, or a hard admission error.
+ */
+function ai4seo_prepare_manual_attachment_generation_input( int $post_id ) {
+	$issues   = array();
+	$read     = false;
+	$exists   = false;
+	$snapshot = ai4seo_read_attachment_attribute_source_snapshot( $post_id, $read, $exists, $issues );
+	$error    = new WP_Error( 'ai4seo_manual_image_unavailable', __( 'The media source could not be identified safely. No generation was started. Use Help → Inspect post to check this entry.', 'ai-for-seo' ) );
+	if ( ! $read || ! $exists || 'attachment' !== $snapshot['post']['post_type']
+		|| in_array( $issues['_wp_attached_file'] ?? '', array( 'unknown', 'conflict' ), true ) ) {
+		return $error;
+	}
+	// A bad GUID is irrelevant when the attached file independently identifies the upload.
+	$snapshot['post']['guid'] = empty( $issues['guid'] ) ? $snapshot['post']['guid'] : '';
+	$canonical_url            = ai4seo_resolve_attachment_url_from_source_snapshot( $snapshot );
+	if ( ! $canonical_url ) {
+		return $error;
+	}
+	$url = apply_filters( 'wp_get_attachment_url', $canonical_url, $post_id );
+	if ( ! is_string( $url ) || ! wp_http_validate_url( $url ) ) {
+		// Local uploads may use a private development host; only the exact upload URL qualifies.
+		$uploads = wp_get_upload_dir();
+		if ( ! is_string( $url ) || $url !== $canonical_url || empty( $uploads['baseurl'] )
+			|| 0 !== strpos( $url, trailingslashit( $uploads['baseurl'] ) ) ) {
+			return $error;
+		}
+	}
+	$source  = array(
+		'attachment_id' => $post_id,
+		'original_url'  => $url,
+		'delivery_url'  => $url,
+		'width'         => 0,
+		'height'        => 0,
+		'mime_type'     => '',
+		'size_name'     => 'full',
+	);
+	$uploads = wp_get_upload_dir();
+	$file    = $snapshot['attached_file']['value'];
+	if ( '' !== $file && ! path_is_absolute( $file ) && ! empty( $uploads['basedir'] ) ) {
+		$file = trailingslashit( $uploads['basedir'] ) . $file;
+	}
+	if ( '' !== $file ) {
+		$normalized_file = wp_normalize_path( $file );
+		$uploads_prefix  = trailingslashit( wp_normalize_path( $uploads['basedir'] ?? '' ) );
+		$real_file       = realpath( $file );
+		$real_uploads    = realpath( $uploads['basedir'] ?? '' );
+		if ( empty( $uploads['basedir'] ) || 0 !== strpos( $normalized_file, $uploads_prefix )
+			|| 1 === preg_match( '#(?:^|/)\.\.(?:/|$)#', $normalized_file )
+			|| ( false !== $real_file && ( false === $real_uploads
+				|| 0 !== strpos( wp_normalize_path( $real_file ), trailingslashit( wp_normalize_path( $real_uploads ) ) ) ) ) ) {
+			return $error;
+		}
+	}
+	// Even matching basenames do not prove that a filtered crop is the original local file.
+	$local = $url === $canonical_url ? ai4seo_get_attachment_generation_local_file_path( $source, $file ) : '';
+	if ( '' !== $local ) {
+		$image = ai4seo_get_image_data_from_local_file( $local, AI4SEO_MAX_BASE64_ATTACHMENT_SOURCE_SIZE_BYTES );
+	} else {
+		// Do not let same-site shortcuts strip a signed URL or crop query.
+		$bytes = ai4seo_get_remote_body( $url, 'remote_only', AI4SEO_MAX_BASE64_ATTACHMENT_SOURCE_SIZE_BYTES );
+		if ( is_wp_error( $bytes ) ) {
+			return $bytes;
+		}
+		$probe = is_string( $bytes ) ? ai4seo_is_probably_image_content( $bytes ) : array();
+		if ( empty( $probe['is_probably_image'] ) || strlen( $bytes ) > AI4SEO_MAX_BASE64_ATTACHMENT_SOURCE_SIZE_BYTES ) {
+			return $error;
+		}
+		$image = array(
+			'data'      => $bytes,
+			'mime_type' => ai4seo_get_mime_type_from_detected_image_format( $probe['detected_format'] ?? '' ),
+		);
+	}
+	if ( is_wp_error( $image ) ) {
+		return $image;
+	}
+	$original_mime = $image['mime_type'];
+	// A remote conversion cannot grant permission for a disabled original format.
+	$hint_mime   = ai4seo_get_mime_type_from_url( $canonical_url );
+	$policy_mime = '' !== $local ? $original_mime : ( $hint_mime ? $hint_mime : ( $snapshot['post']['post_mime_type'] ?? '' ) );
+	if ( '' === $local && 'image/svg+xml' === ( $snapshot['post']['post_mime_type'] ?? '' ) ) {
+		$policy_mime = 'image/svg+xml';
+	}
+	$settings = ai4seo_get_raw_option_snapshot( AI4SEO_SETTINGS_OPTION_NAME );
+	$enabled  = null !== $settings ? ai4seo_get_enabled_attachment_mime_types( $settings ) : array();
+	if ( ! in_array( $original_mime, $enabled, true ) || ! in_array( $policy_mime, $enabled, true )
+		|| ( 'image/svg+xml' === $original_mime && strlen( $image['data'] ) > AI4SEO_SVG_MAX_SOURCE_BYTES ) ) {
+		return new WP_Error( 'ai4seo_manual_image_format', __( 'Generation for this original file type is disabled, unavailable, or exceeds its size limit. Check Enabled File Types in Media Attributes settings.', 'ai-for-seo' ) );
+	}
+	$source['mime_type'] = $original_mime;
+	// Actual image dimensions replace optional stored hints only in memory.
+	// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- SVG and unsupported decoders have no raster dimensions.
+	$dimensions = 'image/svg+xml' !== $original_mime ? @getimagesizefromstring( $image['data'] ) : false;
+	if ( is_array( $dimensions ) ) {
+		$source['width']  = (int) $dimensions[0];
+		$source['height'] = (int) $dimensions[1];
+	}
+	if ( '' !== $local && is_array( $dimensions ) ) {
+		$candidate = ai4seo_get_attachment_generation_image_source( $post_id, $url, $original_mime, $dimensions );
+		if ( $candidate && 'full' !== $candidate['size_name']
+			&& dirname( $candidate['delivery_url'] ) === dirname( $url ) ) {
+			$candidate_path  = ai4seo_get_attachment_generation_local_file_path( $candidate, $file );
+			$candidate_image = $candidate_path ? ai4seo_get_image_data_from_local_file( $candidate_path, AI4SEO_MAX_BASE64_ATTACHMENT_SOURCE_SIZE_BYTES ) : null;
+			if ( is_array( $candidate_image ) && in_array( $candidate_image['mime_type'], $enabled, true ) && 'image/svg+xml' !== $candidate_image['mime_type'] ) {
+				$source              = $candidate;
+				$image               = $candidate_image;
+				$source['mime_type'] = $image['mime_type'];
+			}
+		}
+	}
+	$image['original_mime_type'] = $policy_mime;
+	return array(
+		'source' => $source,
+		'image'  => $image,
+	);
+}
+
+/**
  * Resolves the image source used for attachment-attribute generation.
  *
  * Existing WordPress sub-sizes are considered only when the full image dimensions are known
@@ -1036,6 +1301,7 @@ function ai4seo_is_post_a_valid_attachment( int $attachment_post_id, ?WP_Post $a
  * @param int         $attachment_post_id      Attachment post ID.
  * @param string|null $original_attachment_url Optional pre-resolved full attachment URL.
  * @param string|null $full_mime_type          Optional pre-resolved full attachment MIME type.
+ * @param array|null  $verified_dimensions Actual dimensions for the manual read-only path.
  * @return array|null {
  *     Attachment generation image source, or null when the attachment URL is unavailable.
  *
@@ -1051,7 +1317,8 @@ function ai4seo_is_post_a_valid_attachment( int $attachment_post_id, ?WP_Post $a
 function ai4seo_get_attachment_generation_image_source(
 	int $attachment_post_id,
 	?string $original_attachment_url = null,
-	?string $full_mime_type = null
+	?string $full_mime_type = null,
+	?array $verified_dimensions = null
 ): ?array {
 	// Preserve the canonical full URL as request context even when a smaller delivery source is selected later.
 	$attachment_post_id = absint( $attachment_post_id );
@@ -1064,12 +1331,29 @@ function ai4seo_get_attachment_generation_image_source(
 		return null;
 	}
 
+	$full_mime_type = $full_mime_type ?? ai4seo_get_attachment_post_mime_type( $attachment_post_id );
+	if ( 'image/svg+xml' === $full_mime_type ) {
+		// SVG dimensions and sub-sizes from upload plugins are not trusted raster representations.
+		return array(
+			'attachment_id' => $attachment_post_id,
+			'original_url'  => $original_attachment_url,
+			'delivery_url'  => $original_attachment_url,
+			'width'         => 0,
+			'height'        => 0,
+			'mime_type'     => $full_mime_type,
+			'size_name'     => 'full',
+		);
+	}
+
 	// Prefer WordPress metadata because it identifies the full image without opening the image binary.
 	$attachment_metadata = wp_get_attachment_metadata( $attachment_post_id );
 	$full_width          = 0;
 	$full_height         = 0;
 
-	if ( is_array( $attachment_metadata ) ) {
+	if ( null !== $verified_dimensions ) {
+		$full_width  = (int) ( $verified_dimensions[0] ?? 0 );
+		$full_height = (int) ( $verified_dimensions[1] ?? 0 );
+	} elseif ( is_array( $attachment_metadata ) ) {
 		$full_width  = absint( $attachment_metadata['width'] ?? 0 );
 		$full_height = absint( $attachment_metadata['height'] ?? 0 );
 	}
@@ -1112,9 +1396,21 @@ function ai4seo_get_attachment_generation_image_source(
 	}
 
 	// Try only existing core image sizes in descending preference; WordPress must not create variants during generation.
-	$allowed_mime_types = ai4seo_get_allowed_attachment_mime_types();
+	$allowed_mime_types = array_values( array_diff( ai4seo_get_allowed_attachment_mime_types(), array( 'image/svg+xml' ) ) );
+	// Malformed optional metadata must not reach WordPress's arithmetic helpers.
+	if ( null !== $verified_dimensions && ( ! is_array( $attachment_metadata )
+		|| ! is_numeric( $attachment_metadata['width'] ?? null ) || ! is_numeric( $attachment_metadata['height'] ?? null ) ) ) {
+		return $full_image_source;
+	}
 
 	foreach ( array( '2048x2048', '1536x1536', 'large' ) as $image_size_name ) {
+		if ( null !== $verified_dimensions ) {
+			$size = $attachment_metadata['sizes'][ $image_size_name ] ?? null;
+			if ( ! is_array( $size ) || ! is_string( $size['file'] ?? null )
+				|| ! is_numeric( $size['width'] ?? null ) || ! is_numeric( $size['height'] ?? null ) ) {
+				continue;
+			}
+		}
 		$candidate_image_source = wp_get_attachment_image_src( $attachment_post_id, $image_size_name, false );
 
 		// Reject malformed filter results and the full-image fallback before coercing tuple values.
@@ -1152,7 +1448,7 @@ function ai4seo_get_attachment_generation_image_source(
 		// full MIME as a safe fallback.
 		$candidate_mime_type = '';
 
-		if ( is_array( $attachment_metadata ) && isset( $attachment_metadata['sizes'][ $image_size_name ]['mime-type'] ) ) {
+		if ( is_array( $attachment_metadata ) && isset( $attachment_metadata['sizes'][ $image_size_name ]['mime-type'] ) && is_string( $attachment_metadata['sizes'][ $image_size_name ]['mime-type'] ) ) {
 			$candidate_mime_type = ai4seo_normalize_mime_type_string(
 				(string) $attachment_metadata['sizes'][ $image_size_name ]['mime-type']
 			);
@@ -1189,10 +1485,11 @@ function ai4seo_get_attachment_generation_image_source(
  * Only current-site upload files identified by WordPress attachment metadata are eligible.
  * Missing/offloaded files and filtered sources that do not match that identity retain URL loading.
  *
- * @param array $image_source Attachment generation source descriptor.
+ * @param array       $image_source Attachment generation source descriptor.
+ * @param string|null $verified_attached_file Optional authoritative path from the manual snapshot.
  * @return string Contained local file path, or an empty string for URL fallback.
  */
-function ai4seo_get_attachment_generation_local_file_path( array $image_source ): string {
+function ai4seo_get_attachment_generation_local_file_path( array $image_source, ?string $verified_attached_file = null ): string {
 	$attachment_id = $image_source['attachment_id'] ?? 0;
 	$size_name     = $image_source['size_name'] ?? '';
 	$delivery_url  = $image_source['delivery_url'] ?? '';
@@ -1210,7 +1507,7 @@ function ai4seo_get_attachment_generation_local_file_path( array $image_source )
 	}
 
 	// Unfiltered attachment storage identifies the file; URL/CDN filters do not grant filesystem authority.
-	$attached_file = get_attached_file( $attachment_id, true );
+	$attached_file = $verified_attached_file ?? get_attached_file( $attachment_id, true );
 	$uploads       = wp_get_upload_dir();
 	if ( ! is_string( $attached_file ) || '' === $attached_file || ! empty( $uploads['error'] )
 		|| empty( $uploads['basedir'] ) || ! is_string( $uploads['basedir'] ) ) {
@@ -1332,13 +1629,15 @@ function ai4seo_should_use_base64_image( string $attachment_url ): bool {
  * confirms that its URL-source acquisition failed before model work and provides a one-time token
  * for client-assisted base64 recovery.
  *
- * @param array $attachment_image_source Attachment image source descriptor.
- * @param array $robhub_api_call_parameters RobHub API parameters.
+ * @param array      $attachment_image_source Attachment image source descriptor.
+ * @param array      $robhub_api_call_parameters RobHub API parameters.
+ * @param array|null $verified_image Bounded bytes from manual preflight; never client-supplied.
  * @return array RobHub API response.
  */
 function ai4seo_call_attachment_attributes_generation_api(
 	array $attachment_image_source,
-	array $robhub_api_call_parameters
+	array $robhub_api_call_parameters,
+	?array $verified_image = null
 ): array {
 	// Validate the complete descriptor before either transport can allocate or fetch image data.
 	$original_url = (string) ( $attachment_image_source['original_url'] ?? '' );
@@ -1353,11 +1652,43 @@ function ai4seo_call_attachment_attributes_generation_api(
 		);
 	}
 
+	$settings_snapshot = ai4seo_get_raw_option_snapshot( AI4SEO_SETTINGS_OPTION_NAME );
+	$attachment_id     = (int) ( $attachment_image_source['attachment_id'] ?? 0 );
+	// The choice governs the original attachment format, even when WordPress serves a converted raster sub-size.
+	$attachment_mime_type = $attachment_id > 0 ? ai4seo_get_attachment_post_mime_type( $attachment_id ) : $mime_type;
+	if ( null !== $verified_image ) {
+		$attachment_mime_type = $verified_image['original_mime_type'];
+	}
+	if ( null === $settings_snapshot || ! in_array( $attachment_mime_type, ai4seo_get_enabled_attachment_mime_types( $settings_snapshot ), true ) ) {
+		return array(
+			'success' => false,
+			'message' => __( 'Generation for this file type is disabled or unavailable. Check Enabled File Types in Media Attributes settings. SVG also requires an available conversion service.', 'ai-for-seo' ),
+			'code'    => 121026001,
+		);
+	}
+
+	if ( 'image/svg+xml' === $mime_type ) {
+		$svg = null !== $verified_image ? $verified_image['data'] : ai4seo_read_attachment_svg_source( $attachment_image_source );
+		if ( is_wp_error( $svg ) ) {
+			return array(
+				'success' => false,
+				'message' => $svg->get_error_message(),
+				'code'    => 121026002,
+			);
+		}
+		unset( $robhub_api_call_parameters['attachment_url'], $robhub_api_call_parameters['attachment_recovery_token'] );
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- Encode bounded source bytes for the existing image-data transport contract.
+		$robhub_api_call_parameters['content']                  = 'data:image/svg+xml;base64,' . base64_encode( $svg );
+		$robhub_api_call_parameters['reference_attachment_url'] = $original_url;
+		return ai4seo_robhub_api()->call( 'ai4seo/generate-all-attachment-attributes', $robhub_api_call_parameters );
+	}
+
 	// Apply the existing user/automatic transport policy to the selected delivery URL rather than the full reference URL.
 	if ( ai4seo_should_use_base64_image( $delivery_url ) ) {
 		return ai4seo_generate_attachment_attributes_using_base64(
 			$attachment_image_source,
-			$robhub_api_call_parameters
+			$robhub_api_call_parameters,
+			$verified_image
 		);
 	}
 
@@ -1390,7 +1721,8 @@ function ai4seo_call_attachment_attributes_generation_api(
 
 	$base64_response = ai4seo_generate_attachment_attributes_using_base64(
 		$attachment_image_source,
-		$robhub_api_call_parameters
+		$robhub_api_call_parameters,
+		$verified_image
 	);
 
 	// Count only a successful URL-to-Base64 pair; preparation and continuation failures reset history.
@@ -1690,11 +2022,12 @@ function ai4seo_get_attachment_source_tls_error_response( WP_Error $error ): arr
 /**
  * Load an image and return its base64 conversion result.
  *
- * @param string $image_url        Image URL.
- * @param string $local_image_path Optional validated attachment file path.
+ * @param string     $image_url        Image URL.
+ * @param string     $local_image_path Optional validated attachment file path.
+ * @param array|null $verified_image Bounded bytes from manual preflight.
  * @return array Image conversion result.
  */
-function ai4seo_get_base64_from_image_file( $image_url, string $local_image_path = '' ): array {
+function ai4seo_get_base64_from_image_file( $image_url, string $local_image_path = '', ?array $verified_image = null ): array {
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 697474987, 'Prevented loop', true );
 		return array(
@@ -1705,9 +2038,9 @@ function ai4seo_get_base64_from_image_file( $image_url, string $local_image_path
 	}
 
 	// Keep source-size policy and attachment response codes outside the generic image loader.
-	$image_source = '' !== $local_image_path
+	$image_source = $verified_image ?? ( '' !== $local_image_path
 		? ai4seo_get_image_data_from_local_file( $local_image_path, AI4SEO_MAX_BASE64_ATTACHMENT_SOURCE_SIZE_BYTES )
-		: null;
+		: null );
 	// Retain remote recovery for missing/unreadable/corrupt local copies, but never bypass the source-size cap.
 	if ( null === $image_source
 		|| ( is_wp_error( $image_source ) && 'ai4seo_fetch_too_large' !== $image_source->get_error_code() ) ) {
@@ -1792,13 +2125,15 @@ function ai4seo_get_base64_from_image_file( $image_url, string $local_image_path
 /**
  * Generates attachment attributes from a base64 representation of the selected image source.
  *
- * @param array $attachment_image_source Attachment image source descriptor.
- * @param array $robhub_api_call_parameters RobHub API parameters.
+ * @param array      $attachment_image_source Attachment image source descriptor.
+ * @param array      $robhub_api_call_parameters RobHub API parameters.
+ * @param array|null $verified_image Bounded bytes from manual preflight; never client-supplied.
  * @return array RobHub API response.
  */
 function ai4seo_generate_attachment_attributes_using_base64(
 	array $attachment_image_source,
-	array $robhub_api_call_parameters
+	array $robhub_api_call_parameters,
+	?array $verified_image = null
 ): array {
 	// Retain the existing recursion safeguard now that manual and cron generation share this transport helper.
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
@@ -1819,7 +2154,8 @@ function ai4seo_generate_attachment_attributes_using_base64(
 	// Reuse the bounded image fetcher so the established 25 MB source limit remains authoritative for base64.
 	$base64_from_image_file_response = ai4seo_get_base64_from_image_file(
 		$delivery_url,
-		ai4seo_get_attachment_generation_local_file_path( $attachment_image_source )
+		null === $verified_image ? ai4seo_get_attachment_generation_local_file_path( $attachment_image_source ) : '',
+		$verified_image
 	);
 
 	// Normalize all fetch failures before building the data URI so callers receive the established error contract.
@@ -2897,13 +3233,15 @@ function ai4seo_write_attachment_alt_text_postmeta_with_lock( int $attachment_po
  * @param array      $attachment_attribute_updates the updates to apply with the keys title, caption, description, alt-text.
  * @param bool       $force_overwrite_all_existing_data if true, existing data will be overwritten, if false, we check the settings to identify the attachment attributes that should be overwritten.
  * @param array|null $operation_details Receives commit_state: not_committed, committed, or possibly_committed.
+ * @param array|null $expected_values Optional authoritative editor baseline for requested fields.
  * @return bool true on success, false on failure
  */
 function ai4seo_update_attachment_attributes(
 	int $attachment_post_id,
 	array $attachment_attribute_updates = array(),
 	bool $force_overwrite_all_existing_data = false,
-	?array &$operation_details = null
+	?array &$operation_details = null,
+	?array $expected_values = null
 ): bool {
 	global $wpdb;
 
@@ -3007,6 +3345,9 @@ function ai4seo_update_attachment_attributes(
 			// Collect direct post updates together so unslashed bytes and exact rollback ownership stay aligned.
 			$post_updates[ $this_post_column ]         = $this_attachment_attribute_value;
 			$original_post_values[ $this_post_column ] = (string) $attachment_post->$this_post_column;
+			if ( null !== $expected_values && ( $expected_values[ $this_attachment_attribute_identifier ] ?? null ) !== $original_post_values[ $this_post_column ] ) {
+				return false;
+			}
 
 			// Mirror imported NextGEN descriptions so provider and WordPress owners remain synchronized.
 			if ( $is_imported_nextgen_entry && 'description' === $this_attachment_attribute_identifier ) {
@@ -3015,6 +3356,9 @@ function ai4seo_update_attachment_attributes(
 		} elseif ( 'alt-text' === $this_attachment_attribute_identifier ) {
 			// Capture an exact missing/value owner before any provider or WordPress mutation.
 			$postmeta_expected_state = ai4seo_read_attachment_alt_text_postmeta_state( $attachment_post_id );
+			if ( null !== $expected_values && ( $expected_values['alt-text'] ?? null ) !== ( $postmeta_expected_state['value'] ?? null ) ) {
+				return false;
+			}
 
 			if ( false === $postmeta_expected_state ) {
 				ai4seo_debug_message( 984321723, 'Could not preflight the exact attachment alt-text metadata owner: ' . $wpdb->last_error, true );
@@ -3743,6 +4087,7 @@ function ai4seo_get_related_attachment_scan_result( int $post_id ): array {
 					'no_found_rows'    => true,
 					'orderby'          => 'ID',
 					'order'            => 'DESC',
+					// phpcs:ignore WordPressVIPMinimum.Performance.WPQueryParams.SuppressFilters_suppress_filters -- Related media intentionally includes attachment children in every language.
 					'suppress_filters' => true,
 					'lang'             => 'all',
 				)
@@ -4137,6 +4482,7 @@ function ai4seo_get_related_woocommerce_variation_attachment_post_ids( int $post
 					'no_found_rows'    => true,
 					'orderby'          => 'ID',
 					'order'            => 'DESC',
+					// phpcs:ignore WordPressVIPMinimum.Performance.WPQueryParams.SuppressFilters_suppress_filters -- Related media intentionally includes product variations in every language.
 					'suppress_filters' => true,
 					'lang'             => 'all',
 				)
@@ -4439,11 +4785,12 @@ function ai4seo_extract_related_attachment_post_ids_from_value( $value, string $
 	// Preserve nested array keys as context because keys often tell us whether numeric values are media references.
 	if ( is_array( $value ) ) {
 		foreach ( $value as $this_key => $this_value ) {
-			$this_context_key            = ai4seo_get_related_attachment_nested_context_key( $context_key, $this_key );
-			$related_attachment_post_ids = array_merge(
-				$related_attachment_post_ids,
-				ai4seo_extract_related_attachment_post_ids_from_value( $this_value, $this_context_key, $depth + 1, $related_attachment_scan_state )
-			);
+			$this_context_key = ai4seo_get_related_attachment_nested_context_key( $context_key, $this_key );
+
+			// Append child results without copying the growing ID list for every sibling.
+			foreach ( ai4seo_extract_related_attachment_post_ids_from_value( $this_value, $this_context_key, $depth + 1, $related_attachment_scan_state ) as $this_attachment_post_id ) {
+				$related_attachment_post_ids[] = $this_attachment_post_id;
+			}
 		}
 
 		return ai4seo_normalize_related_attachment_post_ids( $related_attachment_post_ids );

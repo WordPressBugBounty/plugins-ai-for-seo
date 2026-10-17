@@ -145,8 +145,18 @@ function ai4seo_process_save_anything_metadata_editor_values( array &$upcoming_s
 		$ai4seo_new_metadata[ $ai4seo_metadata_identifier ] = $ai4seo_metadata_input_value;
 	}
 
+	if ( ai4seo_is_taxonomy_proxy( $ai4seo_this_post_id ) ) {
+		return ai4seo_save_taxonomy_proxy_editor_values( $ai4seo_this_post_id, $ai4seo_new_metadata, $upcoming_save_anything_updates, $ai4seo_recovery_context );
+	}
+	if ( '2' === (string) ( $upcoming_save_anything_updates['metadata_editor_read_version'] ?? '' ) ) {
+		return ai4seo_save_editor_field_changes( $ai4seo_this_post_id, 'metadata', $ai4seo_new_metadata, $upcoming_save_anything_updates, $ai4seo_recovery_context );
+	}
+
 	// Keep the existing explicit error for editor requests that contain neither values nor instructions.
 	if ( ! $ai4seo_new_metadata && ! $ai4seo_custom_instructions_were_submitted ) {
+		if ( '1' === (string) ( $upcoming_save_anything_updates['metadata_editor_read_version'] ?? '' ) ) {
+			return null;
+		}
 		return new WP_Error(
 			5611221025,
 			esc_html__( 'No metadata values to update.', 'ai-for-seo' )
@@ -155,6 +165,9 @@ function ai4seo_process_save_anything_metadata_editor_values( array &$upcoming_s
 
 	// Instruction-only saves do not affect generation ownership or derived state.
 	if ( ! $ai4seo_new_metadata ) {
+		if ( ! ai4seo_validate_editor_read_admission( $ai4seo_this_post_id, 'metadata', array(), true ) ) {
+			return new WP_Error( 728451920, __( 'Stored instructions could not be read safely. Your changes have not been saved. Reopen this entry after correcting the stored data.', 'ai-for-seo' ) );
+		}
 		$ai4seo_custom_instructions_saved = ai4seo_save_custom_instructions_postmeta(
 			$ai4seo_this_post_id,
 			AI4SEO_POST_META_METADATA_CUSTOM_INSTRUCTIONS_META_KEY,
@@ -212,6 +225,19 @@ function ai4seo_process_save_anything_metadata_editor_values( array &$upcoming_s
 			&$ai4seo_metadata_update_details,
 			&$ai4seo_custom_instructions_saved
 		): bool {
+			try {
+				$read_admitted = ai4seo_validate_editor_read_admission( $ai4seo_this_post_id, 'metadata', array_keys( $ai4seo_new_metadata ), $ai4seo_custom_instructions_were_submitted, $ai4seo_recovery_context['resolutions'] );
+			} catch ( Throwable $throwable ) {
+				// Admission has not written anything; retain prior queue intent and report the read failure.
+				$ai4seo_metadata_update_details['commit_state'] = 'not_committed';
+				$ai4seo_metadata_update_details['diagnostic']   = ai4seo_record_metadata_save_diagnostic( 3518161025, 'preflight', 'storage_read_exception', array( 'post_id' => $ai4seo_this_post_id ), $throwable );
+				return false;
+			}
+			if ( ! $read_admitted ) {
+				$ai4seo_metadata_update_details['commit_state'] = 'not_committed';
+				$ai4seo_metadata_update_details['diagnostic']   = ai4seo_record_metadata_save_diagnostic( 3518161025, 'preflight', 'editor_field_unavailable', array( 'post_id' => $ai4seo_this_post_id ) );
+				return false;
+			}
 			// Validate before instructions or providers can commit; the locked writer still rechecks later.
 			$preflight_view      = ai4seo_read_active_metadata_resolved_view( $ai4seo_this_post_id );
 			$preflight_succeeded = 'unreadable' !== $preflight_view['classification'];
@@ -360,7 +386,7 @@ function ai4seo_build_metadata_editor_save_response( int $ai4seo_this_post_id, a
 	// Return authoritative stored values rather than assuming that submitted values survived every hook.
 	$ai4seo_persisted_metadata = array();
 	$ai4seo_storage_view       = ai4seo_read_active_metadata_resolved_view( $ai4seo_this_post_id );
-	if ( $ai4seo_active_metadata_succeeded || ! empty( $ai4seo_metadata_update_details['recovery_save'] ) ) {
+	if ( $ai4seo_active_metadata_succeeded || ! empty( $ai4seo_metadata_update_details['recovery_save'] ) || ! empty( $ai4seo_metadata_update_details['confirmed_fields'] ) ) {
 		try {
 			$own_read_succeeded = 'unreadable' !== $ai4seo_storage_view['classification'];
 			if ( $own_read_succeeded ) {
@@ -426,6 +452,22 @@ function ai4seo_build_metadata_editor_save_response( int $ai4seo_this_post_id, a
 	// Provider guidance joins cleanup and readback warnings in the shared response contract.
 	if ( $ai4seo_third_party_sync_warning ) {
 		$ai4seo_warnings[] = $ai4seo_third_party_sync_warning;
+		foreach ( $ai4seo_failed_third_party_syncs as $ai4seo_provider => $ai4seo_failed_fields ) {
+			$ai4seo_field_names = array();
+			foreach ( $ai4seo_failed_fields as $ai4seo_failed_field ) {
+				if ( isset( AI4SEO_METADATA_DETAILS[ $ai4seo_failed_field ]['name'] ) ) {
+					$ai4seo_field_names[] = wp_strip_all_tags( AI4SEO_METADATA_DETAILS[ $ai4seo_failed_field ]['name'] );
+				}
+			}
+			if ( $ai4seo_field_names ) {
+				$ai4seo_warnings[] = sprintf(
+					/* translators: 1: SEO plugin name, 2: affected metadata field names. */
+					__( 'Synchronization incomplete: %1$s — %2$s. Other confirmed saved fields remain available.', 'ai-for-seo' ),
+					implode( ', ', ai4seo_get_third_party_seo_plugin_names( array( $ai4seo_provider ) ) ),
+					implode( ', ', array_unique( $ai4seo_field_names ) )
+				);
+			}
+		}
 	}
 
 	// Read back only the Yoast fields that this installation is configured to synchronize.

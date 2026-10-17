@@ -61,7 +61,7 @@ echo "<div class='ai4seo-modal-schema-content'>";
 	echo esc_html__( 'Select the amount of Credits for your needs.', 'ai-for-seo' ) . ' ';
 
 	// current discount.
-	ai4seo_echo_current_discount();
+ai4seo_echo_current_discount( false );
 
 if ( ! empty( $ai4seo_current_discount['voucher_code'] ) ) {
 	echo '<br>';

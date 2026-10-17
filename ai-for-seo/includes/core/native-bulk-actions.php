@@ -182,20 +182,25 @@ function ai4seo_handle_native_bulk_generation_queue_action( $redirect_to, $doact
 		);
 	}
 
-	$result = ai4seo_process_bulk_generation_queue_action(
+	$queue_transition_failed = false;
+	$result                  = ai4seo_process_bulk_generation_queue_action(
 		$bulk_generation_queue_action,
 		$post_ids,
-		$context
+		$context,
+		$queue_transition_failed
 	);
 
 	return add_query_arg(
 		array(
-			'ai4seo_bulk_generation_queue_action'         => $bulk_generation_queue_action,
-			'ai4seo_bulk_generation_queue_context'        => sanitize_key( $context ),
-			'ai4seo_bulk_generation_queue_selected'       => (int) ( $result['selected'] ?? 0 ),
-			'ai4seo_bulk_generation_queue_changed'        => (int) ( $result['changed'] ?? 0 ),
-			'ai4seo_bulk_generation_queue_not_applicable' => (int) ( $result['not_applicable'] ?? 0 ),
-			'ai4seo_bulk_generation_queue_skipped'        => (int) ( $result['skipped'] ?? 0 ),
+			'ai4seo_bulk_generation_queue_action'          => $bulk_generation_queue_action,
+			'ai4seo_bulk_generation_queue_context'         => sanitize_key( $context ),
+			'ai4seo_bulk_generation_queue_selected'        => (int) ( $result['selected'] ?? 0 ),
+			'ai4seo_bulk_generation_queue_changed'         => (int) ( $result['changed'] ?? 0 ),
+			'ai4seo_bulk_generation_statistics_pending'    => empty( $result['statistics_pending'] ) ? 0 : 1,
+			'ai4seo_bulk_generation_content_type_disabled' => empty( $result['content_type_disabled'] ) ? 0 : 1,
+			'ai4seo_bulk_generation_queue_transition_failed' => $queue_transition_failed ? 1 : 0,
+			'ai4seo_bulk_generation_queue_not_applicable'  => (int) ( $result['not_applicable'] ?? 0 ),
+			'ai4seo_bulk_generation_queue_skipped'         => (int) ( $result['skipped'] ?? 0 ),
 			'ai4seo_bulk_generation_queue_generated_data_deleted' => (int) ( $result['generated_data_deleted'] ?? 0 ),
 			'ai4seo_bulk_generation_queue_active_metadata_deleted' => (int) ( $result['active_metadata_deleted'] ?? 0 ),
 
@@ -230,6 +235,8 @@ function ai4seo_remove_bulk_generation_queue_bulk_action_query_args( string $url
 			'ai4seo_bulk_generation_queue_generated_data_deleted',
 			'ai4seo_bulk_generation_queue_active_metadata_deleted',
 			'ai4seo_bulk_generation_queue_modal_required',
+			'ai4seo_bulk_generation_content_type_disabled',
+			'ai4seo_bulk_generation_queue_transition_failed',
 
 			// Remove related-image result arguments before adding fresh native table notice state.
 			'ai4seo_bulk_generation_queue_related_source_entries_scanned',
@@ -273,6 +280,10 @@ function ai4seo_show_bulk_generation_queue_bulk_action_admin_notice() {
 	$selected_entries = absint( wp_unslash( $_GET['ai4seo_bulk_generation_queue_selected'] ?? 0 ) );
 	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Capability-gated read-only result notice.
 	$changed_entries = absint( wp_unslash( $_GET['ai4seo_bulk_generation_queue_changed'] ?? 0 ) );
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Capability-gated read-only result notice.
+	$is_content_type_disabled = ! empty( $_GET['ai4seo_bulk_generation_content_type_disabled'] );
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Capability-gated read-only result notice.
+	$queue_transition_failed = ! empty( $_GET['ai4seo_bulk_generation_queue_transition_failed'] );
 	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Capability-gated read-only result notice.
 	$not_applicable_entries = absint( wp_unslash( $_GET['ai4seo_bulk_generation_queue_not_applicable'] ?? 0 ) );
 	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Capability-gated read-only result notice.
@@ -396,8 +407,22 @@ function ai4seo_show_bulk_generation_queue_bulk_action_admin_notice() {
 		ai4seo_format_number_i18n( $related_partial_scans )
 	);
 
+	if ( $queue_transition_failed && ! $is_content_type_disabled ) {
+		$notice_class = 'notice-error';
+	}
+
 	echo "<div class='notice " . esc_attr( $notice_class ) . " is-dismissible'><p>";
 		echo '<strong>' . esc_html( $bulk_generation_queue_action_label ) . '</strong> ';
+	if ( $is_content_type_disabled ) {
+		echo esc_html__( 'Select the required content types in SEO Autopilot before adding entries to the queue. For related images, select Media. No entries were added.', 'ai-for-seo' );
+		echo '</p></div>';
+		return;
+	}
+	if ( $queue_transition_failed ) {
+		echo esc_html__( 'The bulk action could not be completed. Some changes may already have been saved. Reload the list and check its current state before trying again.', 'ai-for-seo' );
+		echo '</p></div>';
+		return;
+	}
 	if ( $is_modal_required_fallback ) {
 		echo esc_html( $selected_entries_label ) . ' ';
 		echo esc_html(
@@ -446,4 +471,8 @@ function ai4seo_show_bulk_generation_queue_bulk_action_admin_notice() {
 		echo esc_html( $skipped_entries_label );
 	}
 	echo '</p></div>';
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Capability-gated, read-only notice; no submitted text is rendered.
+	if ( ! empty( $_GET['ai4seo_bulk_generation_statistics_pending'] ) ) {
+		echo '<div class="notice notice-warning"><p>' . esc_html__( 'Statistics are still pending an update. The changes above have been saved.', 'ai-for-seo' ) . '</p></div>';
+	}
 }

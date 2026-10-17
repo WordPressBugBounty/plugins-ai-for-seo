@@ -388,6 +388,9 @@ function ai4seo_can_edit_post( int $post_id ): bool {
 		return false;
 	}
 
+	if ( ai4seo_is_taxonomy_proxy( $post_id ) ) {
+		return ai4seo_can_edit_taxonomy_proxy( $post_id );
+	}
 	// Delegate per-object ownership and post-type capability mapping to WordPress.
 	return current_user_can( 'edit_post', $post_id );
 }
@@ -430,10 +433,44 @@ function ai4seo_filter_editable_post_ids( array $post_ids ): array {
 		array_filter(
 			$post_ids,
 			function ( int $post_id ): bool {
-				return current_user_can( 'edit_post', $post_id );
+				return ai4seo_can_edit_post( $post_id );
 			}
 		)
 	);
+}
+
+/**
+ * Permit retained snapshots without granting the internal post type native edit rights.
+ *
+ * @param int        $post_id Proxy ID.
+ * @param array|null $context Already validated source context.
+ * @return bool
+ */
+function ai4seo_can_view_taxonomy_proxy( int $post_id, ?array $context = null ): bool {
+	if ( ! ai4seo_can_use_plugin_content() ) {
+		return false;
+	}
+	$context = $context ?? ai4seo_get_taxonomy_proxy_editor_context( $post_id );
+	if ( is_wp_error( $context ) ) {
+		return false;
+	}
+	if ( ! $context['taxonomy'] ) {
+		return ai4seo_can_administer_plugin();
+	}
+	return $context['available']
+		? current_user_can( 'edit_term', $context['source']['term_id'] )
+		: current_user_can( $context['taxonomy']->cap->edit_terms );
+}
+
+/**
+ * Require a currently available source and WordPress's term-specific permission.
+ *
+ * @param int $post_id Proxy ID.
+ * @return bool
+ */
+function ai4seo_can_edit_taxonomy_proxy( int $post_id ): bool {
+	$context = ai4seo_get_taxonomy_proxy_editor_context( $post_id );
+	return ! is_wp_error( $context ) && $context['available'] && ai4seo_can_view_taxonomy_proxy( $post_id, $context );
 }
 
 

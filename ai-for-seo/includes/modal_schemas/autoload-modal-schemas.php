@@ -79,12 +79,15 @@ if ( $ai4seo_can_administer_plugin && $ai4seo_modal_autoload_is_plugin_admin_pag
 			$ai4seo_modal_schemas[] = 'tos'; // group b -> via account page.
 		}
 
-		if ( 'dashboard' === $ai4seo_active_plugin_page ) {
+		if ( 'dashboard' === $ai4seo_active_plugin_page || ( 'post' === $ai4seo_active_plugin_page && defined( 'AI4SEO_TAXONOMY_PROXY_POST_TYPE' ) && function_exists( 'ai4seo_get_active_post_type_subpage' ) && AI4SEO_TAXONOMY_PROXY_POST_TYPE === ai4seo_get_active_post_type_subpage() ) ) {
 			$ai4seo_modal_schemas[] = 'seo-autopilot';
 		}
 
 		if ( 'settings' === $ai4seo_active_plugin_page ) {
 			$ai4seo_modal_schemas[] = 'export-import-settings';
+		}
+		if ( 'account' === $ai4seo_active_plugin_page ) {
+			$ai4seo_modal_schemas[] = 'license-change';
 		}
 
 		// The Credits overview opens both purchase dialogs, so keep its complete schema pack available.

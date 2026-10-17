@@ -35,13 +35,13 @@ function ai4seo_schedule_cron_jobs() {
 	}
 
 	// add custom cron schedule for automated metadata generation.
-	if ( ! wp_next_scheduled( AI4SEO_BULK_GENERATION_CRON_JOB_NAME ) ) {
-		wp_schedule_event( time(), 'five_minutes', AI4SEO_BULK_GENERATION_CRON_JOB_NAME );
+	if ( ! wp_next_scheduled( AI4SEO_BULK_GENERATION_CRON_JOB_NAME ) || wp_next_scheduled( AI4SEO_BULK_GENERATION_CRON_JOB_NAME ) > time() + 5 * MINUTE_IN_SECONDS + 30 ) {
+		ai4seo_schedule_background_job_checked( AI4SEO_BULK_GENERATION_CRON_JOB_NAME, 1, 'five_minutes' );
 	}
 
 	// add custom cron schedule for analyzing the plugins performance.
-	if ( ! wp_next_scheduled( AI4SEO_ANALYSE_PLUGIN_PERFORMANCE_CRON_JOB_NAME ) ) {
-		wp_schedule_event( time(), 'one_hour', AI4SEO_ANALYSE_PLUGIN_PERFORMANCE_CRON_JOB_NAME );
+	if ( ! wp_next_scheduled( AI4SEO_ANALYSE_PLUGIN_PERFORMANCE_CRON_JOB_NAME ) || wp_next_scheduled( AI4SEO_ANALYSE_PLUGIN_PERFORMANCE_CRON_JOB_NAME ) > time() + HOUR_IN_SECONDS + 30 ) {
+		ai4seo_schedule_background_job_checked( AI4SEO_ANALYSE_PLUGIN_PERFORMANCE_CRON_JOB_NAME, 1, 'one_hour' );
 	}
 
 	if ( ! ai4seo_is_active_metadata_migration_v235_completed() ) {
@@ -64,7 +64,169 @@ function ai4seo_un_schedule_cron_jobs() {
 	wp_clear_scheduled_hook( AI4SEO_BULK_GENERATION_CRON_JOB_NAME );
 	wp_clear_scheduled_hook( AI4SEO_ANALYSE_PLUGIN_PERFORMANCE_CRON_JOB_NAME );
 	wp_clear_scheduled_hook( AI4SEO_GENERATION_STATUS_SUMMARY_REBUILD_CRON_JOB_NAME );
+	ai4seo_unschedule_taxonomy_proxy_sync();
 	ai4seo_unschedule_active_metadata_migration_v235_cron_job();
+}
+
+
+/**
+ * Schedule local inventory independently of account-dependent cron initialization.
+ *
+ * @return void
+ */
+function ai4seo_schedule_taxonomy_proxy_sync(): void {
+	if ( ! AI4SEO_CRON_JOBS_ENABLED || ai4seo_does_user_need_to_accept_tos_toc_and_pp() ) {
+		return;
+	}
+	if ( ! has_filter( 'cron_schedules', 'ai4seo_add_cron_job_intervals' ) ) {
+		// phpcs:ignore WordPress.WP.CronInterval.CronSchedulesInterval -- Local inventory reuses the established five-minute interval.
+		add_filter( 'cron_schedules', 'ai4seo_add_cron_job_intervals' );
+	}
+	if ( ! wp_next_scheduled( AI4SEO_TAXONOMY_PROXY_SYNC_CRON_HOOK )
+		&& ! wp_schedule_event( time() + 10, 'five_minutes', AI4SEO_TAXONOMY_PROXY_SYNC_CRON_HOOK ) ) {
+		ai4seo_debug_message( 852107601, 'Unable to schedule taxonomy inventory.', true );
+	}
+}
+
+
+/**
+ * Remove both local hooks on deactivation, including non-admin CLI deactivation.
+ *
+ * @return void
+ */
+function ai4seo_unschedule_taxonomy_proxy_sync(): void {
+	wp_clear_scheduled_hook( AI4SEO_TAXONOMY_PROXY_SYNC_CRON_HOOK );
+	wp_clear_scheduled_hook( AI4SEO_TAXONOMY_PROXY_CONTINUATION_CRON_HOOK );
+}
+
+
+/**
+ * Process one bounded, replayable section of the site-local taxonomy inventory.
+ *
+ * @return bool Whether this invocation completed a full inventory cycle.
+ */
+function ai4seo_taxonomy_proxy_sync_cron_job(): bool {
+	if ( ! AI4SEO_CRON_JOBS_ENABLED || ai4seo_does_user_need_to_accept_tos_toc_and_pp() ) {
+		return false;
+	}
+	$lock = ai4seo_get_taxonomy_proxy_sync_lock_name();
+	if ( ai4seo_is_database_advisory_lock_owned_by_current_connection( $lock ) || ! ai4seo_acquire_database_advisory_lock( $lock ) ) {
+		return false;
+	}
+	$started = microtime( true );
+	try {
+		$snapshot = ai4seo_get_raw_option_snapshot( AI4SEO_TAXONOMY_PROXY_SYNC_OPTION_NAME );
+		if ( null === $snapshot || ( $snapshot['exists'] && ! ai4seo_is_valid_taxonomy_proxy_sync_progress( $snapshot['value'] ) ) ) {
+			ai4seo_debug_message( 852107602, 'Unreadable or unsupported taxonomy inventory checkpoint.', true );
+			return false;
+		}
+		$progress = $snapshot['exists'] ? $snapshot['value'] : array( 'phase' => 'completed' );
+		if ( 'completed' === $progress['phase'] ) {
+			$upper = ai4seo_get_taxonomy_proxy_sync_upper_bound( 'source' );
+			if ( is_wp_error( $upper ) ) {
+				ai4seo_debug_message( 852107603, $upper->get_error_code(), true );
+				return false;
+			}
+			$progress = array(
+				'version'        => 1,
+				'phase'          => 'source',
+				'cursor'         => 0,
+				'source_upper'   => $upper,
+				'proxy_upper'    => 0,
+				'last_run'       => 0,
+				'last_status'    => 'pending',
+				'last_error'     => '',
+				'pending_delete' => null,
+			);
+		}
+		$processed = 0;
+		$error     = null;
+		if ( ! empty( $progress['pending_delete'] ) ) {
+			$result = ai4seo_delete_taxonomy_proxy( $progress['pending_delete']['post_id'], $progress, $snapshot );
+			++$processed;
+			if ( is_wp_error( $result ) ) {
+				$error = $result;
+			}
+		}
+		while ( null === $error && $processed < AI4SEO_TAXONOMY_PROXY_SYNC_BATCH_SIZE && microtime( true ) - $started < AI4SEO_TAXONOMY_PROXY_SYNC_TIME_LIMIT ) {
+			if ( ! ai4seo_is_database_advisory_lock_owned_by_current_connection( $lock ) ) {
+				return false;
+			}
+			$rows = ai4seo_read_taxonomy_proxy_sync_batch( $progress, min( 25, AI4SEO_TAXONOMY_PROXY_SYNC_BATCH_SIZE - $processed ) );
+			if ( is_wp_error( $rows ) ) {
+				$error = $rows;
+				break;
+			}
+			if ( ! $rows ) {
+				if ( 'proxies' === $progress['phase'] ) {
+					$progress['phase'] = 'completed';
+					break;
+				}
+				$upper = ai4seo_get_taxonomy_proxy_sync_upper_bound( 'proxies' );
+				if ( is_wp_error( $upper ) ) {
+					$error = $upper;
+					break;
+				}
+				$progress['phase']       = 'proxies';
+				$progress['cursor']      = 0;
+				$progress['proxy_upper'] = $upper;
+				continue;
+			}
+			foreach ( $rows as $row ) {
+				if ( microtime( true ) - $started >= AI4SEO_TAXONOMY_PROXY_SYNC_TIME_LIMIT ) {
+					break 2;
+				}
+				if ( ! ai4seo_is_database_advisory_lock_owned_by_current_connection( $lock ) ) {
+					return false;
+				}
+				++$processed;
+				if ( 'source' === $progress['phase'] ) {
+					$result = ai4seo_get_taxonomy_proxy_source_state( (int) $row['id'] );
+					if ( ! is_wp_error( $result ) && 'available' === $result['state'] ) {
+						$result = ai4seo_upsert_taxonomy_proxy( $result );
+					}
+				} else {
+					$result = ai4seo_reconcile_taxonomy_proxy( (int) $row['id'], $progress, $snapshot );
+				}
+				if ( is_wp_error( $result ) ) {
+					$error = $result;
+					break 2;
+				}
+				// Only confirmed records advance; a killed process can safely replay this section.
+				$progress['cursor'] = (int) $row['id'];
+			}
+		}
+		if ( ! ai4seo_is_database_advisory_lock_owned_by_current_connection( $lock ) ) {
+			return false;
+		}
+		$completed               = null === $error && 'completed' === $progress['phase'];
+		$progress['last_run']    = time();
+		$progress['last_status'] = $error ? 'error' : ( $completed ? 'completed' : 'paused' );
+		$progress['last_error']  = $error ? $error->get_error_code() : '';
+		if ( $error ) {
+			ai4seo_debug_message( 852107604, $error->get_error_code(), true );
+		}
+		if ( is_wp_error( ai4seo_save_taxonomy_proxy_sync_progress( $progress, $snapshot ) ) ) {
+			ai4seo_debug_message( 852107605, 'Taxonomy inventory checkpoint was not saved; the section will be replayed.', true );
+			return false;
+		}
+		if ( ! ai4seo_is_database_advisory_lock_owned_by_current_connection( $lock ) ) {
+			return false;
+		}
+		if ( $completed ) {
+			wp_clear_scheduled_hook( AI4SEO_TAXONOMY_PROXY_CONTINUATION_CRON_HOOK );
+		} elseif ( ! wp_next_scheduled( AI4SEO_TAXONOMY_PROXY_CONTINUATION_CRON_HOOK )
+			&& ! wp_schedule_single_event( time() + MINUTE_IN_SECONDS, AI4SEO_TAXONOMY_PROXY_CONTINUATION_CRON_HOOK ) ) {
+			ai4seo_debug_message( 852107606, 'Unable to schedule taxonomy inventory continuation; the recurring event remains available.', true );
+		}
+		return $completed;
+	} catch ( Throwable $throwable ) {
+		// No cursor is committed on an unexpected callback failure; retain partial posts for repair.
+		ai4seo_debug_message( 852107607, 'Taxonomy inventory interrupted: ' . get_class( $throwable ), true );
+		return false;
+	} finally {
+		ai4seo_release_database_advisory_lock( $lock );
+	}
 }
 
 
@@ -74,34 +236,14 @@ function ai4seo_un_schedule_cron_jobs() {
  * @return bool
  */
 function ai4seo_is_active_metadata_migration_v235_completed(): bool {
-	$active_metadata_migration_v235_state = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STATE );
-
-	if ( 'completed' !== $active_metadata_migration_v235_state ) {
+	// Stored completion and timestamps are hints; retained source rows remain authoritative.
+	try {
+		$has_rows = ai4seo_has_legacy_active_metadata_rows( $read );
+		return $read && ! $has_rows;
+	} catch ( Throwable $throwable ) {
 		return false;
 	}
-
-	$active_metadata_migration_v235_started_time = (int) ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STARTED_TIME );
-
-	if ( $active_metadata_migration_v235_started_time > 0 ) {
-		return true;
-	}
-
-	$legacy_read_succeeded = false;
-	$has_legacy_rows       = ai4seo_has_legacy_active_metadata_rows( $legacy_read_succeeded );
-
-	if ( ! $legacy_read_succeeded ) {
-		return false;
-	}
-
-	if ( $has_legacy_rows ) {
-		ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STATE, 'idle', false );
-		return false;
-	}
-
-	ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STARTED_TIME, time(), false );
-	return true;
 }
-
 
 /**
  * Starts the v235 active metadata migration and schedules its cron job.
@@ -109,26 +251,9 @@ function ai4seo_is_active_metadata_migration_v235_completed(): bool {
  * @return void
  */
 function ai4seo_start_active_metadata_migration_v235(): void {
-	$legacy_read_succeeded = false;
-	$has_legacy_rows       = ai4seo_has_legacy_active_metadata_rows( $legacy_read_succeeded );
-
-	if ( $legacy_read_succeeded && ! $has_legacy_rows ) {
-		ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STATE, 'completed' );
-		ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STARTED_TIME, time() );
-		ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_LAST_RUN_TIME, time() );
-		ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_PROCESSED_ENTRIES, 0 );
-		ai4seo_unschedule_active_metadata_migration_v235_cron_job();
-		return;
-	}
-
-	ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STATE, 'idle' );
-	ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STARTED_TIME, time() );
-	ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_LAST_RUN_TIME, 0 );
-	ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_PROCESSED_ENTRIES, 0 );
-
+	// Scheduling does not reset retained progress or claim ownership through a timestamp.
 	ai4seo_schedule_active_metadata_migration_v235_cron_job();
 }
-
 
 /**
  * Schedules the temporary v235 active metadata migration cron job.
@@ -164,42 +289,383 @@ function ai4seo_unschedule_active_metadata_migration_v235_cron_job(): void {
 /**
  * Cron handler for migrating legacy active metadata rows into the v235 JSON postmeta entry.
  *
+ * @param bool $force Whether to retry a deferred local migration immediately.
  * @return bool
  */
-function ai4seo_active_metadata_migration_v235_cron_job(): bool {
-	if ( ! AI4SEO_CRON_JOBS_ENABLED && wp_doing_cron() ) {
-		return true;
+function ai4seo_active_metadata_migration_v235_cron_job( bool $force = false ): bool {
+	if ( ( ! AI4SEO_CRON_JOBS_ENABLED && wp_doing_cron() ) || ai4seo_does_user_need_to_accept_tos_toc_and_pp() ) {
+		return false;
 	}
-
-	if ( ai4seo_is_active_metadata_migration_v235_completed() ) {
-		ai4seo_unschedule_active_metadata_migration_v235_cron_job();
-		return true;
+	$lock = ai4seo_get_plugin_update_lock_name();
+	if ( ai4seo_is_database_advisory_lock_owned_by_current_connection( $lock ) || ! ai4seo_acquire_database_advisory_lock( $lock ) ) {
+		return false;
 	}
-
-	$active_metadata_migration_v235_state        = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STATE, false );
-	$active_metadata_migration_v235_started_time = (int) ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STARTED_TIME, false );
-
-	if ( 'processing' === $active_metadata_migration_v235_state && $active_metadata_migration_v235_started_time > time() - ( 15 * MINUTE_IN_SECONDS ) ) {
-		return true;
+	try {
+		$has_rows = ai4seo_has_legacy_active_metadata_rows( $read );
+		if ( ! $read ) {
+			return false;
+		}
+		$progress = ai4seo_read_plugin_update_progress( $snapshot );
+		// A downgrade must not reset newer checkpoints or publish older compatibility markers.
+		if ( null === $progress || version_compare( $progress['target'], AI4SEO_PLUGIN_VERSION_NUMBER, '>' ) ) {
+			return false;
+		}
+		if ( $has_rows && 'completed' === ( $progress['steps']['active_metadata']['status'] ?? '' ) ) {
+			$progress['steps']['active_metadata'] = ai4seo_plugin_update_step_result( 'pending' );
+			if ( true !== ai4seo_compare_and_swap_option_snapshot( AI4SEO_PLUGIN_UPDATE_PROGRESS_OPTION_NAME, $snapshot, $progress, false ) ) {
+				return false;
+			}
+			$force = true;
+		}
+		$complete = ai4seo_run_plugin_update_step(
+			'active_metadata',
+			static function ( array $previous ) use ( $has_rows ): array {
+				if ( ! $has_rows ) {
+					return ai4seo_plugin_update_step_result( 'completed' );
+				}
+				if ( ai4seo_get_setting( AI4SEO_SETTING_DISABLE_HEAVY_DB_OPERATIONS ) ) {
+					return ai4seo_plugin_update_step_result( 'blocked', 'heavy_operations_disabled', $previous['cursor'], $previous['issues'], $previous['examples'] );
+				}
+				$result = array();
+				ai4seo_run_active_metadata_migration_v235_batch( $result, $previous );
+				return $result;
+			},
+			$force || ! $has_rows
+		);
+		if ( ! ai4seo_is_database_advisory_lock_owned_by_current_connection( $lock ) ) {
+			return false;
+		}
+		// Publish legacy compatibility markers together, preserving unrelated and unreadable state.
+		$markers_saved = ai4seo_publish_plugin_update_markers(
+			array(
+				AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STATE => $complete ? 'completed' : 'idle',
+				AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_LAST_RUN_TIME => time(),
+				AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STARTED_TIME => time(),
+			)
+		);
+		if ( $complete && $markers_saved ) {
+			ai4seo_unschedule_active_metadata_migration_v235_cron_job();
+		}
+		return $complete && $markers_saved;
+	} finally {
+		ai4seo_release_database_advisory_lock( $lock );
 	}
-
-	ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STATE, 'processing', false );
-	ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_LAST_RUN_TIME, time(), false );
-	ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STARTED_TIME, time(), false );
-
-	$is_finished = ai4seo_run_active_metadata_migration_v235_batch();
-
-	if ( $is_finished ) {
-		ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STATE, 'completed', false );
-		ai4seo_unschedule_active_metadata_migration_v235_cron_job();
-	} else {
-		ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STATE, 'idle', false );
-		ai4seo_schedule_active_metadata_migration_v235_cron_job();
-	}
-
-	return true;
 }
 
+/**
+ * Classify a historical timestamp without turning unknown data into a recent run.
+ *
+ * @param mixed    $value Stored timestamp; legacy integer strings are accepted in memory.
+ * @param int      $window Maximum age considered recent.
+ * @param int|null $now Reference clock for deterministic inspection.
+ * @return string Missing, invalid, future, recent or stale.
+ */
+function ai4seo_classify_background_timestamp( $value, int $window, ?int $now = null ): string {
+	$now = null === $now ? time() : $now;
+	if ( null === $value || 0 === $value || '0' === $value ) {
+		return 'missing';
+	}
+	if ( ( ! is_int( $value ) && ! is_string( $value ) ) || false === filter_var( $value, FILTER_VALIDATE_INT ) || (int) $value < 0 ) {
+		return 'invalid';
+	}
+	if ( (int) $value > $now ) {
+		return 'future';
+	}
+	return $now - (int) $value < max( 1, $window ) ? 'recent' : 'stale';
+}
+
+/**
+ * Read one job from raw storage, preserving healthy siblings in damaged maps.
+ *
+ * @param string $job Cron hook.
+ * @return array Readability, raw status and independently classified timestamps.
+ */
+function ai4seo_inspect_background_job_state( string $job ): array {
+	$result   = array(
+		'readable'     => false,
+		'status'       => 'unknown',
+		'updated_at'   => null,
+		'last_call'    => null,
+		'time_quality' => 'invalid',
+		'issues'       => array(),
+	);
+	$snapshot = ai4seo_get_raw_option_snapshot( AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME );
+	if ( null === $snapshot || ( $snapshot['exists'] && ! is_array( $snapshot['value'] ) ) ) {
+		$result['issues'][] = 'storage';
+		return $result;
+	}
+	$values             = $snapshot['exists'] ? $snapshot['value'] : array();
+	$result['readable'] = true;
+	foreach ( array(
+		'status'     => AI4SEO_ENVIRONMENTAL_VARIABLE_CRON_JOB_STATUS_LIST,
+		'updated_at' => AI4SEO_ENVIRONMENTAL_VARIABLE_CRON_JOB_STATUS_LAST_UPDATE_TIMES,
+		'last_call'  => AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_SPECIFIC_CRON_JOB_CALLS,
+	) as $field => $name ) {
+		$map = $values[ $name ] ?? array();
+		if ( ! is_array( $map ) || ( array_key_exists( $name, $values ) && null === $values[ $name ] ) ) {
+			$result['readable'] = false;
+			$result['issues'][] = $field;
+			continue;
+		}
+		// Older last-call writers stripped punctuation; status writers did not.
+		$key = 'last_call' === $field ? preg_replace( '/[^a-zA-Z0-9_]/', '', sanitize_key( $job ) ) : $job;
+		if ( ! array_key_exists( $key, $map ) ) {
+			continue;
+		}
+		$value = $map[ $key ];
+		if ( 'status' === $field ) {
+			if ( is_string( $value ) && preg_match( '/^[a-z0-9-]+$/', $value ) ) {
+				$result['status'] = $value;
+			} else {
+				$result['issues'][] = $field;
+			}
+		} else {
+			$quality = ai4seo_classify_background_timestamp( $value, max( 60, (int) ai4seo_get_setting( AI4SEO_SETTING_BULK_GENERATION_DURATION ) + 10 ) );
+			if ( 'updated_at' === $field ) {
+				$result['time_quality'] = $quality;
+			}
+			if ( in_array( $quality, array( 'recent', 'stale' ), true ) ) {
+				$result[ $field ] = (int) $value;
+			} elseif ( 'missing' !== $quality || null === $value ) {
+				$result['issues'][] = $field;
+			}
+		}
+	}
+	if ( null === $result['updated_at'] && ! in_array( 'updated_at', $result['issues'], true ) ) {
+		$result['time_quality'] = 'missing';
+	}
+	return $result;
+}
+
+/**
+ * Publish only this job's related fields in one existing environmental CAS.
+ *
+ * @param string      $job Cron hook.
+ * @param string|null $status New status, or null for a last-call update only.
+ * @param int|null    $last_call Optional actual invocation timestamp.
+ * @return bool Whether every requested field was stored together.
+ */
+function ai4seo_publish_background_job_state( string $job, ?string $status, ?int $last_call = null ): bool {
+	if ( '' === $job || ( null !== $status && ! preg_match( '/^[a-z0-9-]+$/', $status ) ) || ( null !== $last_call && $last_call < 0 ) ) {
+		return false;
+	}
+	$now    = time();
+	$result = null;
+	return ai4seo_mutate_environmental_variable_overrides(
+		static function ( array $values ) use ( $job, $status, $last_call, $now ): array {
+			$replacement = $values;
+			$updates     = array();
+			if ( null === $status && null === $last_call ) {
+				$map    = $values[ AI4SEO_ENVIRONMENTAL_VARIABLE_CRON_JOB_STATUS_LIST ] ?? null;
+				$status = is_array( $map ) ? ( $map[ $job ] ?? null ) : null;
+				if ( ! is_string( $status ) || ! preg_match( '/^[a-z0-9-]+$/', $status ) ) {
+					return array();
+				}
+			}
+			if ( null !== $status ) {
+				$updates[ AI4SEO_ENVIRONMENTAL_VARIABLE_CRON_JOB_STATUS_LIST ]              = array( $job, $status );
+				$updates[ AI4SEO_ENVIRONMENTAL_VARIABLE_CRON_JOB_STATUS_LAST_UPDATE_TIMES ] = array( $job, $now );
+			}
+			if ( null !== $last_call ) {
+				$key = preg_replace( '/[^a-zA-Z0-9_]/', '', sanitize_key( $job ) );
+				$updates[ AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_SPECIFIC_CRON_JOB_CALLS ] = array( $key, $last_call );
+				$replacement[ AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_CRON_JOB_CALL ]       = $last_call;
+			}
+			foreach ( $updates as $name => $update ) {
+				if ( array_key_exists( $name, $values ) && ! is_array( $values[ $name ] ) ) {
+					return array();
+				}
+				$replacement[ $name ][ $update[0] ] = $update[1];
+			}
+			return array(
+				'overrides' => $replacement,
+				'changed'   => $replacement !== $values,
+				'result'    => true,
+			);
+		},
+		false,
+		$result,
+		true
+	);
+}
+
+/**
+ * Name a site-local execution/scheduling lock using the existing database lock scope.
+ *
+ * @param string $job Cron hook.
+ * @return string Bounded advisory-lock name.
+ */
+function ai4seo_get_background_job_lock_name( string $job ): string {
+	$scope = ai4seo_get_posts_table_analysis_database_lock_name();
+	return '' === $scope ? '' : 'ai4seo-job-' . md5( $scope . '|' . $job );
+}
+
+/**
+ * Acquire a coordinator without displacing per-post locks on legacy MySQL.
+ *
+ * @param string    $lock Site-local job lock.
+ * @param bool|null $read_succeeded Distinguishes an unavailable capability read from contention.
+ * @return bool Whether this request acquired the coordinator.
+ */
+function ai4seo_acquire_background_job_lock( string $lock, ?bool &$read_succeeded = null ): bool {
+	$multiple = ai4seo_database_supports_multiple_advisory_locks( null, $read_succeeded );
+	if ( ! $read_succeeded || ! ai4seo_is_valid_database_advisory_lock_name( $lock ) ) {
+		return false;
+	}
+	// A paid request can outlive an ordinary 30-second semaphore. All job callers use this same
+	// bounded lease; exact-token renewal and per-post ownership remain required before more work.
+	return $multiple ? ai4seo_acquire_database_advisory_lock( $lock ) : ai4seo_acquire_semaphore( $lock, 15 * MINUTE_IN_SECONDS );
+}
+
+/**
+ * Verify the current coordinator, renewing only a live exact-token legacy lease.
+ *
+ * @param string $lock Site-local job lock.
+ * @return bool Whether the caller may continue.
+ */
+function ai4seo_renew_background_job_lock( string $lock ): bool {
+	$key = ai4seo_get_semaphore_option_key( $lock );
+	if ( null !== ai4seo_get_held_semaphore_record( $key ) ) {
+		$snapshot = ai4seo_get_semaphore_option_snapshot( $key );
+		return null !== $snapshot && $snapshot['exists']
+			&& ! ai4seo_is_lock_stale( $snapshot['value'], 15 * MINUTE_IN_SECONDS )
+			&& ai4seo_renew_semaphore( $lock );
+	}
+	return ai4seo_is_database_advisory_lock_owned_by_current_connection( $lock );
+}
+
+/**
+ * Release only the current request's job ownership.
+ *
+ * @param string $lock Site-local job lock.
+ * @return bool Whether release was verified.
+ */
+function ai4seo_release_background_job_lock( string $lock ): bool {
+	return null !== ai4seo_get_held_semaphore_record( ai4seo_get_semaphore_option_key( $lock ) )
+		? ai4seo_release_semaphore( $lock ) : ai4seo_release_database_advisory_lock( $lock );
+}
+
+/**
+ * Schedule verified work without first deleting a valid fallback event.
+ *
+ * @param string $job Cron hook.
+ * @param int    $delay Delay in seconds.
+ * @param string $recurrence Optional recurring schedule for regular initialization.
+ * @return array Status and verified next timestamp; no optimistic persistence.
+ */
+function ai4seo_schedule_background_job_checked( string $job, int $delay = 1, string $recurrence = '' ): array {
+	$result = array(
+		'status'    => 'failed',
+		'timestamp' => null,
+	);
+	if ( ! AI4SEO_CRON_JOBS_ENABLED || ( AI4SEO_ANALYSE_PLUGIN_PERFORMANCE_CRON_JOB_NAME === $job && ai4seo_get_setting( AI4SEO_SETTING_DISABLE_HEAVY_DB_OPERATIONS ) ) ) {
+		$result['status'] = 'disabled';
+		return $result;
+	}
+	$lock            = ai4seo_get_background_job_lock_name( $job );
+	$owned           = ai4seo_renew_background_job_lock( $lock );
+	$capability_read = false;
+	if ( ! $owned && ! ai4seo_acquire_background_job_lock( $lock, $capability_read ) ) {
+		$result['status'] = $capability_read ? 'deferred' : 'failed';
+		return $result;
+	}
+	try {
+		$state = ai4seo_inspect_background_job_state( $job );
+		if ( ! $state['readable'] ) {
+			$result['status'] = 'blocked';
+		} else {
+			$now      = time();
+			$target   = $now + max( 1, $delay );
+			$event    = wp_get_scheduled_event( $job );
+			$interval = wp_get_schedules()[ $recurrence ]['interval'] ?? 0;
+			// Regular initialization preserves an existing schedule; only explicit acceleration moves it.
+			if ( $event && ( ( '' !== $recurrence && $event->timestamp <= $now + $interval + 30 ) || $event->timestamp <= $target + 1 ) ) {
+				$result = array(
+					'status'    => 'already-scheduled',
+					'timestamp' => $event->timestamp,
+				);
+			} else {
+				$schedule  = $event && $event->schedule ? $event->schedule : $recurrence;
+				$scheduled = $schedule ? wp_schedule_event( $target, $schedule, $job, array(), true ) : wp_schedule_single_event( $target, $job, array(), true );
+				$verified  = wp_get_scheduled_event( $job, array(), $target );
+				if ( true === $scheduled && $verified && ai4seo_renew_background_job_lock( $lock ) ) {
+					$result = array(
+						'status'    => 'scheduled',
+						'timestamp' => $target,
+					);
+					if ( $event && true !== wp_unschedule_event( $event->timestamp, $job, $event->args, true ) ) {
+						$result['status'] = 'scheduled-with-fallback';
+					}
+					// Execution status remains the last actual run; scheduled work is read from WordPress.
+				}
+			}
+		}
+	} finally {
+		if ( ! $owned && ! ai4seo_release_background_job_lock( $lock ) ) {
+			$result['status'] = 'failed';
+		}
+	}
+	if ( 'failed' === $result['status'] ) {
+		ai4seo_debug_message( 853126001, 'Background scheduling could not be verified for ' . sanitize_key( $job ), true );
+	}
+	return $result;
+}
+
+/**
+ * Describe the same background state in Dashboard and Help.
+ *
+ * @param string $job Cron hook.
+ * @return array State plus a translated label and explanation.
+ */
+function ai4seo_get_background_job_readiness( string $job ): array {
+	$state                    = ai4seo_inspect_background_job_state( $job );
+	$state['next_run']        = wp_next_scheduled( $job );
+	$state['active']          = in_array( $state['status'], array( 'initiating', 'processing' ), true ) && 'recent' === $state['time_quality'];
+	$state['needs_attention'] = false;
+	$state['label']           = __( 'Waiting for the next run', 'ai-for-seo' );
+	$state['message']         = __( 'The next run is scheduled. This page will refresh automatically.', 'ai-for-seo' );
+	if ( ! AI4SEO_CRON_JOBS_ENABLED || ( AI4SEO_ANALYSE_PLUGIN_PERFORMANCE_CRON_JOB_NAME === $job && ai4seo_get_setting( AI4SEO_SETTING_DISABLE_HEAVY_DB_OPERATIONS ) ) ) {
+		$state['active']  = false;
+		$state['label']   = __( 'Background execution is disabled', 'ai-for-seo' );
+		$state['message'] = __( 'The configured pause is respected. Existing jobs are retained.', 'ai-for-seo' );
+	} elseif ( ! $state['readable'] || $state['issues'] || ( in_array( $state['status'], array( 'initiating', 'processing' ), true ) && ! $state['active'] ) ) {
+		$state['needs_attention'] = true;
+		$state['label']           = __( 'Background status needs attention', 'ai-for-seo' );
+		$state['message']         = __( 'The saved run status is unavailable or outdated. Existing jobs are retained; a new run will check their ownership before continuing.', 'ai-for-seo' );
+	} elseif ( $state['active'] ) {
+		$state['label']   = __( 'Processing...', 'ai-for-seo' );
+		$state['message'] = __( 'A recent execution has reported progress. This page will refresh automatically.', 'ai-for-seo' );
+	} elseif ( in_array( $state['status'], array( 'finished-with-error', 'data-blocked', 'low-credits-balance' ), true ) ) {
+		$state['needs_attention'] = true;
+		$state['label']           = __( 'Last run needs attention', 'ai-for-seo' );
+		$state['message']         = __( 'The last run reported an error or a processing restriction. Review the account, queue diagnostics and Latest Activity before retrying.', 'ai-for-seo' );
+	} elseif ( ! $state['next_run'] ) {
+		$state['needs_attention'] = true;
+		$state['label']           = __( 'No run scheduled', 'ai-for-seo' );
+		$state['message']         = __( 'No scheduled execution could be found. Use Run sooner to request one, or check the cron configuration.', 'ai-for-seo' );
+	} elseif ( $state['next_run'] < time() - 5 * MINUTE_IN_SECONDS ) {
+		$state['needs_attention'] = true;
+		$state['label']           = __( 'Scheduled execution is overdue', 'ai-for-seo' );
+		$state['message']         = __( 'WordPress has not started the scheduled execution. Please check the cron configuration.', 'ai-for-seo' );
+	} elseif ( 'finished' === $state['status'] ) {
+		$state['label'] = __( 'Last run completed', 'ai-for-seo' );
+	} elseif ( 'bulk-generation-disabled' === $state['status'] ) {
+		$state['label']   = __( 'Last run was paused', 'ai-for-seo' );
+		$state['message'] = __( 'The last run found no enabled content types. The current configuration will be checked before the next execution.', 'ai-for-seo' );
+	}
+	return $state;
+}
+
+/**
+ * Render the shared background status with escaped presentation values.
+ *
+ * @param array $state Inspected presentation state.
+ * @return string Status text and explanation.
+ */
+function ai4seo_get_background_job_status_html( array $state ): string {
+	return '<div class="ai4seo-bulk-generation-status-text">' . esc_html( $state['label'] ) . '</div>'
+		. '<div class="ai4seo-bulk-generation-status-subtext">' . esc_html( $state['message'] ) . '</div>';
+}
 
 /**
  * Function to inject an additional cronjob call of a specific cronjob name, but only if there isn't already one scheduled within the next minute
@@ -214,38 +680,7 @@ function ai4seo_inject_additional_cronjob_call( string $cronjob_name, int $delay
 		return;
 	}
 
-	// is the cron job enabled?
-	if ( ! AI4SEO_CRON_JOBS_ENABLED && wp_doing_cron() ) {
-		return;
-	}
-
-	// Current time.
-	$now = time();
-
-	// Define a constant for the minimum interval in seconds.
-	$bulk_generation_duration        = (int) ai4seo_get_setting( AI4SEO_SETTING_BULK_GENERATION_DURATION );
-	$min_delay_for_looping_cron_jobs = $bulk_generation_duration + 10;
-	$cron_job_status                 = ai4seo_get_cron_job_status( $cronjob_name );
-
-	// do not allow an injection if the cron job status is still processing or initiating.
-	if ( in_array( $cron_job_status, array( 'processing', 'initiating' ), true ) ) {
-		return;
-	}
-
-	// Get the next scheduled time for the event.
-	$next_scheduled = wp_next_scheduled( $cronjob_name );
-
-	// Schedule the event for ASAP only if there isn't already one scheduled within the $delay + 1 seconds.
-	if ( ! $next_scheduled || $next_scheduled > ( $now + $delay + 1 ) ) {
-		// Clear the scheduled hook.
-		wp_unschedule_event( $next_scheduled, $cronjob_name );
-
-		// Schedule it to run ASAP (in $delay seconds).
-		wp_schedule_single_event( $now + $delay, $cronjob_name );
-
-		// set the status to scheduled.
-		ai4seo_set_cron_job_status( $cronjob_name, 'scheduled' );
-	}
+	ai4seo_schedule_background_job_checked( $cronjob_name, $delay );
 }
 
 
@@ -291,25 +726,7 @@ function ai4seo_set_last_cron_job_call_time( string $cron_job_name, int $time = 
 		return false;
 	}
 
-	if ( ! is_numeric( $time ) ) {
-		return false;
-	}
-
-	$cron_job_name = sanitize_key( $cron_job_name );
-	$cron_job_name = preg_replace( '/[^a-zA-Z0-9_]/', '', $cron_job_name );
-
-	ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_CRON_JOB_CALL, $time );
-
-	// Merge this cron-specific timestamp inside the shared environmental option CAS.
-	ai4seo_mutate_environmental_variable_value(
-		AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_SPECIFIC_CRON_JOB_CALLS,
-		static function ( array $cron_job_call_times ) use ( $cron_job_name, $time ): array {
-			$cron_job_call_times[ $cron_job_name ] = $time;
-			return $cron_job_call_times;
-		}
-	);
-
-	return true;
+	return ai4seo_publish_background_job_state( $cron_job_name, null, $time );
 }
 
 
@@ -326,11 +743,7 @@ function ai4seo_get_last_cron_job_call_time( string $cron_job_name = '' ): int {
 	}
 
 	if ( $cron_job_name ) {
-		$cron_job_name = sanitize_key( $cron_job_name );
-		$cron_job_name = preg_replace( '/[^a-zA-Z0-9_]/', '', $cron_job_name );
-
-		$last_specific_cronjob_calls = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_SPECIFIC_CRON_JOB_CALLS );
-		return (int) ( $last_specific_cronjob_calls[ $cron_job_name ] ?? 0 );
+		return ai4seo_inspect_background_job_state( $cron_job_name )['last_call'] ?? 0;
 	} else {
 		return (int) ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_LAST_CRON_JOB_CALL );
 	}
@@ -349,9 +762,7 @@ function ai4seo_get_cron_job_status( string $cron_job_name ): string {
 		return '';
 	}
 
-	$all_cronjob_job_status = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_CRON_JOB_STATUS_LIST );
-
-	return $all_cronjob_job_status[ $cron_job_name ] ?? 'unknown';
+	return ai4seo_inspect_background_job_state( $cron_job_name )['status'];
 }
 
 
@@ -374,17 +785,7 @@ function ai4seo_set_cron_job_status( string $cron_job_name, string $status ): bo
 
 	$status = sanitize_key( $status );
 
-	// first refresh the last status update time.
-	ai4seo_refresh_cron_job_status_update_time( $cron_job_name );
-
-	// Merge only this job's status so a concurrent cron callback cannot lose another job entry.
-	return ai4seo_mutate_environmental_variable_value(
-		AI4SEO_ENVIRONMENTAL_VARIABLE_CRON_JOB_STATUS_LIST,
-		static function ( array $cron_job_statuses ) use ( $cron_job_name, $status ): array {
-			$cron_job_statuses[ $cron_job_name ] = $status;
-			return $cron_job_statuses;
-		}
-	);
+	return ai4seo_publish_background_job_state( $cron_job_name, $status );
 }
 
 
@@ -400,16 +801,7 @@ function ai4seo_refresh_cron_job_status_update_time( string $cron_job_name ): bo
 		return false;
 	}
 
-	// Resolve the timestamp once, then merge it inside every retry of the outer environmental CAS.
-	$status_update_time = time();
-
-	return ai4seo_mutate_environmental_variable_value(
-		AI4SEO_ENVIRONMENTAL_VARIABLE_CRON_JOB_STATUS_LAST_UPDATE_TIMES,
-		static function ( array $cron_job_status_update_times ) use ( $cron_job_name, $status_update_time ): array {
-			$cron_job_status_update_times[ $cron_job_name ] = $status_update_time;
-			return $cron_job_status_update_times;
-		}
-	);
+	return ai4seo_publish_background_job_state( $cron_job_name, null );
 }
 
 
@@ -425,9 +817,7 @@ function ai4seo_get_cron_job_status_update_time( string $cron_job_name ): int {
 		return 0;
 	}
 
-	$all_cronjob_job_status_time = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_CRON_JOB_STATUS_LAST_UPDATE_TIMES );
-
-	return $all_cronjob_job_status_time[ $cron_job_name ] ?? 0;
+	return ai4seo_inspect_background_job_state( $cron_job_name )['updated_at'] ?? 0;
 }
 
 
@@ -584,10 +974,17 @@ function ai4seo_schedule_disabled_bulk_generation_queue_reconciliation_recovery(
  * image post subtypes and NextGEN-backed media share that one generation context.
  *
  * @param array|null $enabled_post_types Receives the verified persisted enabled post types.
+ * @param array|null $contexts Optional queue contexts; null preserves reconciliation of both queues.
  * @return bool True only after settings, queue transitions, and fence release were verified.
  */
-function ai4seo_reconcile_disabled_bulk_generation_queue_entries( ?array &$enabled_post_types = null ): bool {
+function ai4seo_reconcile_disabled_bulk_generation_queue_entries( ?array &$enabled_post_types = null, ?array $contexts = null ): bool {
 	global $wpdb;
+	$contexts = null === $contexts ? ai4seo_get_bulk_generation_queue_contexts() : $contexts;
+	if ( ! $contexts || array_diff( $contexts, ai4seo_get_bulk_generation_queue_contexts() ) ) {
+		return false;
+	}
+	$inspect_metadata = in_array( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA, $contexts, true );
+	$inspect_media    = in_array( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES, $contexts, true );
 
 	$enabled_post_types               = array();
 	$critical_section_name            = ai4seo_get_post_id_option_transition_semaphore_name();
@@ -633,14 +1030,13 @@ function ai4seo_reconcile_disabled_bulk_generation_queue_entries( ?array &$enabl
 		$attachment_queue_options = ai4seo_get_bulk_generation_queue_options_by_context(
 			AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES
 		);
-		$required_queue_options   = array(
-			$metadata_queue_options['pending'] ?? '',
-			$metadata_queue_options['force_overwrite'] ?? '',
-			$metadata_queue_options['processing'] ?? '',
-			$attachment_queue_options['pending'] ?? '',
-			$attachment_queue_options['force_overwrite'] ?? '',
-			$attachment_queue_options['processing'] ?? '',
-		);
+		$required_queue_options   = array();
+		foreach ( $contexts as $queue_context ) {
+			$context_options = ai4seo_get_bulk_generation_queue_options_by_context( $queue_context );
+			foreach ( array( 'pending', 'force_overwrite', 'processing' ) as $key ) {
+				$required_queue_options[] = $context_options[ $key ] ?? '';
+			}
+		}
 
 		if ( $operation_succeeded && in_array( '', $required_queue_options, true ) ) {
 			$operation_succeeded = false;
@@ -656,8 +1052,9 @@ function ai4seo_reconcile_disabled_bulk_generation_queue_entries( ?array &$enabl
 				}
 
 				$option_snapshot = ai4seo_get_raw_option_snapshot( $option_name );
+				$inspection      = null !== $option_snapshot ? ai4seo_inspect_analysis_post_id_option( $option_name, $option_snapshot ) : null;
 
-				if ( null === $option_snapshot ) {
+				if ( null === $option_snapshot || ! $inspection['read_succeeded'] || ! $inspection['complete'] ) {
 					$operation_succeeded = false;
 					break;
 				}
@@ -673,7 +1070,7 @@ function ai4seo_reconcile_disabled_bulk_generation_queue_entries( ?array &$enabl
 		$attachment_pending_option    = $attachment_queue_options['pending'] ?? '';
 		$attachment_force_option      = $attachment_queue_options['force_overwrite'] ?? '';
 		$attachment_processing_option = $attachment_queue_options['processing'] ?? '';
-		$metadata_post_ids            = $operation_succeeded
+		$metadata_post_ids            = $operation_succeeded && $inspect_metadata
 			? ai4seo_normalize_option_post_id_collection(
 				array_merge(
 					$queue_post_ids[ $metadata_pending_option ],
@@ -681,7 +1078,7 @@ function ai4seo_reconcile_disabled_bulk_generation_queue_entries( ?array &$enabl
 				)
 			)
 			: array();
-		$attachment_post_ids          = $operation_succeeded
+		$attachment_post_ids          = $operation_succeeded && $inspect_media
 			? ai4seo_normalize_option_post_id_collection(
 				array_merge(
 					$queue_post_ids[ $attachment_pending_option ],
@@ -694,14 +1091,14 @@ function ai4seo_reconcile_disabled_bulk_generation_queue_entries( ?array &$enabl
 		$metadata_pending_fingerprint = '';
 		$metadata_force_fingerprint   = '';
 
-		if ( $operation_succeeded ) {
+		if ( $operation_succeeded && $inspect_metadata ) {
 			$operation_succeeded = ai4seo_read_disabled_queue_inspection_state_under_lock(
 				$inspection_state_snapshot,
 				$inspection_state
 			);
 		}
 
-		if ( $operation_succeeded ) {
+		if ( $operation_succeeded && $inspect_metadata ) {
 			if ( ! is_array( $settings_snapshot ) ) {
 				$operation_succeeded = false;
 			} else {
@@ -835,6 +1232,18 @@ function ai4seo_reconcile_disabled_bulk_generation_queue_entries( ?array &$enabl
 
 			if ( $operation_succeeded ) {
 				foreach ( $metadata_inspection_post_ids as $post_id ) {
+					if ( AI4SEO_TAXONOMY_PROXY_POST_TYPE === ( $post_types_by_id[ $post_id ] ?? '' ) ) {
+						$archive  = ai4seo_get_taxonomy_proxy_editor_context( $post_id );
+						$settings = ai4seo_decode_settings_snapshot( $settings_snapshot );
+						if ( is_wp_error( $archive ) || ! is_array( $settings ) ) {
+							$operation_succeeded = false;
+							break;
+						}
+						if ( ! $archive['available'] || ! in_array( $archive['source']['taxonomy'], ai4seo_get_enabled_bulk_generation_taxonomies( $settings ), true ) ) {
+							$disabled_metadata_post_ids[] = $post_id;
+						}
+						continue;
+					}
 					if (
 						! isset( $post_types_by_id[ $post_id ] )
 						|| ! isset( $enabled_metadata_post_type_lookup[ $post_types_by_id[ $post_id ] ] )
@@ -996,7 +1405,7 @@ function ai4seo_reconcile_disabled_bulk_generation_queue_entries( ?array &$enabl
 				&& hash_equals( $settings_snapshot['raw_value'], $current_settings_snapshot['raw_value'] );
 		}
 
-		if ( $operation_succeeded ) {
+		if ( $operation_succeeded && $inspect_metadata ) {
 			$current_metadata_pending_snapshot = ai4seo_get_raw_option_snapshot( $metadata_pending_option );
 
 			if ( null === $current_metadata_pending_snapshot || ! ai4seo_renew_post_id_option_transition_semaphore() ) {
@@ -1004,7 +1413,7 @@ function ai4seo_reconcile_disabled_bulk_generation_queue_entries( ?array &$enabl
 			}
 		}
 
-		if ( $operation_succeeded ) {
+		if ( $operation_succeeded && $inspect_metadata ) {
 			$current_metadata_force_snapshot = ai4seo_get_raw_option_snapshot( $metadata_force_option );
 
 			if ( null === $current_metadata_force_snapshot || ! ai4seo_renew_post_id_option_transition_semaphore() ) {
@@ -1012,7 +1421,7 @@ function ai4seo_reconcile_disabled_bulk_generation_queue_entries( ?array &$enabl
 			}
 		}
 
-		if ( $operation_succeeded ) {
+		if ( $operation_succeeded && $inspect_metadata ) {
 			$current_metadata_post_ids = ai4seo_normalize_option_post_id_collection(
 				array_merge(
 					ai4seo_normalize_option_post_id_collection( $current_metadata_pending_snapshot['value'] ),
@@ -1384,18 +1793,24 @@ function ai4seo_guard_queued_bulk_generation_processing_claim_eligibility(
 							&& hash_equals( $settings_snapshot['raw_value'], $current_settings_snapshot['raw_value'] );
 
 						if ( $settings_snapshot_stable && $source_read_succeeded ) {
+							$taxonomy_read_succeeded = true;
 							if ( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA === $context ) {
 								$is_eligible = $source_exists && isset( $enabled_metadata_lookup[ $source_post_type ] );
+								if ( $is_eligible && AI4SEO_TAXONOMY_PROXY_POST_TYPE === $source_post_type ) {
+									$archive                 = ai4seo_get_taxonomy_generation_eligibility( $post_id, 'automatic', ai4seo_decode_settings_snapshot( $current_settings_snapshot ) );
+									$is_eligible             = ! is_wp_error( $archive );
+									$taxonomy_read_succeeded = ! is_wp_error( $archive ) || in_array( $archive->get_error_code(), array( 'taxonomy_generation_disabled', 'taxonomy_generation_unavailable', 'taxonomy_content_short', 'taxonomy_language_excluded' ), true );
+								}
 							} else {
 								$is_eligible = $relevant_context_enabled
 									&& $source_exists
 									&& in_array( $source_post_type, ai4seo_get_supported_attachment_post_types( false ), true )
-									&& in_array( $source_post_mime_type, ai4seo_get_allowed_attachment_mime_types(), true );
+									&& in_array( $source_post_mime_type, ai4seo_get_enabled_attachment_mime_types( $current_settings_snapshot ), true );
 							}
 
 							$current_lease['expires_at'] = time() + ai4seo_get_processing_claim_lease_ttl_seconds();
 							$lease_predicate_matched     = false;
-							$operation_succeeded         = ai4seo_mutate_processing_claim_lease_under_lock(
+							$operation_succeeded         = $taxonomy_read_succeeded && ai4seo_mutate_processing_claim_lease_under_lock(
 								$queue_options['processing'],
 								$post_id,
 								$current_lease,
@@ -2677,6 +3092,30 @@ function ai4seo_automated_generation_cron_job( $debug = false ): bool {
 	if ( ! ai4seo_singleton( __FUNCTION__ ) ) {
 		return true;
 	}
+	$lock = ai4seo_get_background_job_lock_name( AI4SEO_BULK_GENERATION_CRON_JOB_NAME );
+	if ( ! ai4seo_acquire_background_job_lock( $lock ) ) {
+		return false;
+	}
+	try {
+		$result = ai4seo_run_automated_generation_cron_job_under_lock( $debug, $lock );
+	} finally {
+		$GLOBALS['ai4seo_is_running_automated_generation_cron_job'] = false;
+		$released = ai4seo_release_background_job_lock( $lock );
+	}
+	return $result && $released;
+}
+
+/**
+ * Execute the coordinator with verified ownership independent of display timestamps.
+ *
+ * @param bool   $debug Diagnostic mode.
+ * @param string $lock Owned coordinator lock.
+ * @return bool Whether the run and its final state were verified.
+ */
+function ai4seo_run_automated_generation_cron_job_under_lock( bool $debug, string $lock ): bool {
+	if ( ai4seo_get_background_job_lock_name( AI4SEO_BULK_GENERATION_CRON_JOB_NAME ) !== $lock || ! ai4seo_renew_background_job_lock( $lock ) ) {
+		return false;
+	}
 
 	// is the cron job enabled?
 	if ( ! AI4SEO_CRON_JOBS_ENABLED && wp_doing_cron() ) {
@@ -2689,21 +3128,28 @@ function ai4seo_automated_generation_cron_job( $debug = false ): bool {
 		$bulk_generation_duration = AI4SEO_DEFAULT_SETTINGS[ AI4SEO_SETTING_BULK_GENERATION_DURATION ];
 	}
 
-	// Reclaim only expired/missing durable owners before the status heartbeat can defer this run.
-	if ( ! ai4seo_recover_stale_bulk_generation_processing_claims(
-		array(
-			AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA,
-			AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES,
-		)
-	) ) {
-		ai4seo_debug_message( 641476229, 'Could not safely recover stale bulk-generation Processing claims.', true );
-		return false;
-	}
-
+	$ready_contexts               = array();
 	$persisted_enabled_post_types = array();
-
-	// Reconcile disabled queue intent before this run can inspect account state or make an API request.
-	if ( ! ai4seo_reconcile_disabled_bulk_generation_queue_entries( $persisted_enabled_post_types ) ) {
+	foreach ( ai4seo_get_bulk_generation_queue_contexts() as $context ) {
+		$readiness = ai4seo_get_bulk_generation_context_readiness( $context );
+		if ( 'system_error' === $readiness['status'] ) {
+			if ( in_array( 'active_fields', $readiness['blocked_sources'], true ) ) {
+				ai4seo_schedule_disabled_bulk_generation_queue_reconciliation_recovery();
+			}
+			return false;
+		}
+		if ( 'ready' !== $readiness['status'] ) {
+			continue;
+		}
+		// Only a verifiably independent context may cross recovery and disabled-type reconciliation.
+		if ( ! ai4seo_recover_stale_bulk_generation_processing_claims( array( $context ) )
+			|| ! ai4seo_reconcile_disabled_bulk_generation_queue_entries( $persisted_enabled_post_types, array( $context ) ) ) {
+			return false;
+		}
+		$ready_contexts[] = $context;
+	}
+	if ( ! $ready_contexts ) {
+		ai4seo_set_cron_job_status( AI4SEO_BULK_GENERATION_CRON_JOB_NAME, 'data-blocked' );
 		return false;
 	}
 
@@ -2719,40 +3165,26 @@ function ai4seo_automated_generation_cron_job( $debug = false ): bool {
 	ai4seo_safe_set_time_limit( $max_tolerated_execution_time + 30 );
 
 	// define the start time of this cron job function call.
-	$start_time                               = time();
-	$cron_job_status                          = ai4seo_get_cron_job_status( AI4SEO_BULK_GENERATION_CRON_JOB_NAME );
-	$cron_job_status_update_time              = ai4seo_get_cron_job_status_update_time( AI4SEO_BULK_GENERATION_CRON_JOB_NAME );
-	$last_cron_job_status_update_was_recently = $start_time - $cron_job_status_update_time < $max_tolerated_execution_time;
-	$last_cron_job_is_still_processing        = in_array( $cron_job_status, array( 'processing', 'initiating' ), true );
-
-	// if the last cron job call was too recent, we should skip this call.
-	// Maybe there was an server error, and we should give the server some time to recover.
-	if ( $last_cron_job_is_still_processing && $last_cron_job_status_update_was_recently ) {
-		if ( $debug ) {
-			ai4seo_debug_message( 267805633, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( "skipped, because we're too close to another unfinished cron job call" ) ) );
-		}
-
-		return true;
+	$start_time = time();
+	// Ownership and durable per-post claims authorize work; stale display markers do not.
+	if ( ! ai4seo_renew_background_job_lock( $lock ) || ! ai4seo_publish_background_job_state( AI4SEO_BULK_GENERATION_CRON_JOB_NAME, 'initiating', $start_time ) ) {
+		return false;
 	}
-
-	// update the last execution time of this cron job.
-	ai4seo_set_last_cron_job_call_time( AI4SEO_BULK_GENERATION_CRON_JOB_NAME, $start_time );
-	ai4seo_set_cron_job_status( AI4SEO_BULK_GENERATION_CRON_JOB_NAME, 'initiating' );
 
 	if ( ! $persisted_enabled_post_types ) {
 		if ( $debug ) {
 			ai4seo_debug_message( 277251009, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'skipped, because every automated generation is disabled' ) ) );
 		}
 
-		ai4seo_set_cron_job_status( AI4SEO_BULK_GENERATION_CRON_JOB_NAME, 'bulk-generation-disabled' );
-		return true;
+		return ai4seo_publish_background_job_state( AI4SEO_BULK_GENERATION_CRON_JOB_NAME, 'bulk-generation-disabled' );
 	}
 
 	// Refresh background notifications during the 5-minute bulk generation cron.
 	ai4seo_check_for_new_notifications();
 
 	// CHECK USERS ROBHUB ACCOUNT.
-	$is_robhub_account_synced = ai4seo_robhub_api()->is_account_synced();
+	$account_readiness        = ai4seo_maybe_refresh_account_state();
+	$is_robhub_account_synced = $account_readiness['credits_ready'];
 
 	if ( ! $is_robhub_account_synced ) {
 		if ( $debug ) {
@@ -2774,7 +3206,7 @@ function ai4seo_automated_generation_cron_job( $debug = false ): bool {
 	}
 
 	// check the current credits balance, compare it to $min_credits_cost_per_entry and if it's lower, return true.
-	if ( ai4seo_robhub_api()->get_credits_balance() < $min_credits_cost_per_entry ) {
+	if ( $account_readiness['credits'] < $min_credits_cost_per_entry ) {
 		if ( $debug ) {
 			ai4seo_debug_message( 458928065, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'skipped, because of low Credits balance' ) ) );
 		}
@@ -2784,7 +3216,8 @@ function ai4seo_automated_generation_cron_job( $debug = false ): bool {
 			array(
 				AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA,
 				AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES,
-			)
+			),
+			$min_credits_cost_per_entry
 		) ) {
 			ai4seo_set_cron_job_status( AI4SEO_BULK_GENERATION_CRON_JOB_NAME, 'finished-with-error' );
 			return false;
@@ -2794,22 +3227,14 @@ function ai4seo_automated_generation_cron_job( $debug = false ): bool {
 		return true;
 	}
 
-	// check if we have a posts table analysis completed.
-	$posts_table_analysis_state = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_STATE, false );
-
-	// if we have a posts table analysis not completed, we should first help to finish it.
-	if ( 'completed' !== $posts_table_analysis_state ) {
-		if ( $debug ) {
-			ai4seo_debug_message( 240531747, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'posts table analysis not completed -> try to continue it first' ) ) );
-		}
-
-		ai4seo_try_start_posts_table_analysis();
-
-		ai4seo_set_cron_job_status( AI4SEO_BULK_GENERATION_CRON_JOB_NAME, 'waiting-for-posts-table-analysis' );
-		return true;
+	// A legacy completed marker can still need recovery; use the same bounded continuation as the dashboard.
+	if ( ai4seo_maybe_schedule_required_generation_status_summary_rebuild( true )
+		&& 'idle' !== ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_GENERATION_STATUS_SUMMARY_REBUILD_STATE, false ) ) {
+		ai4seo_rebuild_generation_status_summary();
 	}
 
-	$run_counter = 1;
+	$run_counter     = 1;
+	$has_data_blocks = count( $ready_contexts ) < count( ai4seo_get_bulk_generation_queue_contexts() );
 	$GLOBALS['ai4seo_is_running_automated_generation_cron_job']    = true;
 	$GLOBALS['ai4seo_deep_context_search_statement_timeout_count'] = 0;
 
@@ -2820,14 +3245,19 @@ function ai4seo_automated_generation_cron_job( $debug = false ): bool {
 			ai4seo_debug_message( 635240362, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( "start new run: #{$run_counter}" ) ) );
 		}
 
-		ai4seo_set_cron_job_status( AI4SEO_BULK_GENERATION_CRON_JOB_NAME, 'processing' );
+		if ( ! ai4seo_renew_background_job_lock( $lock )
+			|| ! ai4seo_publish_background_job_state( AI4SEO_BULK_GENERATION_CRON_JOB_NAME, 'processing' ) ) {
+			return false;
+		}
 
 		// Process metadata and keyphrases before the independent attachment queue.
 		$metadata_terminal_billing_error = false;
-		$success                         = ai4seo_automated_metadata_generation(
+		$metadata_attempt                = array();
+		$success                         = in_array( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA, $ready_contexts, true ) && ai4seo_automated_metadata_generation(
 			$debug,
 			0,
-			$metadata_terminal_billing_error
+			$metadata_terminal_billing_error,
+			$metadata_attempt
 		);
 
 		if ( $metadata_terminal_billing_error ) {
@@ -2840,13 +3270,24 @@ function ai4seo_automated_generation_cron_job( $debug = false ): bool {
 		if ( $success ) {
 			$made_some_progress = true;
 		}
+		$has_data_blocks = $has_data_blocks || ! empty( $metadata_attempt['blocked_post_ids'] ) || in_array( $metadata_attempt['status'] ?? '', array( 'context_blocked', 'filter_blocked', 'data_blocked' ), true );
+		if ( 'system_error' === ( $metadata_attempt['status'] ?? '' ) ) {
+			$GLOBALS['ai4seo_is_running_automated_generation_cron_job'] = false;
+			ai4seo_set_cron_job_status( AI4SEO_BULK_GENERATION_CRON_JOB_NAME, 'finished-with-error' );
+			return false;
+		}
 
 		// Process attachment attributes only after metadata leaves the account usable.
+		if ( ! ai4seo_renew_background_job_lock( $lock ) ) {
+			return false;
+		}
 		$attachment_terminal_billing_error = false;
-		$success                           = ai4seo_automated_attachment_attributes_generation(
+		$attachment_attempt                = array();
+		$success                           = in_array( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES, $ready_contexts, true ) && ai4seo_automated_attachment_attributes_generation(
 			$debug,
 			0,
-			$attachment_terminal_billing_error
+			$attachment_terminal_billing_error,
+			$attachment_attempt
 		);
 
 		if ( $attachment_terminal_billing_error ) {
@@ -2854,6 +3295,12 @@ function ai4seo_automated_generation_cron_job( $debug = false ): bool {
 			return ai4seo_stop_automated_generation_after_terminal_billing_error(
 				AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES
 			);
+		}
+		$has_data_blocks = $has_data_blocks || ! empty( $attachment_attempt['blocked_post_ids'] ) || in_array( $attachment_attempt['status'] ?? '', array( 'context_blocked', 'filter_blocked', 'data_blocked' ), true );
+		if ( 'system_error' === ( $attachment_attempt['status'] ?? '' ) ) {
+			$GLOBALS['ai4seo_is_running_automated_generation_cron_job'] = false;
+			ai4seo_set_cron_job_status( AI4SEO_BULK_GENERATION_CRON_JOB_NAME, 'finished-with-error' );
+			return false;
 		}
 
 		if ( $success ) {
@@ -2873,11 +3320,16 @@ function ai4seo_automated_generation_cron_job( $debug = false ): bool {
 	);
 
 	// reschedule this cronjob asap, so that the next posts can be filled shortly.
+	if ( ! ai4seo_renew_background_job_lock( $lock ) ) {
+		return false;
+	}
 	if ( $made_some_progress ) {
-		ai4seo_set_cron_job_status( AI4SEO_BULK_GENERATION_CRON_JOB_NAME, 'finished' );
+		if ( ! ai4seo_publish_background_job_state( AI4SEO_BULK_GENERATION_CRON_JOB_NAME, 'finished' ) ) {
+			return false;
+		}
 		ai4seo_inject_additional_cronjob_call( AI4SEO_BULK_GENERATION_CRON_JOB_NAME );
-	} else {
-		ai4seo_set_cron_job_status( AI4SEO_BULK_GENERATION_CRON_JOB_NAME, 'idle' );
+	} elseif ( ! ai4seo_publish_background_job_state( AI4SEO_BULK_GENERATION_CRON_JOB_NAME, $has_data_blocks ? 'data-blocked' : 'idle' ) ) {
+		return false;
 	}
 
 	$GLOBALS['ai4seo_is_running_automated_generation_cron_job'] = false;
@@ -2889,15 +3341,37 @@ function ai4seo_automated_generation_cron_job( $debug = false ): bool {
 /**
  * Function to automatically generate metadata for posts
  *
- * @param bool $debug The debug value.
- * @param int  $only_this_post_id The only this post id value.
- * @param bool $terminal_billing_error Receives whether an account-scoped terminal billing error stopped generation.
+ * @param bool       $debug The debug value.
+ * @param int        $only_this_post_id The only this post id value.
+ * @param bool       $terminal_billing_error Receives whether an account-scoped terminal billing error stopped generation.
+ * @param array|null $attempt Receives the processing outcome and bounded blocked entry IDs.
  * @return bool true on success, false on failure
  */
 function ai4seo_automated_metadata_generation(
 	$debug = false,
 	$only_this_post_id = 0,
-	bool &$terminal_billing_error = false
+	bool &$terminal_billing_error = false,
+	?array &$attempt = null
+): bool {
+	return ai4seo_run_bulk_generation_attempts( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA, 'ai4seo_attempt_metadata_generation', $debug, $only_this_post_id, $terminal_billing_error, $attempt );
+}
+
+/**
+ * Attempt one metadata owner; the public worker bounds iteration over isolated failures.
+ *
+ * @param bool  $debug Debug output.
+ * @param int   $only_this_post_id Direct generation ID, or zero for queued work.
+ * @param bool  $terminal_billing_error Account-scoped stop output.
+ * @param array $attempt Structured result output.
+ * @param array $excluded_post_ids Already inspected IDs in this pass.
+ * @return bool Verified progress.
+ */
+function ai4seo_attempt_metadata_generation(
+	$debug,
+	$only_this_post_id,
+	bool &$terminal_billing_error,
+	array &$attempt,
+	array $excluded_post_ids
 ): bool {
 	// Clear the output before any early return so callers never observe a prior invocation's state.
 	$terminal_billing_error = false;
@@ -2910,27 +3384,32 @@ function ai4seo_automated_metadata_generation(
 	$persisted_enabled_post_types = array();
 
 	// A direct editor generation may proceed, but no queued work can cross an unverifiable disabled-type barrier.
-	if ( ! ai4seo_reconcile_disabled_bulk_generation_queue_entries( $persisted_enabled_post_types ) ) {
+	if ( ! ai4seo_reconcile_disabled_bulk_generation_queue_entries( $persisted_enabled_post_types, array( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA ) ) ) {
 		return false;
 	}
 
 	$enabled_metadata_post_types = array_values( array_diff( $persisted_enabled_post_types, array( 'attachment' ) ) );
 
 	if ( ! $only_this_post_id && ! $enabled_metadata_post_types ) {
+		$attempt['status'] = 'empty';
 		return false;
 	}
 
 	$active_meta_tags = ai4seo_get_active_meta_tags();
 
 	if ( ! $active_meta_tags ) {
+		$attempt['status'] = 'empty';
 		if ( $debug ) {
 			ai4seo_debug_message( 979105658, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'no active meta tags found -> skip' ) ) );
 		}
 
 		// Remove Pending entries while preserving Processing work owned by another request.
 		if ( ! ai4seo_remove_bulk_generation_pending_queue_snapshot_memberships(
-			array( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA )
+			array( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA ),
+			null,
+			true
 		) ) {
+			$attempt['status'] = 'system_error';
 			return false;
 		}
 
@@ -2938,19 +3417,27 @@ function ai4seo_automated_metadata_generation(
 	}
 
 	$metadata_credits_costs_per_post = ai4seo_calculate_metadata_credits_cost_per_post();
+	$account_readiness               = ai4seo_maybe_refresh_account_state();
+	if ( ! $account_readiness['credits_ready'] ) {
+		$attempt['status'] = 'account_unavailable';
+		return false;
+	}
 
 	// check the current credits balance, compare it to $metadata_credits_costs_per_post and if it's lower, return true.
-	if ( ai4seo_robhub_api()->get_credits_balance() < $metadata_credits_costs_per_post ) {
+	if ( $account_readiness['credits'] < $metadata_credits_costs_per_post ) {
 		if ( $debug ) {
 			ai4seo_debug_message( 275318901, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'skipped, because of low Credits balance' ) ) );
 		}
 
 		// Remove Pending entries while preserving Processing work owned by another request.
 		if ( ! ai4seo_remove_bulk_generation_pending_queue_snapshot_memberships(
-			array( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA )
+			array( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA ),
+			$metadata_credits_costs_per_post
 		) ) {
+			$attempt['status'] = 'system_error';
 			return false;
 		}
+		$attempt['status'] = 'insufficient_credits';
 		return false;
 	}
 
@@ -2959,14 +3446,16 @@ function ai4seo_automated_metadata_generation(
 		$post_id = $only_this_post_id;
 	} else {
 		$auto_queue_entries = ai4seo_should_auto_queue_bulk_generation_entries();
+		$pending_post_ids   = ai4seo_get_post_ids_from_option( AI4SEO_PENDING_METADATA_POST_IDS_OPTION_NAME );
 
-		if ( $auto_queue_entries ) {
+		if ( $auto_queue_entries && ! $pending_post_ids ) {
 			// try to search for posts with missing metadata.
 			$queue_barrier_failed  = false;
-			$got_new_pending_posts = ai4seo_excavate_post_entries_with_missing_metadata( $debug, $queue_barrier_failed );
+			$got_new_pending_posts = ai4seo_excavate_post_entries_with_missing_metadata( $debug, $queue_barrier_failed, $selection );
 
 			// An unverifiable admission must remain pending for a later run, never be consumed by this request.
 			if ( $queue_barrier_failed ) {
+				$attempt['status'] = $selection['status'];
 				if ( $debug ) {
 					ai4seo_debug_message( 513505111, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'Auto Queue admission barrier failed -> retry later' ) ) );
 				}
@@ -2978,6 +3467,7 @@ function ai4seo_automated_metadata_generation(
 
 			// Existing manual queue entries should still be processed when automatic excavation finds nothing new.
 			if ( ! $got_new_pending_posts && ! $pending_post_ids ) {
+				$attempt['status'] = 'empty';
 				if ( $debug ) {
 					ai4seo_debug_message( 513505109, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'No new pending posts found' ) ) );
 				}
@@ -2986,6 +3476,7 @@ function ai4seo_automated_metadata_generation(
 				if ( ! ai4seo_remove_bulk_generation_pending_queue_snapshot_memberships(
 					array( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA )
 				) ) {
+					$attempt['status'] = 'system_error';
 					return false;
 				}
 				return false;
@@ -2999,6 +3490,7 @@ function ai4seo_automated_metadata_generation(
 		}
 
 		if ( ! $pending_post_ids ) {
+			$attempt['status'] = 'empty';
 			// skip here because we don't have any posts or pages.
 			if ( $debug ) {
 				ai4seo_debug_message( 872810398, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'No pending posts found' ) ) );
@@ -3007,6 +3499,7 @@ function ai4seo_automated_metadata_generation(
 			if ( $auto_queue_entries && ! ai4seo_remove_bulk_generation_pending_queue_snapshot_memberships(
 				array( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA )
 			) ) {
+				$attempt['status'] = 'system_error';
 				return false;
 			}
 
@@ -3017,7 +3510,11 @@ function ai4seo_automated_metadata_generation(
 			ai4seo_debug_message( 809859626, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'Found pending post(s): ' . esc_html( implode( ', ', $pending_post_ids ) ) ) ) );
 		}
 
-		// only take one post id.
+		$pending_post_ids = array_values( array_diff( $pending_post_ids, $excluded_post_ids ) );
+		if ( ! $pending_post_ids ) {
+			$attempt['status'] = 'empty';
+			return false;
+		}
 		$post_id = reset( $pending_post_ids );
 	}
 
@@ -3031,6 +3528,7 @@ function ai4seo_automated_metadata_generation(
 	}
 
 	$post_id                                        = absint( $post_id );
+	$attempt['post_id']                             = $post_id;
 	$processing_claimed                             = false;
 	$is_force_overwrite_bulk_generation_queue_entry = false;
 	$processing_claim_token                         = '';
@@ -3041,7 +3539,7 @@ function ai4seo_automated_metadata_generation(
 		$pre_claim_enabled_post_types = array();
 
 		// Close settings changes during excavation before the selected queue entry can become Processing.
-		if ( ! ai4seo_reconcile_disabled_bulk_generation_queue_entries( $pre_claim_enabled_post_types )
+		if ( ! ai4seo_reconcile_disabled_bulk_generation_queue_entries( $pre_claim_enabled_post_types, array( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA ) )
 			|| ! array_values( array_diff( $pre_claim_enabled_post_types, array( 'attachment' ) ) ) ) {
 			return false;
 		}
@@ -3077,6 +3575,9 @@ function ai4seo_automated_metadata_generation(
 	$processing_claim_succeeded = $processing_claim_checked && $processing_claimed;
 
 	if ( ! $processing_claim_succeeded ) {
+		if ( $processing_claim_checked && ! $processing_claimed ) {
+			$attempt['status'] = 'temporarily_busy';
+		}
 		if ( ! $processing_claim_checked && $processing_claimed && '' !== $processing_claim_token ) {
 			ai4seo_compensate_bulk_generation_processing_claim_after_failed_check(
 				AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA,
@@ -3114,10 +3615,19 @@ function ai4seo_automated_metadata_generation(
 	}
 
 	// Resolve active storage before any billable generation request. One failed entry does not stop the queue.
-	$active_storage_view = ai4seo_recover_active_metadata( $post_id );
-	if ( 'unreadable' === $active_storage_view['classification'] ) {
-		ai4seo_abort_bulk_generation_processing_claim_before_generation( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA, $post_id, $processing_claim_token, $pending_was_present, $force_was_present );
-		return false;
+	$active_storage_view = $only_this_post_id ? ai4seo_recover_active_metadata( $post_id ) : ai4seo_read_active_metadata_resolved_view( $post_id );
+	if ( 'unreadable' === $active_storage_view['classification']
+		|| ( ! $only_this_post_id && ! in_array( $active_storage_view['classification'], array( 'single', 'missing' ), true ) ) ) {
+		return ai4seo_finish_blocked_bulk_generation_attempt(
+			AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA,
+			$post_id,
+			$processing_claim_token,
+			$pending_was_present,
+			$force_was_present,
+			! in_array( $active_storage_view['reason'], array( 'storage_read_failed', 'storage_read_exception' ), true ),
+			__( 'Stored metadata needs attention. The queued entry is retained; no generation was requested.', 'ai-for-seo' ),
+			$attempt
+		);
 	}
 	if ( $active_storage_view['conflicts'] ) {
 		$reason = 'Stored metadata has conflicting values; resolve them in the metadata editor';
@@ -3128,28 +3638,51 @@ function ai4seo_automated_metadata_generation(
 	}
 
 	// let's find fields to generate for this post id.
-	$generated_data_read_succeeded     = false;
-	$generated_data_details            = ai4seo_read_authoritative_generated_data_details_for_post(
+	$generated_data_read_succeeded = false;
+	$history_failure_reason        = '';
+	$generated_data_snapshot       = ai4seo_read_authoritative_generated_data_postmeta_snapshot(
 		$post_id,
-		$generated_data_read_succeeded
+		$generated_data_read_succeeded,
+		$history_failure_reason
 	);
-	$available_metadata_read_succeeded = false;
-	$old_available_metadata            = ai4seo_read_available_metadata(
-		$post_id,
-		true,
-		$available_metadata_read_succeeded
-	);
-
-	// Never spend credits or derive a terminal status from an unavailable/malformed primary snapshot.
-	if ( ! $generated_data_read_succeeded || ! $available_metadata_read_succeeded ) {
-		ai4seo_abort_bulk_generation_processing_claim_before_generation(
+	$generated_data_details        = $generated_data_snapshot['generated_data_details'];
+	if ( ! $generated_data_read_succeeded ) {
+		return ai4seo_finish_blocked_bulk_generation_attempt(
 			AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA,
 			$post_id,
 			$processing_claim_token,
 			$pending_was_present,
-			$force_was_present
+			$force_was_present,
+			'damaged_history' === $history_failure_reason,
+			__( 'Generation history needs attention. The queued entry is retained; no generation was requested.', 'ai-for-seo' ),
+			$attempt
 		);
-		return false;
+	}
+	$available_metadata_read_succeeded = false;
+	$metadata_issues                   = array();
+	$storage_views                     = array();
+	$metadata_by_id                    = ai4seo_read_available_metadata_by_post_ids(
+		array( $post_id ),
+		true,
+		$available_metadata_read_succeeded,
+		$storage_views,
+		false,
+		$metadata_issues
+	);
+	$old_available_metadata            = $metadata_by_id[ $post_id ] ?? array();
+
+	// Never spend credits or derive a terminal status from an unavailable/malformed primary snapshot.
+	if ( ! $available_metadata_read_succeeded || $metadata_issues ) {
+		return ai4seo_finish_blocked_bulk_generation_attempt(
+			AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA,
+			$post_id,
+			$processing_claim_token,
+			$pending_was_present,
+			$force_was_present,
+			$available_metadata_read_succeeded && ! empty( $metadata_issues ),
+			__( 'Metadata sources need attention. The queued entry is retained; no generation was requested.', 'ai-for-seo' ),
+			$attempt
+		);
 	}
 
 	$generate_this_fields        = $active_meta_tags;
@@ -3259,22 +3792,26 @@ function ai4seo_automated_metadata_generation(
 	// First, get the shared transport content, post context, and structured language evidence.
 	$content_source_read_succeeded = false;
 	$content_source_post_exists    = false;
+	$content_failure_reason        = '';
 	$prepared_content              = ai4seo_prepare_metadata_generation_content_data(
 		$post_id,
 		'',
 		$content_source_read_succeeded,
-		$content_source_post_exists
+		$content_source_post_exists,
+		$content_failure_reason
 	);
 
 	if ( ! $content_source_read_succeeded ) {
-		ai4seo_abort_bulk_generation_processing_claim_before_generation(
+		return ai4seo_finish_blocked_bulk_generation_attempt(
 			AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA,
 			$post_id,
 			$processing_claim_token,
 			$pending_was_present,
-			$force_was_present
+			$force_was_present,
+			'damaged_source' === $content_failure_reason,
+			__( 'Content sources need attention. The queued entry is retained; no generation was requested.', 'ai-for-seo' ),
+			$attempt
 		);
-		return false;
 	}
 
 	if ( ! $content_source_post_exists ) {
@@ -3324,7 +3861,10 @@ function ai4seo_automated_metadata_generation(
 	$content_length          = ai4seo_mb_strlen( trim( $post_content . ' ' . $post_context ) );
 
 	// Check whether the required posts/builder snapshot has enough local language evidence.
-	if ( $required_content_length < AI4SEO_TOO_SHORT_CONTENT_LENGTH ) {
+	if ( ai4seo_is_taxonomy_proxy( $post_id ) && empty( $prepared_content['has_sufficient_content'] ) ) {
+		return ai4seo_apply_bulk_generation_result_transition( $post_id, array( AI4SEO_MISSING_METADATA_POST_IDS_OPTION_NAME ), $processing_claim_token );
+	}
+	if ( ! ai4seo_is_taxonomy_proxy( $post_id ) && $required_content_length < AI4SEO_TOO_SHORT_CONTENT_LENGTH ) {
 		$failure_status_succeeded = ai4seo_handle_failed_metadata_generation(
 			$post_id,
 			__FUNCTION__,
@@ -3371,7 +3911,7 @@ function ai4seo_automated_metadata_generation(
 	$robhub_api_call_parameters['content_analysis'] = $content_analysis;
 
 	// url.
-	$post_permalink = get_permalink( $post_id );
+	$post_permalink = $prepared_content['content_url'] ?? get_permalink( $post_id );
 
 	if ( $post_permalink ) {
 		$robhub_api_call_parameters['content_url'] = $post_permalink;
@@ -3453,6 +3993,13 @@ function ai4seo_automated_metadata_generation(
 		return false;
 	}
 
+	$taxonomy_generation = null;
+	if ( ai4seo_is_taxonomy_proxy( $post_id ) ) {
+		$taxonomy_generation = ai4seo_get_taxonomy_generation_snapshot( $post_id, $prepared_content, false );
+		if ( is_wp_error( $taxonomy_generation ) ) {
+			return ai4seo_handle_failed_metadata_generation( $post_id, __FUNCTION__, 'The archive changed before generation.', $debug, $processing_claim_token );
+		}
+	}
 	$results = ai4seo_robhub_api()->call( 'ai4seo/generate-all-metadata', $robhub_api_call_parameters );
 
 	// Preserve account-scoped stop intent even if ownership changes while the request is in flight.
@@ -3548,153 +4095,177 @@ function ai4seo_automated_metadata_generation(
 		return false;
 	}
 
-	$metadata_update_succeeded = ai4seo_update_active_metadata( $post_id, $new_generated_metadata, true, $metadata_update_details );
+	$taxonomy_result_locked = false;
+	if ( $taxonomy_generation ) {
+		$taxonomy_result_locked = ai4seo_lock_taxonomy_generation_result( $post_id, $taxonomy_generation );
+		if ( ! $taxonomy_result_locked ) {
+			ai4seo_add_latest_activity_entry( $post_id, 'error', 'metadata-bulk-generated', (int) ( $results['credits-consumed'] ?? 0 ), __( 'The archive or stored values changed during generation. The result was not applied; review this entry before trying again.', 'ai-for-seo' ) );
+			return ai4seo_handle_failed_metadata_generation( $post_id, __FUNCTION__, 'Archive generation result needs review.', $debug, $processing_claim_token );
+		}
+	}
+	try {
+		$metadata_update_succeeded = ai4seo_update_active_metadata(
+			$post_id,
+			$new_generated_metadata,
+			true,
+			$metadata_update_details,
+			$taxonomy_generation ? array(
+				'expected_metadata'          => $taxonomy_generation['values'],
+				'taxonomy_generation_source' => $prepared_content['source_fingerprint'],
+			) : array()
+		);
 
-	// Only a genuine SOOZ failure enters the generation-failure queue and risks a later API retry.
-	if ( ! $metadata_update_succeeded ) {
-		$active_metadata_succeeded    = ! empty( $metadata_update_details['active_metadata_succeeded'] );
-		$third_party_sync_succeeded   = ! empty( $metadata_update_details['third_party_sync_succeeded'] );
-		$metadata_update_commit_state = isset( $metadata_update_details['commit_state'] )
-			&& is_string( $metadata_update_details['commit_state'] )
-			? $metadata_update_details['commit_state']
-			: 'possibly_committed';
+		// Only a genuine SOOZ failure enters the generation-failure queue and risks a later API retry.
+		if ( ! $metadata_update_succeeded ) {
+			$active_metadata_succeeded    = ! empty( $metadata_update_details['active_metadata_succeeded'] );
+			$third_party_sync_succeeded   = ! empty( $metadata_update_details['third_party_sync_succeeded'] );
+			$metadata_update_commit_state = isset( $metadata_update_details['commit_state'] )
+				&& is_string( $metadata_update_details['commit_state'] )
+				? $metadata_update_details['commit_state']
+				: 'possibly_committed';
 
-		// Partial synchronization retains generated data and records failed integrations for support.
-		if ( $active_metadata_succeeded && ! $third_party_sync_succeeded ) {
-			$failed_plugin_names = ai4seo_get_third_party_seo_plugin_names(
-				array_keys( $metadata_update_details['failed_third_party_syncs'] ?? array() )
-			);
-			$failed_plugin_list  = $failed_plugin_names
-				? wp_sprintf_l( '%l', $failed_plugin_names )
-				: __( 'selected third-party SEO integrations', 'ai-for-seo' );
+			// Partial synchronization retains generated data and records failed integrations for support.
+			if ( $active_metadata_succeeded && ! $third_party_sync_succeeded ) {
+				$failed_plugin_names = ai4seo_get_third_party_seo_plugin_names(
+					array_keys( $metadata_update_details['failed_third_party_syncs'] ?? array() )
+				);
+				$failed_plugin_list  = $failed_plugin_names
+					? wp_sprintf_l( '%l', $failed_plugin_names )
+					: __( 'selected third-party SEO integrations', 'ai-for-seo' );
 
-			$third_party_sync_failure_activity_details = sprintf(
-				/* translators: %s: List of third-party SEO integrations that failed to synchronize. */
-				__( 'Generated metadata was saved in SOOZ, but synchronization failed for: %s', 'ai-for-seo' ),
-				$failed_plugin_list
-			);
+				$third_party_sync_failure_activity_details = sprintf(
+					/* translators: %s: List of third-party SEO integrations that failed to synchronize. */
+					__( 'Generated metadata was saved in SOOZ, but synchronization failed for: %s', 'ai-for-seo' ),
+					$failed_plugin_list
+				);
 
-			ai4seo_debug_message(
-				693318905,
-				esc_html( __FUNCTION__ ) . ' > ' . esc_html( $third_party_sync_failure_activity_details ),
-				true
-			);
+				ai4seo_debug_message(
+					693318905,
+					esc_html( __FUNCTION__ ) . ' > ' . esc_html( $third_party_sync_failure_activity_details ),
+					true
+				);
 
-			// Continue into provenance, content-summary, coverage, and successful activity persistence below.
-		} elseif ( 'not_committed' !== $metadata_update_commit_state ) {
+				// Continue into provenance, content-summary, coverage, and successful activity persistence below.
+			} elseif ( 'not_committed' !== $metadata_update_commit_state ) {
+				ai4seo_release_bulk_generation_processing_claim_after_ambiguous_primary_write(
+					AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA,
+					$post_id,
+					$processing_claim_token
+				);
+				ai4seo_debug_message( 641476232, 'Generated metadata may have committed; released exact ownership without stale queue restoration and scheduled reconciliation.', true );
+				return false;
+			} else {
+				// A failed SOOZ write retains the existing failure-queue and activity behavior.
+				if ( ! ai4seo_handle_failed_metadata_generation( $post_id, __FUNCTION__, 'Could not save generated metadata for post ID: ' . $post_id, $debug ) ) {
+					return false;
+				}
+				ai4seo_add_latest_activity_entry( $post_id, 'error', 'metadata-bulk-generated', 0, 'Could not save generated metadata' );
+				return false;
+			}
+		}
+
+		// Persist returned provenance before coverage changes so a failed snapshot cannot be reported as successful.
+		if ( ! ai4seo_renew_bulk_generation_processing_claim(
+			AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA,
+			$post_id,
+			$processing_claim_token
+		) ) {
+			return false;
+		}
+
+		$generated_data_save_details = array();
+		$this_success                = ai4seo_save_generated_data_to_postmeta(
+			$post_id,
+			$new_generated_metadata,
+			true,
+			0,
+			$unresolved_generation_fields,
+			$generated_data_save_details,
+			$taxonomy_generation ? array( 'taxonomy_generation_source' => $prepared_content['source_fingerprint'] ) : array()
+		);
+
+		if ( ! $this_success ) {
+			$generated_data_commit_state = isset( $generated_data_save_details['commit_state'] )
+				&& is_string( $generated_data_save_details['commit_state'] )
+				? $generated_data_save_details['commit_state']
+				: 'possibly_committed';
+
+			// Primary metadata already committed, so every provenance failure must discard stale queue intent.
 			ai4seo_release_bulk_generation_processing_claim_after_ambiguous_primary_write(
 				AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA,
 				$post_id,
 				$processing_claim_token
 			);
-			ai4seo_debug_message( 641476232, 'Generated metadata may have committed; released exact ownership without stale queue restoration and scheduled reconciliation.', true );
-			return false;
-		} else {
-			// A failed SOOZ write retains the existing failure-queue and activity behavior.
-			if ( ! ai4seo_handle_failed_metadata_generation( $post_id, __FUNCTION__, 'Could not save generated metadata for post ID: ' . $post_id, $debug ) ) {
+
+			if ( 'not_committed' === $generated_data_commit_state ) {
+				ai4seo_debug_message( 641476227, 'Generated metadata committed without provenance; discarded prior queue intent and scheduled authoritative reconciliation.', true );
 				return false;
 			}
-			ai4seo_add_latest_activity_entry( $post_id, 'error', 'metadata-bulk-generated', 0, 'Could not save generated metadata' );
+
+			ai4seo_debug_message( 641476229, 'Generated metadata provenance may have committed; released exact ownership without stale queue restoration and scheduled reconciliation.', true );
 			return false;
 		}
-	}
 
-	// Persist returned provenance before coverage changes so a failed snapshot cannot be reported as successful.
-	if ( ! ai4seo_renew_bulk_generation_processing_claim(
-		AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA,
-		$post_id,
-		$processing_claim_token
-	) ) {
-		return false;
-	}
-
-	$generated_data_save_details = array();
-	$this_success                = ai4seo_save_generated_data_to_postmeta(
-		$post_id,
-		$new_generated_metadata,
-		true,
-		0,
-		$unresolved_generation_fields,
-		$generated_data_save_details
-	);
-
-	if ( ! $this_success ) {
-		$generated_data_commit_state = isset( $generated_data_save_details['commit_state'] )
-			&& is_string( $generated_data_save_details['commit_state'] )
-			? $generated_data_save_details['commit_state']
-			: 'possibly_committed';
-
-		// Primary metadata already committed, so every provenance failure must discard stale queue intent.
-		ai4seo_release_bulk_generation_processing_claim_after_ambiguous_primary_write(
+		// Save the content snapshot only after generated provenance exists; it controls future change detection.
+		if ( ! ai4seo_renew_bulk_generation_processing_claim(
 			AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA,
 			$post_id,
 			$processing_claim_token
-		);
-
-		if ( 'not_committed' === $generated_data_commit_state ) {
-			ai4seo_debug_message( 641476227, 'Generated metadata committed without provenance; discarded prior queue intent and scheduled authoritative reconciliation.', true );
+		) ) {
 			return false;
 		}
 
-		ai4seo_debug_message( 641476229, 'Generated metadata provenance may have committed; released exact ownership without stale queue restoration and scheduled reconciliation.', true );
-		return false;
-	}
+		$this_success = ai4seo_save_post_content_summary_to_postmeta( $post_id, $post_content );
 
-	// Save the content snapshot only after generated provenance exists; it controls future change detection.
-	if ( ! ai4seo_renew_bulk_generation_processing_claim(
-		AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA,
-		$post_id,
-		$processing_claim_token
-	) ) {
-		return false;
-	}
-
-	$this_success = ai4seo_save_post_content_summary_to_postmeta( $post_id, $post_content );
-
-	if ( ! $this_success ) {
-		if ( ! ai4seo_handle_failed_metadata_generation( $post_id, __FUNCTION__, 'Could not save generated metadata content summary for post ID: ' . $post_id, $debug ) ) {
+		if ( ! $this_success ) {
+			if ( ! ai4seo_handle_failed_metadata_generation( $post_id, __FUNCTION__, 'Could not save generated metadata content summary for post ID: ' . $post_id, $debug ) ) {
+				return false;
+			}
+			ai4seo_add_latest_activity_entry( $post_id, 'error', 'metadata-bulk-generated', 0, 'Could not save generated metadata content summary' );
 			return false;
 		}
-		ai4seo_add_latest_activity_entry( $post_id, 'error', 'metadata-bulk-generated', 0, 'Could not save generated metadata content summary' );
-		return false;
-	}
 
-	// Rebuild exclusive coverage: partial results stay Missing; complete results become Fully Covered and Generated.
-	if ( $unresolved_generation_fields ) {
-		$result_option_names = array( AI4SEO_MISSING_METADATA_POST_IDS_OPTION_NAME );
+		// Rebuild exclusive coverage: partial results stay Missing; complete results become Fully Covered and Generated.
+		if ( $unresolved_generation_fields ) {
+			$result_option_names = array( AI4SEO_MISSING_METADATA_POST_IDS_OPTION_NAME );
 
-		// Preserve force-overwrite intent so omitted existing fields remain eligible on a later queued run.
-		if ( $is_force_overwrite_bulk_generation_queue_entry ) {
-			$result_option_names[] = AI4SEO_FORCE_OVERWRITE_METADATA_POST_IDS_OPTION_NAME;
+			// Preserve force-overwrite intent so omitted existing fields remain eligible on a later queued run.
+			if ( $is_force_overwrite_bulk_generation_queue_entry ) {
+				$result_option_names[] = AI4SEO_FORCE_OVERWRITE_METADATA_POST_IDS_OPTION_NAME;
+			}
+		} else {
+			$result_option_names = array(
+				AI4SEO_FULLY_COVERED_METADATA_POST_IDS_OPTION_NAME,
+				AI4SEO_GENERATED_METADATA_POST_IDS_OPTION_NAME,
+			);
 		}
-	} else {
-		$result_option_names = array(
-			AI4SEO_FULLY_COVERED_METADATA_POST_IDS_OPTION_NAME,
-			AI4SEO_GENERATED_METADATA_POST_IDS_OPTION_NAME,
+
+		if ( ! ai4seo_apply_bulk_generation_result_transition( $post_id, $result_option_names ) ) {
+			ai4seo_debug_message( 641476221, 'Could not persist the final metadata generation status transition.', true );
+			ai4seo_add_latest_activity_entry( $post_id, 'error', 'metadata-bulk-generated', 0, 'Could not persist final generation status' );
+			return false;
+		}
+
+		// Record returned field identifiers for activity details; unresolved eligibility remains represented by coverage above.
+		ai4seo_add_latest_activity_entry(
+			$post_id,
+			'success',
+			'metadata-bulk-generated',
+			(int) ( $results['credits-consumed'] ?? 0 ),
+			$third_party_sync_failure_activity_details,
+			array_keys( $new_generated_metadata )
 		);
+
+		if ( $debug ) {
+			ai4seo_debug_message( 523529302, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'metadata generated for post ID: ' . $post_id . ': ' . esc_html( ai4seo_stringify( $new_generated_metadata ) ) ) ) );
+		}
+
+		return true;
+	} finally {
+		if ( $taxonomy_result_locked ) {
+			ai4seo_release_database_advisory_lock( ai4seo_get_taxonomy_proxy_sync_lock_name() );
+		}
 	}
-
-	if ( ! ai4seo_apply_bulk_generation_result_transition( $post_id, $result_option_names ) ) {
-		ai4seo_debug_message( 641476221, 'Could not persist the final metadata generation status transition.', true );
-		ai4seo_add_latest_activity_entry( $post_id, 'error', 'metadata-bulk-generated', 0, 'Could not persist final generation status' );
-		return false;
-	}
-
-	// Record returned field identifiers for activity details; unresolved eligibility remains represented by coverage above.
-	ai4seo_add_latest_activity_entry(
-		$post_id,
-		'success',
-		'metadata-bulk-generated',
-		(int) ( $results['credits-consumed'] ?? 0 ),
-		$third_party_sync_failure_activity_details,
-		array_keys( $new_generated_metadata )
-	);
-
-	if ( $debug ) {
-		ai4seo_debug_message( 523529302, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'metadata generated for post ID: ' . $post_id . ': ' . esc_html( ai4seo_stringify( $new_generated_metadata ) ) ) ) );
-	}
-
-	return true;
 }
 
 
@@ -3738,15 +4309,37 @@ function ai4seo_handle_failed_metadata_generation(
 /**
  * Function to automatically generate attributes for attachments
  *
- * @param bool $debug debug mode yes or no.
- * @param int  $only_this_attachment_post_id care only this attachment post id.
- * @param bool $terminal_billing_error Receives whether an account-scoped terminal billing error stopped generation.
+ * @param bool       $debug debug mode yes or no.
+ * @param int        $only_this_attachment_post_id care only this attachment post id.
+ * @param bool       $terminal_billing_error Receives whether an account-scoped terminal billing error stopped generation.
+ * @param array|null $attempt Receives the processing outcome and bounded blocked entry IDs.
  * @return bool true on success, false on failure
  */
 function ai4seo_automated_attachment_attributes_generation(
 	bool $debug = false,
 	int $only_this_attachment_post_id = 0,
-	bool &$terminal_billing_error = false
+	bool &$terminal_billing_error = false,
+	?array &$attempt = null
+): bool {
+	return ai4seo_run_bulk_generation_attempts( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES, 'ai4seo_attempt_attachment_attributes_generation', $debug, $only_this_attachment_post_id, $terminal_billing_error, $attempt );
+}
+
+/**
+ * Attempt one media owner without losing the caller's queue intent.
+ *
+ * @param bool  $debug Debug output.
+ * @param int   $only_this_attachment_post_id Direct owner, or zero for queued work.
+ * @param bool  $terminal_billing_error Account-scoped stop output.
+ * @param array $attempt Structured output.
+ * @param array $excluded_post_ids Already inspected IDs in this pass.
+ * @return bool Verified progress.
+ */
+function ai4seo_attempt_attachment_attributes_generation(
+	bool $debug,
+	int $only_this_attachment_post_id,
+	bool &$terminal_billing_error,
+	array &$attempt,
+	array $excluded_post_ids
 ): bool {
 	// Clear the output before any early return so callers never observe a prior invocation's state.
 	$terminal_billing_error = false;
@@ -3759,11 +4352,12 @@ function ai4seo_automated_attachment_attributes_generation(
 	$persisted_enabled_post_types = array();
 
 	// A direct editor generation may proceed, but no queued work can cross an unverifiable disabled-type barrier.
-	if ( ! ai4seo_reconcile_disabled_bulk_generation_queue_entries( $persisted_enabled_post_types ) ) {
+	if ( ! ai4seo_reconcile_disabled_bulk_generation_queue_entries( $persisted_enabled_post_types, array( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES ) ) ) {
 		return false;
 	}
 
 	if ( ! $only_this_attachment_post_id && ! in_array( 'attachment', $persisted_enabled_post_types, true ) ) {
+		$attempt['status'] = 'empty';
 		return false;
 	}
 
@@ -3771,14 +4365,18 @@ function ai4seo_automated_attachment_attributes_generation(
 	$supported_attachment_post_types = ai4seo_get_supported_attachment_post_types();
 
 	if ( ! $active_attachment_attributes ) {
+		$attempt['status'] = 'empty';
 		if ( $debug ) {
 			ai4seo_debug_message( 156074497, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'no active meta tags found -> skip' ) ) );
 		}
 
 		// Remove Pending entries while preserving Processing work owned by another request.
 		if ( ! ai4seo_remove_bulk_generation_pending_queue_snapshot_memberships(
-			array( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES )
+			array( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES ),
+			null,
+			true
 		) ) {
+			$attempt['status'] = 'system_error';
 			return false;
 		}
 
@@ -3786,35 +4384,45 @@ function ai4seo_automated_attachment_attributes_generation(
 	}
 
 	$approximate_cost_per_attachment_post = ai4seo_calculate_attachment_attributes_credits_cost_per_attachment_post();
+	$account_readiness                    = ai4seo_maybe_refresh_account_state();
+	if ( ! $account_readiness['credits_ready'] ) {
+		$attempt['status'] = 'account_unavailable';
+		return false;
+	}
 
 	// check the current credits balance, compare it to $approximate_cost_per_attachment_post and if it's lower, return true.
-	if ( ai4seo_robhub_api()->get_credits_balance() < $approximate_cost_per_attachment_post ) {
+	if ( $account_readiness['credits'] < $approximate_cost_per_attachment_post ) {
 		if ( $debug ) {
 			ai4seo_debug_message( 616491274, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'skipped, because of low Credits balance' ) ) );
 		}
 
 		// Remove Pending entries while preserving Processing work owned by another request.
 		if ( ! ai4seo_remove_bulk_generation_pending_queue_snapshot_memberships(
-			array( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES )
+			array( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES ),
+			$approximate_cost_per_attachment_post
 		) ) {
+			$attempt['status'] = 'system_error';
 			return false;
 		}
 
+		$attempt['status'] = 'insufficient_credits';
 		return false;
 	}
 
 	if ( $only_this_attachment_post_id ) {
 		$attachment_post_id = $only_this_attachment_post_id;
 	} else {
-		$auto_queue_entries = ai4seo_should_auto_queue_bulk_generation_entries();
+		$auto_queue_entries          = ai4seo_should_auto_queue_bulk_generation_entries();
+		$pending_attachment_post_ids = ai4seo_get_post_ids_from_option( AI4SEO_PENDING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME );
 
-		if ( $auto_queue_entries ) {
+		if ( $auto_queue_entries && ! $pending_attachment_post_ids ) {
 			// try to search for attachment posts with missing attributes.
 			$queue_barrier_failed                = false;
-			$got_new_pending_attachment_post_ids = ai4seo_excavate_attachments_with_missing_attributes( $debug, $queue_barrier_failed );
+			$got_new_pending_attachment_post_ids = ai4seo_excavate_attachments_with_missing_attributes( $debug, $queue_barrier_failed, $selection );
 
 			// An unverifiable admission must remain pending for a later run, never be consumed by this request.
 			if ( $queue_barrier_failed ) {
+				$attempt['status'] = $selection['status'];
 				if ( $debug ) {
 					ai4seo_debug_message( 466380278, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'Auto Queue admission barrier failed -> retry later' ) ) );
 				}
@@ -3826,6 +4434,7 @@ function ai4seo_automated_attachment_attributes_generation(
 
 			// Existing manual queue entries should still be processed when automatic excavation finds nothing new.
 			if ( ! $got_new_pending_attachment_post_ids && ! $pending_attachment_post_ids ) {
+				$attempt['status'] = 'empty';
 				// skip here because we don't have any attachment posts.
 				if ( $debug ) {
 					ai4seo_debug_message( 466380276, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'No pending media posts found' ) ) );
@@ -3835,6 +4444,7 @@ function ai4seo_automated_attachment_attributes_generation(
 				if ( ! ai4seo_remove_bulk_generation_pending_queue_snapshot_memberships(
 					array( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES )
 				) ) {
+					$attempt['status'] = 'system_error';
 					return false;
 				}
 
@@ -3849,6 +4459,7 @@ function ai4seo_automated_attachment_attributes_generation(
 		}
 
 		if ( ! $pending_attachment_post_ids ) {
+			$attempt['status'] = 'empty';
 			// skip here because we don't have any attachment posts.
 			if ( $debug ) {
 				ai4seo_debug_message( 170584235, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'No pending media posts found' ) ) );
@@ -3857,6 +4468,7 @@ function ai4seo_automated_attachment_attributes_generation(
 			if ( $auto_queue_entries && ! ai4seo_remove_bulk_generation_pending_queue_snapshot_memberships(
 				array( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES )
 			) ) {
+				$attempt['status'] = 'system_error';
 				return false;
 			}
 
@@ -3867,7 +4479,11 @@ function ai4seo_automated_attachment_attributes_generation(
 			ai4seo_debug_message( 968541383, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'Found pending media post(s): ' . esc_html( implode( ', ', $pending_attachment_post_ids ) ) ) ) );
 		}
 
-		// only take one post id.
+		$pending_attachment_post_ids = array_values( array_diff( $pending_attachment_post_ids, $excluded_post_ids ) );
+		if ( ! $pending_attachment_post_ids ) {
+			$attempt['status'] = 'empty';
+			return false;
+		}
 		$attachment_post_id = reset( $pending_attachment_post_ids );
 	}
 
@@ -3880,6 +4496,7 @@ function ai4seo_automated_attachment_attributes_generation(
 	}
 
 	$attachment_post_id                             = absint( $attachment_post_id );
+	$attempt['post_id']                             = $attachment_post_id;
 	$processing_claimed                             = false;
 	$is_force_overwrite_bulk_generation_queue_entry = false;
 	$processing_claim_token                         = '';
@@ -3890,7 +4507,7 @@ function ai4seo_automated_attachment_attributes_generation(
 		$pre_claim_enabled_post_types = array();
 
 		// Close settings changes during excavation before the selected queue entry can become Processing.
-		if ( ! ai4seo_reconcile_disabled_bulk_generation_queue_entries( $pre_claim_enabled_post_types )
+		if ( ! ai4seo_reconcile_disabled_bulk_generation_queue_entries( $pre_claim_enabled_post_types, array( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES ) )
 			|| ! in_array( 'attachment', $pre_claim_enabled_post_types, true ) ) {
 			return false;
 		}
@@ -3939,6 +4556,9 @@ function ai4seo_automated_attachment_attributes_generation(
 		if ( $debug ) {
 			ai4seo_debug_message( 641476226, esc_html( __FUNCTION__ ) . ' > Could not exclusively claim the attachment queue entry.', true );
 		}
+		if ( $processing_claim_checked && ! $processing_claimed ) {
+			$attempt['status'] = 'temporarily_busy';
+		}
 
 		return false;
 	}
@@ -3962,29 +4582,50 @@ function ai4seo_automated_attachment_attributes_generation(
 		ai4seo_debug_message( 537974883, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'going to generate media attributes for #' . esc_html( $attachment_post_id ) ) ) );
 	}
 
-	$generated_data_read_succeeded    = false;
-	$generated_data_details           = ai4seo_read_authoritative_generated_data_details_for_post(
+	$generated_data_read_succeeded = false;
+	$history_failure_reason        = '';
+	$generated_data_snapshot       = ai4seo_read_authoritative_generated_data_postmeta_snapshot(
 		$attachment_post_id,
-		$generated_data_read_succeeded
+		$generated_data_read_succeeded,
+		$history_failure_reason
 	);
-	$attachment_source_read_succeeded = false;
-	$attachment_post_exists           = false;
-	$attachment_source_snapshot       = ai4seo_read_attachment_attribute_source_snapshot(
-		$attachment_post_id,
-		$attachment_source_read_succeeded,
-		$attachment_post_exists
-	);
-
-	// Never spend credits or derive a terminal status from an unavailable/malformed primary snapshot.
-	if ( ! $generated_data_read_succeeded || ! $attachment_source_read_succeeded ) {
-		ai4seo_abort_bulk_generation_processing_claim_before_generation(
+	$generated_data_details        = $generated_data_snapshot['generated_data_details'];
+	if ( ! $generated_data_read_succeeded ) {
+		return ai4seo_finish_blocked_bulk_generation_attempt(
 			AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES,
 			$attachment_post_id,
 			$processing_claim_token,
 			$pending_was_present,
-			$force_was_present
+			$force_was_present,
+			'damaged_history' === $history_failure_reason,
+			__( 'Generation history needs attention. The queued entry is retained; no generation was requested.', 'ai-for-seo' ),
+			$attempt
 		);
-		return false;
+	}
+	$attachment_source_read_succeeded = false;
+	$attachment_post_exists           = false;
+	$attachment_failure_reason        = '';
+	$attachment_issues                = null;
+	$attachment_source_snapshot       = ai4seo_read_attachment_attribute_source_snapshot(
+		$attachment_post_id,
+		$attachment_source_read_succeeded,
+		$attachment_post_exists,
+		$attachment_issues,
+		$attachment_failure_reason
+	);
+
+	// Never spend credits or derive a terminal status from an unavailable/malformed primary snapshot.
+	if ( ! $attachment_source_read_succeeded ) {
+		return ai4seo_finish_blocked_bulk_generation_attempt(
+			AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES,
+			$attachment_post_id,
+			$processing_claim_token,
+			$pending_was_present,
+			$force_was_present,
+			'damaged_source' === $attachment_failure_reason,
+			__( 'Media sources need attention. The queued entry is retained; no generation was requested.', 'ai-for-seo' ),
+			$attempt
+		);
 	}
 
 	$generate_this_fields                = $active_attachment_attributes;
@@ -4815,16 +5456,22 @@ function ai4seo_clear_queue_membership_rollback_leases_under_lock(
 /**
  * Atomically queues automatic candidates while retaining their existing force-overwrite markers.
  *
- * @param array  $post_ids Post IDs selected by automatic queue excavation.
- * @param string $context Bulk generation queue context.
- * @param int    $maximum_pending_post_ids Queue capacity.
+ * @param array      $post_ids Post IDs selected by automatic queue excavation.
+ * @param string     $context Bulk generation queue context.
+ * @param int        $maximum_pending_post_ids Queue capacity.
+ * @param array|null $selection_policy Validated selection rules to recheck under the queue fence.
  * @return array|null IDs admitted by this call, or null when the queue mutation failed.
  */
 function ai4seo_add_bounded_auto_queue_post_ids_preserving_force_overwrite(
 	array $post_ids,
 	string $context,
-	int $maximum_pending_post_ids
+	int $maximum_pending_post_ids,
+	?array $selection_policy = null
 ): ?array {
+	$selection_policy = $selection_policy ?? ai4seo_read_auto_queue_policy_snapshot( $context );
+	if ( 'ready' !== $selection_policy['status'] ) {
+		return null;
+	}
 	$post_ids                  = ai4seo_normalize_ordered_auto_queue_post_ids( $post_ids );
 	$queue_options             = ai4seo_get_bulk_generation_queue_options_by_context( $context );
 	$admitted_post_ids         = array();
@@ -4861,8 +5508,24 @@ function ai4seo_add_bounded_auto_queue_post_ids_preserving_force_overwrite(
 	}
 
 	try {
-		$read_eligibility_snapshot = static function () use ( $queue_options, $required_option_keys ): ?array {
-			$option_memberships = array();
+		$read_eligibility_snapshot = static function () use ( $queue_options, $required_option_keys, $context, $selection_policy, $post_ids ): ?array {
+			$account = ai4seo_get_account_readiness( true );
+			$cost    = AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES === $context ? ai4seo_calculate_attachment_attributes_credits_cost_per_attachment_post() : ai4seo_calculate_metadata_credits_cost_per_post();
+			if ( ! $account['credits_ready'] || $account['credits'] < $cost ) {
+				return null;
+			}
+			if ( ! ai4seo_validate_analysis_auto_queue_admission_under_lock( $context ) ) {
+				return null;
+			}
+			$current_policy = ai4seo_read_auto_queue_policy_snapshot( $context );
+			if ( 'ready' !== $current_policy['status'] || $current_policy['fingerprint'] !== $selection_policy['fingerprint'] ) {
+				return null;
+			}
+			$classified = ai4seo_classify_auto_queue_candidates( $post_ids, $context, $current_policy );
+			if ( 'ready' !== $classified['status'] ) {
+				return null;
+			}
+			$option_memberships = array( 'eligible' => array_fill_keys( $classified['eligible_ids'], true ) );
 
 			foreach ( $required_option_keys as $required_option_key ) {
 				if ( ! ai4seo_renew_post_id_option_transition_semaphore() ) {
@@ -4874,20 +5537,28 @@ function ai4seo_add_bounded_auto_queue_post_ids_preserving_force_overwrite(
 				if ( null === $option_snapshot ) {
 					return null;
 				}
+				$inspection = ai4seo_inspect_analysis_post_id_option( $queue_options[ $required_option_key ], $option_snapshot );
+				if ( ! $inspection['read_succeeded'] || ! $inspection['complete'] || ( 'missing' === $required_option_key && ! $option_snapshot['exists'] ) ) {
+					return null;
+				}
 
 				$option_memberships[ $required_option_key ] = array_fill_keys(
-					ai4seo_normalize_ordered_auto_queue_post_ids( $option_snapshot['value'] ),
+					$inspection['ids'],
 					true
 				);
 			}
 
+			$final_policy = ai4seo_read_auto_queue_policy_snapshot( $context );
+			if ( 'ready' !== $final_policy['status'] || $final_policy['fingerprint'] !== $selection_policy['fingerprint'] ) {
+				return null;
+			}
 			return $option_memberships;
 		};
 		$filter_eligible_post_ids  = static function ( array $candidate_post_ids, array $option_memberships ): array {
 			$eligible_post_ids = array();
 
 			foreach ( $candidate_post_ids as $candidate_post_id ) {
-				if ( ! isset( $option_memberships['missing'][ $candidate_post_id ] ) ) {
+				if ( ! isset( $option_memberships['missing'][ $candidate_post_id ], $option_memberships['eligible'][ $candidate_post_id ] ) ) {
 					continue;
 				}
 
@@ -5127,228 +5798,16 @@ function ai4seo_add_bounded_auto_queue_post_ids_preserving_force_overwrite(
  * Function to excavate posts, pages, products etc. with missing metadata.
  * Is used by the cronjob "ai4seo_automated_generation_cron_job" to find posts and pages that are missing metadata
  *
- * @param bool      $debug                If true, debug information will be printed.
- * @param bool|null $queue_barrier_failed Set to true only when admission could not be verified safely.
+ * @param bool       $debug                Retained for caller compatibility; unused by shared selection.
+ * @param bool|null  $queue_barrier_failed Receives whether selection is blocked, incomplete, or unverifiable.
+ * @param array|null $selection Structured selection outcome.
+ * @param array      $blocked_post_ids Pending owners verified as blocked by this worker pass.
  * @return bool
  */
-function ai4seo_excavate_post_entries_with_missing_metadata( bool $debug = false, ?bool &$queue_barrier_failed = null ): bool {
-	global $wpdb;
-
-	$queue_barrier_failed = false;
-
-	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
-		ai4seo_debug_message( 730356485, 'Prevented loop', true );
-		return false;
-	}
-
-	$settings_read_succeeded = false;
-	$persisted_post_types    = ai4seo_read_persisted_enabled_bulk_generation_post_types( $settings_read_succeeded );
-
-	if ( ! $settings_read_succeeded ) {
-		$queue_barrier_failed = true;
-		ai4seo_schedule_disabled_bulk_generation_queue_reconciliation_recovery();
-		return false;
-	}
-
-	$supported_post_types = ai4seo_get_supported_post_types();
-
-	// Find enabled metadata types from authoritative persisted settings before consulting account state.
-	$enabled_bulk_generation_post_types = array_values(
-		array_intersect( $supported_post_types, $persisted_post_types )
-	);
-
-	if ( ! $enabled_bulk_generation_post_types ) {
-		if ( $debug ) {
-			ai4seo_debug_message( 894341588, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'No automation enabled' ) ) );
-		}
-
-		return false;
-	}
-
-	$metadata_credits_costs_per_post = ai4seo_calculate_metadata_credits_cost_per_post();
-
-	// check the current credits balance, compare it to $metadata_credits_costs_per_post and if it's lower, return true.
-	if ( ai4seo_robhub_api()->get_credits_balance() < $metadata_credits_costs_per_post ) {
-		if ( $debug ) {
-			ai4seo_debug_message( 690700036, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'skipped, because of low Credits balance' ) ) );
-		}
-
-		// Remove Pending entries while preserving Processing work owned by another request.
-		if ( ! ai4seo_remove_bulk_generation_pending_queue_snapshot_memberships(
-			array( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA )
-		) ) {
-			$queue_barrier_failed = true;
-		}
-
-		return false;
-	}
-
-	// check the number of already pending posts.
-	$pending_metadata_post_ids = ai4seo_get_post_ids_from_option( AI4SEO_PENDING_METADATA_POST_IDS_OPTION_NAME );
-
-	if ( $pending_metadata_post_ids && count( $pending_metadata_post_ids ) >= 2 ) {
-		// skip here because we already have two posts pending, that are going to be processed
-		// better keep the amount of post ids low if the user suddenly stops the automation.
-		if ( $debug ) {
-			ai4seo_debug_message( 693756939, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'Already >= 2 posts pending -> skip' ) ) );
-		}
-
-		return true;
-	}
-
-	// only these posts we have to look for.
-	$missing_metadata_post_ids = ai4seo_get_post_ids_from_option( AI4SEO_MISSING_METADATA_POST_IDS_OPTION_NAME );
-
-	if ( ! $missing_metadata_post_ids ) {
-		// skip here because we don't have any posts or pages.
-		if ( $debug ) {
-			ai4seo_debug_message( 411642134, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'No posts found' ) ) );
-		}
-
-		return false;
-	}
-
-	$missing_metadata_post_ids = array_unique( $missing_metadata_post_ids );
-
-	// additionally, these posts we have to ignore.
-	$failed_metadata_post_ids                = ai4seo_get_post_ids_from_option( AI4SEO_FAILED_METADATA_POST_IDS_OPTION_NAME );
-	$processing_metadata_post_ids            = ai4seo_get_post_ids_from_option( AI4SEO_PROCESSING_METADATA_POST_IDS_OPTION_NAME );
-	$hidden_metadata_post_ids                = ai4seo_get_post_ids_from_option( AI4SEO_HIDDEN_METADATA_POST_IDS_OPTION_NAME );
-	$auto_queue_disallowed_metadata_post_ids = ai4seo_get_post_ids_from_option( AI4SEO_AUTO_QUEUE_DISALLOWED_METADATA_POST_IDS_OPTION_NAME );
-
-	// Exclude entries that are already queued, failed, hidden, or explicitly disallowed for Auto Queue.
-	$exclude_this_post_ids = array_merge( $pending_metadata_post_ids, $processing_metadata_post_ids, $failed_metadata_post_ids, $hidden_metadata_post_ids, $auto_queue_disallowed_metadata_post_ids );
-
-	// check if all values are numeric.
-	foreach ( $exclude_this_post_ids as &$this_excluded_post_id ) {
-		$this_excluded_post_id = absint( $this_excluded_post_id );
-	}
-
-	// make sure that $exclude_this_post_ids is an array and not empty (otherwise the query will fail).
-	if ( ! $exclude_this_post_ids ) {
-		$exclude_this_post_ids = array( 0 );
-	}
-
-	$exclude_this_post_ids = array_unique( $exclude_this_post_ids );
-
-	$candidate_post_ids = array_values( array_diff( $missing_metadata_post_ids, $exclude_this_post_ids ) );
-
-	if ( ! $candidate_post_ids ) {
-		if ( $debug ) {
-			ai4seo_debug_message( 345541132, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'No candidates after exclusions' ) ) );
-		}
-
-		return false;
-	}
-
-	$new_pending_post_ids = array();
-
-	// check bulk generation order.
-	$bulk_generation_order = ai4seo_get_setting( AI4SEO_SETTING_BULK_GENERATION_ORDER );
-
-	// Apply order in PHP (avoid ORDER BY RAND(), keep SQL simple).
-	switch ( $bulk_generation_order ) {
-		case 'oldest':
-			sort( $candidate_post_ids, SORT_NUMERIC );
-			break;
-		case 'newest':
-			rsort( $candidate_post_ids, SORT_NUMERIC );
-			break;
-		case 'random':
-		default:
-			shuffle( $candidate_post_ids );
-			break;
-	}
-
-	// Resolve the optional date filter before any candidate query can reach the database.
-	$bulk_generation_date_filter_query_state = ai4seo_resolve_bulk_generation_date_filter(
-		ai4seo_get_setting( AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER ),
-		ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME )
-	);
-
-	// Stop before candidate SQL when stored date-filter state cannot be represented safely.
-	if ( false === $bulk_generation_date_filter_query_state ) {
-		return false;
-	}
-
-	// Unpack the validated state once so query parameters retain the established concise vocabulary.
-	$post_date_filter = $bulk_generation_date_filter_query_state['filter'];
-	$post_date_gmt    = $bulk_generation_date_filter_query_state['post_date_gmt'];
-
-	$database_chunk_size = ai4seo_get_database_chunk_size();
-
-	// Query every enabled post type together so the globally ordered candidate sequence remains authoritative.
-	$candidate_post_ids_chunks = array_chunk( $candidate_post_ids, $database_chunk_size );
-
-	foreach ( $candidate_post_ids_chunks as $this_candidate_post_ids_chunk ) {
-		$candidate_query = ai4seo_prepare_metadata_auto_queue_candidate_query_for_post_types(
-			$this_candidate_post_ids_chunk,
-			$enabled_bulk_generation_post_types,
-			$post_date_filter,
-			$post_date_gmt,
-			$bulk_generation_order
-		);
-
-		if ( false === $candidate_query ) {
-			ai4seo_debug_message( 984321678, 'Could not prepare the metadata Auto Queue candidate query.', true );
-			return false;
-		}
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The named-query compiler prepares every binding; mutable queue, status, and date state requires one fresh bounded candidate read.
-		$eligible_post_ids = $wpdb->get_col( $candidate_query );
-
-		if ( $wpdb->last_error ) {
-			ai4seo_debug_message( 984321678, 'Database error: ' . $wpdb->last_error, true );
-			return false;
-		}
-
-		// Random eligibility queries are unordered, so restore the shuffled candidate sequence in PHP.
-		$eligible_post_ids = ai4seo_order_auto_queue_eligible_post_ids(
-			$this_candidate_post_ids_chunk,
-			(array) $eligible_post_ids,
-			$bulk_generation_order
-		);
-
-		if ( $eligible_post_ids ) {
-			$new_pending_post_ids = array_merge( $new_pending_post_ids, $eligible_post_ids );
-
-			if ( count( $new_pending_post_ids ) >= 2 ) {
-				$new_pending_post_ids = array_slice( $new_pending_post_ids, 0, 2 );
-				break;
-			}
-		}
-	}
-
-	if ( ! $new_pending_post_ids && ! $pending_metadata_post_ids ) {
-		// skip here because we don't have any posts or pages.
-		if ( $debug ) {
-			ai4seo_debug_message( 345541131, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'No posts found' ) ) );
-		}
-
-		return false;
-	}
-
-	// Queue discovered metadata through the helper so partial force-overwrite runs retain their mode.
-	if ( $new_pending_post_ids ) {
-		$admitted_pending_post_ids = ai4seo_add_bounded_auto_queue_post_ids_preserving_force_overwrite(
-			$new_pending_post_ids,
-			AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA,
-			2
-		);
-
-		if ( null === $admitted_pending_post_ids ) {
-			$queue_barrier_failed = true;
-			return false;
-		}
-
-		$new_pending_post_ids = $admitted_pending_post_ids;
-
-		if ( $debug ) {
-			ai4seo_debug_message( 588880985, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'New pending post(s): ' . esc_textarea( implode( ', ', $new_pending_post_ids ) ) ) ) );
-		}
-	}
-
-	return true;
+function ai4seo_excavate_post_entries_with_missing_metadata( bool $debug = false, ?bool &$queue_barrier_failed = null, ?array &$selection = null, array $blocked_post_ids = array() ): bool {
+	$selection            = ai4seo_select_auto_queue_candidates( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA, $blocked_post_ids );
+	$queue_barrier_failed = in_array( $selection['status'], array( 'system_error', 'policy_changed', 'context_blocked', 'filter_blocked', 'analysis_pending', 'deferred', 'data_blocked' ), true );
+	return in_array( $selection['status'], array( 'queued', 'queue_full' ), true ) || ( 'empty' === $selection['status'] && ! empty( $selection['candidates_found'] ) );
 }
 
 
@@ -5356,234 +5815,16 @@ function ai4seo_excavate_post_entries_with_missing_metadata( bool $debug = false
  * Function to excavate attachments with missing attributes.
  * Is used by the cronjob "ai4seo_automated_generation_cron_job"
  *
- * @param bool      $debug                If true, debug information will be printed.
- * @param bool|null $queue_barrier_failed Set to true only when admission could not be verified safely.
+ * @param bool       $debug                Retained for caller compatibility; unused by shared selection.
+ * @param bool|null  $queue_barrier_failed Receives whether selection is blocked, incomplete, or unverifiable.
+ * @param array|null $selection Structured selection outcome.
+ * @param array      $blocked_post_ids Pending owners verified as blocked by this worker pass.
  * @return bool
  */
-function ai4seo_excavate_attachments_with_missing_attributes( bool $debug = false, ?bool &$queue_barrier_failed = null ): bool {
-	global $wpdb;
-
-	$queue_barrier_failed = false;
-
-	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
-		ai4seo_debug_message( 548885475, 'Prevented loop', true );
-		return false;
-	}
-
-	$settings_read_succeeded = false;
-	$persisted_post_types    = ai4seo_read_persisted_enabled_bulk_generation_post_types( $settings_read_succeeded );
-
-	if ( ! $settings_read_succeeded ) {
-		$queue_barrier_failed = true;
-		ai4seo_schedule_disabled_bulk_generation_queue_reconciliation_recovery();
-		return false;
-	}
-
-	// Disabled attachment automation cannot consult credits or any other RobHub state.
-	if ( ! in_array( 'attachment', $persisted_post_types, true ) ) {
-		if ( $debug ) {
-			ai4seo_debug_message( 457348107, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'No automation enabled' ) ) );
-		}
-
-		return false;
-	}
-
-	$allowed_attachment_mime_types   = ai4seo_get_allowed_attachment_mime_types();
-	$supported_attachment_post_types = ai4seo_get_supported_attachment_post_types();
-
-	$approximate_cost_per_attachment_post = ai4seo_calculate_attachment_attributes_credits_cost_per_attachment_post();
-
-	// check the current credits balance, compare it to $approximate_cost_per_attachment_post and if it's lower, return false.
-	if ( ai4seo_robhub_api()->get_credits_balance() < $approximate_cost_per_attachment_post ) {
-		if ( $debug ) {
-			ai4seo_debug_message( 791110592, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'skipped, because of low Credits balance' ) ) );
-		}
-
-		// Remove Pending entries while preserving Processing work owned by another request.
-		if ( ! ai4seo_remove_bulk_generation_pending_queue_snapshot_memberships(
-			array( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES )
-		) ) {
-			$queue_barrier_failed = true;
-		}
-
-		return false;
-	}
-
-	// check the number of already planned posts.
-	$pending_attributes_attachment_post_ids = ai4seo_get_post_ids_from_option( AI4SEO_PENDING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME );
-
-	if ( $pending_attributes_attachment_post_ids && count( $pending_attributes_attachment_post_ids ) >= 2 ) {
-		// skip here because we already have two attachment posts that are going to be processed
-		// better keep the amount of post ids low if the user suddenly stops the automation.
-		if ( $debug ) {
-			ai4seo_debug_message( 977145156, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'Already >= 2 media posts to generate -> skip' ) ) );
-		}
-
-		return true;
-	}
-
-	// only consider this attachment posts with missing post ids.
-	$missing_attachment_attributes_post_ids = ai4seo_get_post_ids_from_option( AI4SEO_MISSING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME );
-
-	if ( ! $missing_attachment_attributes_post_ids ) {
-		// skip here because we don't have any attachment posts with missing attributes.
-		if ( $debug ) {
-			ai4seo_debug_message( 325744145, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'No media posts found' ) ) );
-		}
-
-		return false;
-	}
-
-	$missing_attachment_attributes_post_ids = array_unique( $missing_attachment_attributes_post_ids );
-
-	// additionally, exclude these attachment posts.
-	$processing_attachment_attributes_post_ids            = ai4seo_get_post_ids_from_option( AI4SEO_PROCESSING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME );
-	$failed_attachment_attributes_post_ids                = ai4seo_get_post_ids_from_option( AI4SEO_FAILED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME );
-	$hidden_attachment_attributes_post_ids                = ai4seo_get_post_ids_from_option( AI4SEO_HIDDEN_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME );
-	$auto_queue_disallowed_attachment_attributes_post_ids = ai4seo_get_post_ids_from_option( AI4SEO_AUTO_QUEUE_DISALLOWED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME );
-
-	// Exclude entries that are already queued, failed, hidden, or explicitly disallowed for Auto Queue.
-	$exclude_this_attachment_post_ids = array_merge( $pending_attributes_attachment_post_ids, $processing_attachment_attributes_post_ids, $failed_attachment_attributes_post_ids, $hidden_attachment_attributes_post_ids, $auto_queue_disallowed_attachment_attributes_post_ids );
-
-	// check if all values are numeric.
-	foreach ( $exclude_this_attachment_post_ids as &$this_excluded_attachment_post_id ) {
-		$this_excluded_attachment_post_id = absint( $this_excluded_attachment_post_id );
-	}
-
-	// make sure that $exclude_this_post_ids is an array and not empty (otherwise the query will fail).
-	if ( ! $exclude_this_attachment_post_ids ) {
-		$exclude_this_attachment_post_ids = array( 0 );
-	}
-
-	$exclude_this_attachment_post_ids = array_unique( $exclude_this_attachment_post_ids );
-
-	// check bulk generation order.
-	$bulk_generation_order = ai4seo_get_setting( AI4SEO_SETTING_BULK_GENERATION_ORDER );
-
-	// Resolve the optional date filter before any candidate query can reach the database.
-	$bulk_generation_date_filter_query_state = ai4seo_resolve_bulk_generation_date_filter(
-		ai4seo_get_setting( AI4SEO_SETTING_BULK_GENERATION_NEW_OR_EXISTING_FILTER ),
-		ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME )
-	);
-
-	// Stop before candidate SQL when stored date-filter state cannot be represented safely.
-	if ( false === $bulk_generation_date_filter_query_state ) {
-		return false;
-	}
-
-	// Unpack the validated state once so query parameters retain the established concise vocabulary.
-	$post_date_filter = $bulk_generation_date_filter_query_state['filter'];
-	$post_date_gmt    = $bulk_generation_date_filter_query_state['post_date_gmt'];
-
-	// Bind supported attachment post types as placeholders instead of concatenating a post_type clause.
-	// An empty sentinel keeps the prepared IN clause valid and deliberately matches no post type.
-	if ( ! $supported_attachment_post_types ) {
-		$supported_attachment_post_types = array( '' );
-	}
-
-	$supported_attachment_post_types = array_slice( $supported_attachment_post_types, 0, 256 );
-
-	// remove excluded IDs in PHP first, then chunk only candidates.
-	$candidate_attachment_post_ids = array_values( array_diff( $missing_attachment_attributes_post_ids, $exclude_this_attachment_post_ids ) );
-
-	if ( ! $candidate_attachment_post_ids ) {
-		if ( $debug ) {
-			ai4seo_debug_message( 742528302, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'No candidates after exclusions' ) ) );
-		}
-
-		return false;
-	}
-
-	// Apply order in PHP (avoid ORDER BY RAND(), keep SQL simple).
-	switch ( $bulk_generation_order ) {
-		case 'oldest':
-			sort( $candidate_attachment_post_ids, SORT_NUMERIC );
-			break;
-		case 'newest':
-			rsort( $candidate_attachment_post_ids, SORT_NUMERIC );
-			break;
-		case 'random':
-		default:
-			shuffle( $candidate_attachment_post_ids );
-			break;
-	}
-
-	$new_pending_attachment_post_ids = array();
-
-	$database_chunk_size = ai4seo_get_database_chunk_size();
-
-	$candidate_attachment_post_ids_chunks = array_chunk( $candidate_attachment_post_ids, $database_chunk_size );
-
-	foreach ( $candidate_attachment_post_ids_chunks as $this_candidate_post_ids_chunk ) {
-		$candidate_query = ai4seo_prepare_attachment_auto_queue_candidate_query(
-			$this_candidate_post_ids_chunk,
-			$supported_attachment_post_types,
-			$allowed_attachment_mime_types,
-			$post_date_filter,
-			$post_date_gmt,
-			$bulk_generation_order
-		);
-
-		if ( false === $candidate_query ) {
-			ai4seo_debug_message( 984321679, 'Could not prepare the attachment Auto Queue candidate query.', true );
-			return false;
-		}
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The named-query compiler prepares every binding; mutable queue, status, MIME, and date state requires one fresh bounded candidate read.
-		$eligible_post_ids = $wpdb->get_col( $candidate_query );
-
-		if ( $wpdb->last_error ) {
-			ai4seo_debug_message( 984321679, 'Database error: ' . $wpdb->last_error, true );
-			return false;
-		}
-
-		// Random eligibility queries are unordered, so restore the shuffled candidate sequence in PHP.
-		$eligible_post_ids = ai4seo_order_auto_queue_eligible_post_ids(
-			$this_candidate_post_ids_chunk,
-			(array) $eligible_post_ids,
-			$bulk_generation_order
-		);
-
-		if ( $eligible_post_ids ) {
-			$new_pending_attachment_post_ids = array_merge( $new_pending_attachment_post_ids, $eligible_post_ids );
-
-			if ( count( $new_pending_attachment_post_ids ) >= 2 ) {
-				$new_pending_attachment_post_ids = array_slice( $new_pending_attachment_post_ids, 0, 2 );
-				break;
-			}
-		}
-	}
-
-	if ( ! $new_pending_attachment_post_ids && ! $pending_attributes_attachment_post_ids ) {
-		// skip here because we don't have any posts or pages.
-		if ( $debug ) {
-			ai4seo_debug_message( 742528301, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'No new media found' ) ) );
-		}
-
-		return false;
-	}
-
-	// Queue discovered media through the helper so partial force-overwrite runs retain their mode.
-	if ( $new_pending_attachment_post_ids ) {
-		$admitted_pending_attachment_post_ids = ai4seo_add_bounded_auto_queue_post_ids_preserving_force_overwrite(
-			$new_pending_attachment_post_ids,
-			AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES,
-			2
-		);
-
-		if ( null === $admitted_pending_attachment_post_ids ) {
-			$queue_barrier_failed = true;
-			return false;
-		}
-
-		$new_pending_attachment_post_ids = $admitted_pending_attachment_post_ids;
-
-		if ( $debug ) {
-			ai4seo_debug_message( 209429876, esc_html( __FUNCTION__ ) . ' >' . esc_html( ai4seo_stringify( 'Added pending media: ' . ( implode( ', ', $new_pending_attachment_post_ids ) ) ) ) );
-		}
-	}
-
-	return true;
+function ai4seo_excavate_attachments_with_missing_attributes( bool $debug = false, ?bool &$queue_barrier_failed = null, ?array &$selection = null, array $blocked_post_ids = array() ): bool {
+	$selection            = ai4seo_select_auto_queue_candidates( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES, $blocked_post_ids );
+	$queue_barrier_failed = in_array( $selection['status'], array( 'system_error', 'policy_changed', 'context_blocked', 'filter_blocked', 'analysis_pending', 'deferred', 'data_blocked' ), true );
+	return in_array( $selection['status'], array( 'queued', 'queue_full' ), true ) || ( 'empty' === $selection['status'] && ! empty( $selection['candidates_found'] ) );
 }
 
 

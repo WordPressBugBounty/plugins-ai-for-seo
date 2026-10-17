@@ -1,4 +1,17 @@
 == Changelog ==
+= 2.6.0 =
+* Added metadata editing and generation for category, tag, and public taxonomy archives, with separate SEO coverage and SEO Autopilot selection.
+* Added support for generating image attributes from validated static SVGs while preserving the original media file, including native WordPress media controls.
+* Added email-confirmed license owner changes and license key rotation for eligible accounts, with recovery when a confirmation result is uncertain.
+* Added separate controls for offers, optional notifications, menu counters, and email preferences, with reliable saving and dismissal across admin pages.
+* Improved SEO Autopilot and bulk generation with clearer queue status, retained jobs when data is unavailable, and safer retries after interruptions.
+* Improved metadata and settings editors to preserve unsaved work, explain unavailable data, and recover from conflicting or incomplete saves.
+* Improved account refresh and offer handling so stale account data or expired offers cannot silently replace current information.
+* Improved plugin upgrades with visible progress, safe retries, and preservation of legacy metadata when an update step cannot finish.
+* Improved synchronization with supported SEO plugins and navigation between filtered content entries, with clearer responsive dialogs and keyboard focus.
+* Simplified taxonomy navigation and Credits Pack dialogs, named the processed content types in Autopilot completion messages, and clarified metadata help and notification labels.
+* Bug Fixes & Maintenance: Fixed 8 minor bugs and addressed 1 security issue.
+
 = 2.5.9 =
 * Improved SEO coverage analysis so unreadable or duplicate generation history no longer stops scans, with clear warnings and affected entries excluded from SEO Autopilot until resolved.
 * Improved account connection recovery to stop repeated unsuccessful setup attempts while preserving valid connections and allowing manual reconnection.

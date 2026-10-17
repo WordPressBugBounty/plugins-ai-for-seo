@@ -14,38 +14,35 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 /**
+ * Identify blank license-entry placeholders that must preserve the hidden free account.
+ *
+ * Shared by notification preflight and account persistence so both interpret the form identically.
+ *
+ * @param array $updates Sanitized save-anything values without the plugin prefix.
+ * @return bool Whether the credential fields are placeholders rather than a disconnect request.
+ */
+function ai4seo_is_account_license_entry_placeholder( array $updates ): bool {
+	return true === ( $updates['account_license_entry_mode'] ?? false )
+		&& ! ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_HAS_PURCHASED_SOMETHING )
+		&& '' === ( $updates['api_username'] ?? null )
+		&& '' === ( $updates['api_password'] ?? null );
+}
+
+/**
  * Return the normalized plan key for the current account.
  *
  * @return string Normalized plan key.
  */
 function ai4seo_get_current_user_plan(): string {
-	// Cache the normalized plan because entitlement checks fan out across settings and UI rendering.
+	$account = ai4seo_get_account_readiness();
+	if ( ! $account['plan_ready'] ) {
+		return '';
+	}
+	// The inspected record is cached by the communicator and invalidated by account writes.
 	global $ai4seo_current_user_plan;
-
-	// Reuse the request-level value once the synchronized subscription has been resolved.
-	if ( isset( $ai4seo_current_user_plan ) ) {
-		return $ai4seo_current_user_plan;
-	}
-
-	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
-		ai4seo_debug_message( 508736227, 'Prevented loop', true );
-		return 'free';
-	}
-
-	// The server-side subscription sync is authoritative; inactive accounts are expected to be stored as free.
-	$robhub_api           = ai4seo_robhub_api();
-	$current_subscription = $robhub_api->read_environmental_variable( $robhub_api::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION );
-
-	if ( ! is_array( $current_subscription ) ) {
-		$ai4seo_current_user_plan = 'free';
-		return $ai4seo_current_user_plan;
-	}
-
-	// Unknown local plan values should not unlock any paid-tier behavior.
-	$current_plan = ai4seo_normalize_plan_identifier( $current_subscription['plan'] ?? 'free' );
-
-	if ( ! $current_plan ) {
-		$current_plan = 'free';
+	$current_plan = ai4seo_normalize_plan_identifier( $account['plan'] );
+	if ( ( $ai4seo_current_user_plan ?? null ) !== $current_plan ) {
+		unset( $GLOBALS['ai4seo_user_has_at_least_plan'] );
 	}
 
 	$ai4seo_current_user_plan = $current_plan;
@@ -79,13 +76,19 @@ function ai4seo_user_has_at_least_plan( string $required_plan ): bool {
 	if ( ! $required_plan ) {
 		return false;
 	}
+	if ( 'free' === $required_plan ) {
+		return true;
+	}
+	if ( ! ai4seo_get_account_readiness()['plan_ready'] ) {
+		return false;
+	}
 
+	$current_plan = ai4seo_get_current_user_plan();
 	if ( isset( $ai4seo_user_has_at_least_plan[ $required_plan ] ) ) {
 		return (bool) $ai4seo_user_has_at_least_plan[ $required_plan ];
 	}
 
-	// Compare known plan positions only; malformed local subscription data is treated as free.
-	$current_plan               = ai4seo_get_current_user_plan();
+	// Compare only the known synchronized plan; unknown data cannot unlock paid behavior.
 	$available_plans            = ai4seo_get_available_plans();
 	$available_plan_identifiers = array_keys( $available_plans );
 	$current_plan_index         = array_search( $current_plan, $available_plan_identifiers, true );
@@ -1169,7 +1172,57 @@ function ai4seo_reset_inactive_payg_low_credit_tracking(): bool {
 
 
 /**
- * Synchronize the RobHub account when locally observed account state is stale.
+ * Read operation-specific account readiness without making remote calls.
+ *
+ * @param bool $fresh Read current persisted facts at an admission boundary.
+ * @return array Account quality and a user-facing explanation.
+ */
+function ai4seo_get_account_readiness( bool $fresh = false ): array {
+	$state            = ai4seo_robhub_api()->inspect_account_state( $fresh );
+	$state['message'] = esc_html__( 'Account data is temporarily unavailable or outdated. Refresh account data in Account settings. Queued entries are retained; you can still edit and save your texts.', 'ai-for-seo' );
+	if ( $state['auth_locked'] || ! $state['auth_known'] ) {
+		$state['message'] = esc_html__( 'Saved account access could not be verified. Please reconnect your account in Account settings. Queued entries are retained.', 'ai-for-seo' );
+	}
+	return $state;
+}
+
+/**
+ * Attempt one bounded account refresh before dependent work, without retrying generation.
+ *
+ * @return array Current account readiness after an optional refresh.
+ */
+function ai4seo_maybe_refresh_account_state(): array {
+	$state = ai4seo_get_account_readiness( true );
+	if ( ( $state['credits_ready'] && $state['plan_ready'] ) || ( ! $state['access_ready'] && ! $state['can_bootstrap'] ) ) {
+		return $state;
+	}
+	if ( ! get_transient( 'ai4seo_account_quality_refresh' ) ) {
+		set_transient( 'ai4seo_account_quality_refresh', true, MINUTE_IN_SECONDS );
+		ai4seo_sync_robhub_account( 'account_data_unavailable' );
+	}
+	return ai4seo_get_account_readiness( true );
+}
+
+/**
+ * Avoid using a successful account sync to repair unrelated stored settings.
+ *
+ * @param string     $setting_name Optional setting to inspect; empty checks all settings.
+ * @param array|null $state Existing inspection to reuse, or null for a fresh snapshot.
+ * @return bool Whether existing settings can safely use their ordinary update contract.
+ */
+function ai4seo_can_sync_account_settings( string $setting_name = '', ?array $state = null ): bool {
+	$state = $state ?? ai4seo_inspect_settings();
+	if ( ! $state['readable'] ) {
+		return false;
+	}
+	if ( '' === $setting_name ) {
+		return ! $state['issues'];
+	}
+	return array_key_exists( $setting_name, AI4SEO_DEFAULT_SETTINGS ) && ! isset( $state['issues'][ $setting_name ] );
+}
+
+/**
+ * Synchronize account facts on the established polling schedule.
  *
  * @return void
  */
@@ -1179,10 +1232,9 @@ function ai4seo_check_for_robhub_account_sync(): void {
 	}
 
 	// Unsynchronized installations need an immediate baseline before other account checks are meaningful.
-	$is_account_synced = ai4seo_robhub_api()->read_environmental_variable( ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED );
-
-	if ( ! $is_account_synced ) {
-		ai4seo_sync_robhub_account( 'not_yet_synced' );
+	$account = ai4seo_get_account_readiness( true );
+	if ( ! $account['credits_ready'] || ! $account['plan_ready'] ) {
+		ai4seo_maybe_refresh_account_state();
 		return;
 	}
 
@@ -1654,7 +1706,7 @@ function ai4seo_normalize_synced_account_discount( array $discount ): ?array {
 		'percentage' => (int) $discount_percentage,
 	);
 
-	foreach ( array( 'description', 'voucher_code' ) as $string_field ) {
+	foreach ( array( 'description', 'voucher_code', 'instance_id' ) as $string_field ) {
 		if ( isset( $discount[ $string_field ] ) && is_string( $discount[ $string_field ] ) ) {
 			$normalized_discount[ $string_field ] = $discount[ $string_field ];
 		}
@@ -1666,7 +1718,7 @@ function ai4seo_normalize_synced_account_discount( array $discount ): ?array {
 		$normalized_discount['image'] = $image_url;
 	}
 
-	foreach ( array( 'expire_in', 'min_num_missing_entries_condition' ) as $numeric_field ) {
+	foreach ( array( 'expire_in', 'expires_at', 'min_num_missing_entries_condition' ) as $numeric_field ) {
 		if ( isset( $discount[ $numeric_field ] ) && is_numeric( $discount[ $numeric_field ] ) ) {
 			$numeric_value = max( 0, (int) $discount[ $numeric_field ] );
 
@@ -1716,6 +1768,7 @@ function ai4seo_sync_robhub_account( string $sync_reason = 'unknown', bool $allo
 	}
 
 	$api_response = ai4seo_robhub_api()->sync_account( $sync_reason );
+	unset( $GLOBALS['ai4seo_current_user_plan'], $GLOBALS['ai4seo_user_has_at_least_plan'] );
 
 	// Let the existing account-error notification mechanism interpret every API response.
 	ai4seo_check_for_robhub_account_error_notification( $api_response, true );
@@ -1734,9 +1787,16 @@ function ai4seo_sync_robhub_account( string $sync_reason = 'unknown', bool $allo
 	// Apply the validated response through the existing setting, state, and notification mechanisms.
 	$synced_account_data = $api_response['data'];
 	ai4seo_store_activation_data( $synced_account_data['activation'] ?? array( 'available' => false ) );
+	if ( ai4seo_acquire_semaphore( 'notification-preferences' ) ) {
+		try {
+			ai4seo_sync_notification_preferences();
+		} finally {
+			ai4seo_release_semaphore( 'notification-preferences' );
+		}
+	}
 
 	// Persist one-shot remote retry authorization before any destructive local queue mutation.
-	$auto_retry_failed_was_requested = isset( $synced_account_data['auto_retry_failed'] ) && $synced_account_data['auto_retry_failed'];
+	$auto_retry_failed_was_requested = in_array( $synced_account_data['auto_retry_failed'] ?? null, array( true, 1, '1' ), true );
 	$auto_retry_failed_request_token = '';
 
 	if ( $auto_retry_failed_was_requested ) {
@@ -1755,7 +1815,7 @@ function ai4seo_sync_robhub_account( string $sync_reason = 'unknown', bool $allo
 	}
 
 	// Route every nonzero remote timestamp through the shared idempotent environmental writer.
-	$remote_last_website_toc_and_pp_update_time = (int) ( $synced_account_data['last_terms_update_time'] ?? false );
+	$remote_last_website_toc_and_pp_update_time = is_numeric( $synced_account_data['last_terms_update_time'] ?? null ) ? (int) $synced_account_data['last_terms_update_time'] : 0;
 
 	// Keep legal acceptance checks aligned with the latest terms timestamp supplied by RobHub.
 	if ( 0 !== $remote_last_website_toc_and_pp_update_time ) {
@@ -1766,23 +1826,27 @@ function ai4seo_sync_robhub_account( string $sync_reason = 'unknown', bool $allo
 	}
 
 	// Persist the account purchase flag independently from plan or credit state.
-	ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_HAS_PURCHASED_SOMETHING, (bool) ( $synced_account_data['has_purchased_something'] ?? false ) );
+	if ( isset( $synced_account_data['has_purchased_something'] ) && in_array( $synced_account_data['has_purchased_something'], array( true, false, 0, 1, '0', '1' ), true ) ) {
+		ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_HAS_PURCHASED_SOMETHING, (bool) $synced_account_data['has_purchased_something'] );
+	}
 
 	// Update only PAYG values present in the response so omitted remote fields retain their local state.
-	if ( isset( $synced_account_data['is_payg_enabled'] ) ) {
-		ai4seo_update_setting( AI4SEO_SETTING_PAYG_ENABLED, (bool) $synced_account_data['is_payg_enabled'] );
+	$settings_state  = ai4seo_inspect_settings();
+	$setting_changes = array();
+	if ( ai4seo_can_sync_account_settings( AI4SEO_SETTING_PAYG_ENABLED, $settings_state ) && isset( $synced_account_data['is_payg_enabled'] ) && in_array( $synced_account_data['is_payg_enabled'], array( true, false, 0, 1, '0', '1' ), true ) ) {
+		$setting_changes[ AI4SEO_SETTING_PAYG_ENABLED ] = (bool) $synced_account_data['is_payg_enabled'];
 	}
 
-	if ( isset( $synced_account_data['stripe_price_id'] ) && $synced_account_data['stripe_price_id'] ) {
-		ai4seo_update_setting( AI4SEO_SETTING_PAYG_STRIPE_PRICE_ID, sanitize_text_field( $synced_account_data['stripe_price_id'] ) );
+	if ( ai4seo_can_sync_account_settings( AI4SEO_SETTING_PAYG_STRIPE_PRICE_ID, $settings_state ) && isset( $synced_account_data['stripe_price_id'] ) && is_string( $synced_account_data['stripe_price_id'] ) && $synced_account_data['stripe_price_id'] ) {
+		$setting_changes[ AI4SEO_SETTING_PAYG_STRIPE_PRICE_ID ] = sanitize_text_field( $synced_account_data['stripe_price_id'] );
 	}
 
-	if ( isset( $synced_account_data['payg_daily_budget'] ) && is_numeric( $synced_account_data['payg_daily_budget'] ) ) {
-		ai4seo_update_setting( AI4SEO_SETTING_PAYG_DAILY_BUDGET, (int) $synced_account_data['payg_daily_budget'] );
+	if ( ai4seo_can_sync_account_settings( AI4SEO_SETTING_PAYG_DAILY_BUDGET, $settings_state ) && isset( $synced_account_data['payg_daily_budget'] ) && is_numeric( $synced_account_data['payg_daily_budget'] ) ) {
+		$setting_changes[ AI4SEO_SETTING_PAYG_DAILY_BUDGET ] = (int) $synced_account_data['payg_daily_budget'];
 	}
 
-	if ( isset( $synced_account_data['payg_monthly_budget'] ) && is_numeric( $synced_account_data['payg_monthly_budget'] ) ) {
-		ai4seo_update_setting( AI4SEO_SETTING_PAYG_MONTHLY_BUDGET, (int) $synced_account_data['payg_monthly_budget'] );
+	if ( ai4seo_can_sync_account_settings( AI4SEO_SETTING_PAYG_MONTHLY_BUDGET, $settings_state ) && isset( $synced_account_data['payg_monthly_budget'] ) && is_numeric( $synced_account_data['payg_monthly_budget'] ) ) {
+		$setting_changes[ AI4SEO_SETTING_PAYG_MONTHLY_BUDGET ] = (int) $synced_account_data['payg_monthly_budget'];
 	}
 
 	// Distinguish an omitted status from a present malformed value before mutating local PAYG state.
@@ -1801,10 +1865,6 @@ function ai4seo_sync_robhub_account( string $sync_reason = 'unknown', bool $allo
 		ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_STATUS, sanitize_key( $synced_account_data['payg_status'] ) );
 
 		ai4seo_check_for_payg_status_errors( $synced_account_data['payg_status'] );
-	} elseif ( $ai4seo_has_payg_status ) {
-		ai4seo_delete_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_STATUS );
-		ai4seo_delete_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_FAILURE_REASON );
-		ai4seo_remove_notification( 'payg-status-error' );
 	}
 
 	// Mirror the one-time feedback-offer claim so the deactivation modal does not offer it again.
@@ -1815,27 +1875,29 @@ function ai4seo_sync_robhub_account( string $sync_reason = 'unknown', bool $allo
 	}
 
 	// Keep locally displayed pricing aligned with the account's preferred currency when supplied.
-	if ( isset( $synced_account_data['preferred_currency'] ) && $synced_account_data['preferred_currency'] ) {
-		ai4seo_update_setting( AI4SEO_SETTING_PREFERRED_CURRENCY, $synced_account_data['preferred_currency'] );
+	if ( ai4seo_can_sync_account_settings( AI4SEO_SETTING_PREFERRED_CURRENCY, $settings_state ) && isset( $synced_account_data['preferred_currency'] ) && is_string( $synced_account_data['preferred_currency'] ) && $synced_account_data['preferred_currency'] ) {
+		$setting_changes[ AI4SEO_SETTING_PREFERRED_CURRENCY ] = $synced_account_data['preferred_currency'];
+	}
+
+	if ( $setting_changes ) {
+		ai4seo_patch_settings( $setting_changes, $settings_state['raw'] );
 	}
 
 	// Reuse the plugin update mechanism for the latest version reported during account synchronization.
 	ai4seo_check_for_plugin_update_available( $synced_account_data['latest_product_version'] ?? '', true );
 
-	// Store valid active discounts and clear both state and notices when no discount is returned.
-	if ( isset( $synced_account_data['discount'] ) && is_array( $synced_account_data['discount'] ) ) {
-		$discount = ai4seo_normalize_synced_account_discount( $synced_account_data['discount'] );
-
-		if ( null !== $discount ) {
-			ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_CURRENT_DISCOUNT, $discount );
-			ai4seo_check_discount_notification( $discount, $allow_notification_force );
-		} else {
-			ai4seo_delete_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_CURRENT_DISCOUNT );
-			ai4seo_remove_notification( 'discount' );
-		}
+	// Preserve a dismissed cycle through temporary absence, until its original absolute expiry.
+	$discount = isset( $synced_account_data['discount'] ) && is_array( $synced_account_data['discount'] )
+		? ai4seo_normalize_synced_account_discount( $synced_account_data['discount'] ) : null;
+	if ( null !== $discount ) {
+		ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_CURRENT_DISCOUNT, $discount );
+		ai4seo_check_discount_notification( $discount, $allow_notification_force );
 	} else {
 		ai4seo_delete_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_CURRENT_DISCOUNT );
-		ai4seo_remove_notification( 'discount' );
+		$notice = ai4seo_get_repaired_notifications()['discount'] ?? array();
+		if ( empty( $notice['dismissed'] ) || (int) ( $notice['expire_at'] ?? 0 ) <= time() ) {
+			ai4seo_remove_notification( 'discount' );
+		}
 	}
 
 	// Import account notifications through the dedicated remote ingestion policy.

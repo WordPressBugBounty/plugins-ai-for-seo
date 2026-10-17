@@ -9,12 +9,16 @@
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
+require_once __DIR__ . '/trait-ai4seo-license-changes.php';
 
 
 /**
  * Communicates with RobHub API services and manages client account state.
  */
 class Ai4Seo_RobHubApiCommunicator {
+	use Ai4Seo_License_Changes;
+
+	public const PENDING_LICENSE_CHANGE_OPTION = 'ai4seo_pending_license_change';
 	/**
 	 * Whether the communicator has been initialized.
 	 *
@@ -226,6 +230,9 @@ class Ai4Seo_RobHubApiCommunicator {
 	 * @var string[]
 	 */
 	private const SINGLE_ATTEMPT_ENDPOINTS = array(
+		'client/prepare-credential-change',
+		'client/confirm-credential-change',
+		'client/credential-change-status',
 		// Checkout resumption is an explicit administrator action using the saved attempt, not a transport retry.
 		'client/init-purchase',
 		'client/activation-preferences',
@@ -250,6 +257,9 @@ class Ai4Seo_RobHubApiCommunicator {
 	 * @var string[]
 	 */
 	private const ISOLATED_SERVICE_CLIENT_ENDPOINTS = array(
+		'client/prepare-credential-change',
+		'client/confirm-credential-change',
+		'client/credential-change-status',
 		'client/send-licence-data',
 	);
 
@@ -259,6 +269,9 @@ class Ai4Seo_RobHubApiCommunicator {
 	 * @var string[]
 	 */
 	private const SENSITIVE_CREDENTIAL_ENDPOINTS = array(
+		'client/prepare-credential-change',
+		'client/confirm-credential-change',
+		'client/credential-change-status',
 		'client/get-free-account',
 		'client/init-purchase',
 		'client/activation-preferences',
@@ -557,6 +570,9 @@ class Ai4Seo_RobHubApiCommunicator {
 	 * @var array<string, int>
 	 */
 	private array $endpoint_lock_durations = array(
+		'client/prepare-credential-change'           => 0,
+		'client/confirm-credential-change'           => 0,
+		'client/credential-change-status'            => 0,
 		'ai4seo/generate-all-metadata'               => 1,
 		'ai4seo/generate-all-attachment-attributes'  => 1,
 		'client/get-free-account'                    => 5,
@@ -599,16 +615,18 @@ class Ai4Seo_RobHubApiCommunicator {
 	 */
 	private const ENVIRONMENTAL_VARIABLE_STORAGE_MAX_ATTEMPTS = 3;
 
-	public const ENVIRONMENTAL_VARIABLE_DEPRECATED_API_AUTH_DATA    = 'auth_data';
-	public const ENVIRONMENTAL_VARIABLE_API_USERNAME                = 'api_username';
-	public const ENVIRONMENTAL_VARIABLE_API_PASSWORD                = 'api_password';
-	public const ENVIRONMENTAL_VARIABLE_CREDITS_BALANCE             = 'credits_balance';
-	public const ENVIRONMENTAL_VARIABLE_NEXT_FREE_CREDITS_TIMESTAMP = 'next_free_credits';
-	public const ENVIRONMENTAL_VARIABLE_SUBSCRIPTION                = 'subscription';
-	public const ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC           = 'last_account_sync';
-	public const ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED           = 'is_account_synced';
-	public const ENVIRONMENTAL_VARIABLE_IS_AUTH_LOCKED              = 'is_auth_locked';
-	public const ENVIRONMENTAL_VARIABLE_GROUP                       = 'group';
+	public const ENVIRONMENTAL_VARIABLE_DEPRECATED_API_AUTH_DATA     = 'auth_data';
+	public const ENVIRONMENTAL_VARIABLE_API_USERNAME                 = 'api_username';
+	public const ENVIRONMENTAL_VARIABLE_API_PASSWORD                 = 'api_password';
+	public const ENVIRONMENTAL_VARIABLE_CREDITS_BALANCE              = 'credits_balance';
+	public const ENVIRONMENTAL_VARIABLE_NEXT_FREE_CREDITS_TIMESTAMP  = 'next_free_credits';
+	public const ENVIRONMENTAL_VARIABLE_SUBSCRIPTION                 = 'subscription';
+	public const ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC            = 'last_account_sync';
+	public const ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED            = 'is_account_synced';
+	public const ENVIRONMENTAL_VARIABLE_IS_AUTH_LOCKED               = 'is_auth_locked';
+	public const ENVIRONMENTAL_VARIABLE_GROUP                        = 'group';
+	public const ENVIRONMENTAL_VARIABLE_SVG_STATIC_V1                = 'svg_static_v1';
+	public const ENVIRONMENTAL_VARIABLE_CREDENTIAL_CHANGES_SUPPORTED = 'credential_changes_supported';
 
 	public const DEFAULT_ENVIRONMENTAL_VARIABLES = array(
 		self::ENVIRONMENTAL_VARIABLE_DEPRECATED_API_AUTH_DATA => array(),
@@ -621,6 +639,8 @@ class Ai4Seo_RobHubApiCommunicator {
 		self::ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED => false,
 		self::ENVIRONMENTAL_VARIABLE_IS_AUTH_LOCKED    => false,
 		self::ENVIRONMENTAL_VARIABLE_GROUP             => 'x',
+		self::ENVIRONMENTAL_VARIABLE_SVG_STATIC_V1     => false,
+		self::ENVIRONMENTAL_VARIABLE_CREDENTIAL_CHANGES_SUPPORTED => false,
 	);
 	/**
 	 * In-memory environmental-variable values.
@@ -629,6 +649,20 @@ class Ai4Seo_RobHubApiCommunicator {
 	 */
 	private array $environmental_variables = self::DEFAULT_ENVIRONMENTAL_VARIABLES;
 
+	/**
+	 * Request-local, non-secret account quality snapshot.
+	 *
+	 * @var array|null
+	 */
+	private ?array $account_state_inspection = null;
+
+	/**
+	 * Options-table scope of the inspected facts.
+	 *
+	 * @var string
+	 */
+	private string $account_state_inspection_scope = '';
+
 	// all allowed endpoints / whitelist.
 	/**
 	 * Endpoint paths the communicator may call.
@@ -636,6 +670,9 @@ class Ai4Seo_RobHubApiCommunicator {
 	 * @var string[]
 	 */
 	private array $allowed_endpoints = array(
+		'client/prepare-credential-change',
+		'client/confirm-credential-change',
+		'client/credential-change-status',
 		'ai4seo/generate-all-metadata',
 		'ai4seo/generate-all-attachment-attributes',
 
@@ -672,6 +709,9 @@ class Ai4Seo_RobHubApiCommunicator {
 	 * @var string[]
 	 */
 	private array $free_endpoints = array(
+		'client/prepare-credential-change',
+		'client/confirm-credential-change',
+		'client/credential-change-status',
 		'client/get-free-account',
 		'client/sync',
 		'client/accept-terms',
@@ -696,6 +736,7 @@ class Ai4Seo_RobHubApiCommunicator {
 	 * @var string[]
 	 */
 	private array $no_need_to_accept_tos_endpoints = array(
+		'client/credential-change-status',
 		'client/reject-terms',
 		'client/product-deactivated',
 		self::ROTATE_API_PASSWORD_ENDPOINT,
@@ -930,6 +971,10 @@ class Ai4Seo_RobHubApiCommunicator {
 	 * @return array|mixed|string     The response from the API.
 	 */
 	public function call( string $endpoint, array $parameters = array(), string $request_method = 'POST', bool $fallback_to_public_client_operation_credentials = false ) {
+		if ( ! $this->is_isolated_service_client_call && ! $this->is_reconciling_license_change
+			&& ! $fallback_to_public_client_operation_credentials && ! $this->reconcile_pending_license_change() ) {
+			return $this->respond_error( 'credential_change_conflict', 52101201 );
+		}
 		// A recovery request may already have committed while its HTTP response was lost. Replay that
 		// durable intent before any ordinary client-authenticated request can lock or reuse the old pair.
 		if ( ! $this->is_isolated_service_client_call && ! $fallback_to_public_client_operation_credentials && self::RECOVER_API_PASSWORD_ROTATION_ENDPOINT !== $endpoint
@@ -1104,7 +1149,7 @@ class Ai4Seo_RobHubApiCommunicator {
 				$this->recent_endpoint_responses[ $api_call_checksum ] = $normalized_response;
 
 				// update new credits balance.
-				if ( isset( $normalized_response['new-credits-balance'] ) && is_numeric( $normalized_response['new-credits-balance'] ) ) {
+				if ( 'client/sync' !== $endpoint && isset( $normalized_response['new-credits-balance'] ) && is_numeric( $normalized_response['new-credits-balance'] ) ) {
 					$this->update_environmental_variable( self::ENVIRONMENTAL_VARIABLE_CREDITS_BALANCE, $normalized_response['new-credits-balance'] );
 				}
 
@@ -1275,6 +1320,10 @@ class Ai4Seo_RobHubApiCommunicator {
 		// Public client operation fallbacks may continue without stored credentials or an unlocked auth state.
 		// In that case build_api_arguments() swaps in the public credentials later in the request pipeline.
 		if ( ! $fallback_to_public_client_operation_credentials && ! $this->is_isolated_service_client_call && ! $this->check_credentials() && 'client/get-free-account' !== $endpoint ) {
+			$account_state = $this->inspect_account_state( true );
+			if ( ! $account_state['can_bootstrap'] ) {
+				return $this->respond_error( esc_html__( 'Saved account access could not be verified. Please reconnect your account in Account settings.', 'ai-for-seo' ), 27101301 );
+			}
 			$api_response = $this->init_free_account();
 
 			if ( ! $this->was_call_successful( $api_response ) ) {
@@ -1289,7 +1338,11 @@ class Ai4Seo_RobHubApiCommunicator {
 
 		// Require a positive credit balance only for endpoints outside the normalized free-operation list.
 		if ( ! in_array( $endpoint, $this->free_endpoints, true ) ) {
-			$credits_balance = $this->get_credits_balance();
+			$account_state = $this->inspect_account_state( true );
+			if ( ! $account_state['credits_ready'] ) {
+				return $this->respond_error( esc_html__( 'Account data could not be verified. Refresh account data before generating. Your queued entries are retained.', 'ai-for-seo' ), 27101302 );
+			}
+			$credits_balance = $account_state['credits'];
 
 			if ( $credits_balance < 1 ) {
 				ai4seo_debug_message( 746394278, 'No credits left for endpoint ' . $endpoint . '. Current balance: ' . $credits_balance, true );
@@ -1748,10 +1801,16 @@ class Ai4Seo_RobHubApiCommunicator {
 		// === ALREADY AN RAW OR NORMALIZED ERROR -> MAKE SURE TO NORMALIZE IT PROPERLY! ========================== \\
 
 		if ( ! isset( $raw_response['success'] ) || true !== $raw_response['success'] ) {
-			$normalized_error_code   = isset( $raw_response['code'] )
+			$normalized_error_code = isset( $raw_response['code'] )
 				? $this->normalize_api_error_code( $raw_response['code'] )
 				: null;
-			$raw_response['code']    = null !== $normalized_error_code ? (int) $normalized_error_code : 391124725;
+			$raw_response['code']  = null !== $normalized_error_code ? (int) $normalized_error_code : 391124725;
+			// Only these closed reason identifiers may cross the secure credential boundary.
+			if ( 52101201 === $raw_response['code']
+				&& in_array( $endpoint, array( 'client/prepare-credential-change', 'client/confirm-credential-change', 'client/credential-change-status' ), true )
+				&& in_array( $raw_response['message'] ?? '', array( 'credential_change_unavailable', 'credential_change_storage_error', 'credential_change_conflict', 'credential_change_name_unavailable', 'credential_change_invalid_request', 'credential_change_invalid_username_or_request', 'credential_change_checkout_unavailable', 'credential_change_checkout_changed', 'credential_change_rate_limited', 'credential_change_invalid_code', 'credential_change_expired_or_used', 'credential_change_history_conflict' ), true ) ) {
+				return $this->respond_error( $raw_response['message'], $raw_response['code'] );
+			}
 			$raw_response['message'] = $this->is_sensitive_credential_endpoint( $endpoint ) ? 'Secure credential operation was not confirmed.' : ( isset( $raw_response['message'] ) ? sanitize_text_field( $raw_response['message'] ) : 'API call returned an error without a message.' );
 			$raw_response['message'] = "API-Error #{$raw_response['code']}: " . $raw_response['message'];
 
@@ -2210,7 +2269,7 @@ class Ai4Seo_RobHubApiCommunicator {
 
 		return array(
 			'generation_status_summary'          => $generation_status_summary,
-			'activation_capability'              => 'v1',
+			'activation_capability'              => 'v2',
 			'costs_per_post'                     => ai4seo_calculate_metadata_credits_cost_per_post(),
 			'costs_per_attachment'               => ai4seo_calculate_attachment_attributes_credits_cost_per_attachment_post(),
 			'enabled_bulk_generation_post_types' => $enabled_bulk_generation_post_types,
@@ -4865,7 +4924,9 @@ class Ai4Seo_RobHubApiCommunicator {
 				}
 
 				// Preserve the failed response and leave later requests responsible for recovery.
-				self::update_environmental_variable( self::ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED, false );
+				if ( $is_auth_lock_response ) {
+					self::update_environmental_variable( self::ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED, false );
+				}
 				return is_array( $api_response ) ? $api_response : array(
 					'success' => false,
 					'message' => 'Failed to sync account: ' . ( is_string( $api_response ) ? $api_response : 'Unknown error' ),
@@ -4894,43 +4955,57 @@ class Ai4Seo_RobHubApiCommunicator {
 			break;
 		}
 
-		// next free credits.
-		$next_free_credits_countdown = (int) ( $synced_account_data['next_free_credits_countdown'] ?? 0 );
-		self::update_environmental_variable( self::ENVIRONMENTAL_VARIABLE_NEXT_FREE_CREDITS_TIMESTAMP, time() + $next_free_credits_countdown );
+		return $this->commit_synced_account_state( $api_response );
+	}
 
-		// Persist only canonical string groups so loosely equivalent server values cannot select a cohort.
-		if (
-		isset( $synced_account_data['group'] )
-		&& is_string( $synced_account_data['group'] )
-		&& in_array( $synced_account_data['group'], array( 'a', 'b', 'c', 'd', 'e', 'f' ), true )
-		) {
-			$group = $synced_account_data['group'];
+	/**
+	 * Publish authenticated account facts together, without rewriting credentials or settings.
+	 *
+	 * @param array $response Successful, rotation-reconciled sync response.
+	 * @return array Response with local validation/storage failures made explicit.
+	 */
+	private function commit_synced_account_state( array $response ): array {
+		$data = $response['data'];
+		if ( ! isset( $data['plan'] ) || ! is_string( $data['plan'] )
+			|| ! in_array( $data['plan'], array( 'free', 's', 'm', 'l' ), true )
+			|| ! $this->validate_environmental_variable_value( self::ENVIRONMENTAL_VARIABLE_CREDITS_BALANCE, $response['new-credits-balance'] ?? null ) ) {
+			return $this->respond_error( esc_html__( 'The account response is incomplete. Previously saved account data was retained. Please refresh account data again later.', 'ai-for-seo' ), 27101303 );
 		}
-
-		self::update_environmental_variable( self::ENVIRONMENTAL_VARIABLE_GROUP, $group ?? 'x' );
-
-		// subscription.
-		if ( isset( $synced_account_data['plan'] ) && 'free' !== $synced_account_data['plan'] ) {
-			// build subscription array, base on.
-			$subscription = array(
-				'plan'                 => $synced_account_data['plan'],
-				'subscription_start'   => $synced_account_data['subscription_start'] ?? '',
-				'subscription_end'     => $synced_account_data['subscription_end'] ?? '',
-				'next_credits_refresh' => $synced_account_data['next_credits_refresh'] ?? '',
-				'do_renew'             => (bool) ( $synced_account_data['do_renew'] ?? false ),
-				'renew_frequency'      => $synced_account_data['renew_frequency'] ?? 'monthly',
-			);
-
-			self::update_environmental_variable( self::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION, $subscription );
-		} else {
-			self::delete_environmental_variable( self::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION );
+		$subscription = array();
+		if ( 'free' !== $data['plan'] ) {
+			$subscription = array_intersect_key( $data, array_flip( array( 'plan', 'subscription_start', 'subscription_end', 'next_credits_refresh', 'do_renew', 'renew_frequency' ) ) );
+			// The server historically returns database booleans as 0/1 strings or integers.
+			if ( isset( $subscription['do_renew'] ) && in_array( $subscription['do_renew'], array( true, false, 0, 1, '0', '1' ), true ) ) {
+				$subscription['do_renew'] = (bool) $subscription['do_renew'];
+			}
+			if ( ! $this->validate_environmental_variable_value( self::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION, $subscription ) ) {
+				return $this->respond_error( esc_html__( 'Subscription data could not be verified. Previously saved account data was retained.', 'ai-for-seo' ), 27101303 );
+			}
 		}
-
-		// set the last account sync time.
-		self::update_environmental_variable( self::ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC, time() );
-		self::update_environmental_variable( self::ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED, true );
-
-		return $api_response;
+		$updates   = array(
+			self::ENVIRONMENTAL_VARIABLE_CREDITS_BALANCE   => $response['new-credits-balance'],
+			self::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION      => $subscription,
+			self::ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC => time(),
+			self::ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED => true,
+		);
+		$optional  = array(
+			self::ENVIRONMENTAL_VARIABLE_GROUP         => $data['group'] ?? null,
+			self::ENVIRONMENTAL_VARIABLE_CREDENTIAL_CHANGES_SUPPORTED => $data['credential_changes_supported'] ?? null,
+			self::ENVIRONMENTAL_VARIABLE_SVG_STATIC_V1 => $data['capabilities']['svg_static_v1'] ?? null,
+		);
+		$countdown = $data['next_free_credits_countdown'] ?? null;
+		if ( $this->validate_environmental_variable_value( self::ENVIRONMENTAL_VARIABLE_NEXT_FREE_CREDITS_TIMESTAMP, $countdown ) ) {
+			$optional[ self::ENVIRONMENTAL_VARIABLE_NEXT_FREE_CREDITS_TIMESTAMP ] = time() + (int) $countdown;
+		}
+		foreach ( $optional as $name => $value ) {
+			if ( null !== $value && $this->validate_environmental_variable_value( $name, $value ) ) {
+				$updates[ $name ] = $value;
+			}
+		}
+		if ( ! $this->persist_environmental_variables( array_merge( $this->read_all_environmental_variables(), $updates ), $updates, true ) ) {
+			return $this->respond_error( esc_html__( 'Account data was received but could not be saved locally. Please refresh account data again.', 'ai-for-seo' ), 27101304 );
+		}
+		return $response;
 	}
 
 
@@ -5362,6 +5437,12 @@ class Ai4Seo_RobHubApiCommunicator {
 	 */
 	public function deep_sanitize_for_endpoint( $data, string $endpoint, string $sanitize_value_function_name = 'sanitize_text_field', array $path = array() ) {
 		if ( ! is_array( $data ) ) {
+			// JSON null is not HTML. Preserve optional response fields for their owning validators,
+			// including registered HTML paths, without changing request sanitization or string helpers.
+			if ( null === $data && 'ai4seo_wp_kses' === $sanitize_value_function_name ) {
+				return null;
+			}
+
 			// Activation validators require JSON integers; keep other endpoint and request contracts unchanged.
 			if ( is_int( $data ) && 'ai4seo_wp_kses' === $sanitize_value_function_name
 				&& ( 'client/activation-preferences' === $endpoint
@@ -5627,9 +5708,20 @@ class Ai4Seo_RobHubApiCommunicator {
 
 
 	/**
-	 * Determine whether account data has been synchronized.
+	 * Whether the synchronized API advertises qualified static SVG conversion.
 	 *
-	 * @return bool Whether account data is synchronized.
+	 * @return bool Whether SVG conversion is available.
+	 */
+	public function supports_svg_static_v1(): bool {
+		return $this->is_account_synced()
+			&& true === $this->read_environmental_variable( self::ENVIRONMENTAL_VARIABLE_SVG_STATIC_V1 );
+	}
+
+
+	/**
+	 * Whether account synchronization has succeeded.
+	 *
+	 * @return bool Account sync state.
 	 */
 	public function is_account_synced(): bool {
 		return (bool) $this->read_environmental_variable( self::ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED );
@@ -5713,6 +5805,65 @@ class Ai4Seo_RobHubApiCommunicator {
 	 */
 	public function set_environmental_variables_option_name( string $environmental_variables_option_name ): void {
 		$this->environmental_variables_option_name = $environmental_variables_option_name;
+		$this->account_state_inspection            = null;
+	}
+
+	/**
+	 * Inspect persisted account facts without substituting defaults for corrupt fields.
+	 *
+	 * Missing overrides remain compatible with historical zero-credit/free accounts. A
+	 * successful sync marker is still required before those defaults can authorize work.
+	 * No credentials or raw option contents are exposed by this inspection.
+	 *
+	 * @param bool $fresh Bypass the request cache at an admission boundary.
+	 * @return array Non-secret quality, last confirmed facts, and operation readiness.
+	 */
+	public function inspect_account_state( bool $fresh = false ): array {
+		global $wpdb;
+		$scope = $wpdb->options . '|' . $this->environmental_variables_option_name;
+		if ( ! $fresh && $scope === $this->account_state_inspection_scope && null !== $this->account_state_inspection ) {
+			return $this->account_state_inspection;
+		}
+		$this->account_state_inspection_scope = $scope;
+
+		$snapshot = ai4seo_get_raw_option_snapshot( $this->environmental_variables_option_name );
+		$raw      = is_array( $snapshot ) && $snapshot['exists'] ? ai4seo_safe_maybe_unserialize( $snapshot['value'] ) : array();
+		$readable = is_array( $snapshot ) && is_array( $raw );
+		$invalid  = array();
+		$values   = self::DEFAULT_ENVIRONMENTAL_VARIABLES;
+		foreach ( $values as $name => $default ) {
+			if ( ! $readable || ( array_key_exists( $name, $raw ) && ! $this->validate_environmental_variable_value( $name, $raw[ $name ] ) ) ) {
+				$invalid[] = $name;
+			} elseif ( array_key_exists( $name, $raw ) ) {
+				$values[ $name ] = $raw[ $name ];
+			}
+		}
+		$auth_known                     = ! array_intersect( $invalid, array( self::ENVIRONMENTAL_VARIABLE_API_USERNAME, self::ENVIRONMENTAL_VARIABLE_API_PASSWORD, self::ENVIRONMENTAL_VARIABLE_IS_AUTH_LOCKED ) );
+		$has_pair                       = $auth_known && '' !== $values[ self::ENVIRONMENTAL_VARIABLE_API_USERNAME ] && '' !== $values[ self::ENVIRONMENTAL_VARIABLE_API_PASSWORD ];
+		$last_sync                      = (int) $values[ self::ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC ];
+		$synced                         = true === $values[ self::ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED ] && $last_sync > 0 && $last_sync <= time() + 300;
+		$freshness                      = $synced && $last_sync >= time() - self::BACKGROUND_ACCOUNT_SYNC_INTERVAL;
+		$credits_known                  = $readable && ! in_array( self::ENVIRONMENTAL_VARIABLE_CREDITS_BALANCE, $invalid, true );
+		$plan_known                     = $readable && ! in_array( self::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION, $invalid, true );
+		$access_ready                   = $has_pair && ! $values[ self::ENVIRONMENTAL_VARIABLE_IS_AUTH_LOCKED ];
+		$this->account_state_inspection = array(
+			'auth_known'    => $auth_known,
+			'can_bootstrap' => $auth_known && ! $values[ self::ENVIRONMENTAL_VARIABLE_IS_AUTH_LOCKED ]
+				&& ! array_intersect( $invalid, array( self::ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC, self::ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED ) )
+				&& 0 === $last_sync && false === $values[ self::ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED ]
+				&& '' === $values[ self::ENVIRONMENTAL_VARIABLE_API_USERNAME ] && '' === $values[ self::ENVIRONMENTAL_VARIABLE_API_PASSWORD ],
+			'access_ready'  => $access_ready,
+			'auth_locked'   => $values[ self::ENVIRONMENTAL_VARIABLE_IS_AUTH_LOCKED ],
+			'last_sync'     => $synced ? $last_sync : null,
+			'fresh'         => $freshness,
+			'credits'       => $credits_known && $synced ? (int) $values[ self::ENVIRONMENTAL_VARIABLE_CREDITS_BALANCE ] : null,
+			'plan'          => $plan_known && $synced ? ( $values[ self::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION ]['plan'] ?? 'free' ) : null,
+			'subscription'  => $plan_known && $synced ? $values[ self::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION ] : null,
+			'credits_ready' => $access_ready && $freshness && $credits_known,
+			'plan_ready'    => $access_ready && $freshness && $plan_known,
+			'issues'        => $invalid,
+		);
+		return $this->account_state_inspection;
 	}
 
 
@@ -5767,9 +5918,13 @@ class Ai4Seo_RobHubApiCommunicator {
 	 * while updating an unrelated field.
 	 *
 	 * @param array $environmental_variables Complete or override-only environmental values.
+	 * @param array $explicit_updates Validated fields whose defaults must also replace unknown facts.
+	 * @param bool  $require_auth_owner Require the existing credential lock and matching pair.
 	 * @return bool Whether storage contains the requested effective values.
 	 */
-	private function persist_environmental_variables( array $environmental_variables ): bool {
+	private function persist_environmental_variables( array $environmental_variables, array $explicit_updates = array(), bool $require_auth_owner = false ): bool {
+		$this->account_state_inspection    = null;
+		$expected_credentials              = array( $this->api_username, $this->api_password );
 		$baseline_environmental_variables  = $this->normalize_environmental_variables( $this->environmental_variables );
 		$requested_environmental_variables = $this->normalize_environmental_variables( $environmental_variables );
 		$changed_environmental_variables   = array();
@@ -5782,6 +5937,7 @@ class Ai4Seo_RobHubApiCommunicator {
 				$changed_environmental_variables[ $environmental_variable_name ] = $requested_environmental_variables[ $environmental_variable_name ];
 			}
 		}
+		$changed_environmental_variables = array_merge( $changed_environmental_variables, $explicit_updates );
 
 		if ( ! $changed_environmental_variables ) {
 			return true;
@@ -5793,6 +5949,15 @@ class Ai4Seo_RobHubApiCommunicator {
 			if ( ! is_array( $environmental_snapshot ) ) {
 				return false;
 			}
+			$raw_variables = $environmental_snapshot['exists'] ? ai4seo_safe_maybe_unserialize( $environmental_snapshot['value'] ) : array();
+			if ( ! is_array( $raw_variables ) ) {
+				return false;
+			}
+			if ( $require_auth_owner && ( ! ai4seo_is_database_advisory_lock_owned_by_current_connection( $this->api_password_rotation_lock_name )
+				|| array( $raw_variables[ self::ENVIRONMENTAL_VARIABLE_API_USERNAME ] ?? '', $raw_variables[ self::ENVIRONMENTAL_VARIABLE_API_PASSWORD ] ?? '' ) !== $expected_credentials
+				|| false !== ( $raw_variables[ self::ENVIRONMENTAL_VARIABLE_IS_AUTH_LOCKED ] ?? false ) ) ) {
+				return false;
+			}
 
 			$fresh_environmental_variables      = $this->normalize_environmental_variables(
 				$environmental_snapshot['exists'] ? $environmental_snapshot['value'] : array()
@@ -5801,7 +5966,8 @@ class Ai4Seo_RobHubApiCommunicator {
 				? $environmental_snapshot['value']
 				: false;
 			$merged_environmental_variables     = array_merge(
-				$fresh_environmental_variables,
+				self::DEFAULT_ENVIRONMENTAL_VARIABLES,
+				$raw_variables,
 				$changed_environmental_variables
 			);
 
@@ -5820,8 +5986,28 @@ class Ai4Seo_RobHubApiCommunicator {
 				$filter_old_environmental_variables
 			);
 			// phpcs:enable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound
-			$merged_environmental_variables = $this->normalize_environmental_variables( $merged_environmental_variables );
-			$environmental_overrides        = $this->build_environmental_variable_overrides( $merged_environmental_variables );
+			if ( ! is_array( $merged_environmental_variables ) ) {
+				return false;
+			}
+			// Never let normalization erase unrelated unknown data during an ordinary write.
+			$environmental_overrides = $merged_environmental_variables;
+			foreach ( self::DEFAULT_ENVIRONMENTAL_VARIABLES as $name => $default ) {
+				if ( array_key_exists( $name, $environmental_overrides ) && ai4seo_are_persisted_state_values_equivalent( $default, $environmental_overrides[ $name ] ) ) {
+					unset( $environmental_overrides[ $name ] );
+				}
+			}
+			if ( $require_auth_owner ) {
+				foreach ( $changed_environmental_variables as $name => $value ) {
+					if ( ! ai4seo_are_persisted_state_values_equivalent( $value, $merged_environmental_variables[ $name ] ?? null ) ) {
+						return false;
+					}
+				}
+				if ( array( $merged_environmental_variables[ self::ENVIRONMENTAL_VARIABLE_API_USERNAME ] ?? '', $merged_environmental_variables[ self::ENVIRONMENTAL_VARIABLE_API_PASSWORD ] ?? '' ) !== $expected_credentials
+					|| false !== ( $merged_environmental_variables[ self::ENVIRONMENTAL_VARIABLE_IS_AUTH_LOCKED ] ?? false )
+					|| ! ai4seo_is_database_advisory_lock_owned_by_current_connection( $this->api_password_rotation_lock_name ) ) {
+					return false;
+				}
+			}
 			$is_existing_storage_equivalent = $environmental_snapshot['exists']
 				&& 'no' === $environmental_snapshot['autoload']
 				&& hash_equals( (string) maybe_serialize( $environmental_overrides ), $environmental_snapshot['raw_value'] )
@@ -5854,7 +6040,7 @@ class Ai4Seo_RobHubApiCommunicator {
 				true
 			);
 
-			if ( null === $write_result ) {
+			if ( null === $write_result || ( $require_auth_owner && false === $write_result ) ) {
 				return false;
 			}
 
@@ -5983,6 +6169,7 @@ class Ai4Seo_RobHubApiCommunicator {
 	 * @return bool True if the robhub environmental variable was updated successfully, false if not
 	 */
 	public function update_environmental_variable( string $environmental_variable_name, $new_environmental_variable_value ): bool {
+		$this->account_state_inspection = null;
 		if ( ! isset( self::DEFAULT_ENVIRONMENTAL_VARIABLES[ $environmental_variable_name ] ) ) {
 			ai4seo_debug_message( 1297825, "Environmental variable '" . $environmental_variable_name . "' does not exist.", true );
 			return false;
@@ -6041,7 +6228,8 @@ class Ai4Seo_RobHubApiCommunicator {
 	 * }
 	 */
 	public function bulk_update_environmental_variables( array $environmental_variable_updates ): array {
-		$result = array(
+		$this->account_state_inspection = null;
+		$result                         = array(
 			'success'        => true,
 			'updated_count'  => 0,
 			'invalid_names'  => array(),
@@ -6207,7 +6395,13 @@ class Ai4Seo_RobHubApiCommunicator {
 	 */
 	public function validate_environmental_variable_value( string $environmental_variable_name, $environmental_variable_value ): bool {
 		switch ( $environmental_variable_name ) {
+			case self::ENVIRONMENTAL_VARIABLE_SVG_STATIC_V1:
+			case self::ENVIRONMENTAL_VARIABLE_CREDENTIAL_CHANGES_SUPPORTED:
+				return is_bool( $environmental_variable_value );
 			case self::ENVIRONMENTAL_VARIABLE_API_USERNAME:
+				if ( ! is_string( $environmental_variable_value ) ) {
+					return false;
+				}
 				if ( $environmental_variable_value && ! preg_match( '/^[a-z0-9_\-]{5,48}$/', $environmental_variable_value ) ) {
 					return false;
 				}
@@ -6215,6 +6409,9 @@ class Ai4Seo_RobHubApiCommunicator {
 				return true;
 
 			case self::ENVIRONMENTAL_VARIABLE_API_PASSWORD:
+				if ( ! is_string( $environmental_variable_value ) ) {
+					return false;
+				}
 				if ( $environmental_variable_value && ! preg_match( '/^[a-z0-9_\-]{48}$/', $environmental_variable_value ) ) {
 					return false;
 				}
@@ -6225,7 +6422,7 @@ class Ai4Seo_RobHubApiCommunicator {
 			case self::ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC:
 			case self::ENVIRONMENTAL_VARIABLE_NEXT_FREE_CREDITS_TIMESTAMP:
 				// contains only of numbers.
-				return is_numeric( $environmental_variable_value ) && $environmental_variable_value >= 0;
+				return is_numeric( $environmental_variable_value ) && is_finite( (float) $environmental_variable_value ) && $environmental_variable_value >= 0 && $environmental_variable_value <= PHP_INT_MAX;
 
 			case self::ENVIRONMENTAL_VARIABLE_GROUP:
 				// Accept canonical groups plus the legacy unset/default sentinels used by persisted state.
@@ -6233,11 +6430,32 @@ class Ai4Seo_RobHubApiCommunicator {
 				&& in_array( $environmental_variable_value, array( 'a', 'b', 'c', 'd', 'e', 'f', 'x', '' ), true );
 
 			case self::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION:
-				// must be an array.
 				if ( ! is_array( $environmental_variable_value ) ) {
 					return false;
 				}
-
+				if ( ! $environmental_variable_value ) {
+					return true;
+				}
+				if ( ! isset( $environmental_variable_value['plan'] ) || ! is_string( $environmental_variable_value['plan'] )
+					|| ! in_array( strtolower( $environmental_variable_value['plan'] ), array( 'free', 's', 'm', 'l', 'basic', 'pro', 'premium' ), true ) ) {
+					return false;
+				}
+				foreach ( array( 'subscription_start', 'subscription_end', 'next_credits_refresh' ) as $date_field ) {
+					// Historical expiry readers also support positive Unix timestamps.
+					if ( isset( $environmental_variable_value[ $date_field ] ) && is_numeric( $environmental_variable_value[ $date_field ] )
+						&& is_finite( (float) $environmental_variable_value[ $date_field ] ) && $environmental_variable_value[ $date_field ] > 0
+						&& $environmental_variable_value[ $date_field ] <= PHP_INT_MAX ) {
+						continue;
+					}
+					if ( array_key_exists( $date_field, $environmental_variable_value ) && ( ! is_string( $environmental_variable_value[ $date_field ] )
+						|| ( '' !== $environmental_variable_value[ $date_field ] && false === strtotime( $environmental_variable_value[ $date_field ] ) ) ) ) {
+						return false;
+					}
+				}
+				if ( ( isset( $environmental_variable_value['do_renew'] ) && ! is_bool( $environmental_variable_value['do_renew'] ) )
+					|| ( isset( $environmental_variable_value['renew_frequency'] ) && ! is_string( $environmental_variable_value['renew_frequency'] ) ) ) {
+					return false;
+				}
 				return true;
 
 			case self::ENVIRONMENTAL_VARIABLE_DEPRECATED_API_AUTH_DATA:
@@ -6251,7 +6469,8 @@ class Ai4Seo_RobHubApiCommunicator {
 					return true;
 				}
 
-				if ( count( $environmental_variable_value ) !== 2 ) {
+				if ( count( $environmental_variable_value ) !== 2 || ! isset( $environmental_variable_value[0], $environmental_variable_value[1] )
+					|| ! is_string( $environmental_variable_value[0] ) || ! is_string( $environmental_variable_value[1] ) ) {
 					return false;
 				}
 
@@ -6347,6 +6566,46 @@ class Ai4Seo_RobHubApiCommunicator {
 		self::delete_environmental_variable( self::ENVIRONMENTAL_VARIABLE_DEPRECATED_API_AUTH_DATA );
 
 		return null;
+	}
+
+	/**
+	 * Apply an update-owned compatibility patch without normalizing retained original storage.
+	 *
+	 * @param array $snapshot Exact source option observed by the migration.
+	 * @param array $changes Validated compatibility values.
+	 * @param array $remove Obsolete keys replaced by this same atomic patch.
+	 * @return bool Whether the exact patch was committed.
+	 */
+	public function apply_plugin_update_environmental_changes( array $snapshot, array $changes, array $remove = array() ): bool {
+		if ( ( $snapshot['exists'] && ! is_array( $snapshot['value'] ) )
+			|| ! ai4seo_is_database_advisory_lock_owned_by_current_connection( ai4seo_get_plugin_update_lock_name() ) ) {
+			return false;
+		}
+		$raw = $snapshot['exists'] ? $snapshot['value'] : array();
+		foreach ( $changes as $key => $value ) {
+			if ( ! array_key_exists( $key, self::DEFAULT_ENVIRONMENTAL_VARIABLES ) || ! $this->validate_environmental_variable_value( $key, $value ) ) {
+				return false;
+			}
+			$raw[ $key ] = $value;
+		}
+		foreach ( $remove as $key ) {
+			if ( self::ENVIRONMENTAL_VARIABLE_DEPRECATED_API_AUTH_DATA !== $key ) {
+				return false;
+			}
+			unset( $raw[ $key ] );
+		}
+		if ( $snapshot['exists'] && $raw === $snapshot['value'] && $this->is_non_autoload_option_value( $snapshot['autoload'] ) ) {
+			// An already applied patch needs no changed row, but still requires the same source and update owner.
+			if ( ai4seo_get_raw_option_snapshot( $this->environmental_variables_option_name ) !== $snapshot
+				|| ! ai4seo_is_database_advisory_lock_owned_by_current_connection( ai4seo_get_plugin_update_lock_name() ) ) {
+				return false;
+			}
+		} elseif ( true !== $this->compare_and_swap_environmental_variables_snapshot( $snapshot, $raw ) ) {
+			return false;
+		}
+		$this->environmental_variables = $this->normalize_environmental_variables( $raw );
+		$this->synchronize_runtime_credentials_from_environmental_variables();
+		return true;
 	}
 
 

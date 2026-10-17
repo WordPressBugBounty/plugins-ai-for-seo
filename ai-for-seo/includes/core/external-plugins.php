@@ -529,6 +529,15 @@ function ai4seo_purge_frontend_cache_for_post( int $post_id, ?array &$diagnostic
 	if ( $post_id <= 0 ) {
 		return;
 	}
+	if ( ai4seo_is_taxonomy_proxy( $post_id ) ) {
+		$context = ai4seo_get_taxonomy_proxy_editor_context( $post_id );
+		if ( is_wp_error( $context ) || ! $context['available'] ) {
+			$diagnostics[] = ai4seo_record_metadata_save_diagnostic( 1908261200, 'cache', 'taxonomy_archive_unavailable', array( 'post_id' => $post_id ) );
+			return;
+		}
+		ai4seo_purge_taxonomy_archive_cache( array( $context['archive_url'] ), $diagnostics );
+		return;
+	}
 
 	// Post-cache hooks are optional follow-up work and must not prevent the remaining frontend purges.
 	try {
@@ -603,6 +612,67 @@ function ai4seo_purge_frontend_cache_for_url( string $url, ?array &$diagnostics 
 		} catch ( Throwable $throwable ) {
 			$diagnostics[] = ai4seo_record_metadata_save_diagnostic( 1908261200, 'cache', 'cache_exception', array( 'provider' => $callback ), $throwable );
 		}
+	}
+}
+
+
+/**
+ * Purge confirmed archive URLs, including a previous URL retained by inventory reconciliation.
+ *
+ * @param array      $urls Verified source URLs.
+ * @param array|null $diagnostics Optional cache failures, separate from persistence success.
+ * @return void
+ */
+function ai4seo_purge_taxonomy_archive_cache( array $urls, ?array &$diagnostics = null ): void {
+	$diagnostics = array();
+	if ( ! ai4seo_get_setting( AI4SEO_SETTING_ENABLE_FRONTEND_CACHE_PURGE ) ) {
+		return;
+	}
+	$urls = array_unique( array_filter( array_map( 'esc_url_raw', array_filter( $urls, 'is_string' ) ) ) );
+	foreach ( $urls as $url ) {
+		$failures = array();
+		try {
+			ai4seo_purge_frontend_cache_for_url( $url, $failures );
+		} catch ( Throwable $throwable ) {
+			$failures[] = ai4seo_record_metadata_save_diagnostic( 1908261200, 'cache', 'cache_exception', array(), $throwable );
+		}
+		$diagnostics = array_merge( $diagnostics, $failures );
+	}
+}
+
+
+/**
+ * Refresh an archive only when its confirmed renderable SOOZ fields changed.
+ *
+ * @param int   $post_id Proxy ID.
+ * @param array $before Read-only output snapshot before persistence.
+ * @param array $details Existing operation diagnostics and warnings.
+ * @return void
+ */
+function ai4seo_refresh_taxonomy_metadata_output_cache( int $post_id, array $before, array &$details ): void {
+	$after = ai4seo_read_metadata_output_state( $post_id );
+	if ( ! $before['read_succeeded'] || ! $after['read_succeeded'] ) {
+		return;
+	}
+	foreach ( AI4SEO_METADATA_DETAILS as $field => $definition ) {
+		if ( empty( $definition['output-tag-type'] ) || in_array( $field, $after['unknown'], true ) ) {
+			continue;
+		}
+		if ( ( $before['values'][ $field ] ?? '' ) === ( $after['values'][ $field ] ?? '' )
+			&& ! in_array( $field, $before['unknown'], true ) ) {
+			continue;
+		}
+		$diagnostics = array();
+		try {
+			ai4seo_purge_frontend_cache_for_post( $post_id, $diagnostics );
+		} catch ( Throwable $throwable ) {
+			$diagnostics[] = ai4seo_record_metadata_save_diagnostic( 1908261200, 'cache', 'cache_exception', array( 'post_id' => $post_id ), $throwable );
+		}
+		if ( $diagnostics ) {
+			$details['diagnostics'] = array_merge( $details['diagnostics'] ?? array(), $diagnostics );
+			$details['warnings'][]  = __( 'Metadata was saved, but a cache could not be refreshed. Public pages may still show older values.', 'ai-for-seo' );
+		}
+		return;
 	}
 }
 

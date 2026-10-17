@@ -82,87 +82,151 @@ function ai4seo_get_meta_tags_from_html( string $head_html ): array {
 		return array();
 	}
 
-	// The metadata registry supplies the tag-specific regular expressions used below.
+	// The metadata registry supplies the supported tag types and identifiers.
 	if ( ! defined( 'AI4SEO_METADATA_DETAILS' ) ) {
 		return array();
 	}
 
-	// Remove executable and style resources so tag-like content inside them cannot produce false matches.
-	$head_html = preg_replace( '/<script\b[^>]*>(.*?)<\/script>/is', '', $head_html );
-	$head_html = preg_replace( '/<style\b[^>]*>(.*?)<\/style>/is', '', $head_html );
-	$head_html = preg_replace( '/<link\b[^>]*>/i', '', $head_html );
-
-	// Remove non-rendered wrappers before splitting the remaining head into individual tag candidates.
-	$head_html = preg_replace( '/<!\[CDATA\[.*?]]>/s', '', $head_html );
-	$head_html = preg_replace( '/<!--.*?-->/s', '', $head_html );
-	$head_html = trim( $head_html );
-
-	// Preserve line breaks inside tag values while structural line breaks are inserted between tags.
-	$head_html = preg_replace( '/\r\n/', '#AI4SEO#LBRN#', $head_html );
-	$head_html = preg_replace( '/\n/', '#AI4SEO#LBN#', $head_html );
-
-	// Separate paired, self-closing, and adjacent tags into consistently parseable lines.
-	$head_html = preg_replace( '/<\/[^>]+>/', "$0\n", $head_html );
-	$head_html = preg_replace( '/<[^>]+\/>/', "$0\n", $head_html );
-	$head_html = preg_replace( '/>\s*</', ">\n<", $head_html );
-	$head_html = preg_replace( '/>(#AI4SEO#LBRN#|#AI4SEO#LBN#|\s)+</', ">\n<", $head_html );
-
-	// Analyze each normalized line independently to avoid one tag consuming a neighboring match.
-	$head_tags       = explode( "\n", $head_html );
 	$found_meta_tags = array();
-
-	foreach ( $head_tags as $head_tag ) {
-		if ( ! $head_tag ) {
+	foreach ( ai4seo_get_metadata_html_tokens( $head_html ) as $token ) {
+		if ( $token['closing'] || ! in_array( $token['tag'], array( 'meta', 'title' ), true ) ) {
 			continue;
 		}
-
-		// Ignore formatting whitespace left around the normalized tag candidate.
-		$head_tag = trim( $head_tag );
-
-		// Retain structural charset and viewport tags because insertion position depends on them.
-		if ( preg_match( '/<meta\s+[^>]*charset\s*=\s*["\'][^"\']+["\'][^>]*>/i', $head_tag ) ) {
-			$found_meta_tags['charset'] = array(
-				'raw-html' => trim( ai4seo_remove_header_line_break_placeholders( $head_tag ) ),
-				'content'  => 'charset',
-			);
+		$attributes = 'meta' === $token['tag'] ? array_change_key_case( wp_kses_hair( substr( $token['raw-html'], 5, -1 ), wp_allowed_protocols() ), CASE_LOWER ) : array();
+		$entry      = array(
+			'raw-html' => $token['raw-html'],
+			'offset'   => $token['offset'],
+			'content'  => '',
+		);
+		foreach ( array( 'charset', 'viewport' ) as $structural ) {
+			if ( ( 'charset' === $structural && isset( $attributes['charset'] ) )
+				|| ( 'viewport' === $structural && 'viewport' === strtolower( $attributes['name']['value'] ?? '' ) ) ) {
+				$found_meta_tags[ $structural ] = $entry;
+			}
 		}
-
-		if ( preg_match( '/<meta\s+[^>]*name\s*=\s*["\']viewport["\'][^>]*>/i', $head_tag ) ) {
-			$found_meta_tags['viewport'] = array(
-				'raw-html' => trim( ai4seo_remove_header_line_break_placeholders( $head_tag ) ),
-				'content'  => 'viewport',
-			);
-		}
-
-		// Match content fields through the shared registry so parsing follows the configured output tag shapes.
-		foreach ( AI4SEO_METADATA_DETAILS as $this_metadata_identifier => $this_metadata_field_details ) {
-			$this_meta_tag_regex             = $this_metadata_field_details['meta-tag-regex'] ?? '';
-			$this_meta_tag_regex_match_index = $this_metadata_field_details['meta-tag-regex-match-index'] ?? 0;
-
-			if ( ! $this_meta_tag_regex || ! $this_meta_tag_regex_match_index ) {
+		// Match actual tags through the output registry, independent of attribute order or quoting.
+		foreach ( AI4SEO_METADATA_DETAILS as $identifier => $details ) {
+			$type = $details['output-tag-type'] ?? '';
+			if ( 'title' === $type && 'title' === $token['tag']
+				&& preg_match( '/^<title\b[^>]*>(.*)<\/title\s*>$/is', $token['raw-html'], $title ) ) {
+				$entry['content'] = trim( $title[1] );
+			} elseif ( 'meta' === $token['tag'] && in_array( $type, array( 'meta name', 'meta property' ), true )
+				&& ( $details['output-tag-identifier'] ?? '' ) === strtolower( $attributes[ substr( $type, 5 ) ]['value'] ?? '' ) ) {
+				$entry['content'] = trim( $attributes['content']['value'] ?? '' );
+			} else {
 				continue;
 			}
-
-			if ( ! preg_match( $this_meta_tag_regex, $head_tag, $this_meta_tag_regex_matches ) ) {
-				continue;
-			}
-
-			if ( ! isset( $this_meta_tag_regex_matches[ $this_meta_tag_regex_match_index ] ) ) {
-				continue;
-			}
-
-			// Restore original line breaks only after regex matching has isolated the complete tag and value.
-			$this_meta_tag_regex_matches[0]                                  = trim( ai4seo_remove_header_line_break_placeholders( $this_meta_tag_regex_matches[0] ) );
-			$this_meta_tag_regex_matches[ $this_meta_tag_regex_match_index ] = trim( ai4seo_remove_header_line_break_placeholders( $this_meta_tag_regex_matches[ $this_meta_tag_regex_match_index ] ) );
-
-			$found_meta_tags[ $this_metadata_identifier ][] = array(
-				'raw-html' => $this_meta_tag_regex_matches[0],
-				'content'  => $this_meta_tag_regex_matches[ $this_meta_tag_regex_match_index ],
-			);
+			$found_meta_tags[ $identifier ][] = $entry;
 		}
 	}
 
 	return $found_meta_tags;
+}
+
+
+/**
+ * Locate editable tags without changing bytes or interpreting raw-text resources as markup.
+ *
+ * @param string $html Buffered HTML.
+ * @param bool   $head_only Stop at the body when inspecting document-head boundaries.
+ * @return array Tokens with original byte offsets; malformed raw-text tails remain opaque.
+ */
+function ai4seo_get_metadata_html_tokens( string $html, bool $head_only = false ): array {
+	// Consume disjoint attribute chunks without a backtracking frame for every character.
+	$attributes     = '(?:[^>"\']++|"[^"]*"|\'[^\']*\')*+';
+	$pattern        = '~<!--|<!\[CDATA\[|</?[a-z][a-z0-9:-]*(?=[\s/>])' . $attributes . '>~i';
+	$tokens         = array();
+	$template_depth = 0;
+	$offset         = 0;
+	$length         = strlen( $html );
+	while ( preg_match( $pattern, $html, $match, PREG_OFFSET_CAPTURE, $offset ) ) {
+		$raw    = $match[0][0];
+		$start  = $match[0][1];
+		$offset = $start + strlen( $raw );
+		if ( '<!' === substr( $raw, 0, 2 ) ) {
+			$terminator = '<!--' === $raw ? '-->' : ']]>';
+			$end        = strpos( $html, $terminator, $offset );
+			$offset     = false === $end ? $length : $end + strlen( $terminator );
+			continue;
+		}
+		preg_match( '~^<(/?)([a-z][a-z0-9:-]*)~i', $raw, $tag );
+		$name    = strtolower( $tag[2] );
+		$closing = '/' === $tag[1];
+		if ( ! $closing && in_array( $name, array( 'script', 'style', 'textarea', 'noscript', 'title' ), true ) ) {
+			// Search only for the closing delimiter; large opaque payloads never enter a wildcard match.
+			$offset = preg_match( '~</' . $name . '\s*>~i', $html, $end, PREG_OFFSET_CAPTURE, $offset )
+				? $end[0][1] + strlen( $end[0][0] ) : $length;
+		}
+		if ( 'template' === $name ) {
+			$template_depth = max( 0, $template_depth + ( $closing ? -1 : 1 ) );
+			continue;
+		}
+		if ( $template_depth || in_array( $name, array( 'script', 'style', 'textarea', 'noscript' ), true ) ) {
+			continue;
+		}
+		$tokens[] = array(
+			'tag'      => $name,
+			'closing'  => $closing,
+			'raw-html' => substr( $html, $start, $offset - $start ),
+			'offset'   => $start,
+		);
+		if ( $head_only && 'body' === $name ) {
+			break;
+		}
+	}
+	return $tokens;
+}
+
+
+/**
+ * Resolve the main document to a supported entry without invoking editor permissions or repairs.
+ *
+ * @return array|null|WP_Error Null means outside the output scope; errors preserve existing HTML.
+ */
+function ai4seo_get_frontend_metadata_entry_context() {
+	global $wp_the_query;
+	if ( ! $wp_the_query instanceof WP_Query || is_admin() || $wp_the_query->is_feed() || $wp_the_query->is_404()
+		|| ( defined( 'REST_REQUEST' ) && REST_REQUEST ) || wp_doing_ajax() ) {
+		return null;
+	}
+	if ( $wp_the_query->is_singular() ) {
+		$id = ai4seo_get_current_post_id();
+		return $id ? array(
+			'kind'    => 'post',
+			'post_id' => $id,
+		) : null;
+	}
+	if ( ! ( $wp_the_query->is_category() || $wp_the_query->is_tag() || $wp_the_query->is_tax() )
+		|| $wp_the_query->is_paged() || (int) $wp_the_query->get( 'paged' ) > 1 || (int) $wp_the_query->get( 'page' ) > 1 ) {
+		return null;
+	}
+	$term = $wp_the_query->get_queried_object();
+	if ( ! $term instanceof WP_Term ) {
+		return null;
+	}
+	$proxy = ai4seo_read_taxonomy_proxy( (int) $term->term_taxonomy_id );
+	if ( is_wp_error( $proxy ) || ! $proxy ) {
+		return $proxy;
+	}
+	$source = $proxy['source'];
+	if ( ! $source || $source['term_id'] !== (int) $term->term_id || $source['taxonomy'] !== $term->taxonomy ) {
+		return new WP_Error( 'taxonomy_output_identity_invalid' );
+	}
+	$state = ai4seo_get_taxonomy_proxy_source_state( (int) $term->term_taxonomy_id, $term->taxonomy );
+	if ( is_wp_error( $state ) ) {
+		return $state;
+	}
+	if ( 'available' !== $state['state'] || 'available' !== $source['availability'] || 'publish' !== $proxy['post_status'] ) {
+		return null;
+	}
+	if ( $state['source']['term_id'] !== $source['term_id'] ) {
+		return new WP_Error( 'taxonomy_output_identity_changed' );
+	}
+	return array(
+		'kind'    => 'taxonomy',
+		'post_id' => (int) $proxy['ID'],
+		'source'  => $state['source'],
+	);
 }
 
 
@@ -191,51 +255,52 @@ function ai4seo_inject_our_meta_tags_into_the_html_head( string $full_html_buffe
 		return $full_html_buffer;
 	}
 
-	// Metadata values are entry-specific, so archives and other non-singular responses remain untouched.
-	if ( ! is_singular() ) {
-		return $full_html_buffer;
-	}
-
-	// Define variable for the page- or post-id.
-	$post_id = ai4seo_get_current_post_id();
-
-	// Stop function if no page- or post-id is defined.
-	if ( ! $post_id ) {
-		return $full_html_buffer;
-	}
-
 	if ( ! defined( 'AI4SEO_METADATA_DETAILS' ) ) {
 		return $full_html_buffer;
 	}
 
 	// read setting AI4SEO_SETTING_META_TAG_OUTPUT_MODE.
-	$meta_tag_output_mode = ai4seo_get_setting( AI4SEO_SETTING_META_TAG_OUTPUT_MODE );
+	$policy               = ai4seo_read_metadata_sync_policy_snapshot();
+	$meta_tag_output_mode = $policy['settings'][ AI4SEO_SETTING_META_TAG_OUTPUT_MODE ];
 
 	if ( 'disable' === $meta_tag_output_mode ) {
 		return $full_html_buffer; // stop function if meta tag output is disabled.
 	}
 
 	// Normalize active identifiers before exact frontend-output comparisons.
-	$active_meta_tags = ai4seo_normalize_metadata_identifier_list( ai4seo_get_active_meta_tags() );
+	$active_meta_tags = $policy['settings'][ AI4SEO_SETTING_ACTIVE_META_TAGS ];
 
 	if ( ! $active_meta_tags ) {
 		return $full_html_buffer;
 	}
 
-	// Extract the content between <head> and </head>.
-	$head_start_position = strpos( $full_html_buffer, '<head>' );
-
-	if ( false === $head_start_position ) {
+	$context = ai4seo_get_frontend_metadata_entry_context();
+	if ( is_wp_error( $context ) || ! $context ) {
 		return $full_html_buffer;
 	}
+	$post_id     = $context['post_id'];
+	$is_taxonomy = 'taxonomy' === $context['kind'];
 
-	// start position right after <head>.
-	$head_start_position += 6;
-
-	$head_end_position = strpos( $full_html_buffer, '</head>' );
-
-	if ( false === $head_end_position ) {
-		$head_end_position = strlen( $full_html_buffer ); // if no closing head tag is found, set end position to the end of the buffer.
+	// Require one explicit head before the body; protected resources never supply delimiters.
+	$head_start_position = null;
+	$head_end_position   = null;
+	foreach ( ai4seo_get_metadata_html_tokens( $full_html_buffer, true ) as $token ) {
+		if ( 'body' === $token['tag'] && null === $head_end_position ) {
+			return $full_html_buffer;
+		}
+		if ( 'head' !== $token['tag'] ) {
+			continue;
+		}
+		if ( ! $token['closing'] && null === $head_start_position ) {
+			$head_start_position = $token['offset'] + strlen( $token['raw-html'] );
+		} elseif ( $token['closing'] && null !== $head_start_position && null === $head_end_position ) {
+			$head_end_position = $token['offset'];
+		} else {
+			return $full_html_buffer;
+		}
+	}
+	if ( null === $head_start_position || null === $head_end_position ) {
+		return $full_html_buffer;
 	}
 
 	$head_html = substr( $full_html_buffer, $head_start_position, $head_end_position - $head_start_position );
@@ -244,17 +309,15 @@ function ai4seo_inject_our_meta_tags_into_the_html_head( string $full_html_buffe
 	$found_third_party_meta_tags = ai4seo_get_meta_tags_from_html( $head_html );
 
 	// read OUR metadata values for this post.
-	$our_metadata = ai4seo_read_available_metadata_by_post_ids( array( $post_id ), false );
-
-	if ( $our_metadata ) {
-		$our_metadata = $our_metadata[ $post_id ] ?? array();
+	$output_state = ai4seo_read_metadata_output_state( $post_id );
+	if ( ! $output_state['read_succeeded'] ) {
+		return $full_html_buffer;
 	}
+	$our_metadata = $output_state['values'];
 
 	// check post type.
-	$supported_post_types = ai4seo_get_supported_post_types();
-	$current_post_type    = get_post_type( $post_id );
-
-	if ( ! in_array( $current_post_type, $supported_post_types, true ) ) {
+	$current_post_type = get_post_type( $post_id );
+	if ( ! $is_taxonomy && ! ai4seo_is_metadata_sync_post_supported( $post_id, $policy ) ) {
 		return $full_html_buffer;
 	}
 
@@ -267,23 +330,21 @@ function ai4seo_inject_our_meta_tags_into_the_html_head( string $full_html_buffe
 	$current_product_price_for_placeholders = $metadata_placeholder_replacements['PRODUCT_PRICE'] ?? '';
 
 	foreach ( AI4SEO_METADATA_DETAILS as $this_metadata_identifier => $this_metadata_field_details ) {
+		if ( ! in_array( $this_metadata_identifier, $active_meta_tags, true )
+			|| in_array( $this_metadata_identifier, $output_state['unknown'], true ) ) {
+			continue;
+		}
 		$this_found_third_party_meta_tags = $found_third_party_meta_tags[ $this_metadata_identifier ] ?? array();
 		$this_our_metadata                = $our_metadata[ $this_metadata_identifier ] ?? '';
 
-		// exclude this meta tag if not active.
-		if ( ! in_array( $this_metadata_identifier, $active_meta_tags, true ) ) {
-			$this_our_metadata                         = '';
-			$our_metadata[ $this_metadata_identifier ] = '';
-		}
-
 		// Resolve supported third-party templates before deciding whether existing frontend tags should be replaced.
-		if ( $this_our_metadata ) {
+		if ( ! $is_taxonomy && $this_our_metadata ) {
 			$this_our_metadata                         = ai4seo_resolve_third_party_seo_metadata_variables( $this_our_metadata, $post_id, $this_metadata_identifier );
 			$our_metadata[ $this_metadata_identifier ] = $this_our_metadata;
 		}
 
 		// find a fallback if neither we nor a third party have a value for this meta tag.
-		if ( empty( $this_our_metadata ) && empty( $this_found_third_party_meta_tags ) ) {
+		if ( ! $is_taxonomy && empty( $this_our_metadata ) && empty( $this_found_third_party_meta_tags ) ) {
 			ai4seo_apply_possible_fallbacks( $post_id, $this_metadata_identifier, $our_metadata );
 			$this_our_metadata = $our_metadata[ $this_metadata_identifier ] ?? '';
 
@@ -295,7 +356,7 @@ function ai4seo_inject_our_meta_tags_into_the_html_head( string $full_html_buffe
 		}
 
 		// leave this meta tag alone if we do not have a value for it or we exclude this meta tag.
-		if ( ! $this_our_metadata ) {
+		if ( $is_taxonomy ? '' === trim( $this_our_metadata ) : ! $this_our_metadata ) {
 			continue;
 		}
 
@@ -310,7 +371,7 @@ function ai4seo_inject_our_meta_tags_into_the_html_head( string $full_html_buffe
 				if ( $this_found_third_party_meta_tags ) {
 					foreach ( $this_found_third_party_meta_tags as $this_found_third_party_meta_tag ) {
 						if ( $this_found_third_party_meta_tag ) {
-							$remove_this_third_party_meta_tags[] = $this_found_third_party_meta_tag['raw-html'];
+							$remove_this_third_party_meta_tags[ $this_found_third_party_meta_tag['offset'] ] = $this_found_third_party_meta_tag['raw-html'];
 						}
 					}
 				}
@@ -323,34 +384,31 @@ function ai4seo_inject_our_meta_tags_into_the_html_head( string $full_html_buffe
 					$this_found_third_party_meta_tag_got_content         = false;
 					$this_found_third_party_meta_tag_no_content_raw_html = array();
 					foreach ( $this_found_third_party_meta_tags as $this_found_third_party_meta_tag ) {
-						if ( $this_found_third_party_meta_tag['content'] ) {
+						if ( $is_taxonomy ? '' !== $this_found_third_party_meta_tag['content'] : (bool) $this_found_third_party_meta_tag['content'] ) {
 							$this_found_third_party_meta_tag_got_content = true;
 							break;
 						} else {
-							$this_found_third_party_meta_tag_no_content_raw_html[] = $this_found_third_party_meta_tag['raw-html'];
+							$this_found_third_party_meta_tag_no_content_raw_html[ $this_found_third_party_meta_tag['offset'] ] = $this_found_third_party_meta_tag['raw-html'];
 						}
 					}
 
 					if ( ! $this_found_third_party_meta_tag_got_content ) {
 						$add_this_metadata[ $this_metadata_identifier ] = $this_our_metadata;
-						$remove_this_third_party_meta_tags              = array_merge( $remove_this_third_party_meta_tags, $this_found_third_party_meta_tag_no_content_raw_html );
+						$remove_this_third_party_meta_tags             += $this_found_third_party_meta_tag_no_content_raw_html;
 					}
 				}
 				break;
 		}
 	}
 
-	// Remove any third-party meta tags and surrounding non-visible characters.
+	// Remove only identified tag spans, from the end so earlier byte offsets remain valid.
 	if ( $remove_this_third_party_meta_tags ) {
-		foreach ( $remove_this_third_party_meta_tags as $this_remove_this_meta_tag ) {
-			// Use preg_replace to match the tag and any surrounding whitespace or line breaks.
-			$full_html_buffer = preg_replace(
-				'/' . preg_quote( $this_remove_this_meta_tag, '/' ) . '\s*/s',
-				'',
-				$full_html_buffer
-			);
+		krsort( $remove_this_third_party_meta_tags, SORT_NUMERIC );
+		foreach ( $remove_this_third_party_meta_tags as $offset => $raw_html ) {
+			$head_html = substr_replace( $head_html, '', $offset, strlen( $raw_html ) );
 		}
 	}
+	$found_third_party_meta_tags = ai4seo_get_meta_tags_from_html( $head_html );
 
 	// add our tags to the head, finding position first.
 	if ( $add_this_metadata ) {
@@ -444,24 +502,24 @@ function ai4seo_inject_our_meta_tags_into_the_html_head( string $full_html_buffe
 		// output our meta tags.
 		if ( $add_this_meta_tags ) {
 			// find a suitable position for our meta tags.
-			$our_meta_tags_position = $head_start_position;
+			$our_meta_tags_position = 0;
 
 			// consider the charset meta tag position, if it's near the head start.
 			if ( isset( $found_third_party_meta_tags['charset'] ) ) {
-				$charset_meta_tags_position = strpos( $full_html_buffer, $found_third_party_meta_tags['charset']['raw-html'] ) + strlen( $found_third_party_meta_tags['charset']['raw-html'] );
+				$charset_meta_tags_position = $found_third_party_meta_tags['charset']['offset'] + strlen( $found_third_party_meta_tags['charset']['raw-html'] );
 
 				// set $charset_meta_tags_position as our meta tags position if it's not further away than 100 characters.
-				if ( $charset_meta_tags_position - $head_start_position < 100 ) {
+				if ( $charset_meta_tags_position < 100 ) {
 					$our_meta_tags_position = $charset_meta_tags_position;
 				}
 			}
 
 			// consider the viewport meta tag position, if it's near the head start.
 			if ( isset( $found_third_party_meta_tags['viewport'] ) ) {
-				$viewport_meta_tags_position = strpos( $full_html_buffer, $found_third_party_meta_tags['viewport']['raw-html'] ) + strlen( $found_third_party_meta_tags['viewport']['raw-html'] );
+				$viewport_meta_tags_position = $found_third_party_meta_tags['viewport']['offset'] + strlen( $found_third_party_meta_tags['viewport']['raw-html'] );
 
 				// set $viewport_meta_tags_position as our meta tags position if it's not further away than 200 characters.
-				if ( $viewport_meta_tags_position - $head_start_position < 200 ) {
+				if ( $viewport_meta_tags_position < 200 ) {
 					$our_meta_tags_position = $viewport_meta_tags_position;
 				}
 			}
@@ -492,11 +550,11 @@ function ai4seo_inject_our_meta_tags_into_the_html_head( string $full_html_buffe
 			$add_this_meta_tags = ai4seo_deep_sanitize( $add_this_meta_tags, 'ai4seo_wp_kses' );
 
 			// add our meta tags to the head.
-			$full_html_buffer = substr_replace( $full_html_buffer, "\n\n\t" . implode( "\n\t", $add_this_meta_tags ) . "\n", $our_meta_tags_position, 0 );
+			$head_html = substr_replace( $head_html, "\n\n\t" . implode( "\n\t", $add_this_meta_tags ) . "\n", $our_meta_tags_position, 0 );
 		}
 	}
 
-	return $full_html_buffer;
+	return substr_replace( $full_html_buffer, $head_html, $head_start_position, $head_end_position - $head_start_position );
 }
 
 
@@ -540,16 +598,17 @@ function ai4seo_inject_image_attributes_into_html( $content ) {
 		return $content;
 	}
 
-	$alt_enabled          = ai4seo_get_setting( AI4SEO_SETTING_ENABLE_RENDER_LEVEL_ALT_TEXT_INJECTION );
-	$title_injection_mode = ai4seo_get_setting( AI4SEO_SETTING_IMAGE_TITLE_INJECTION_MODE );
+	$policy               = ai4seo_read_metadata_sync_policy_snapshot();
+	$alt_enabled          = $policy['settings'][ AI4SEO_SETTING_ENABLE_RENDER_LEVEL_ALT_TEXT_INJECTION ];
+	$title_injection_mode = $policy['settings'][ AI4SEO_SETTING_IMAGE_TITLE_INJECTION_MODE ];
 
 	if ( ! $alt_enabled && 'disabled' === $title_injection_mode ) {
 		return $content;
 	}
 
-	static $cache = array();
+	$cache = array();
 
-	// Keep URL identities only for this render pass; the attribute cache above has its own existing lifecycle.
+	// Keep URL identities and attribute values within this render pass and the current site scope.
 	$attachment_ids               = array();
 	$attachment_ids_scope         = '';
 	$attachment_ids_cache_enabled = true;
@@ -574,6 +633,10 @@ function ai4seo_inject_image_attributes_into_html( $content ) {
 			if ( $attachment_ids_scope !== $this_scope ) {
 				$attachment_ids       = array();
 				$attachment_ids_scope = $this_scope;
+				$cache                = array();
+			}
+			if ( '' === $this_scope ) {
+				$cache = array();
 			}
 
 			// Resolver filters may be stateful or appear mid-render; once observed, preserve every later call.
@@ -611,7 +674,15 @@ function ai4seo_inject_image_attributes_into_html( $content ) {
 			}
 
 			// Restrict render-level changes to attachments for which the plugin has generated and stored data.
-			if ( ! get_post_meta( $this_post_id, AI4SEO_POST_META_GENERATED_DATA_META_KEY, true ) ) {
+			$attribute_cache_key = $this_scope . ':' . $this_post_id;
+			if ( ! isset( $cache[ $attribute_cache_key ]['generated'] ) ) {
+				try {
+					$cache[ $attribute_cache_key ]['generated'] = ai4seo_read_generated_data_presence_for_post( $this_post_id );
+				} catch ( Throwable $throwable ) {
+					$cache[ $attribute_cache_key ]['generated'] = false;
+				}
+			}
+			if ( ! $cache[ $attribute_cache_key ]['generated'] ) {
 				return $this_full_tag;
 			}
 
@@ -623,11 +694,11 @@ function ai4seo_inject_image_attributes_into_html( $content ) {
 				preg_match( '/\balt\s*=\s*["\']([^"\']*)["\']/', $this_attr_str, $this_alt_matches );
 				$this_existing_alt = $this_alt_matches[1] ?? null;
 
-				// Cache postmeta within this response because the same attachment can be rendered more than once.
-				if ( ! isset( $cache[ $this_post_id ]['alt'] ) ) {
-					$cache[ $this_post_id ]['alt'] = get_post_meta( $this_post_id, '_wp_attachment_image_alt', true );
+				// Cache postmeta within this render pass because the same attachment can appear more than once.
+				if ( ! isset( $cache[ $attribute_cache_key ]['alt'] ) ) {
+					$cache[ $attribute_cache_key ]['alt'] = ai4seo_read_frontend_attachment_alt( $this_post_id );
 				}
-				$this_db_alt = $cache[ $this_post_id ]['alt'];
+				$this_db_alt = $cache[ $attribute_cache_key ]['alt'];
 
 				if ( $this_db_alt && $this_existing_alt !== $this_db_alt ) {
 					$this_to_add['alt'] = $this_db_alt;
@@ -639,10 +710,10 @@ function ai4seo_inject_image_attributes_into_html( $content ) {
 				preg_match( '/\btitle\s*=\s*["\']([^"\']*)["\']/', $this_attr_str, $this_title_matches );
 				$this_existing_title = $this_title_matches[1] ?? null;
 
-				if ( ! isset( $cache[ $this_post_id ][ $title_injection_mode ] ) ) {
-					$cache[ $this_post_id ][ $title_injection_mode ] = ai4seo_get_title_attribute_value( $this_post_id, $title_injection_mode, $cache );
+				if ( ! isset( $cache[ $attribute_cache_key ][ $title_injection_mode ] ) ) {
+					$cache[ $attribute_cache_key ][ $title_injection_mode ] = ai4seo_get_title_attribute_value( $this_post_id, $title_injection_mode, $cache );
 				}
-				$this_db_title = $cache[ $this_post_id ][ $title_injection_mode ];
+				$this_db_title = $cache[ $attribute_cache_key ][ $title_injection_mode ];
 
 				if ( $this_db_title && $this_existing_title !== $this_db_title ) {
 					$this_to_add['title'] = $this_db_title;
@@ -693,7 +764,7 @@ function ai4seo_inject_image_attributes_into_html( $content ) {
  * @return string|false Title attribute value, or false when none is available.
  */
 function ai4seo_get_title_attribute_value( int $attachment_id, string $setting_value, array &$cache ) {
-	$cache_key = $setting_value;
+	$cache_key = ai4seo_get_site_options_request_cache_scope() . ':' . $attachment_id . ':' . $setting_value;
 
 	if ( isset( $cache[ $attachment_id ][ $cache_key ] ) ) {
 		return $cache[ $attachment_id ][ $cache_key ];
@@ -706,7 +777,7 @@ function ai4seo_get_title_attribute_value( int $attachment_id, string $setting_v
 			$value = get_the_title( $attachment_id );
 			break;
 		case 'inject_alt_text':
-			$value = get_post_meta( $attachment_id, '_wp_attachment_image_alt', true );
+			$value = ai4seo_read_frontend_attachment_alt( $attachment_id );
 			break;
 		case 'inject_caption':
 			$attachment = get_post( $attachment_id );
@@ -724,6 +795,7 @@ function ai4seo_get_title_attribute_value( int $attachment_id, string $setting_v
 			break;
 	}
 
+	$value                                 = is_string( $value ) ? $value : false;
 	$cache[ $attachment_id ][ $cache_key ] = $value;
 	return $value;
 }
@@ -811,7 +883,7 @@ function ai4seo_filter_wp_image_attrs( $attr, $attachment, $size ) {
 
 	// Preserve author-supplied alt text and only fill an empty attribute from attachment postmeta.
 	if ( empty( $attr['alt'] ) ) {
-		$alt = get_post_meta( $attachment->ID, '_wp_attachment_image_alt', true );
+		$alt = ai4seo_read_frontend_attachment_alt( $attachment->ID );
 
 		// Sanitize the stored value before returning it to WordPress' image renderer.
 		if ( $alt ) {
@@ -819,4 +891,67 @@ function ai4seo_filter_wp_image_attrs( $attr, $attachment, $size ) {
 		}
 	}
 	return $attr;
+}
+
+/**
+ * Read an unambiguous native alt value without coercing damaged storage to text.
+ *
+ * @param int $attachment_id Attachment ID.
+ * @return string|false Valid text or an unknown value.
+ */
+function ai4seo_read_frontend_attachment_alt( int $attachment_id ) {
+	$succeeded = false;
+	try {
+		$rows = ai4seo_read_exact_third_party_postmeta_rows( $attachment_id, '_wp_attachment_image_alt', $succeeded );
+	} catch ( Throwable $throwable ) {
+		return false;
+	}
+	if ( ! $succeeded || count( $rows ) > 1 ) {
+		return false;
+	}
+	$value = $rows[0]['meta_value'] ?? '';
+	return is_serialized( $value ) ? false : $value;
+}
+
+/**
+ * Adapt existing bounded readers to output without inventing values for unknown fields.
+ *
+ * Individually validated display values remain usable when another member is damaged;
+ * malformed JSON, invalid row identity and conflicts never become missing-value fallbacks.
+ *
+ * @param int $post_id Entry ID.
+ * @return array Read success, known values and unknown identifiers.
+ */
+function ai4seo_read_metadata_output_state( int $post_id ): array {
+	$succeeded = false;
+	$views     = array();
+	$issues    = array();
+	try {
+		$rows = ai4seo_read_available_metadata_by_post_ids( array( $post_id ), false, $succeeded, $views, true, $issues );
+	} catch ( Throwable $throwable ) {
+		return array(
+			'read_succeeded' => false,
+			'values'         => array(),
+			'unknown'        => AI4SEO_AVAILABLE_METADATA_IDENTIFIERS,
+		);
+	}
+	$view    = $views[ $post_id ] ?? array();
+	$values  = $rows[ $post_id ] ?? array();
+	$unknown = array();
+	if ( 'unreadable' === ( $view['classification'] ?? '' ) ) {
+		$values  = $view['display_metadata'] ?? array();
+		$unknown = array_values( array_diff( AI4SEO_AVAILABLE_METADATA_IDENTIFIERS, array_keys( $values ) ) );
+	} else {
+		foreach ( AI4SEO_AVAILABLE_METADATA_IDENTIFIERS as $field ) {
+			if ( isset( $view['conflicts'][ $field ] ) || ai4seo_is_posts_table_analysis_field_unknown( $issues, $post_id, $field ) ) {
+				$unknown[] = $field;
+				unset( $values[ $field ] );
+			}
+		}
+	}
+	return array(
+		'read_succeeded' => $succeeded,
+		'values'         => $values,
+		'unknown'        => $unknown,
+	);
 }

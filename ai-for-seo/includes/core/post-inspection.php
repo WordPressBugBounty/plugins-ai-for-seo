@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return bool Whether values must be redacted.
  */
 function ai4seo_is_sensitive_post_inspection_key( string $key ): bool {
-	return 1 === preg_match( '/password|secret|token|credential|authorization|cookie|nonce|api[_-]?key|license[_-]?key/i', $key );
+	return 1 === preg_match( '/password|secret|token|credential|authorization|cookie|nonce|api[_-]?key|license[_-]?key|confirmation_code|replacement_digest|original_fingerprint|target_fingerprint|pending_license_change/i', $key );
 }
 
 /**
@@ -190,10 +190,12 @@ function ai4seo_debug_post_options( int $post_id ): bool {
 						$value = $json_value;
 					}
 				}
-				$matches                    = array();
-				$remaining                  = 100000;
-				$complete                   = ai4seo_find_post_inspection_references( $value, $post_id, $matches, $remaining );
-				$name_matches               = 1 === preg_match( '/(?<![0-9])' . $post_id . '(?![0-9])/', $name );
+				$matches   = array();
+				$remaining = 100000;
+				$complete  = ai4seo_find_post_inspection_references( $value, $post_id, $matches, $remaining );
+				// The digit in ai4seo is a namespace component, never a post reference.
+				$post_option_name           = preg_replace( '/^(?:_transient_(?:timeout_)?)?_?ai4seo_/', '', $name );
+				$name_matches               = 1 === preg_match( '/(?<![0-9])' . $post_id . '(?![0-9])/', $post_option_name );
 				$report['status']           = $complete ? 'inspected' : 'traversal_limit';
 				$report['matches']          = $matches;
 				$report['name_contains_id'] = $name_matches;

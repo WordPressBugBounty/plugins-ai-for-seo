@@ -44,6 +44,7 @@ function ai4seo_classify_active_metadata_rows( int $post_id, array $rows ): arra
 			|| ! is_string( $row['meta_value'] ?? null )
 			|| strlen( $row['meta_value'] ) > AI4SEO_ACTIVE_METADATA_MAX_ROW_BYTES
 			|| ! ai4seo_decode_active_metadata_postmeta_value_authoritatively( $row['meta_value'], $values ) ) {
+			$view['display_metadata'] = ai4seo_read_damaged_metadata_display_values( $post_id, $rows );
 			return $view;
 		}
 		$previous_id            = $meta_id;
@@ -76,6 +77,47 @@ function ai4seo_classify_active_metadata_rows( int $post_id, array $rows ): arra
 		$view['classification'] = $view['conflicts'] ? 'conflicting_duplicates' : 'compatible_duplicates';
 	}
 	return $view;
+}
+
+/**
+ * Extract display-only fields from bounded JSON rows without approving a rewrite.
+ * An undecodable row or ambiguous identity makes every field unknown.
+ *
+ * @param int   $post_id Entry ID.
+ * @param array $rows Bounded physical rows.
+ * @return array Unambiguous, individually valid display values.
+ */
+function ai4seo_read_damaged_metadata_display_values( int $post_id, array $rows ): array {
+	$values      = array();
+	$unknown     = array();
+	$previous_id = 0;
+	if ( $post_id <= 0 || count( $rows ) > AI4SEO_ACTIVE_METADATA_MAX_ROWS ) {
+		return array();
+	}
+	foreach ( $rows as $row ) {
+		$id  = ai4seo_normalize_database_id( $row['meta_id'] ?? null );
+		$raw = $row['meta_value'] ?? null;
+		if ( false === $id || $id <= $previous_id || AI4SEO_POST_META_ACTIVE_METADATA_META_KEY !== ( $row['meta_key'] ?? '' ) || ! is_string( $raw ) || strlen( $raw ) > AI4SEO_ACTIVE_METADATA_MAX_ROW_BYTES ) {
+			return array();
+		}
+		$previous_id = $id;
+		$decoded     = json_decode( $raw, true );
+		if ( JSON_ERROR_NONE !== json_last_error() || ! is_array( $decoded ) ) {
+			return array();
+		}
+		foreach ( $decoded as $field => $value ) {
+			if ( ! isset( AI4SEO_METADATA_DETAILS[ $field ] ) ) {
+				continue;
+			}
+			$valid = array();
+			if ( ! ai4seo_decode_active_metadata_postmeta_value_authoritatively( wp_json_encode( array( $field => $value ) ), $valid ) || ( isset( $values[ $field ] ) && $values[ $field ] !== $value ) ) {
+				$unknown[ $field ] = true;
+				continue;
+			}
+			$values[ $field ] = $value;
+		}
+	}
+	return array_diff_key( $values, $unknown );
 }
 
 /**
@@ -308,6 +350,12 @@ function ai4seo_filter_metadata_recovery_updates( array $updates, array $view, a
 		return array();
 	}
 	foreach ( $updates as $field => $value ) {
+		if ( isset( $context['expected_metadata'] )
+			&& ( array_key_exists( $field, $context['expected_metadata'] ) !== array_key_exists( $field, $view['active_metadata'] )
+				|| ( $context['expected_metadata'][ $field ] ?? null ) !== ( $view['active_metadata'][ $field ] ?? null ) ) ) {
+			unset( $updates[ $field ] );
+			continue;
+		}
 		$resolution = $context['resolutions'][ $field ] ?? null;
 		if ( ! isset( $view['conflicts'][ $field ] ) && null === $resolution ) {
 			continue;
@@ -333,12 +381,16 @@ function ai4seo_filter_metadata_recovery_updates( array $updates, array $view, a
  * @param array $updates Already filtered canonical values.
  * @param array $view Current exact view under the metadata lock.
  * @param array $details Receives verified fields and current storage.
+ * @param array $context Optional synchronization preconditions and no-repair policy.
  * @return bool Whether every requested field was verified.
  */
-function ai4seo_write_duplicate_metadata_under_lock( int $post_id, array $updates, array $view, array &$details ): bool {
+function ai4seo_write_duplicate_metadata_under_lock( int $post_id, array $updates, array $view, array &$details, array $context = array() ): bool {
 	$attempted = false;
 	try {
 		foreach ( $view['rows'] as $row ) {
+			if ( ! $updates || ! ai4seo_validate_metadata_sync_source( $post_id, $context ) ) {
+				break;
+			}
 			$raw = wp_json_encode( array_replace( $row['active_metadata'], $updates ), JSON_UNESCAPED_UNICODE );
 			if ( ! is_string( $raw ) || strlen( $raw ) > AI4SEO_ACTIVE_METADATA_MAX_ROW_BYTES ) {
 				break;
@@ -354,8 +406,10 @@ function ai4seo_write_duplicate_metadata_under_lock( int $post_id, array $update
 		// The fresh view below identifies confirmed fields even after a later hook fails.
 		$details['failure_reason'] = 'storage_exception';
 	}
-	$after     = ai4seo_read_active_metadata_resolved_view( $post_id );
-	$after     = ai4seo_repair_active_metadata_under_lock( $post_id, $after );
+	$after = ai4seo_read_active_metadata_resolved_view( $post_id );
+	if ( empty( $context['preserve_storage'] ) ) {
+		$after = ai4seo_repair_active_metadata_under_lock( $post_id, $after );
+	}
 	$confirmed = ai4seo_get_confirmed_active_metadata_updates( $updates, $after );
 
 	$details['confirmed_fields']        = $confirmed;
@@ -412,7 +466,7 @@ function ai4seo_update_active_metadata_with_recovery( int $post_id, array $updat
 		}
 	}
 	$canonical        = ai4seo_prepare_active_metadata_values( $canonical );
-	$overwrite_fields = $overwrite ? array_keys( $canonical ) : (array) ai4seo_get_setting( AI4SEO_SETTING_OVERWRITE_EXISTING_METADATA );
+	$overwrite_fields = $overwrite ? array_keys( $canonical ) : ai4seo_read_metadata_sync_policy_snapshot()['settings'][ AI4SEO_SETTING_OVERWRITE_EXISTING_METADATA ];
 	$storage_details  = array();
 	$saved            = ai4seo_save_active_metadata_to_postmeta(
 		$post_id,

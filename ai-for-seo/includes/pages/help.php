@@ -34,6 +34,9 @@ function ai4seo_get_debug_operations(): array {
 		'analyze_cronjob'                      => array(
 			'label' => __( 'Run plugin performance analysis', 'ai-for-seo' ),
 		),
+		'retry_update_steps'                   => array(
+			'label' => __( 'Retry pending update steps', 'ai-for-seo' ),
+		),
 		'force_tidyup'                         => array(
 			'label' => __( 'Run tidy-up', 'ai-for-seo' ),
 		),
@@ -233,54 +236,16 @@ function ai4seo_get_debug_operation_post_id( array $request ): int {
  * @return void
  */
 function ai4seo_run_active_metadata_migration_v235_debug_operation(): void {
-	// Capture migration state before the manual run so support can distinguish locked, completed, and progressed states.
-	$ai4seo_active_metadata_migration_v235_state_before              = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STATE, false );
-	$ai4seo_active_metadata_migration_v235_started_time_before       = (int) ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STARTED_TIME, false );
-	$ai4seo_active_metadata_migration_v235_processed_entries_before  = (int) ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_PROCESSED_ENTRIES, false );
-	$ai4seo_active_metadata_migration_v235_processing_lock_is_active = (
-		'processing' === $ai4seo_active_metadata_migration_v235_state_before
-		&& $ai4seo_active_metadata_migration_v235_started_time_before > time() - ( 15 * MINUTE_IN_SECONDS )
-	);
-
+	$before   = ai4seo_read_plugin_update_progress();
+	$complete = ai4seo_active_metadata_migration_v235_cron_job( true );
+	$after    = ai4seo_read_plugin_update_progress();
 	ai4seo_debug_message(
-		984321703,
-		'Manual v235 active metadata migration run requested. State before: ' . ai4seo_stringify( $ai4seo_active_metadata_migration_v235_state_before )
-		. ', started time before: ' . ai4seo_stringify( ai4seo_format_unix_timestamp( $ai4seo_active_metadata_migration_v235_started_time_before ) )
-		. ', processed entries before: ' . ai4seo_stringify( $ai4seo_active_metadata_migration_v235_processed_entries_before )
+		984321706,
+		'Manual v235 active metadata migration checked. Completed: ' . ( $complete ? 'true' : 'false' )
+		. ', previous step: ' . ai4seo_stringify( $before['steps']['active_metadata'] ?? null )
+		. ', current step: ' . ai4seo_stringify( $after['steps']['active_metadata'] ?? null ),
+		! $complete
 	);
-
-	// Preserve the migration lock and completion checks used by the cron path.
-	if ( $ai4seo_active_metadata_migration_v235_processing_lock_is_active ) {
-		ai4seo_debug_message(
-			984321704,
-			'Manual v235 active metadata migration run skipped because another run is marked as processing. Started time: '
-			. ai4seo_stringify( ai4seo_format_unix_timestamp( $ai4seo_active_metadata_migration_v235_started_time_before ) ),
-			true
-		);
-	} elseif ( ai4seo_is_active_metadata_migration_v235_completed() ) {
-		ai4seo_debug_message(
-			984321705,
-			'Manual v235 active metadata migration run skipped because the migration is already completed.'
-		);
-	} else {
-		// Compare post-run counters to the earlier snapshot because the migration helper returns only a boolean.
-		$ai4seo_active_metadata_migration_v235_run_result              = ai4seo_active_metadata_migration_v235_cron_job();
-		$ai4seo_active_metadata_migration_v235_state_after             = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STATE, false );
-		$ai4seo_active_metadata_migration_v235_started_time_after      = (int) ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_STARTED_TIME, false );
-		$ai4seo_active_metadata_migration_v235_last_run_time_after     = (int) ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_LAST_RUN_TIME, false );
-		$ai4seo_active_metadata_migration_v235_processed_entries_after = (int) ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVE_METADATA_MIGRATION_V235_PROCESSED_ENTRIES, false );
-
-		ai4seo_debug_message(
-			984321706,
-			'Manual v235 active metadata migration run finished. Result: ' . ( $ai4seo_active_metadata_migration_v235_run_result ? 'true' : 'false' )
-			. ', state after: ' . ai4seo_stringify( $ai4seo_active_metadata_migration_v235_state_after )
-			. ', started time after: ' . ai4seo_stringify( ai4seo_format_unix_timestamp( $ai4seo_active_metadata_migration_v235_started_time_after ) )
-			. ', last run time after: ' . ai4seo_stringify( ai4seo_format_unix_timestamp( $ai4seo_active_metadata_migration_v235_last_run_time_after ) )
-			. ', processed entries after: ' . ai4seo_stringify( $ai4seo_active_metadata_migration_v235_processed_entries_after )
-			. ', processed entries this run: ' . ai4seo_stringify( max( 0, $ai4seo_active_metadata_migration_v235_processed_entries_after - $ai4seo_active_metadata_migration_v235_processed_entries_before ) ),
-			! $ai4seo_active_metadata_migration_v235_run_result
-		);
-	}
 }
 
 /**
@@ -328,6 +293,17 @@ function ai4seo_execute_debug_operation( string $operation, array $request ): ar
 				true, // Heavy DB operations debug override.
 			);
 			return ai4seo_get_posts_table_analysis_debug_operation_result( $analysis_succeeded );
+
+		case 'retry_update_steps':
+			ai4seo_check_and_handle_plugin_update( true );
+			ai4seo_active_metadata_migration_v235_cron_job( true );
+			$restricted = '' !== ai4seo_get_plugin_update_notice_html();
+			return array(
+				'success' => ! $restricted,
+				'message' => $restricted
+					? __( 'Update steps were checked. Some restrictions remain; review the update status below. Original data has been retained.', 'ai-for-seo' )
+					: __( 'All checked update steps are complete.', 'ai-for-seo' ),
+			);
 
 		case 'force_tidyup':
 			// Reuse the existing tidy-up routine so this operation stays aligned with normal maintenance.
@@ -1129,6 +1105,14 @@ foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_
 		// Headline.
 		echo '<h3>' . esc_html__( 'Metadata & Search Snippets', 'ai-for-seo' ) . '</h3>';
 
+		$ai4seo_this_accordion_content = __( 'Open Taxonomies in the SOOZ navigation to edit or generate metadata for categories, tags, public custom taxonomies, WooCommerce product categories and tags, and product attributes with archives enabled. Each term has its own metadata, including terms without assigned content and separate language variants. Edit the term name and description in WordPress; SOOZ does not change the visible archive content.', 'ai-for-seo' );
+		ai4seo_echo_wp_kses( ai4seo_get_accordion_element( esc_html__( 'Which category and taxonomy archive pages can I optimize?', 'ai-for-seo' ), $ai4seo_this_accordion_content, 4 ) );
+
+		$ai4seo_this_accordion_content  = esc_html__( 'After you save metadata for a category, tag, or other taxonomy term, SOOZ can publish the non-empty fields on the first page of its active public archive. Under Settings > Metadata, Active Meta Tags selects the fields and Meta Tag Output Mode controls how they interact with existing tags. If HTML output is disabled, the values remain saved but SOOZ does not publish them.', 'ai-for-seo' );
+		$ai4seo_this_accordion_content .= '<br /><br />' . esc_html__( 'Empty fields do not erase or replace existing tags. Page 2 and later keep their existing output. Saving SEO metadata does not change the visible term name, description, or list of posts.', 'ai-for-seo' );
+		$ai4seo_this_accordion_content .= '<br /><br />' . esc_html__( 'Taxonomy metadata is not synchronized directly with Yoast SEO, Rank Math, or other SEO plugins. Canonical URLs, robots/noindex, hreflang, structured data and social images remain unchanged. Author, date, search and general post-type archives are not included.', 'ai-for-seo' );
+		ai4seo_echo_wp_kses( ai4seo_get_accordion_element( esc_html__( 'Where does taxonomy metadata appear, and does it sync with my SEO plugin?', 'ai-for-seo' ), $ai4seo_this_accordion_content, 4 ) );
+
 		$ai4seo_this_accordion_content  = __( 'Add placeholders directly to the prefix or suffix fields under Settings > Metadata or Settings > Media Attributes. Supported placeholders are case-insensitive.', 'ai-for-seo' ) . '<br /><br />';
 		$ai4seo_this_accordion_content .= __( '<strong>{WEBSITE_URL}</strong> - Website URL: Inserts the website URL without a trailing slash.', 'ai-for-seo' ) . '<br />';
 		$ai4seo_this_accordion_content .= __( '<strong>{WEBSITE_NAME}</strong> - Website name: Inserts the WordPress site name.', 'ai-for-seo' ) . '<br />';
@@ -1187,6 +1171,18 @@ foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_
 		echo "<div class='ai4seo-faq-section-holder'>";
 		// Headline.
 		echo '<h3>' . esc_html__( 'Images & Media Attributes', 'ai-for-seo' ) . '</h3>';
+
+		$ai4seo_this_accordion_content = __( 'Yes. SOOZ can generate alt text, titles, captions and descriptions for supported static SVG images in the Media Library, individually or through bulk generation. Enable SVG under Settings > Media Attributes > Enabled File Types. SVG starts disabled when upgrading an existing installation; new installations include it by default. The conversion service must also be available.', 'ai-for-seo' );
+		ai4seo_echo_wp_kses( ai4seo_get_accordion_element( esc_html__( 'Can SOOZ generate alt text and other attributes for SVG images?', 'ai-for-seo' ), $ai4seo_this_accordion_content, 4 ) );
+
+		$ai4seo_this_accordion_content = __( 'No. SVG support analyzes existing media; it does not enable SVG uploads in WordPress. For analysis, the service validates the SVG and creates a private PNG preview. Your original SVG file and media URL remain unchanged. Generated attributes are saved in the existing WordPress media fields.', 'ai-for-seo' );
+		ai4seo_echo_wp_kses( ai4seo_get_accordion_element( esc_html__( 'Does SOOZ enable SVG uploads or replace my SVG file?', 'ai-for-seo' ), $ai4seo_this_accordion_content, 4 ) );
+
+		$ai4seo_this_accordion_content = __( 'Use a static, uncompressed SVG file of at most 1 MiB. Scripts, animation, external resources, embedded images or fonts, and unsupported SVG features are rejected before image analysis. Export a simpler static SVG, or use a PNG version. Also check that SVG is enabled under Settings > Media Attributes > Enabled File Types. If the conversion service is unavailable, generation cannot start; existing attributes remain editable.', 'ai-for-seo' );
+		ai4seo_echo_wp_kses( ai4seo_get_accordion_element( esc_html__( 'Why is SVG generation unavailable or my SVG rejected?', 'ai-for-seo' ), $ai4seo_this_accordion_content, 4 ) );
+
+		$ai4seo_this_accordion_content = __( 'The service may use replacement fonts when rendering SVG text, so the analysis preview can differ from your browser. If exact lettering matters, convert text to paths in your graphics editor before exporting the SVG, then review the generated attributes. The original media file is not rewritten by SOOZ.', 'ai-for-seo' );
+		ai4seo_echo_wp_kses( ai4seo_get_accordion_element( esc_html__( 'Why can text in an SVG look different during analysis?', 'ai-for-seo' ), $ai4seo_this_accordion_content, 4 ) );
 
 		$ai4seo_this_accordion_content = __( 'Image attributes such as alt text, image titles, captions, and descriptions help search engines understand your media and can improve image search visibility. Alt text also supports accessibility when images are shown to visitors who use assistive technologies.', 'ai-for-seo' );
 		ai4seo_echo_wp_kses( ai4seo_get_accordion_element( esc_html__( 'Why should I add alt text, image titles, captions, and descriptions?', 'ai-for-seo' ), $ai4seo_this_accordion_content, 4 ) );
@@ -1274,6 +1270,15 @@ foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_
 		echo "<div class='ai4seo-faq-section-holder'>";
 		// Headline.
 		echo '<h3>' . esc_html__( 'SEO Autopilot & Queue Management', 'ai-for-seo' ) . '</h3>';
+
+		$ai4seo_this_accordion_content = __( 'Select each taxonomy explicitly in Set up SEO Autopilot; existing settings do not enable taxonomy generation automatically. Taxonomies without any terms are hidden. A term without assigned posts still counts as an entry. Newly created terms appear after the background inventory refresh. Archives that become unavailable stay visible as inactive in their taxonomy list and can only be read until they become available again.', 'ai-for-seo' );
+		ai4seo_echo_wp_kses( ai4seo_get_accordion_element( esc_html__( 'How do I enable taxonomy archives in SEO Autopilot, and why is a taxonomy missing?', 'ai-for-seo' ), $ai4seo_this_accordion_content, 4 ) );
+
+		$ai4seo_this_accordion_content = __( 'Bulk generation and SEO Autopilot skip terms with fewer than 100 readable characters from their description and usable content excerpts. The term name does not count toward this minimum. SOOZ uses the description and up to ten directly assigned, published, publicly accessible content examples; it does not recursively include child terms. Add a useful term description in WordPress, or generate manually in the SOOZ editor after reviewing the limited-content warning.', 'ai-for-seo' );
+		ai4seo_echo_wp_kses( ai4seo_get_accordion_element( esc_html__( 'Why does SEO Autopilot skip a category, tag or other taxonomy archive?', 'ai-for-seo' ), $ai4seo_this_accordion_content, 4 ) );
+
+		$ai4seo_this_accordion_content = __( 'Post author, creation-date and assigned-term filters do not apply to taxonomy archives. The Order of bulk generation setting applies to posts and media; taxonomy archives are always processed oldest first by the time SOOZ first detected them. Active fields, overwrite options, excluded languages, Credits and individual exclusions still apply. Changing a term does not by itself force regeneration of already complete metadata.', 'ai-for-seo' );
+		ai4seo_echo_wp_kses( ai4seo_get_accordion_element( esc_html__( 'Do post filters and generation-order settings apply to taxonomy archives?', 'ai-for-seo' ), $ai4seo_this_accordion_content, 4 ) );
 
 		/* translators: %s: plugin name */
 		$ai4seo_this_accordion_content = sprintf( esc_html__( "Use SEO Autopilot to bulk-generate metadata by selecting the desired content type within the 'Set up SEO Autopilot' modal. Open it from the 'SEO Autopilot (Bulk Generation)' section on the %s dashboard.", 'ai-for-seo' ), esc_html( AI4SEO_PLUGIN_NAME ) );
@@ -1758,6 +1763,21 @@ foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_
 			echo "<h2 class='ai4seo-help-section-title' id='ai4seo-troubleshooting-section'>";
 			echo esc_html__( 'Troubleshooting', 'ai-for-seo' );
 			echo '</h2>';
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Shared status renderer escapes all values.
+			echo ai4seo_get_plugin_update_notice_html();
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- The shared renderer escapes all translated notice text.
+			echo ai4seo_get_metadata_sync_policy_notice_html( ai4seo_read_metadata_sync_policy_snapshot() );
+			foreach ( array(
+				AI4SEO_BULK_GENERATION_CRON_JOB_NAME => __( 'SEO Autopilot', 'ai-for-seo' ),
+				AI4SEO_ANALYSE_PLUGIN_PERFORMANCE_CRON_JOB_NAME => __( 'Background analysis', 'ai-for-seo' ),
+			) as $ai4seo_job_name => $ai4seo_job_label ) {
+				$ai4seo_job_state = ai4seo_get_background_job_readiness( $ai4seo_job_name );
+				echo '<h3>' . esc_html( $ai4seo_job_label ) . '</h3>';
+				ai4seo_echo_wp_kses( ai4seo_get_background_job_status_html( $ai4seo_job_state ) );
+			}
+			foreach ( array_unique( ai4seo_get_bulk_generation_queue_warnings() ) as $ai4seo_queue_warning ) {
+				echo '<p>' . esc_html( $ai4seo_queue_warning ) . '</p>';
+			}
 
 			// WARNING.
 			echo esc_html__( 'ATTENTION: The following tools are for advanced users only or if you are advised to use them by our support team.', 'ai-for-seo' );
@@ -1874,6 +1894,9 @@ foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_
 			echo "<div class='ai4seo-gap'></div>";
 
 			echo "<div class='ai4seo-faq-section-holder'>";
+			$ai4seo_this_accordion_content = __( 'Use a static, uncompressed SVG file of at most 1 MiB. Scripts, animation, external resources, embedded images or fonts, and unsupported SVG features are rejected before image analysis. Export a simpler static SVG, or use a PNG version. Also check that SVG is enabled under Settings > Media Attributes > Enabled File Types. If the conversion service is unavailable, generation cannot start; existing attributes remain editable.', 'ai-for-seo' );
+			ai4seo_echo_wp_kses( ai4seo_get_accordion_element( esc_html__( 'Why is SVG generation unavailable or my SVG rejected?', 'ai-for-seo' ), $ai4seo_this_accordion_content, 4 ) );
+
 			$ai4seo_this_accordion_content = __( 'If you want to revert the plugin settings to their default state: Use the Reset Settings option under Help > Troubleshooting > Reset Plugin. This will restore all settings to their original values but will not delete generated metadata or media attributes.', 'ai-for-seo' );
 			/* translators: %s: plugin name */
 			ai4seo_echo_wp_kses( ai4seo_get_accordion_element( sprintf( esc_html__( 'How do I reset %s settings to default values?', 'ai-for-seo' ), esc_html( AI4SEO_PLUGIN_NAME ) ), $ai4seo_this_accordion_content, 4 ) );

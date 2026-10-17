@@ -247,19 +247,40 @@ function ai4seo_pop_post_context() {
  * @return bool True when the latest map was retained with this entry.
  */
 function ai4seo_cache_available_post_authors_result( string $cache_key, array $available_post_authors ): bool {
-	return ai4seo_mutate_environmental_variable_value(
-		AI4SEO_ENVIRONMENTAL_VARIABLE_AVAILABLE_POST_AUTHORS_CACHE,
-		static function ( array $available_post_authors_cache ) use ( $cache_key, $available_post_authors ): array {
+	$cache_name = AI4SEO_ENVIRONMENTAL_VARIABLE_AVAILABLE_POST_AUTHORS_CACHE;
+	$ttl_name   = ai4seo_get_environmental_variable_ttl_name( $cache_name );
+	if ( ! ai4seo_validate_environmental_variable_value( $cache_name, array( $cache_key => $available_post_authors ) ) ) {
+		return false;
+	}
+	return ai4seo_mutate_environmental_variable_overrides(
+		static function ( array $current_overrides ) use ( $cache_name, $ttl_name, $cache_key, $available_post_authors ): array {
+			$available_post_authors_cache = array();
+			// Renew only current query variants; expired siblings must not become valid again.
+			if (
+				isset( $current_overrides[ $ttl_name ], $current_overrides[ $cache_name ] )
+				&& is_numeric( $current_overrides[ $ttl_name ] )
+				&& (int) $current_overrides[ $ttl_name ] > time()
+				&& ai4seo_validate_environmental_variable_value( $cache_name, $current_overrides[ $cache_name ] )
+			) {
+				$available_post_authors_cache = $current_overrides[ $cache_name ];
+			}
 			$available_post_authors_cache[ $cache_key ] = $available_post_authors;
 
 			if ( count( $available_post_authors_cache ) > 10 ) {
 				$available_post_authors_cache = array_slice( $available_post_authors_cache, -10, null, true );
 			}
 
-			return $available_post_authors_cache;
+			$replacement                = $current_overrides;
+			$replacement[ $cache_name ] = ai4seo_deep_sanitize( $available_post_authors_cache, 'sanitize_text_field' );
+			$replacement[ $ttl_name ]   = time() + HOUR_IN_SECONDS;
+
+			return array(
+				'overrides' => $replacement,
+				'changed'   => $replacement !== $current_overrides,
+				'result'    => null,
+			);
 		},
-		true,
-		HOUR_IN_SECONDS
+		true
 	);
 }
 
@@ -1236,6 +1257,7 @@ function ai4seo_get_publicly_accessible_post_types(): array {
 	$excluded_post_types = array(
 		'attachment',
 		'ai4seo_ngg', // NextGEN Gallery.
+		AI4SEO_TAXONOMY_PROXY_POST_TYPE, // Inventory only until taxonomy editing and generation are integrated.
 		'revision',
 		'nav_menu_item',
 		'custom_css',
@@ -1756,23 +1778,26 @@ function ai4seo_get_active_metadata_generation_builder_meta_keys( string $editor
  * A missing post is a verified result. Database errors, duplicate builder owners, or malformed
  * required fields fail closed so a claimed worker cannot turn an unknown source into Failed.
  *
- * @param int    $post_id Post ID.
- * @param array  $source_snapshot Receives the validated post and active builder values.
- * @param bool   $post_exists Receives whether the exact posts-table owner exists.
- * @param string $editor_identifier Optional single builder identifier.
+ * @param int         $post_id Post ID.
+ * @param array       $source_snapshot Receives the validated post and active builder values.
+ * @param bool        $post_exists Receives whether the exact posts-table owner exists.
+ * @param string      $editor_identifier Optional single builder identifier.
+ * @param string|null $failure_reason Receives a source defect or hard read failure classification.
  * @return bool Whether every required read and row validation succeeded.
  */
 function ai4seo_read_metadata_generation_source_snapshot(
 	int $post_id,
 	array &$source_snapshot,
 	bool &$post_exists,
-	string $editor_identifier = ''
+	string $editor_identifier = '',
+	?string &$failure_reason = null
 ): bool {
 	global $wpdb;
 
 	$post_id         = absint( $post_id );
 	$source_snapshot = array();
 	$post_exists     = false;
+	$failure_reason  = 'read_failed';
 
 	if ( $post_id <= 0 ) {
 		return false;
@@ -1814,6 +1839,7 @@ function ai4seo_read_metadata_generation_source_snapshot(
 
 	foreach ( $required_string_columns as $required_string_column ) {
 		if ( ! array_key_exists( $required_string_column, $post_row ) || ! is_string( $post_row[ $required_string_column ] ) ) {
+			$failure_reason = 'damaged_source';
 			return false;
 		}
 	}
@@ -1847,7 +1873,7 @@ function ai4seo_read_metadata_generation_source_snapshot(
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query owns the bounded active-builder snapshot and detects duplicate key owners.
 		$builder_meta_rows = $wpdb->get_results( $builder_meta_query, ARRAY_A );
 
-		if ( $wpdb->last_error || ! is_array( $builder_meta_rows ) || count( $builder_meta_rows ) > count( $builder_meta_keys ) ) {
+		if ( $wpdb->last_error || ! is_array( $builder_meta_rows ) ) {
 			return false;
 		}
 
@@ -1859,12 +1885,14 @@ function ai4seo_read_metadata_generation_source_snapshot(
 				? $builder_meta_row['meta_key']
 				: '';
 
-			if ( false === $meta_id
-				|| ! array_key_exists( $meta_key, $builder_meta )
-				|| isset( $seen_builder_meta_keys[ $meta_key ] )
+			if ( false === $meta_id || ! array_key_exists( $meta_key, $builder_meta ) ) {
+				return false;
+			}
+			if ( isset( $seen_builder_meta_keys[ $meta_key ] )
 				|| ! array_key_exists( 'meta_value', $builder_meta_row )
 				|| ! is_string( $builder_meta_row['meta_value'] )
 			) {
+				$failure_reason = 'damaged_source';
 				return false;
 			}
 
@@ -2589,18 +2617,27 @@ function ai4seo_classify_metadata_visible_content( string $visible_text ): array
 /**
  * Prepare the shared content and structured analysis used by manual and automated metadata generation.
  *
- * @param int       $post_id WordPress post ID.
- * @param string    $submitted_content Content already supplied by manual generation, when available.
- * @param bool|null $required_source_read_succeeded Receives whether required post/builder reads succeeded.
- * @param bool|null $post_exists Receives whether the authoritative posts-table owner exists.
+ * @param int         $post_id WordPress post ID.
+ * @param string      $submitted_content Content already supplied by manual generation, when available.
+ * @param bool|null   $required_source_read_succeeded Receives whether required post/builder reads succeeded.
+ * @param bool|null   $post_exists Receives whether the authoritative posts-table owner exists.
+ * @param string|null $failure_reason Receives a source defect or hard read failure classification.
  * @return array{content:string,post_context:string,content_analysis:array,content_extraction_succeeded:bool}
  */
 function ai4seo_prepare_metadata_generation_content_data(
 	int $post_id,
 	string $submitted_content = '',
 	?bool &$required_source_read_succeeded = null,
-	?bool &$post_exists = null
+	?bool &$post_exists = null,
+	?string &$failure_reason = null
 ): array {
+	if ( ai4seo_is_taxonomy_proxy( $post_id ) ) {
+		$archive                        = ai4seo_prepare_taxonomy_metadata_generation_content_data( $post_id );
+		$required_source_read_succeeded = ! is_wp_error( $archive );
+		$post_exists                    = $required_source_read_succeeded;
+		$failure_reason                 = $required_source_read_succeeded ? '' : $archive->get_error_code();
+		return $required_source_read_succeeded ? $archive : array( 'content_extraction_succeeded' => false );
+	}
 	$authoritative_source_requested = 3 <= func_num_args();
 	$required_source_read_succeeded = null;
 	$post_exists                    = null;
@@ -2613,7 +2650,9 @@ function ai4seo_prepare_metadata_generation_content_data(
 		$required_source_read_succeeded = ai4seo_read_metadata_generation_source_snapshot(
 			$post_id,
 			$authoritative_source_snapshot,
-			$post_exists
+			$post_exists,
+			'',
+			$failure_reason
 		);
 
 		if ( ! $required_source_read_succeeded ) {

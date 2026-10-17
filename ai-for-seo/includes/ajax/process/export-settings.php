@@ -23,7 +23,9 @@ $ai4seo_export_data['ai4seo_plugin_version']   = AI4SEO_PLUGIN_VERSION_NUMBER;
 $ai4seo_export_data['ai4seo_export_timestamp'] = time();
 
 // Get only settings that are also allowed to be imported.
-$ai4seo_export_data['settings'] = ai4seo_get_exportable_settings();
+$ai4seo_export_data['settings']         = ai4seo_get_exportable_settings();
+$ai4seo_export_state                    = ai4seo_inspect_settings();
+$ai4seo_export_data['skipped_settings'] = array_values( array_intersect( array_keys( $ai4seo_export_state['issues'] ), ai4seo_get_all_exportable_settings() ) );
 
 // Generate filename with version.
 $ai4seo_filename = 'sooz-settings-' . AI4SEO_PLUGIN_VERSION_NUMBER . '.json';

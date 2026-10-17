@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Processes setting updates from sanitized save-anything data.
  *
  * @param array $upcoming_save_anything_updates Sanitized updates shared by the ordered save-anything processors.
- * @return WP_Error|null Error on failure, null on success or no-op.
+ * @return array|WP_Error|null Confirmed save with notices, an error, or a non-settings no-op.
  */
 function ai4seo_process_save_anything_settings( array &$upcoming_save_anything_updates ) {
 	// Leave content-only payloads untouched so their owning processors can handle them independently.
@@ -36,141 +36,26 @@ function ai4seo_process_save_anything_settings( array &$upcoming_save_anything_u
 		);
 	}
 
-	// Mutate the loaded settings cache first so the existing bulk database writer persists one coherent snapshot.
 	global $ai4seo_settings;
-
-	// Normalize active post type selection (UI shows active types, setting stores disabled ones).
-	if ( isset( $upcoming_save_anything_updates[ AI4SEO_SETTING_DISABLED_POST_TYPES ] ) ) {
-		$ai4seo_submitted_active_post_types = $upcoming_save_anything_updates[ AI4SEO_SETTING_DISABLED_POST_TYPES ];
-
-		// Normalize a single submitted selection to the array shape used by multi-select requests.
-		if ( ! is_array( $ai4seo_submitted_active_post_types ) ) {
-			$ai4seo_submitted_active_post_types = $ai4seo_submitted_active_post_types ? array( $ai4seo_submitted_active_post_types ) : array();
-		}
-
-		// Persist the complement because the setting stores exclusions while the UI submits enabled post types.
-		$ai4seo_available_post_types = ai4seo_get_supported_post_types( false );
-		$ai4seo_disabled_post_types  = array_values( array_diff( $ai4seo_available_post_types, $ai4seo_submitted_active_post_types ) );
-
-		$upcoming_save_anything_updates[ AI4SEO_SETTING_DISABLED_POST_TYPES ] = $ai4seo_disabled_post_types;
+	$state = ai4seo_inspect_settings();
+	if ( ! $state['readable'] ) {
+		return new WP_Error( 471013126, __( 'The stored settings cannot be read safely. Nothing was saved; the original data was retained.', 'ai-for-seo' ) );
 	}
-
-	// Normalize active post author selection (UI shows active authors, setting stores disabled ones).
-	if ( isset( $upcoming_save_anything_updates[ AI4SEO_SETTING_DISABLED_POST_AUTHORS ] ) ) {
-		$ai4seo_submitted_active_post_author_ids = $upcoming_save_anything_updates[ AI4SEO_SETTING_DISABLED_POST_AUTHORS ];
-
-		// Normalize a single submitted author to the array shape used by checkbox groups.
-		if ( ! is_array( $ai4seo_submitted_active_post_author_ids ) ) {
-			$ai4seo_submitted_active_post_author_ids = $ai4seo_submitted_active_post_author_ids ? array( $ai4seo_submitted_active_post_author_ids ) : array();
+	$edit = $upcoming_save_anything_updates['settings_edit'] ?? null;
+	if ( null !== $edit ) {
+		if ( ! is_array( $edit ) ) {
+			return new WP_Error( 461013126, __( 'The settings form could not be verified. Keep your changes and reload it.', 'ai-for-seo' ) );
 		}
-
-		// Canonicalize IDs before comparing the submitted active set with currently available authors.
-		$ai4seo_available_post_authors           = ai4seo_get_available_post_authors();
-		$ai4seo_available_post_author_ids        = array_map( 'intval', array_keys( $ai4seo_available_post_authors ) );
-		$ai4seo_submitted_active_post_author_ids = array_map( 'intval', $ai4seo_submitted_active_post_author_ids );
-		$ai4seo_submitted_active_post_author_ids = array_values( array_unique( $ai4seo_submitted_active_post_author_ids ) );
-
-		// Remove nonpositive IDs because they cannot identify an available WordPress author.
-		foreach ( $ai4seo_submitted_active_post_author_ids as $ai4seo_this_post_author_index => $ai4seo_this_post_author_id ) {
-			// Remove by index here and reindex once after the loop to avoid mutating iteration order.
-			if ( $ai4seo_this_post_author_id <= 0 ) {
-				unset( $ai4seo_submitted_active_post_author_ids[ $ai4seo_this_post_author_index ] );
-			}
+		$conflict = ai4seo_validate_settings_edit( $upcoming_save_anything_updates, $edit, $state['raw'] );
+		if ( is_wp_error( $conflict ) ) {
+			return $conflict;
 		}
-
-		$ai4seo_submitted_active_post_author_ids = array_values( $ai4seo_submitted_active_post_author_ids );
-		$ai4seo_disabled_post_author_ids         = array_values( array_diff( $ai4seo_available_post_author_ids, $ai4seo_submitted_active_post_author_ids ) );
-
-		$upcoming_save_anything_updates[ AI4SEO_SETTING_DISABLED_POST_AUTHORS ] = $ai4seo_disabled_post_author_ids;
 	}
-
-	// Normalize active metadata WPML language selection (UI shows active languages, setting stores disabled ones).
-	if ( isset( $upcoming_save_anything_updates[ AI4SEO_SETTING_DISABLED_METADATA_WPML_LANGUAGES ] ) ) {
-		$upcoming_save_anything_updates[ AI4SEO_SETTING_DISABLED_METADATA_WPML_LANGUAGES ] = ai4seo_get_disabled_wpml_language_codes_from_active_selection(
-			$upcoming_save_anything_updates[ AI4SEO_SETTING_DISABLED_METADATA_WPML_LANGUAGES ]
-		);
+	$selection_changes = ai4seo_prepare_setting_selection_changes( $upcoming_save_anything_updates, $state['raw'], is_array( $edit['domains'] ?? null ) ? $edit['domains'] : array() );
+	if ( is_wp_error( $selection_changes ) ) {
+		return $selection_changes;
 	}
-
-	// Normalize active taxonomy term selection (UI shows active terms, setting stores disabled ones).
-	if ( isset( $upcoming_save_anything_updates[ AI4SEO_SETTING_DISABLED_TAXONOMY_TERMS ] ) ) {
-		$ai4seo_submitted_active_taxonomy_terms = $upcoming_save_anything_updates[ AI4SEO_SETTING_DISABLED_TAXONOMY_TERMS ];
-
-		// A malformed top-level value represents no active taxonomy selections, matching the prior form parser.
-		if ( ! is_array( $ai4seo_submitted_active_taxonomy_terms ) ) {
-			$ai4seo_submitted_active_taxonomy_terms = array();
-		}
-
-		$ai4seo_supported_taxonomy_terms = ai4seo_get_supported_taxonomy_terms();
-		$ai4seo_disabled_taxonomy_terms  = array();
-
-		// Calculate exclusions independently per taxonomy so term IDs from different taxonomies never mix.
-		foreach ( $ai4seo_supported_taxonomy_terms as $ai4seo_this_taxonomy_name => $ai4seo_this_supported_taxonomy ) {
-			$ai4seo_supported_term_ids        = array_map( 'intval', array_keys( $ai4seo_this_supported_taxonomy['terms'] ?? array() ) );
-			$ai4seo_submitted_active_term_ids = $ai4seo_submitted_active_taxonomy_terms[ $ai4seo_this_taxonomy_name ] ?? array();
-
-			// Normalize a single submitted term to the array shape used by taxonomy checkbox groups.
-			if ( ! is_array( $ai4seo_submitted_active_term_ids ) ) {
-				$ai4seo_submitted_active_term_ids = $ai4seo_submitted_active_term_ids ? array( $ai4seo_submitted_active_term_ids ) : array();
-			}
-
-			$ai4seo_submitted_active_term_ids = array_map( 'intval', $ai4seo_submitted_active_term_ids );
-			$ai4seo_submitted_active_term_ids = array_values( array_unique( $ai4seo_submitted_active_term_ids ) );
-
-			// Remove nonpositive IDs before deriving disabled terms from the supported set.
-			foreach ( $ai4seo_submitted_active_term_ids as $ai4seo_this_term_index => $ai4seo_this_term_id ) {
-				// Remove by index here and reindex once after the loop to avoid mutating iteration order.
-				if ( $ai4seo_this_term_id <= 0 ) {
-					unset( $ai4seo_submitted_active_term_ids[ $ai4seo_this_term_index ] );
-				}
-			}
-
-			$ai4seo_submitted_active_term_ids = array_values( $ai4seo_submitted_active_term_ids );
-			$ai4seo_this_disabled_term_ids    = array_values( array_diff( $ai4seo_supported_term_ids, $ai4seo_submitted_active_term_ids ) );
-
-			// Omit taxonomies without exclusions so the persisted setting remains compact and compatible with readers.
-			if ( $ai4seo_this_disabled_term_ids ) {
-				$ai4seo_disabled_taxonomy_terms[ $ai4seo_this_taxonomy_name ] = $ai4seo_this_disabled_term_ids;
-			}
-		}
-
-		$upcoming_save_anything_updates[ AI4SEO_SETTING_DISABLED_TAXONOMY_TERMS ] = $ai4seo_disabled_taxonomy_terms;
-	}
-
-	// Normalize active attachment author selection (UI shows active authors, setting stores disabled ones).
-	if ( isset( $upcoming_save_anything_updates[ AI4SEO_SETTING_DISABLED_ATTACHMENT_POST_AUTHORS ] ) ) {
-		$ai4seo_submitted_active_attachment_post_author_ids = $upcoming_save_anything_updates[ AI4SEO_SETTING_DISABLED_ATTACHMENT_POST_AUTHORS ];
-
-		// Normalize a single submitted author to the array shape used by media-author checkbox groups.
-		if ( ! is_array( $ai4seo_submitted_active_attachment_post_author_ids ) ) {
-			$ai4seo_submitted_active_attachment_post_author_ids = $ai4seo_submitted_active_attachment_post_author_ids ? array( $ai4seo_submitted_active_attachment_post_author_ids ) : array();
-		}
-
-		// Canonicalize IDs before comparing the submitted active set with available attachment authors.
-		$ai4seo_available_attachment_post_authors           = ai4seo_get_available_attachment_post_authors();
-		$ai4seo_available_attachment_post_author_ids        = array_map( 'intval', array_keys( $ai4seo_available_attachment_post_authors ) );
-		$ai4seo_submitted_active_attachment_post_author_ids = array_map( 'intval', $ai4seo_submitted_active_attachment_post_author_ids );
-		$ai4seo_submitted_active_attachment_post_author_ids = array_values( array_unique( $ai4seo_submitted_active_attachment_post_author_ids ) );
-
-		// Remove nonpositive IDs because they cannot identify an available WordPress media author.
-		foreach ( $ai4seo_submitted_active_attachment_post_author_ids as $ai4seo_this_post_author_index => $ai4seo_this_post_author_id ) {
-			// Remove by index here and reindex once after the loop to avoid mutating iteration order.
-			if ( $ai4seo_this_post_author_id <= 0 ) {
-				unset( $ai4seo_submitted_active_attachment_post_author_ids[ $ai4seo_this_post_author_index ] );
-			}
-		}
-
-		$ai4seo_submitted_active_attachment_post_author_ids = array_values( $ai4seo_submitted_active_attachment_post_author_ids );
-		$ai4seo_disabled_attachment_post_author_ids         = array_values( array_diff( $ai4seo_available_attachment_post_author_ids, $ai4seo_submitted_active_attachment_post_author_ids ) );
-
-		$upcoming_save_anything_updates[ AI4SEO_SETTING_DISABLED_ATTACHMENT_POST_AUTHORS ] = $ai4seo_disabled_attachment_post_author_ids;
-	}
-
-	// Normalize active attachment attributes WPML language selection (UI shows active languages, setting stores disabled ones).
-	if ( isset( $upcoming_save_anything_updates[ AI4SEO_SETTING_DISABLED_ATTACHMENT_ATTRIBUTES_WPML_LANGUAGES ] ) ) {
-		$upcoming_save_anything_updates[ AI4SEO_SETTING_DISABLED_ATTACHMENT_ATTRIBUTES_WPML_LANGUAGES ] = ai4seo_get_disabled_wpml_language_codes_from_active_selection(
-			$upcoming_save_anything_updates[ AI4SEO_SETTING_DISABLED_ATTACHMENT_ATTRIBUTES_WPML_LANGUAGES ]
-		);
-	}
+	$upcoming_save_anything_updates = $selection_changes;
 
 	// Ownership is derived exclusively from the authorized transition, never from a submitted owner field.
 	unset( $upcoming_save_anything_updates[ AI4SEO_SETTING_INCOGNITO_MODE_USER_ID ] );
@@ -207,49 +92,30 @@ function ai4seo_process_save_anything_settings( array &$upcoming_save_anything_u
 		}
 	}
 
-	// Retain old/new pairs because several post-save workflows depend on the direction of a setting transition.
 	$ai4seo_recent_setting_changes = array();
-
-	// Use the defaults registry as the allowlist for setting names accepted by save-anything.
-	foreach ( array_keys( AI4SEO_DEFAULT_SETTINGS ) as $ai4seo_this_setting_name ) {
-		// The shared save endpoint can contain unrelated categories, so process only present settings.
-		if ( ! isset( $upcoming_save_anything_updates[ $ai4seo_this_setting_name ] ) ) {
-			continue;
+	$setting_changes               = array();
+	foreach ( array_intersect_key( $upcoming_save_anything_updates, AI4SEO_DEFAULT_SETTINGS ) as $name => $value ) {
+		try {
+			$value = ai4seo_normalize_setting_input( $name, $value );
+			$valid = ai4seo_validate_setting_value( $name, $value );
+		} catch ( Throwable $exception ) {
+			$valid = false;
 		}
-
-		$ai4seo_this_old_setting_value = $ai4seo_settings[ $ai4seo_this_setting_name ];
-		$ai4seo_this_new_setting_value = $upcoming_save_anything_updates[ $ai4seo_this_setting_name ];
-
-		// Apply the shared custom-instruction cleanup and plan limit before equality and validation checks.
-		$ai4seo_this_new_setting_value = ai4seo_normalize_custom_instructions_setting_value( $ai4seo_this_setting_name, $ai4seo_this_new_setting_value );
-
-		// Normalize supported checkbox and compatibility representations before comparison and validation.
-		$ai4seo_this_new_setting_value = ai4seo_normalize_boolean_setting_value(
-			$ai4seo_this_setting_name,
-			$ai4seo_this_new_setting_value
-		);
-
-		// Retain loose comparison because saved option scalars can differ only by PHP representation.
-		// phpcs:ignore Universal.Operators.StrictComparisons.LooseEqual -- Preserve existing save-anything equality semantics across scalar option values.
-		if ( $ai4seo_this_new_setting_value == $ai4seo_this_old_setting_value ) {
-			continue;
-		}
-
-		// Reject the entire category before database persistence when any submitted setting is invalid.
-		if ( ! ai4seo_validate_setting_value( $ai4seo_this_setting_name, $ai4seo_this_new_setting_value ) ) {
+		if ( ! $valid ) {
 			return new WP_Error(
 				261219225,
 				sprintf(
 					/* translators: %s: Setting name. */
-					esc_html__( 'Invalid setting value for %s', 'ai-for-seo' ),
-					$ai4seo_this_setting_name
+					__( 'Invalid setting value for %s', 'ai-for-seo' ),
+					$name
 				)
 			);
 		}
-
-		// Update the shared cache and retain old/new values for post-save side effects after the bulk write.
-		$ai4seo_settings[ $ai4seo_this_setting_name ]               = $ai4seo_this_new_setting_value;
-		$ai4seo_recent_setting_changes[ $ai4seo_this_setting_name ] = array( $ai4seo_this_old_setting_value, $ai4seo_this_new_setting_value );
+		$old_value                = $state['settings'][ $name ];
+		$setting_changes[ $name ] = $value;
+		if ( isset( $state['issues'][ $name ] ) || ! ai4seo_are_persisted_state_values_equivalent( $old_value, $value ) ) {
+			$ai4seo_recent_setting_changes[ $name ] = array( $old_value, $value );
+		}
 	}
 
 	// Reset history before committing a new transport preference so a failed reset remains retryable.
@@ -258,23 +124,24 @@ function ai4seo_process_save_anything_settings( array &$upcoming_save_anything_u
 
 	if ( ! $ai4seo_recovery_history_is_ready ) {
 		ai4seo_debug_message( 709071005, 'Could not clear the attachment recovery streak before saving image upload settings.', true );
+
+		return new WP_Error( 271219225, __( 'The image upload preference could not be changed safely. Your settings were not saved.', 'ai-for-seo' ) );
 	}
-
-	// Use the same cache rollback for a failed history reset or settings write.
-	if ( $ai4seo_recent_setting_changes
-		&& ( ! $ai4seo_recovery_history_is_ready || ! ai4seo_push_local_setting_changes_to_database() )
-	) {
-		// Restore the request-local cache so later code cannot observe values that the database rejected.
-		foreach ( $ai4seo_recent_setting_changes as $ai4seo_setting_name => $ai4seo_setting_values ) {
-			$ai4seo_settings[ $ai4seo_setting_name ] = $ai4seo_setting_values[0];
-		}
-
-		ai4seo_store_settings_request_cache_for_current_site();
-
+	$result = ai4seo_patch_settings( $setting_changes, $state['raw'] );
+	if ( 'saved' !== $result['status'] ) {
 		return new WP_Error(
 			271219225,
-			esc_html__( 'Failed to update settings. Please try again.', 'ai-for-seo' )
+			'conflict' === $result['status']
+				? __( 'These settings changed while saving. Nothing was saved. Keep your changes and reload the form.', 'ai-for-seo' )
+				: __( 'Failed to update settings. Your changes were not saved. Please try again.', 'ai-for-seo' )
 		);
+	}
+	$saved_fields = array_keys( $setting_changes );
+	$warnings     = array();
+
+	// Persist notification synchronization before later post-save work can fail independently.
+	if ( isset( $GLOBALS['ai4seo_notification_preference_save'] ) ) {
+		ai4seo_finish_notification_preference_save( $upcoming_save_anything_updates );
 	}
 
 	// Reconcile the date boundary before queue side effects run, including unchanged imported/resaved filters.
@@ -297,10 +164,7 @@ function ai4seo_process_save_anything_settings( array &$upcoming_save_anything_u
 		if ( ! $ai4seo_bulk_generation_date_filter_state_was_reconciled ) {
 			ai4seo_debug_message( 718217659, 'Could not reconcile the SEO Autopilot date-filter reference timestamp after saving settings.', true );
 
-			return new WP_Error(
-				718217659,
-				esc_html__( 'Could not update the SEO Autopilot date-filter reference. Some settings may already have been saved. Please try again.', 'ai-for-seo' )
-			);
+			$warnings[] = __( 'The Autopilot date reference could not be updated. Automatic selection remains restricted until the reference is valid.', 'ai-for-seo' );
 		} elseif ( empty( $ai4seo_bulk_generation_date_filter_state_before_reconciliation['is_valid'] ) || $ai4seo_should_start_bulk_generation_date_filter_with_fresh_reference ) {
 			// Confirm that the persisted replacement is valid before treating analysis as stale.
 			$ai4seo_bulk_generation_date_filter_state_after_reconciliation = ai4seo_get_current_bulk_generation_date_filter_state();
@@ -327,7 +191,7 @@ function ai4seo_process_save_anything_settings( array &$upcoming_save_anything_u
 	);
 
 	// Refresh posts-table analysis once when a setting change or repaired date boundary affects derived status.
-	$ai4seo_should_refresh_posts_table_analysis = $ai4seo_bulk_generation_date_filter_state_was_repaired;
+	$ai4seo_should_refresh_posts_table_analysis = $ai4seo_bulk_generation_date_filter_state_was_repaired || isset( $ai4seo_recent_setting_changes[ AI4SEO_SETTING_ENABLED_BULK_GENERATION_TAXONOMIES ] );
 
 	foreach ( $ai4seo_analysis_trigger_settings as $ai4seo_this_setting_key ) {
 		// The recent-change map prevents refreshes for submitted values that were equal to stored state.
@@ -347,10 +211,9 @@ function ai4seo_process_save_anything_settings( array &$upcoming_save_anything_u
 				ai4seo_debug_message( 88120826, 'Could not durably schedule generation-status reconciliation after saving analysis-sensitive settings.', true );
 			}
 
-			return new WP_Error(
-				88120826,
-				esc_html__( 'The settings were saved, but their generation-status statistics could not be reconciled. A background repair was requested. Please refresh the page and try again.', 'ai-for-seo' )
-			);
+			$warnings[] = $ai4seo_rebuild_was_scheduled
+				? __( 'The statistics could not be updated yet. A background refresh was requested.', 'ai-for-seo' )
+				: __( 'The statistics could not be updated and a background refresh could not be scheduled. Please retry the analysis from Help.', 'ai-for-seo' );
 		}
 	}
 
@@ -359,20 +222,17 @@ function ai4seo_process_save_anything_settings( array &$upcoming_save_anything_u
 	$ai4seo_persisted_enabled_bulk_generation_post_types = array();
 
 	// A submitted enabled-type setting must repair stale queue state even when its value did not change.
-	if ( array_key_exists( AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES, $upcoming_save_anything_updates )
+	if ( ( array_key_exists( AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES, $upcoming_save_anything_updates ) || array_key_exists( AI4SEO_SETTING_ENABLED_BULK_GENERATION_TAXONOMIES, $upcoming_save_anything_updates ) )
 		&& ! ai4seo_reconcile_disabled_bulk_generation_queue_entries(
 			$ai4seo_persisted_enabled_bulk_generation_post_types
 		) ) {
 		ai4seo_debug_message( 90120826, 'Could not safely reconcile disabled bulk-generation queue entries after saving settings.', true );
 
-		return new WP_Error(
-			88120826,
-			esc_html__( 'The settings were saved, but their generation-status statistics could not be reconciled. A background repair was requested. Please refresh the page and try again.', 'ai-for-seo' )
-		);
+		$warnings[] = __( 'The Autopilot queue could not be reconciled. Existing jobs were retained; automatic selection may remain restricted.', 'ai-for-seo' );
 	}
 
 	// Reconcile queue and scheduling state when the enabled SEO Autopilot post types change.
-	if ( isset( $ai4seo_recent_setting_changes[ AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES ] ) ) {
+	if ( isset( $ai4seo_recent_setting_changes[ AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES ] ) || isset( $ai4seo_recent_setting_changes[ AI4SEO_SETTING_ENABLED_BULK_GENERATION_TAXONOMIES ] ) ) {
 		// Enabling any type should fill its queue, schedule processing, and record the current setup time.
 		if ( $ai4seo_persisted_enabled_bulk_generation_post_types ) {
 			ai4seo_try_excavate_bulk_generation_entries_for_enabled_post_types();
@@ -400,14 +260,11 @@ function ai4seo_process_save_anything_settings( array &$upcoming_save_anything_u
 	if ( isset( $upcoming_save_anything_updates[ AI4SEO_SETTING_PAYG_ENABLED ] ) && $upcoming_save_anything_updates[ AI4SEO_SETTING_PAYG_ENABLED ] ) {
 		$ai4seo_pay_as_you_go_settings_sent = ai4seo_send_pay_as_you_go_settings();
 
-		// Keep the established AJAX error when RobHub does not accept the synchronized billing state.
+		// Local persistence succeeded even when the remote billing state remains unconfirmed.
 		if ( false === $ai4seo_pay_as_you_go_settings_sent ) {
-			return new WP_Error(
-				401217325,
-				esc_html__( 'Could not send pay-as-you-go settings to RobHub', 'ai-for-seo' )
-			);
+			$warnings[] = __( 'The settings were saved locally, but pay-as-you-go synchronization is still pending. The remote billing settings are not confirmed.', 'ai-for-seo' );
 		}
 	}
 
-	return null;
+	return ai4seo_settings_save_response( $saved_fields, $warnings, $result['tokens'] ?? array() );
 }

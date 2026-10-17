@@ -61,7 +61,7 @@ function ai4seo_get_metadata_placeholder_replacements( int $post_id, string $pro
 	// Extend the shared site replacements with post-specific values expected by metadata settings.
 	$replacements = ai4seo_get_common_placeholder_replacements();
 
-	$replacements['POST_ID'] = (string) absint( $post_id );
+	$replacements['POST_ID'] = ai4seo_is_taxonomy_proxy( $post_id ) ? '' : (string) absint( $post_id );
 
 	$post_type = get_post_type( $post_id );
 
@@ -126,7 +126,11 @@ function ai4seo_get_metadata_output_placeholder_replacements( int $post_id ): ar
 	// Merge runtime commerce values with the common metadata replacement contract.
 	$replacements = ai4seo_get_metadata_placeholder_replacements( $post_id, $product_price, $product_name );
 	$post_title   = get_the_title( $post_id );
-	$post_title   = is_string( $post_title ) ? trim( wp_strip_all_tags( $post_title ) ) : '';
+	if ( ai4seo_is_taxonomy_proxy( $post_id ) ) {
+		$archive    = ai4seo_get_taxonomy_proxy_editor_context( $post_id );
+		$post_title = is_wp_error( $archive ) ? '' : $archive['name'];
+	}
+	$post_title = is_string( $post_title ) ? trim( wp_strip_all_tags( $post_title ) ) : '';
 
 	if ( '' !== $post_title ) {
 		$replacements['TITLE'] = $post_title;
@@ -259,7 +263,7 @@ function ai4seo_replace_text_placeholders( string $text, array $replacements ): 
 
 	// Resolve all delimiter styles through one case-insensitive replacement map.
 	return (string) preg_replace_callback(
-		'/\{([A-Z0-9_]+)\}|\[([A-Z0-9_]+)\]|%%([A-Z0-9_]+)%%/i',
+		'/\{([A-Z0-9_]+)}|\[([A-Z0-9_]+)]|%%([A-Z0-9_]+)%%/i',
 		static function ( $matches ) use ( $replacements ) {
 			$placeholder = '';
 
@@ -323,7 +327,7 @@ function ai4seo_text_contains_product_placeholder( string $text ): bool {
 
 	// Keep product detection aligned with the delimiter grammar used by the shared resolver.
 	return (bool) preg_match(
-		'/\{PRODUCT_(?:NAME|PRICE)\}|\[PRODUCT_(?:NAME|PRICE)\]|%%PRODUCT_(?:NAME|PRICE)%%/i',
+		'/\{PRODUCT_(?:NAME|PRICE)}|\[PRODUCT_(?:NAME|PRICE)]|%%PRODUCT_(?:NAME|PRICE)%%/i',
 		$text
 	);
 }

@@ -30,29 +30,6 @@ function ai4seo_normalize_post_meta_value_for_comparison( $meta_value ): string 
 
 
 /**
- * Function to update a post meta if it is empty
- *
- * @param int    $post_id the post id.
- * @param string $meta_key the meta key.
- * @param string $meta_value the meta value.
- * @return bool True if the post meta was updated, false if not
- */
-function ai4seo_update_postmeta_if_empty( int $post_id, string $meta_key, string $meta_value ): bool {
-	$post_id    = sanitize_key( $post_id );
-	$meta_key   = sanitize_key( $meta_key );
-	$meta_value = sanitize_textarea_field( $meta_value );
-
-	$current_value = get_post_meta( $post_id, $meta_key, true );
-
-	if ( $current_value ) {
-		return false;
-	} else {
-		return ai4seo_update_post_meta( $post_id, $meta_key, $meta_value );
-	}
-}
-
-
-/**
  * Returns the canonical generated-data field identifiers supported by storage.
  *
  * @return string[] Canonical generated-data field identifiers.
@@ -646,18 +623,21 @@ function ai4seo_debug_generated_data_postmeta( int $post_id, bool $inspect_post 
  * update_post_meta() previous-value predicate: JSON remains a string and legacy serialization is
  * represented by its decoded array.
  *
- * @param int       $post_id Post ID.
- * @param bool|null $read_succeeded Receives whether exact storage and decoding were authoritative.
+ * @param int         $post_id Post ID.
+ * @param bool|null   $read_succeeded Receives whether exact storage and decoding were authoritative.
+ * @param string|null $failure_reason Distinguishes damaged history from an unsafe storage read.
  * @return array{exists: bool, meta_id: int, raw_value: string, previous_value: mixed, generated_data_details: array}
  */
 function ai4seo_read_authoritative_generated_data_postmeta_snapshot(
 	int $post_id,
-	?bool &$read_succeeded = null
+	?bool &$read_succeeded = null,
+	?string &$failure_reason = null
 ): array {
 	global $wpdb;
 
 	$post_id        = absint( $post_id );
 	$read_succeeded = false;
+	$failure_reason = 'read_failed';
 	$empty_snapshot = array(
 		'exists'                 => false,
 		'meta_id'                => 0,
@@ -697,26 +677,38 @@ function ai4seo_read_authoritative_generated_data_postmeta_snapshot(
 	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed compiler owns the exact post/key query; generated-data decisions must bypass possibly stale postmeta caches.
 	$rows = $wpdb->get_results( $query, ARRAY_A );
 
-	if ( $wpdb->last_error || ! is_array( $rows ) || count( $rows ) > 1 ) {
+	if ( $wpdb->last_error || ! is_array( $rows ) ) {
+		return $empty_snapshot;
+	}
+
+	// Only safely identified rows may be classified as damaged history by manual generation.
+	foreach ( $rows as $candidate ) {
+		if ( ! is_array( $candidate )
+			|| false === ai4seo_normalize_database_id( $candidate['meta_id'] ?? null )
+			|| ! isset( $candidate['meta_key'] )
+			|| AI4SEO_POST_META_GENERATED_DATA_META_KEY !== $candidate['meta_key']
+			|| ! array_key_exists( 'meta_value', $candidate ) ) {
+			return $empty_snapshot;
+		}
+	}
+
+	if ( count( $rows ) > 1 ) {
+		$failure_reason = 'damaged_history';
 		return $empty_snapshot;
 	}
 
 	if ( ! $rows ) {
 		$read_succeeded = true;
+		$failure_reason = '';
 		return $empty_snapshot;
 	}
 
-	$row     = reset( $rows );
-	$meta_id = is_array( $row ) ? ai4seo_normalize_database_id( $row['meta_id'] ?? null ) : false;
+	$row            = reset( $rows );
+	$meta_id        = ai4seo_normalize_database_id( $row['meta_id'] );
+	$failure_reason = 'damaged_history';
 
-	if ( ! is_array( $row )
-		|| false === $meta_id
-		|| ! array_key_exists( 'meta_key', $row )
-		|| ! is_string( $row['meta_key'] )
-		|| ! hash_equals( AI4SEO_POST_META_GENERATED_DATA_META_KEY, $row['meta_key'] )
-		|| ! array_key_exists( 'meta_value', $row )
-		|| ! is_string( $row['meta_value'] )
-	) {
+	// Row identity was validated above; only the history payload remains to be checked.
+	if ( ! is_string( $row['meta_value'] ) ) {
 		return $empty_snapshot;
 	}
 
@@ -735,6 +727,7 @@ function ai4seo_read_authoritative_generated_data_postmeta_snapshot(
 	}
 
 	$read_succeeded = true;
+	$failure_reason = '';
 
 	return array(
 		'exists'                 => true,
@@ -771,6 +764,33 @@ function ai4seo_get_generated_data_postmeta_lock_name( int $post_id ): string {
 
 
 /**
+ * Executes an internally prepared postmeta ownership read and compares exact raw bytes.
+ *
+ * @param string $prepared_query Prepared single-row query supplied by the owning caller.
+ * @param string $expected_raw_value Exact raw value owned by the operation.
+ * @return bool|null True for an exact match, false for missing/replaced ownership, null on read failure.
+ */
+function ai4seo_read_postmeta_exact_value_match( string $prepared_query, string $expected_raw_value ): ?bool {
+	global $wpdb;
+
+	$wpdb->last_error = '';
+
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Owning callers retain typed compiler preparation and exact row identity; ownership reads must bypass postmeta caches.
+	$current_raw_value = $wpdb->get_var( $prepared_query );
+
+	if ( $wpdb->last_error ) {
+		return null;
+	}
+
+	if ( null === $current_raw_value ) {
+		return false;
+	}
+
+	return is_string( $current_raw_value ) && hash_equals( $expected_raw_value, $current_raw_value );
+}
+
+
+/**
  * Reads whether one stable generated-data row still contains exact operation-owned bytes.
  *
  * @param int    $post_id Post ID.
@@ -783,8 +803,6 @@ function ai4seo_generated_data_postmeta_row_matches_exact_value(
 	int $meta_id,
 	string $expected_raw_value
 ): ?bool {
-	global $wpdb;
-
 	$post_id = absint( $post_id );
 	$meta_id = absint( $meta_id );
 
@@ -811,20 +829,7 @@ function ai4seo_generated_data_postmeta_row_matches_exact_value(
 		return null;
 	}
 
-	$wpdb->last_error = '';
-
-	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed compiler prepares a stable primary-key ownership read that must bypass postmeta caches.
-	$current_raw_value = $wpdb->get_var( $query );
-
-	if ( $wpdb->last_error ) {
-		return null;
-	}
-
-	if ( null === $current_raw_value ) {
-		return false;
-	}
-
-	return is_string( $current_raw_value ) && hash_equals( $expected_raw_value, $current_raw_value );
+	return ai4seo_read_postmeta_exact_value_match( $query, $expected_raw_value );
 }
 
 
@@ -1176,12 +1181,8 @@ function ai4seo_invalidate_postmeta_table_count_cache_after_direct_delete(): boo
  * @return bool True when no checkpoint is required or ownership was renewed and verified.
  */
 function ai4seo_run_postmeta_delete_ownership_checkpoint( ?callable $ownership_checkpoint ): bool {
-	if ( null === $ownership_checkpoint ) {
-		return true;
-	}
-
 	try {
-		return true === call_user_func( $ownership_checkpoint );
+		return null === $ownership_checkpoint || true === call_user_func( $ownership_checkpoint );
 	} catch ( Throwable $throwable ) {
 		return false;
 	}
@@ -1486,3 +1487,38 @@ function ai4seo_delete_all_postmeta_for_meta_key( string $meta_key, ?callable $o
 
 // endregion
 // ___________________________________________________________________________________________.
+
+/**
+ * Check history independently of editable text and image source.
+ *
+ * @param int $post_id Entry ID.
+ * @return string ready, damaged_history or read_failed.
+ */
+function ai4seo_get_manual_generation_history_readiness( int $post_id ): string {
+	$read   = false;
+	$reason = '';
+	ai4seo_read_authoritative_generated_data_postmeta_snapshot( $post_id, $read, $reason );
+	return $read ? 'ready' : $reason;
+}
+
+/**
+ * Preserve paid output when optional history persistence fails.
+ *
+ * @param array $values Generated text fields.
+ * @param array $results API response.
+ * @param bool  $saved Confirmed history persistence.
+ * @param int   $generated_at Generation time.
+ * @param array $operation_details History writer outcome.
+ * @return array Manual editor response.
+ */
+function ai4seo_build_manual_generation_response( array $values, array $results, bool $saved, int $generated_at, array $operation_details ): array {
+	return array(
+		'generated_data'      => $values,
+		'generated_at'        => $saved ? $generated_at : 0,
+		'generated_at_output' => $saved ? ai4seo_format_unix_timestamp( $generated_at ) : '',
+		'history_status'      => $saved ? 'saved' : ( 'possibly_committed' === ( $operation_details['commit_state'] ?? '' ) ? 'unconfirmed' : 'not_saved' ),
+		'active_values_saved' => false,
+		'credits_consumed'    => (int) ( $results['credits-consumed'] ?? 0 ),
+		'new_credits_balance' => (int) ( $results['new-credits-balance'] ?? 0 ),
+	);
+}

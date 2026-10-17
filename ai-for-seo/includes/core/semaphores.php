@@ -83,10 +83,12 @@ function ai4seo_singleton( $id ): bool {
  * releases implicitly release the previously held name when GET_LOCK() acquires another one.
  *
  * @param string|null $server_version Optional server version for deterministic capability tests.
+ * @param bool|null   $read_succeeded Whether a recognizable server version was available.
  * @return bool Whether nested advisory locks preserve every previously acquired lock.
  */
-function ai4seo_database_supports_multiple_advisory_locks( ?string $server_version = null ): bool {
+function ai4seo_database_supports_multiple_advisory_locks( ?string $server_version = null, ?bool &$read_succeeded = null ): bool {
 	global $wpdb;
+	$read_succeeded = false;
 
 	if ( null === $server_version ) {
 		$wpdb->last_error = '';
@@ -105,13 +107,14 @@ function ai4seo_database_supports_multiple_advisory_locks( ?string $server_versi
 	}
 
 	if ( false !== stripos( $server_version, 'mariadb' ) ) {
+		$read_succeeded = true;
 		return true;
 	}
 
 	$version_number = preg_replace( '/[^0-9.].*$/', '', $server_version );
+	$read_succeeded = is_string( $version_number ) && 1 === preg_match( '/^\d+\.\d+\.\d+/', $version_number );
 
-	return is_string( $version_number )
-		&& '' !== $version_number
+	return $read_succeeded
 		&& version_compare( $version_number, '5.7.5', '>=' );
 }
 
@@ -312,9 +315,10 @@ function ai4seo_get_held_semaphore_record( string $option_key ): ?array {
  * Polls every 0.1s up to 5s. Auto-releases on shutdown.
  *
  * @param string $critical_section_name Critical section identifier.
+ * @param int    $ttl_seconds Staleness limit shared by all callers of this critical section.
  * @return bool True on success, false on timeout.
  */
-function ai4seo_acquire_semaphore( string $critical_section_name ): bool {
+function ai4seo_acquire_semaphore( string $critical_section_name, int $ttl_seconds = AI4SEO_SEMAPHORE_TTL_SECONDS ): bool {
 	if ( ai4seo_prevent_loops( __FUNCTION__, 2 ) ) {
 		ai4seo_debug_message( 503298098, 'Prevented loop', true );
 		return false;
@@ -352,7 +356,7 @@ function ai4seo_acquire_semaphore( string $critical_section_name ): bool {
 
 		if ( is_array( $existing_lock )
 			&& $existing_lock['exists']
-			&& ai4seo_is_lock_stale( $existing_lock['value'] )
+			&& ai4seo_is_lock_stale( $existing_lock['value'], $ttl_seconds )
 			&& ai4seo_delete_semaphore_option_if_matches( $option_key, $existing_lock['raw_value'] )
 		) {
 			// The exact stale payload was reclaimed; retry immediately without an unnecessary poll delay.
@@ -654,9 +658,10 @@ function ai4seo_try_create_lock( string $option_key, string $token ): bool {
  * Return true if the existing lock is stale by TTL.
  *
  * @param mixed $payload Stored payload.
+ * @param int   $ttl_seconds Critical-section staleness limit; ordinary semaphores keep their default.
  * @return bool
  */
-function ai4seo_is_lock_stale( $payload ): bool {
+function ai4seo_is_lock_stale( $payload, int $ttl_seconds = AI4SEO_SEMAPHORE_TTL_SECONDS ): bool {
 	if ( ! is_array( $payload )
 		|| ! isset( $payload['token'], $payload['started_at'] )
 		|| ! is_string( $payload['token'] )
@@ -680,7 +685,7 @@ function ai4seo_is_lock_stale( $payload ): bool {
 		return true;
 	}
 
-	return ( $current_time - $started_at ) > (int) AI4SEO_SEMAPHORE_TTL_SECONDS;
+	return ( $current_time - $started_at ) > max( 1, $ttl_seconds );
 }
 
 

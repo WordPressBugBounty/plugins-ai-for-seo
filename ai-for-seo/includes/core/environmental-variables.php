@@ -267,9 +267,10 @@ function ai4seo_reconcile_environmental_variable_caches_from_storage(): bool {
  * @param callable $mutation_callback Builds one replacement from the latest raw override map.
  * @param bool     $publish_wordpress_hooks Whether successful writes mirror core option actions.
  * @param mixed    $mutation_result Receives caller-specific data from the final attempted snapshot.
+ * @param bool     $require_array_storage Preserve unreadable root storage when the caller has no repair authority.
  * @return bool True on a successful/no-op mutation, false after a storage failure or exhausted conflicts.
  */
-function ai4seo_mutate_environmental_variable_overrides( callable $mutation_callback, bool $publish_wordpress_hooks = false, &$mutation_result = null ): bool {
+function ai4seo_mutate_environmental_variable_overrides( callable $mutation_callback, bool $publish_wordpress_hooks = false, &$mutation_result = null, bool $require_array_storage = false ): bool {
 	global $wpdb;
 
 	// Require a closed callback result shape so partial mutation state can never reach persistence.
@@ -290,6 +291,9 @@ function ai4seo_mutate_environmental_variable_overrides( callable $mutation_call
 			break;
 		}
 
+		if ( $require_array_storage && $option_snapshot['exists'] && ! is_array( $option_snapshot['value'] ) ) {
+			break;
+		}
 		$current_overrides = is_array( $option_snapshot['value'] ) ? $option_snapshot['value'] : array();
 		$mutation_state    = $mutation_callback( $current_overrides );
 
@@ -364,13 +368,15 @@ function ai4seo_mutate_environmental_variable_overrides( callable $mutation_call
  * @param callable $mutation_callback Builds the complete replacement from the latest value.
  * @param bool     $use_cache Whether to warm request state and publish mirrored WordPress option hooks.
  * @param int      $cache_ttl Cache TTL in seconds. Zero disables TTL companion updates.
+ * @param bool     $require_array_storage Preserve an unreadable environmental root instead of replacing it.
  * @return bool True on a successful/no-op mutation, false on invalid output or storage failure.
  */
 function ai4seo_mutate_environmental_variable_value(
 	string $environmental_variable_name,
 	callable $mutation_callback,
 	bool $use_cache = true,
-	int $cache_ttl = 0
+	int $cache_ttl = 0,
+	bool $require_array_storage = false
 ): bool {
 	if ( AI4SEO_ENVIRONMENTAL_VARIABLE_SUPPORTED_TAXONOMY_TERMS_CACHE === $environmental_variable_name ) {
 		return ai4seo_mutate_supported_taxonomy_terms_cache( $mutation_callback, $cache_ttl );
@@ -396,6 +402,7 @@ function ai4seo_mutate_environmental_variable_value(
 		ai4seo_read_all_environmental_variables();
 	}
 
+	$mutation_result = null;
 	return ai4seo_mutate_environmental_variable_overrides(
 		static function ( array $current_overrides ) use ( $environmental_variable_name, $mutation_callback, $cache_ttl ): array {
 			$current_value = AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES[ $environmental_variable_name ];
@@ -415,7 +422,7 @@ function ai4seo_mutate_environmental_variable_value(
 				return array();
 			}
 
-			$value_sanitizer       = AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVATION === $environmental_variable_name ? 'ai4seo_sanitize_activation_state_value' : 'sanitize_text_field';
+			$value_sanitizer       = in_array( $environmental_variable_name, array( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVATION, AI4SEO_ENVIRONMENTAL_VARIABLE_NOTIFICATION_PREFERENCES ), true ) ? 'ai4seo_sanitize_activation_state_value' : 'sanitize_text_field';
 			$replacement_value     = ai4seo_deep_sanitize( $replacement_value, $value_sanitizer );
 			$replacement_overrides = $current_overrides;
 			$did_change            = false;
@@ -451,7 +458,9 @@ function ai4seo_mutate_environmental_variable_value(
 				'result'    => null,
 			);
 		},
-		$use_cache
+		$use_cache,
+		$mutation_result,
+		$require_array_storage
 	);
 }
 
@@ -488,7 +497,7 @@ function ai4seo_update_environmental_variable( string $environmental_variable_na
 	}
 
 	// sanitize.
-	$value_sanitizer                  = AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVATION === $environmental_variable_name ? 'ai4seo_sanitize_activation_state_value' : 'sanitize_text_field';
+	$value_sanitizer                  = in_array( $environmental_variable_name, array( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVATION, AI4SEO_ENVIRONMENTAL_VARIABLE_NOTIFICATION_PREFERENCES ), true ) ? 'ai4seo_sanitize_activation_state_value' : 'sanitize_text_field';
 	$new_environmental_variable_value = ai4seo_deep_sanitize( $new_environmental_variable_value, $value_sanitizer );
 
 	return ai4seo_mutate_environmental_variable_value(
@@ -910,6 +919,7 @@ function ai4seo_validate_environmental_variable_value( string $environmental_var
 					array(
 						array( 'version', 'upper_post_id', 'total_rows', 'examined_rows', 'failure' ),
 						array( 'version', 'upper_post_id', 'total_rows', 'examined_rows', 'failure', 'warnings' ),
+						array( 'version', 'upper_post_id', 'total_rows', 'examined_rows', 'failure', 'warnings', 'blocked_options' ),
 					),
 					true
 				) ) {
@@ -926,7 +936,7 @@ function ai4seo_validate_environmental_variable_value( string $environmental_var
 			// Version zero carries initialization failures only; it must not claim any captured bounds.
 			$progress_version = (int) $environmental_variable_value['version'];
 
-			if ( ! in_array( $progress_version, array( 0, 1 ), true )
+			if ( ! in_array( $progress_version, array( 0, 1, 2 ), true )
 				|| ( 0 === $progress_version && (
 					$environmental_variable_value['upper_post_id']
 					|| $environmental_variable_value['total_rows']
@@ -935,11 +945,26 @@ function ai4seo_validate_environmental_variable_value( string $environmental_var
 				return false;
 			}
 
+			if ( 2 === $progress_version ) {
+				if ( ! isset( $environmental_variable_value['warnings'], $environmental_variable_value['blocked_options'] )
+					|| ! is_array( $environmental_variable_value['blocked_options'] )
+					|| array_values( array_unique( $environmental_variable_value['blocked_options'], SORT_REGULAR ) ) !== $environmental_variable_value['blocked_options'] ) {
+					return false;
+				}
+				foreach ( $environmental_variable_value['blocked_options'] as $option_name ) {
+					if ( ! is_string( $option_name ) || ! in_array( $option_name, AI4SEO_ALL_POST_ID_OPTIONS, true ) ) {
+						return false;
+					}
+				}
+			} elseif ( array_key_exists( 'blocked_options', $environmental_variable_value ) ) {
+				return false;
+			}
+
 			// Older progress snapshots have no warnings; newer ones retain only a bounded sample.
 			if ( array_key_exists( 'warnings', $environmental_variable_value ) ) {
 				$warnings = $environmental_variable_value['warnings'];
 				if ( ! is_array( $warnings ) || array_keys( $warnings ) !== array( 'count', 'samples' )
-					|| false === ai4seo_normalize_option_post_id( $warnings['count'] )
+					|| false === ai4seo_normalize_option_post_id( $warnings['count'], true )
 					|| (int) $warnings['count'] > (int) $environmental_variable_value['examined_rows']
 					|| ! is_array( $warnings['samples'] ) || array_values( $warnings['samples'] ) !== $warnings['samples']
 					|| count( $warnings['samples'] ) !== min( (int) $warnings['count'], AI4SEO_POSTS_TABLE_ANALYSIS_WARNING_SAMPLE_LIMIT ) ) {
@@ -948,7 +973,7 @@ function ai4seo_validate_environmental_variable_value( string $environmental_var
 				foreach ( $warnings['samples'] as $sample ) {
 					if ( ! is_array( $sample ) || array_keys( $sample ) !== array( 'post_id', 'meta_id', 'reason', 'field' )
 						|| false === ai4seo_normalize_option_post_id( $sample['post_id'] )
-						|| false === ai4seo_normalize_option_post_id( $sample['meta_id'] )
+						|| false === ai4seo_normalize_option_post_id( $sample['meta_id'], true )
 						|| ! is_string( $sample['reason'] ) || 1 !== preg_match( '/^[a-z_]{1,64}$/D', $sample['reason'] )
 						|| ! is_string( $sample['field'] ) || 1 !== preg_match( '/^[a-z0-9_.-]{0,128}$/D', $sample['field'] ) ) {
 						return false;
@@ -965,6 +990,29 @@ function ai4seo_validate_environmental_variable_value( string $environmental_var
 				&& false !== ai4seo_normalize_option_post_id( $failure['post_id'], true )
 				&& is_string( $failure['field'] )
 				&& 1 === preg_match( '/^[a-z0-9_]{0,64}$/', $failure['field'] ) );
+
+		case AI4SEO_ENVIRONMENTAL_VARIABLE_AUTO_QUEUE_SELECTION_PROGRESS:
+			if ( ! is_array( $environmental_variable_value ) || array_diff( array_keys( $environmental_variable_value ), array( 'metadata', 'attachment_attributes' ) ) ) {
+				return false;
+			}
+			foreach ( $environmental_variable_value as $progress ) {
+				if ( ! is_array( $progress ) || array_keys( $progress ) !== array( 'fingerprint', 'policy', 'offset', 'status', 'checked_at', 'blocked_post_ids', 'stale_index' )
+					|| ! in_array( $progress['stale_index'], array( 0, 1, '0', '1' ), true )
+					|| ! is_string( $progress['fingerprint'] ) || ! preg_match( '/^(?:[a-f0-9]{64})?$/D', $progress['fingerprint'] )
+					|| ! is_string( $progress['policy'] ) || ! preg_match( '/^(?:[a-f0-9]{64})?$/D', $progress['policy'] )
+					|| false === ai4seo_normalize_option_post_id( $progress['offset'], true )
+					|| false === ai4seo_normalize_option_post_id( $progress['checked_at'], true )
+					|| ! in_array( $progress['status'], array( 'ready', 'queued', 'empty', 'disabled', 'filter_blocked', 'analysis_pending', 'context_blocked', 'system_error', 'policy_changed', 'deferred', 'data_blocked', 'queue_full', 'insufficient_credits', 'account_unavailable' ), true )
+					|| ! is_array( $progress['blocked_post_ids'] ) || count( $progress['blocked_post_ids'] ) > 20 ) {
+					return false;
+				}
+				foreach ( $progress['blocked_post_ids'] as $id ) {
+					if ( false === ai4seo_normalize_option_post_id( $id ) ) {
+						return false;
+					}
+				}
+			}
+			return true;
 
 		case AI4SEO_ENVIRONMENTAL_VARIABLE_ATTACHMENT_BASE64_RECOVERY_STREAK:
 			// The sanitizer stores scalar integers as strings; accept only the four canonical values.
@@ -1013,6 +1061,11 @@ function ai4seo_validate_environmental_variable_value( string $environmental_var
 
 		case AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVATION:
 			return ai4seo_validate_activation_state( $environmental_variable_value );
+		case AI4SEO_ENVIRONMENTAL_VARIABLE_NOTIFICATION_PREFERENCES:
+			return is_array( $environmental_variable_value ) && ( ! $environmental_variable_value
+				|| ( 1 === ( $environmental_variable_value['version'] ?? null )
+					&& is_string( $environmental_variable_value['account'] ?? null )
+					&& is_array( $environmental_variable_value['pending'] ?? null ) ) );
 
 		case AI4SEO_ENVIRONMENTAL_VARIABLE_CURRENT_DISCOUNT:
 			// empty or array with at least name and percentage.

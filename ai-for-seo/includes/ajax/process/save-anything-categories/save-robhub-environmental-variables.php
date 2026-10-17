@@ -19,6 +19,11 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return WP_Error|null Error on failure, null on success or no-op.
  */
 function ai4seo_process_save_anything_robhub_environmental_variables( array &$upcoming_save_anything_updates ) {
+	// A non-buyer's blank license-entry fields are placeholders, not a request to disconnect their free account.
+	if ( ai4seo_is_account_license_entry_placeholder( $upcoming_save_anything_updates ) ) {
+		unset( $upcoming_save_anything_updates['api_username'], $upcoming_save_anything_updates['api_password'] );
+	}
+
 	// Leave payloads without communicator state fields to their owning save processors.
 	if ( ! array_intersect( array_keys( $upcoming_save_anything_updates ), array_keys( ai4seo_robhub_api()::DEFAULT_ENVIRONMENTAL_VARIABLES ) ) ) {
 		return null;

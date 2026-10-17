@@ -10,8 +10,79 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/**
+ * Warn when saved taxonomy metadata cannot be output because HTML output is disabled.
+ *
+ * @return string Escaped notice markup.
+ */
+function ai4seo_get_taxonomy_output_notice(): string {
+	if ( 'disable' !== ai4seo_read_metadata_sync_policy_snapshot()['settings'][ AI4SEO_SETTING_META_TAG_OUTPUT_MODE ] ) {
+		return '';
+	}
+	$notice = esc_html__( 'HTML output is currently disabled.', 'ai-for-seo' );
+	if ( ai4seo_can_administer_plugin() ) {
+		$notice .= ' <a href="' . esc_url( ai4seo_get_subpage_url( 'settings' ) ) . '">' . esc_html__( 'Settings', 'ai-for-seo' ) . '</a>';
+	}
+	return $notice;
+}
+
+/**
+ * Explain unavailable account facts without presenting them as zero credits or a free plan.
+ *
+ * @param bool $show_link Include navigation when no adjacent account control exists.
+ * @return string Escaped inline notice; no stored notification or refresh loop.
+ */
+function ai4seo_get_account_quality_notice( bool $show_link = true ): string {
+	$account = ai4seo_get_account_readiness();
+	if ( $account['credits_ready'] && $account['plan_ready'] ) {
+		return '';
+	}
+	$html = '<div class="ai4seo-account-quality-notice" role="status"><p>' . esc_html( $account['message'] ) . '</p>';
+	if ( null !== $account['last_sync'] ) {
+		$html .= '<p>' . sprintf(
+			/* translators: %s: Date and time of the last successful account synchronization. */
+			esc_html__( 'Last confirmed account update: %s', 'ai-for-seo' ),
+			esc_html( wp_date( 'Y-m-d H:i', $account['last_sync'] ) )
+		) . '</p>';
+	}
+	if ( $show_link && ai4seo_can_administer_plugin() ) {
+		$html .= '<p><a href="' . esc_url( ai4seo_get_subpage_url( 'account' ) ) . '">' . esc_html__( 'Account settings', 'ai-for-seo' ) . '</a></p>';
+	} elseif ( ! $show_link && ai4seo_can_administer_plugin() ) {
+		$html .= ai4seo_get_icon_button_tag( 'rotate', __( 'Refresh account data', 'ai-for-seo' ), '', 'ai4seo_refresh_robhub_account(this); return false;' );
+	}
+	return $html . '</div>';
+}
+
 // region OUTPUT FUNCTIONS ====================================================================== \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
+
+/**
+ * Render an attachment preview as an image, with a local fallback for SVG load failures.
+ *
+ * @param string $image_url Image source URL, including filtered offloaded URLs.
+ * @param string $alt_text Accessible image description.
+ * @param string $mime_type Attachment MIME type.
+ * @return string Escaped image markup; attachment SVG markup is never inlined.
+ */
+function ai4seo_get_attachment_preview_image_tag( string $image_url, string $alt_text, string $mime_type ): string {
+	$attributes = '';
+	$image_url  = esc_url( $image_url );
+
+	if ( 'image/svg+xml' === $mime_type ) {
+		$fallback_url = ai4seo_get_assets_images_url( 'icons/document-svg.svg' );
+		$fallback_alt = __( 'SVG image preview unavailable', 'ai-for-seo' );
+		$attributes   = ' class="ai4seo-svg-preview-image"'
+			. ' data-ai4seo-image-fallback-src="' . esc_url( $fallback_url ) . '"'
+			. ' data-ai4seo-image-fallback-alt="' . esc_attr( $fallback_alt ) . '"';
+
+		if ( '' === $image_url ) {
+			$image_url = esc_url( $fallback_url );
+			$alt_text  = $fallback_alt;
+		}
+	}
+
+	return '<img src="' . $image_url . '" alt="' . esc_attr( $alt_text ) . '"' . $attributes . ' />';
+}
 
 /**
  * Returns the SVG tag for the given (fontawesome) icon name
@@ -579,13 +650,16 @@ function ai4seo_get_metadata_editor_field_tag(
 
 	$field_hint = ai4seo_get_generation_field_help_text( $metadata_identifier, $field_hint, $metadata_details['flat-credits-cost'] ?? null );
 
-	$input_name                = sanitize_text_field( ai4seo_get_prefixed_input_name( 'metadata_' . $metadata_identifier ) );
-	$evaluation_id             = sanitize_key( $evaluation_details['evaluation_id'] ?? '' );
-	$minimum_length            = absint( $evaluation_details['minimum_length'] ?? 0 );
-	$feedback_maximum          = absint( $evaluation_details['feedback_maximum'] ?? 0 );
-	$has_feedback              = ! empty( $evaluation_details['has_feedback'] );
-	$length_input_class        = $has_feedback ? ' ai4seo-editor-length-tracked' : '';
-	$length_input_attributes   = ai4seo_get_editor_length_input_attributes( $evaluation_id, $minimum_length, $feedback_maximum );
+	$input_name              = sanitize_text_field( ai4seo_get_prefixed_input_name( 'metadata_' . $metadata_identifier ) );
+	$evaluation_id           = sanitize_key( $evaluation_details['evaluation_id'] ?? '' );
+	$minimum_length          = absint( $evaluation_details['minimum_length'] ?? 0 );
+	$feedback_maximum        = absint( $evaluation_details['feedback_maximum'] ?? 0 );
+	$has_feedback            = ! empty( $evaluation_details['has_feedback'] );
+	$length_input_class      = $has_feedback ? ' ai4seo-editor-length-tracked' : '';
+	$length_input_attributes = ai4seo_get_editor_length_input_attributes( $evaluation_id, $minimum_length, $feedback_maximum );
+	if ( isset( $evaluation_details['read_state'] ) ) {
+		$length_input_attributes .= ai4seo_get_editor_read_attributes( $evaluation_details['read_state'] );
+	}
 	$sanitized_extra_classes   = array();
 	$additional_class_segments = preg_split( '/\s+/', trim( $additional_classes ) );
 
@@ -912,6 +986,10 @@ function ai4seo_get_editor_field_source_message_details( array $source_details )
  * @return string Sanitized singular content-type label.
  */
 function ai4seo_get_accessible_content_type_label( int $post_id, string $content_type_label = '' ): string {
+	if ( ai4seo_is_taxonomy_proxy( $post_id ) ) {
+		$context = ai4seo_get_taxonomy_proxy_editor_context( $post_id );
+		return is_wp_error( $context ) ? __( 'Taxonomy', 'ai-for-seo' ) : $context['label'];
+	}
 	// Prefer the list's visible wording because Media intentionally differs from WordPress' attachment label.
 	$content_type_label = trim( sanitize_text_field( $content_type_label ) );
 	if ( '' !== $content_type_label ) {
@@ -941,6 +1019,10 @@ function ai4seo_get_accessible_content_type_label( int $post_id, string $content
 function ai4seo_get_wordpress_post_edit_link_button( int $post_id, bool $small_secondary = false ): string {
 	// Let WordPress reject unavailable records and build the canonical editor URL for the current installation.
 	$edit_post_link = get_edit_post_link( $post_id );
+	if ( ai4seo_is_taxonomy_proxy( $post_id ) ) {
+		$context        = ai4seo_get_taxonomy_proxy_editor_context( $post_id );
+		$edit_post_link = is_wp_error( $context ) ? '' : $context['edit_url'];
+	}
 	if ( ! $edit_post_link ) {
 		return '';
 	}
@@ -1119,6 +1201,9 @@ function ai4seo_get_seo_coverage_progress_bar_tag(
 	array $field_names = array(),
 	array $field_states = array()
 ): string {
+	if ( null === $coverage_percentage ) {
+		return '<span class="ai4seo-list-coverage ai4seo-list-coverage-unknown">' . esc_html__( 'Coverage unavailable', 'ai-for-seo' ) . '</span>';
+	}
 	// Invalid readings must not become an invented zero or an unsafe numeric attribute.
 	if ( ! is_numeric( $coverage_percentage ) || ! is_finite( (float) $coverage_percentage ) || $coverage_percentage < 0 || $coverage_percentage > 100 ) {
 		return '';
@@ -1303,7 +1388,7 @@ function ai4seo_echo_half_donut_chart_with_headline_and_percentage(
 		$review_missing_fields_label = sprintf(
 			/* translators: %s: plural content type name, such as Pages or Media. */
 			__( 'Review missing fields for %s', 'ai-for-seo' ),
-			ai4seo_get_post_type_translation( $post_type, true )
+			0 === strpos( $post_type, 'taxonomy-' ) ? trim( wp_strip_all_tags( $headline ) ) : ai4seo_get_post_type_translation( $post_type, true )
 		);
 
 		echo '<div class="ai4seo-chart-review">';
@@ -2028,12 +2113,16 @@ function ai4seo_get_select_all_checkbox( $target_checkbox_name, $label = 'auto',
  * @param string $target_checkbox_name Bulk-selection checkbox name without array brackets.
  * @param int    $entry_id             Post or attachment ID.
  * @param string $entry_title          Entry title shown in the content list.
+ * @param string $unavailable_reason   Nonempty explanation replaces an unsafe selection control.
  * @return string
  */
-function ai4seo_get_bulk_generation_queue_entry_checkbox( string $target_checkbox_name, int $entry_id, string $entry_title ): string {
+function ai4seo_get_bulk_generation_queue_entry_checkbox( string $target_checkbox_name, int $entry_id, string $entry_title, string $unavailable_reason = '' ): string {
 	// Namespace the entry ID by target name so the main Media table and Related Media modal can coexist without duplicate IDs.
 	$entry_checkbox_id = "ai4seo-select-{$target_checkbox_name}-{$entry_id}";
-	$entry_title       = trim( $entry_title );
+	if ( '' !== $unavailable_reason ) {
+		return '<span class="ai4seo-selection-unavailable" title="' . esc_attr( $unavailable_reason ) . '">' . esc_html__( 'Unavailable', 'ai-for-seo' ) . '<span class="screen-reader-text">: ' . esc_html( $unavailable_reason ) . '</span></span>';
+	}
+	$entry_title = trim( $entry_title );
 
 	// Keep entries without a stored title distinguishable from otherwise unnamed checkboxes.
 	if ( '' === $entry_title ) {
@@ -3504,32 +3593,34 @@ function ai4seo_echo_cost_breakdown_section( $credits_percentage, bool $can_affo
 /**
  * Render the currently active discount notice.
  *
+ * @param bool $show_actions Whether to include purchase and offer-preference buttons.
  * @return void
  */
-function ai4seo_echo_current_discount() {
-	if ( ! ai4seo_can_administer_plugin() ) {
+function ai4seo_echo_current_discount( bool $show_actions = true ) {
+	if ( ! ai4seo_should_show_notification( 'discount' ) || ai4seo_is_notification_dismissed( 'discount' ) ) {
 		return;
 	}
 
 	$ai4seo_current_discount = ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_CURRENT_DISCOUNT );
 
-	if ( ! $ai4seo_current_discount ) {
+	if ( ! $ai4seo_current_discount || ( ! empty( $ai4seo_current_discount['expires_at'] ) && $ai4seo_current_discount['expires_at'] <= time() ) ) {
 		return;
 	}
 
 	// create green bubble with gift icon and discount percentage.
-	echo "<div class='ai4seo-green-bubble ai4seo-discount-available-message'>";
+	echo "<div class='ai4seo-green-bubble ai4seo-discount-available-message' data-offer-surface='plugin' data-notification-index='discount'>";
 
 		ai4seo_echo_wp_kses( ai4seo_get_svg_tag( 'gift', esc_attr__( 'Discount available!', 'ai-for-seo' ) ) );
 		echo ' ';
 
 		// with countdown.
-	if ( isset( $ai4seo_current_discount['expire_in'] ) && $ai4seo_current_discount['expire_in'] > 0 ) {
+	$time_left = ! empty( $ai4seo_current_discount['expires_at'] ) ? max( 0, $ai4seo_current_discount['expires_at'] - time() ) : (int) ( $ai4seo_current_discount['expire_in'] ?? 0 );
+	if ( $time_left > 0 ) {
 		printf(
 			/* translators: 1: Discount percentage. 2: Remaining time. */
 			esc_html__( '%1$s%% discount available (time left: %2$s)', 'ai-for-seo' ),
 			(int) $ai4seo_current_discount['percentage'],
-			"<span class='ai4seo-countdown ai4seo-ignore-during-dashboard-refresh' data-time-left='" . esc_attr( $ai4seo_current_discount['expire_in'] ) . "' data-trigger='ai4seo_refresh_robhub_account'>" . esc_html( ai4seo_format_seconds_to_hhmmss_or_days_hhmmss( $ai4seo_current_discount['expire_in'] ) ) . '</span>'
+			"<span class='ai4seo-countdown ai4seo-ignore-during-dashboard-refresh' data-time-left='" . esc_attr( $time_left ) . "' data-trigger='ai4seo_refresh_robhub_account'>" . esc_html( ai4seo_format_seconds_to_hhmmss_or_days_hhmmss( $time_left ) ) . '</span>'
 		);
 		// without countdown.
 	} else {
@@ -3538,6 +3629,12 @@ function ai4seo_echo_current_discount() {
 			esc_html__( '%1$s%% discount available', 'ai-for-seo' ),
 			(int) $ai4seo_current_discount['percentage']
 		);
+	}
+	if ( $show_actions ) {
+		echo '<div class="ai4seo-buttons-wrapper">';
+		ai4seo_echo_wp_kses( ai4seo_get_icon_button_tag( 'gift', __( 'Grab Deal', 'ai-for-seo' ), 'ai4seo-unicorn-button', 'ai4seo_open_get_more_credits_modal();' ) );
+		ai4seo_echo_wp_kses( ai4seo_get_offer_preference_button( 'plugin' ) );
+		echo '</div>';
 	}
 	echo '</div>';
 }
@@ -3594,7 +3691,9 @@ function ai4seo_get_dashicon_tag_for_navigation( $plugin_page ): string {
 		'default'          => 'text-page',
 		'page'             => 'admin-page',
 		'post'             => 'admin-post',
-		'category'         => 'admin-category',
+		'category'         => 'category',
+		'post_tag'         => 'tag',
+		'post_format'      => 'format-aside',
 		'product'          => 'products',
 		'product-category' => 'products',
 		'portfolio'        => 'portfolio',

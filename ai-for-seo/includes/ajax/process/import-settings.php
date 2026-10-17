@@ -302,6 +302,9 @@ function ai4seo_prepare_import_settings_for_save_anything( array $setting_change
  * @return string Preview label.
  */
 function ai4seo_get_import_setting_preview_name( string $setting_name ): string {
+	if ( in_array( $setting_name, AI4SEO_NOTIFICATION_SETTINGS, true ) ) {
+		return ai4seo_get_notification_preference_labels()[ $setting_name ];
+	}
 	switch ( $setting_name ) {
 		case AI4SEO_SETTING_DISABLED_POST_TYPES:
 			return esc_html__( 'Active Post Types', 'ai-for-seo' );
@@ -424,13 +427,14 @@ foreach ( $ai4seo_new_settings_raw as $ai4seo_this_setting_name => $ai4seo_this_
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 $ai4seo_invalid_settings               = array();
+$ai4seo_current_settings_state         = ai4seo_inspect_settings();
 $ai4seo_not_selected_category_settings = array();
 $ai4seo_validated_new_settings         = array();
 
 foreach ( $ai4seo_categorized_new_settings as $ai4seo_this_category => $ai4seo_this_settings ) {
 	foreach ( $ai4seo_this_settings as $ai4seo_this_setting_name => $ai4seo_this_setting_new_value ) {
 		// Get the current value from the settings.
-		$ai4seo_current_value = $ai4seo_settings[ $ai4seo_this_setting_name ] ?? null;
+		$ai4seo_current_value = $ai4seo_current_settings_state['settings'][ $ai4seo_this_setting_name ] ?? null;
 
 		// Normalize imported boolean representations from current and older export formats.
 		$ai4seo_this_setting_new_value = ai4seo_normalize_boolean_setting_value(
@@ -439,9 +443,9 @@ foreach ( $ai4seo_categorized_new_settings as $ai4seo_this_category => $ai4seo_t
 		);
 
 		// convert the new value to the same type as the current value.
-		if ( is_int( $ai4seo_current_value ) ) {
+		if ( is_int( $ai4seo_current_value ) && is_numeric( $ai4seo_this_setting_new_value ) ) {
 			$ai4seo_this_setting_new_value = (int) $ai4seo_this_setting_new_value;
-		} elseif ( is_float( $ai4seo_current_value ) ) {
+		} elseif ( is_float( $ai4seo_current_value ) && is_numeric( $ai4seo_this_setting_new_value ) ) {
 			$ai4seo_this_setting_new_value = (float) $ai4seo_this_setting_new_value;
 		}
 
@@ -474,9 +478,9 @@ $ai4seo_new_and_validated_changes = array();
 
 foreach ( $ai4seo_validated_new_settings as $ai4seo_this_setting_name => $ai4seo_this_setting_new_value ) {
 	// Get the current value from the settings.
-	$ai4seo_current_value = $ai4seo_settings[ $ai4seo_this_setting_name ] ?? null;
+	$ai4seo_current_value = $ai4seo_current_settings_state['settings'][ $ai4seo_this_setting_name ] ?? null;
 
-	if ( $ai4seo_current_value !== $ai4seo_this_setting_new_value ) {
+	if ( isset( $ai4seo_current_settings_state['issues'][ $ai4seo_this_setting_name ] ) || $ai4seo_current_value !== $ai4seo_this_setting_new_value ) {
 		// If the current value is different from the new value, prepare for comparison.
 		$ai4seo_new_and_validated_changes[ $ai4seo_this_setting_name ] = array(
 			'current'  => $ai4seo_current_value,
@@ -494,6 +498,7 @@ $ai4seo_we_got_valid_changes = ! empty( $ai4seo_new_and_validated_changes );
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 if ( 'preview' === $ai4seo_import_mode ) {
+	ai4seo_echo_wp_kses( ai4seo_get_settings_form_state_tag( $ai4seo_current_settings_state ) );
 
 	// HEADLINE.
 	echo "<div class='ai4seo-modal-headline'>";
@@ -575,7 +580,7 @@ if ( 'preview' === $ai4seo_import_mode ) {
 				$ai4seo_this_new_and_validated_change = $ai4seo_new_and_validated_changes[ $ai4seo_this_setting_name ];
 			} elseif ( $ai4seo_this_setting_is_invalid ) {
 				$ai4seo_this_new_and_validated_change = array(
-					'current' => $ai4seo_settings[ $ai4seo_this_setting_name ] ?? null,
+					'current' => $ai4seo_current_settings_state['settings'][ $ai4seo_this_setting_name ] ?? null,
 					'new'     => $ai4seo_this_setting_new_value,
 				);
 			} else {
@@ -603,7 +608,9 @@ if ( 'preview' === $ai4seo_import_mode ) {
 				: ai4seo_get_import_setting_preview_value( $ai4seo_this_setting_name, $ai4seo_this_new_and_validated_change['new'] );
 
 			// make nicer current setting value.
-			$ai4seo_this_current_setting_value = ai4seo_make_nicer_setting_value( $ai4seo_this_current_setting_preview_value );
+			$ai4seo_this_current_setting_value = isset( $ai4seo_current_settings_state['issues'][ $ai4seo_this_setting_name ] )
+				? esc_html__( 'Unknown (stored value is invalid)', 'ai-for-seo' )
+				: ai4seo_make_nicer_setting_value( $ai4seo_this_current_setting_preview_value );
 
 			// make nicer new setting value.
 			$ai4seo_this_setting_new_value = ai4seo_make_nicer_setting_value( $ai4seo_this_new_setting_preview_value );
@@ -675,6 +682,9 @@ if ( 'execute' === $ai4seo_import_mode ) {
 		$ai4seo_upcoming_updates[ $ai4seo_this_setting_name ] = $ai4seo_this_setting_new_value;
 	}
 
+	if ( isset( $ai4seo_import_settings_request['ai4seo_settings_edit'] ) ) {
+		$ai4seo_upcoming_updates['ai4seo_settings_edit'] = $ai4seo_import_settings_request['ai4seo_settings_edit'];
+	}
 	ai4seo_save_anything( $ai4seo_upcoming_updates );
 
 	return;

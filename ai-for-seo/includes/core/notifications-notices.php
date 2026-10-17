@@ -1395,6 +1395,13 @@ function ai4seo_store_notification(
 		): array {
 			$original_notifications = $notifications;
 
+			// Repeated delivery of the same offer must preserve the user's dismissal.
+			if ( ! empty( $notifications[ $notification_index ]['dismissed'] )
+				&& 'offer' === ai4seo_get_notification_category( $notification_index, $prepared_additional_fields )
+				&& ( empty( $prepared_additional_fields['offer_instance'] )
+					|| ( $notifications[ $notification_index ]['offer_instance'] ?? '' ) === $prepared_additional_fields['offer_instance'] ) ) {
+				$force = false;
+			}
 			// Empty local copy retains removal compatibility; remote copy must also contain visible allowlisted text.
 			if ( '' === $message
 				|| ( $is_remote_notification && ! ai4seo_notification_message_has_visible_content( $message ) ) ) {
@@ -1606,9 +1613,13 @@ function ai4seo_get_displayable_notifications(
 	$read_displayable_notifications             = array();
 	$unread_displayable_notifications           = array();
 	$max_displayable_already_read_notifications = AI4SEO_MAX_DISPLAYABLE_ALREADY_READ_NOTIFICATIONS;
+	$ordinary_read_notification_count           = 0;
 
 	foreach ( $notifications as $this_notification_index => $this_notification ) {
 		if ( ! is_array( $this_notification ) ) {
+			continue;
+		}
+		if ( ! ai4seo_should_show_notification( $this_notification_index, $this_notification ) ) {
 			continue;
 		}
 
@@ -1624,9 +1635,13 @@ function ai4seo_get_displayable_notifications(
 
 		// This notification should be displayed.
 		if ( ! empty( $this_notification['read'] ) ) {
-			// If the notification is read, we limit the number of already read notifications.
-			if ( count( $read_displayable_notifications ) < $max_displayable_already_read_notifications ) {
+			// Required problems remain actionable after being read and do not consume the ordinary notice limit.
+			$is_required_notification = 'required' === ai4seo_get_notification_category( $this_notification_index, $this_notification );
+			if ( $is_required_notification || $ordinary_read_notification_count < $max_displayable_already_read_notifications ) {
 				$read_displayable_notifications[ $this_notification_index ] = $this_notification;
+				if ( ! $is_required_notification ) {
+					++$ordinary_read_notification_count;
+				}
 			}
 		} else {
 			// If the notification is unread, we add it to the unread notifications.
@@ -1656,9 +1671,14 @@ function ai4seo_get_displayable_notifications(
  *
  * @param string $notification_index The notification index.
  * @param array  $notification The notification data.
+ * @param string $surface Plugin or other admin pages.
  * @return void
  */
-function ai4seo_echo_notice_from_notification( string $notification_index, array $notification ) {
+function ai4seo_echo_notice_from_notification( string $notification_index, array $notification, string $surface = 'plugin' ) {
+	if ( ! ai4seo_should_show_notification( $notification_index, $notification, $surface ) ) {
+		return;
+	}
+	$is_offer = 'offer' === ai4seo_get_notification_category( $notification_index, $notification );
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 601523355, 'Prevented loop', true );
 		return;
@@ -1699,9 +1719,9 @@ function ai4seo_echo_notice_from_notification( string $notification_index, array
 	}
 
 	// Discount presentation flags also determine whether the generic notice chrome remains useful.
-	$is_dismissable           = ai4seo_can_administer_plugin() && ! ( isset( $notification['is_permanent'] ) && $notification['is_permanent'] );
+	$is_dismissable           = ai4seo_can_administer_plugin() && ( $is_offer || ! ( isset( $notification['is_permanent'] ) && $notification['is_permanent'] ) );
 	$show_generic_coupon_text = (bool) ( $notification['show_generic_coupon_text'] ?? true );
-	$show_buttons_row         = (bool) ( $notification['show_buttons_row'] ?? true );
+	$show_buttons_row         = $is_offer || (bool) ( $notification['show_buttons_row'] ?? true );
 
 	// Invalid or missing typed discount images always fall back to the safe generic message.
 	if ( $is_remote_discount_notification && '' === $discount_image_tag ) {
@@ -1709,8 +1729,8 @@ function ai4seo_echo_notice_from_notification( string $notification_index, array
 	}
 
 	// The welcome has one primary acknowledgement; other notices retain their duplicate corner control.
-	$is_image_only_notification      = ! $show_generic_coupon_text && ! $show_buttons_row;
-	$show_notice_dismiss_button      = $is_dismissable && ! $is_image_only_notification && AI4SEO_WELCOME_NOTIFICATION_INDEX !== $notification_index;
+	$is_image_only_notification      = ! $show_generic_coupon_text && ( $is_offer || ! $show_buttons_row );
+	$show_notice_dismiss_button      = $is_dismissable && ( $is_offer || ! $is_image_only_notification ) && AI4SEO_WELCOME_NOTIFICATION_INDEX !== $notification_index;
 	$show_contact_us_info            = (bool) ( $notification['contact_us_info'] ?? ( $notification['contact_us'] ?? false ) );
 	$notice_class                    = $notification['notice_type'] ?? 'notice-info';
 	$is_unread                       = ! isset( $notification['read'] ) || ! $notification['read'];
@@ -1735,7 +1755,7 @@ function ai4seo_echo_notice_from_notification( string $notification_index, array
 		$additional_classes .= ' ai4seo-image-only-notification';
 	}
 
-	echo '<div class="notice ai4seo-notice ai4seo-notification' . ( $show_notice_dismiss_button ? ' is-dismissible' : '' ) . ' ' . esc_attr( $notice_class ) . esc_attr( $additional_classes ) . '" data-notification-index="' . esc_attr( $notification_index ) . '">';
+	echo '<div class="notice ai4seo-notice ai4seo-notification' . ( $show_notice_dismiss_button ? ' is-dismissible' : '' ) . ' ' . esc_attr( $notice_class ) . esc_attr( $additional_classes ) . '" data-notification-index="' . esc_attr( $notification_index ) . '"' . ( $is_offer ? ' data-offer-surface="' . esc_attr( $surface ) . '"' : '' ) . '>';
 
 	if ( ! $is_image_only_notification ) {
 		ai4seo_echo_wp_kses( ai4seo_get_sooz_logo_image_tag( 'sooz-oo' ) );
@@ -1755,8 +1775,14 @@ function ai4seo_echo_notice_from_notification( string $notification_index, array
 		ai4seo_echo_wp_kses( ai4seo_filter_notification_message( $message, $notification_index, $notification ) );
 	}
 
-	// Suppressed button rows must not leave an empty footer wrapper in image-only notices.
+	// Offers always provide an actionable Unicorn CTA and the permanent surface preference.
+	if ( $is_offer && empty( $notification['grab_deal_button'] ) && empty( $notification['claim_bonus_button'] ) ) {
+		$notification['grab_deal_button'] = true;
+	}
 	$notification_buttons = $show_buttons_row ? ai4seo_get_notification_buttons( $notification_index, $notification ) : '';
+	if ( $is_offer ) {
+		$notification_buttons .= ai4seo_get_offer_preference_button( $surface );
+	}
 
 	if ( $notification_buttons ) {
 		echo '<div class="ai4seo-buttons-wrapper">';
@@ -2176,7 +2202,7 @@ function ai4seo_check_notification_conditions( string $notification_index, array
 			case 'is_robhub_account_synced_condition':
 				// check if the RobHub account is synced.
 				$is_robhub_account_synced_condition = (bool) $condition_value;
-				$is_robhub_account_synced           = (bool) ai4seo_robhub_api()->is_account_synced();
+				$is_robhub_account_synced           = ai4seo_get_account_readiness()['credits_ready'];
 
 				if ( $is_robhub_account_synced_condition !== $is_robhub_account_synced ) {
 					if ( $debug ) {
@@ -2811,7 +2837,7 @@ function ai4seo_check_for_unfinished_posts_table_analysis_notification( $force =
 	$message  = esc_html( $analysis['message'] );
 	$progress = $analysis['progress'];
 
-	if ( 1 === (int) ( $progress['version'] ?? 0 ) ) {
+	if ( in_array( (int) ( $progress['version'] ?? 0 ), array( 1, 2 ), true ) ) {
 		$examined_rows   = (int) $progress['examined_rows'];
 		$total_rows      = (int) $progress['total_rows'];
 		$percentage_done = $total_rows > 0 ? min( 99, (int) floor( 100 * ( $examined_rows / $total_rows ) ) ) : 0;
@@ -3102,6 +3128,9 @@ function ai4seo_check_for_low_credits_balance_notification( $force = false ) {
 	}
 
 	$notification_index = 'low-credits-balance';
+	if ( ! ai4seo_get_account_readiness()['credits_ready'] ) {
+		return;
+	}
 
 	// check credits balance.
 	$current_credits_balance = ai4seo_robhub_api()->get_credits_balance();
@@ -3228,6 +3257,10 @@ function ai4seo_check_for_missing_entries_notification( $force = false ) {
 		$generated_post_types_strings_parts = array();
 
 		foreach ( $num_generated_by_post_type as $post_type => $num_posts ) {
+			if ( AI4SEO_TAXONOMY_PROXY_POST_TYPE === $post_type ) {
+				$generated_post_types_strings_parts = array_merge( $generated_post_types_strings_parts, ai4seo_get_taxonomy_proxy_count_labels( $num_posts, AI4SEO_GENERATED_METADATA_POST_IDS_OPTION_NAME ) );
+				continue;
+			}
 			// attachment -> media workaround.
 			if ( 'attachment' === $post_type ) {
 				$post_type = 'media file';
@@ -3254,6 +3287,10 @@ function ai4seo_check_for_missing_entries_notification( $force = false ) {
 	$missing_post_types_strings_parts = array();
 
 	foreach ( $num_missing_posts_by_post_type as $post_type => $num_posts ) {
+		if ( AI4SEO_TAXONOMY_PROXY_POST_TYPE === $post_type ) {
+			$missing_post_types_strings_parts = array_merge( $missing_post_types_strings_parts, ai4seo_get_taxonomy_proxy_count_labels( $num_posts, AI4SEO_MISSING_METADATA_POST_IDS_OPTION_NAME ) );
+			continue;
+		}
 		// attachment -> media workaround.
 		if ( 'attachment' === $post_type ) {
 			$post_type = 'media file';
@@ -3473,10 +3510,6 @@ function ai4seo_normalize_payg_notification_status( $payg_status ): string {
  * @return void
  */
 function ai4seo_check_for_payg_status_errors( $payg_status, $force = false ) {
-	if ( ! ai4seo_singleton( __FUNCTION__ ) ) {
-		return;
-	}
-
 	// Normalize once so removal, routing, and message selection share one exact status representation.
 	$payg_status         = ai4seo_normalize_payg_notification_status( $payg_status );
 	$notification_index  = 'payg-status-error';
@@ -3485,6 +3518,11 @@ function ai4seo_check_for_payg_status_errors( $payg_status, $force = false ) {
 	// if we have a successful response, potentially remove the notification.
 	if ( ! in_array( $payg_status, array( 'budget-limit-reached', 'payment-pending', 'payment-failed', 'payment-method-failed', 'error' ), true ) ) {
 		ai4seo_remove_notification( $notification_index );
+		return;
+	}
+
+	// A later successful sync can clear an earlier notice in the same request.
+	if ( ! ai4seo_singleton( __FUNCTION__ ) ) {
 		return;
 	}
 
@@ -3717,6 +3755,21 @@ function ai4seo_check_for_finished_seo_autopilot_notification( $force = false ) 
 	$translated_post_types                     = array();
 
 	foreach ( $active_bulk_generation_post_types as $this_post_type ) {
+		if ( AI4SEO_TAXONOMY_PROXY_POST_TYPE === $this_post_type ) {
+			foreach ( ai4seo_get_enabled_bulk_generation_taxonomies() as $taxonomy_name ) {
+				$taxonomy                = get_taxonomy( $taxonomy_name );
+				$translated_post_types[] = $taxonomy ? $taxonomy->labels->name : $taxonomy_name;
+			}
+			continue;
+		}
+
+		// Custom content uses its registered plural label, including third-party post types.
+		$post_type_object = get_post_type_object( $this_post_type );
+		if ( $post_type_object && ! $post_type_object->_builtin ) {
+			$translated_post_types[] = $post_type_object->labels->name;
+			continue;
+		}
+
 		// attachment -> media workaround.
 		if ( 'attachment' === $this_post_type ) {
 			$this_post_type = 'media file';
@@ -3822,10 +3875,10 @@ function ai4seo_check_for_finished_seo_autopilot_notification( $force = false ) 
  * Update the active discount notification from RobHub discount data.
  *
  * @param array $discount Discount configuration received from RobHub.
- * @param bool  $allow_notification_force Whether an expiring discount may force a notification refresh.
+ * @param bool  $allow_notification_force Retained for existing callers; dismissals are never overridden.
  * @return void
  */
-function ai4seo_check_discount_notification( $discount, $allow_notification_force = false ) {
+function ai4seo_check_discount_notification( $discount, $allow_notification_force = false ) { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- Keep the compatibility parameter.
 	if ( ! ai4seo_singleton( __FUNCTION__ ) ) {
 		return;
 	}
@@ -3846,8 +3899,7 @@ function ai4seo_check_discount_notification( $discount, $allow_notification_forc
 	$discount_expire_in           = isset( $discount['expire_in'] ) && is_numeric( $discount['expire_in'] )
 		? max( 0, (int) $discount['expire_in'] )
 		: 0;
-	$expire_within_next_24h       = $discount_expire_in > 0 && $discount_expire_in <= 24 * HOUR_IN_SECONDS;
-	$expire_at                    = $discount_expire_in > 0 ? time() + $discount_expire_in : 0;
+	$expire_at                    = isset( $discount['expires_at'] ) ? (int) $discount['expires_at'] : ( $discount_expire_in > 0 ? time() + $discount_expire_in : 0 );
 	$discount_first_purchase_only = isset( $discount['first_purchase_only'] ) && is_scalar( $discount['first_purchase_only'] )
 		? (bool) filter_var( $discount['first_purchase_only'], FILTER_VALIDATE_BOOLEAN )
 		: false;
@@ -3871,12 +3923,11 @@ function ai4seo_check_discount_notification( $discount, $allow_notification_forc
 	$is_permanent     = isset( $discount['is_permanent'] )
 		&& is_scalar( $discount['is_permanent'] )
 		&& (bool) filter_var( $discount['is_permanent'], FILTER_VALIDATE_BOOLEAN );
-	$force            = false;
 
-	// if we enter the last 24h, force push this notification again.
-	if ( $allow_notification_force && $expire_within_next_24h ) {
-		$force = true;
-	}
+	// Only a different server-issued cycle may reset dismissal. Never resurrect an expiring offer.
+	$existing = ai4seo_get_repaired_notifications()['discount'] ?? array();
+	$instance = is_string( $discount['instance_id'] ?? null ) ? $discount['instance_id'] : '';
+	$force    = '' !== $instance && ! empty( $existing['offer_instance'] ) && $existing['offer_instance'] !== $instance;
 
 	// Pre-defined discount descriptions.
 	if ( 'early-bird' === $discount_name ) {
@@ -3950,6 +4001,7 @@ function ai4seo_check_discount_notification( $discount, $allow_notification_forc
 
 	$additional_fields = array(
 		'notice_type'                        => 'notice-success',
+		'offer_instance'                     => $instance,
 		'image'                              => $discount_image_url,
 		'show_generic_coupon_text'           => $show_generic_coupon_text,
 		'show_buttons_row'                   => $show_buttons_row,

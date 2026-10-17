@@ -21,13 +21,21 @@ add_action( 'init', 'ai4seo_load_language_files', 0 );
 
 // init settings.
 add_action( 'init', 'ai4seo_init_settings', 8 );
-add_action( 'admin_notices', 'ai4seo_activation_admin_notice' );
+add_action( 'admin_notices', 'ai4seo_render_offer_admin_notice' );
 
 // Invalidate content type list caches when the posts table changes.
 ai4seo_add_content_type_list_cache_invalidation_hooks();
 
 // Keep the isolated taxonomy cache coherent for admin, REST, cron and frontend mutations.
 ai4seo_add_supported_taxonomy_terms_cache_invalidation_hooks();
+
+// Local taxonomy inventory must also work in cron, REST and logged-out requests without an API account.
+add_action( 'init', 'ai4seo_register_taxonomy_proxy_post_type', 9 );
+add_action( 'init', 'ai4seo_schedule_taxonomy_proxy_sync', 20 );
+add_action( 'init', 'ai4seo_maybe_prepare_taxonomy_generation_index', 21 );
+add_action( AI4SEO_TAXONOMY_PROXY_SYNC_CRON_HOOK, 'ai4seo_taxonomy_proxy_sync_cron_job' );
+add_action( AI4SEO_TAXONOMY_PROXY_CONTINUATION_CRON_HOOK, 'ai4seo_taxonomy_proxy_sync_cron_job' );
+register_deactivation_hook( AI4SEO_PLUGIN_FILE, 'ai4seo_unschedule_taxonomy_proxy_sync' );
 
 // Scope the known Fix Alt Text 1.9.1 cache leak for saves in admin, REST, cron and frontend requests.
 add_action( 'save_post', 'ai4seo_prepare_fix_alt_text_cache_scope', 998, 0 );
@@ -40,6 +48,9 @@ add_action( 'delete_term', 'ai4seo_prepare_fix_alt_text_cache_scope', 998, 0 );
 add_action( 'added_option', 'ai4seo_handle_notification_option_change', PHP_INT_MIN, 1 );
 add_action( 'updated_option', 'ai4seo_handle_notification_option_change', PHP_INT_MIN, 1 );
 add_action( 'deleted_option', 'ai4seo_handle_notification_option_change', PHP_INT_MIN, 1 );
+
+// Legacy metadata maintenance owns a local callback even when the API component is unavailable.
+add_action( AI4SEO_ACTIVE_METADATA_MIGRATION_V235_CRON_JOB_NAME, AI4SEO_ACTIVE_METADATA_MIGRATION_V235_CRON_JOB_NAME );
 
 // Keep local summary recovery available even when account-dependent cron initialization is unavailable.
 add_action( AI4SEO_GENERATION_STATUS_SUMMARY_REBUILD_CRON_JOB_NAME, AI4SEO_GENERATION_STATUS_SUMMARY_REBUILD_CRON_JOB_NAME );

@@ -186,16 +186,18 @@ function ai4seo_get_mime_type_from_detected_image_format( string $detected_image
 
 	// Map the stable short names returned by the plugin's magic-byte checks.
 	$image_mime_types = array(
-		'jpg'  => 'image/jpeg',
-		'jpeg' => 'image/jpeg',
-		'png'  => 'image/png',
-		'gif'  => 'image/gif',
-		'webp' => 'image/webp',
-		'avif' => 'image/avif',
-		'heif' => 'image/heif',
-		'bmp'  => 'image/bmp',
-		'tiff' => 'image/tiff',
-		'ico'  => 'image/x-icon',
+		'jpg'     => 'image/jpeg',
+		'jpeg'    => 'image/jpeg',
+		'png'     => 'image/png',
+		'gif'     => 'image/gif',
+		'webp'    => 'image/webp',
+		'avif'    => 'image/avif',
+		'heif'    => 'image/heif',
+		'bmp'     => 'image/bmp',
+		'tiff'    => 'image/tiff',
+		'ico'     => 'image/x-icon',
+		'svg'     => 'image/svg+xml',
+		'svg+xml' => 'image/svg+xml',
 	);
 
 	return $image_mime_types[ $detected_image_format ] ?? '';

@@ -80,7 +80,10 @@ function ai4seo_add_latest_activity_entry(
 	$title = ai4seo_mb_substr( $title, 0, 50 );
 	$title = sanitize_text_field( $title );
 
-	if ( 'attachment' === $post_type ) {
+	if ( AI4SEO_TAXONOMY_PROXY_POST_TYPE === $post_type ) {
+		$archive = ai4seo_get_taxonomy_proxy_editor_context( $post_id );
+		$url     = is_wp_error( $archive ) ? '' : $archive['archive_url'];
+	} elseif ( 'attachment' === $post_type ) {
 		$url = get_edit_post_link( $post_id );
 	} else {
 		$url = get_permalink( $post_id );

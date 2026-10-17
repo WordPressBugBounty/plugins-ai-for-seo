@@ -649,22 +649,86 @@ function ai4seo_get_custom_instructions_postmeta_key_by_bulk_generation_queue_co
 /**
  * Save custom instructions to a postmeta entry.
  *
- * @param int    $post_id  Post ID.
- * @param string $meta_key Postmeta key.
- * @param mixed  $value    Raw custom instruction value.
+ * @param int         $post_id  Post ID.
+ * @param string      $meta_key Postmeta key.
+ * @param mixed       $value    Raw custom instruction value.
+ * @param string|null $expected_value Optional editor value observed before editing.
  * @return bool True when the entry was saved or cleared.
  */
-function ai4seo_save_custom_instructions_postmeta( int $post_id, string $meta_key, $value ): bool {
+function ai4seo_save_custom_instructions_postmeta( int $post_id, string $meta_key, $value, ?string $expected_value = null ): bool {
 	$post_id = absint( $post_id );
 
 	if ( $post_id <= 0 || '' === $meta_key ) {
 		return false;
+	}
+	if ( null !== $expected_value ) {
+		return ai4seo_save_custom_instructions_conditionally( $post_id, $meta_key, $value, $expected_value );
 	}
 
 	// Route single-entry editor saves through the batch helper so bulk and editor saves cannot drift.
 	$result = ai4seo_save_custom_instructions_postmeta_for_post_ids( array( $post_id ), $meta_key, $value );
 
 	return in_array( $post_id, $result['saved_post_ids'], true );
+}
+
+/**
+ * Preserve concurrent instruction edits using exact row ownership and verified readback.
+ *
+ * @param int    $post_id Authorized entry.
+ * @param string $meta_key Instruction key.
+ * @param mixed  $value Requested value.
+ * @param string $expected_value Editor baseline.
+ * @return bool Whether the requested value was confirmed.
+ */
+function ai4seo_save_custom_instructions_conditionally( int $post_id, string $meta_key, $value, string $expected_value ): bool {
+	global $wpdb;
+	$lock = 'ai4seo_instructions_' . md5( $post_id . ':' . $meta_key );
+	if ( ! get_post( $post_id ) || ! ai4seo_acquire_database_advisory_lock( $lock ) ) {
+		return false;
+	}
+	$saved = false;
+	try {
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Exact owner and bytes are required for the conditional editor write.
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT meta_id, meta_value FROM $wpdb->postmeta WHERE post_id = %d AND meta_key = %s ORDER BY meta_id LIMIT 2",
+				$post_id,
+				$meta_key
+			),
+			ARRAY_A
+		);
+		if ( $wpdb->last_error || ! is_array( $rows ) || count( $rows ) > 1 ) {
+			return false;
+		}
+		$raw      = $rows ? $rows[0]['meta_value'] : '';
+		$previous = is_string( $raw ) ? ai4seo_safe_maybe_unserialize( $raw ) : null;
+		if ( ! is_string( $previous ) || $previous !== $expected_value || ai4seo_normalize_custom_instructions_value( $previous ) !== $previous ) {
+			return false;
+		}
+		// The inventory owner must still exist after acquiring the instruction lock and reading its row.
+		if ( ai4seo_is_taxonomy_proxy( $post_id ) && ( ! ai4seo_can_edit_taxonomy_proxy( $post_id )
+			|| ! ai4seo_is_database_advisory_lock_owned_by_current_connection( ai4seo_get_taxonomy_proxy_sync_lock_name() ) ) ) {
+			return false;
+		}
+		$value = ai4seo_normalize_custom_instructions_value( $value );
+		if ( $value === $previous ) {
+			$saved = true;
+		} elseif ( $rows && '' === $value ) {
+			$saved = ai4seo_delete_owned_third_party_postmeta_row( (int) $rows[0]['meta_id'], $post_id, $meta_key, $previous, $raw );
+		} elseif ( $rows ) {
+			$saved = true === ai4seo_compare_and_swap_postmeta_row( (int) $rows[0]['meta_id'], $post_id, $meta_key, $raw, $value, $previous );
+		} else {
+			$saved = false !== add_post_meta( $post_id, $meta_key, wp_slash( $value ), true );
+		}
+		$quality = array();
+		$current = ai4seo_read_custom_instructions_postmeta( $post_id, $meta_key, $quality );
+		$saved   = $saved && $quality['known'] && $quality['writable'] && $current === $value;
+	} catch ( Throwable $throwable ) {
+		$saved = false;
+	} finally {
+		$saved = ai4seo_release_database_advisory_lock( $lock ) && $saved;
+	}
+	return $saved;
 }
 
 
@@ -728,14 +792,37 @@ function ai4seo_save_custom_instructions_postmeta_for_post_ids( array $post_ids,
 
 
 /**
- * Read normalized custom instructions from postmeta.
+ * Read normalized custom instructions, or unchanged values with editor quality.
  *
- * @param int    $post_id  Post ID.
- * @param string $meta_key Postmeta key.
- * @return string Normalized custom instructions.
+ * @param int        $post_id  Post ID.
+ * @param string     $meta_key Postmeta key.
+ * @param array|null $editor_state Opt-in authoritative display quality, without normalizing stored bytes.
+ * @return string Normalized instructions, or the stored text when editor quality is requested.
  */
-function ai4seo_read_custom_instructions_postmeta( int $post_id, string $meta_key ): string {
+function ai4seo_read_custom_instructions_postmeta( int $post_id, string $meta_key, ?array &$editor_state = null ): string {
 	$post_id = absint( $post_id );
+	if ( null !== $editor_state ) {
+		global $wpdb;
+		$editor_state = array(
+			'known'    => false,
+			'writable' => false,
+		);
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Editor preflight must detect duplicate and externally changed instruction owners.
+		$rows = $wpdb->get_col( $wpdb->prepare( "SELECT meta_value FROM $wpdb->postmeta WHERE post_id = %d AND meta_key = %s ORDER BY meta_id ASC LIMIT 2", $post_id, $meta_key ) );
+		if ( $wpdb->last_error || ! is_array( $rows ) || count( $rows ) > 1 || ( $rows && ! is_string( $rows[0] ) ) ) {
+			return '';
+		}
+		$raw = $rows ? ai4seo_safe_maybe_unserialize( $rows[0] ) : '';
+		if ( ! is_string( $raw ) ) {
+			return '';
+		}
+		$normalized   = ai4seo_normalize_custom_instructions_value( $raw );
+		$editor_state = array(
+			'known'    => true,
+			'writable' => $raw === $normalized,
+		);
+		return $raw;
+	}
 
 	if ( $post_id <= 0 || '' === $meta_key ) {
 		return '';

@@ -62,11 +62,12 @@ function ai4seo_get_all_exportable_settings(): array {
  * @return array
  */
 function ai4seo_get_exportable_settings(): array {
-	$ai4seo_all_settings        = ai4seo_get_all_settings();
+	$state                      = ai4seo_inspect_settings();
+	$ai4seo_all_settings        = $state['readable'] ? $state['settings'] : array();
 	$ai4seo_exportable_settings = array();
 
 	foreach ( ai4seo_get_all_exportable_settings() as $ai4seo_setting_name ) {
-		if ( array_key_exists( $ai4seo_setting_name, $ai4seo_all_settings ) ) {
+		if ( array_key_exists( $ai4seo_setting_name, $ai4seo_all_settings ) && ! isset( $state['issues'][ $ai4seo_setting_name ] ) ) {
 			$ai4seo_exportable_settings[ $ai4seo_setting_name ] = $ai4seo_all_settings[ $ai4seo_setting_name ];
 		}
 	}
@@ -304,74 +305,7 @@ function ai4seo_normalize_incognito_mode_user_id_setting_value( string $setting_
  * @return bool True if the setting was updated successfully, false if not
  */
 function ai4seo_update_setting( string $setting_name, $new_setting_value ): bool {
-	global $ai4seo_settings;
-	global $ai4seo_are_settings_initialized;
-
-	if ( ai4seo_prevent_loops( __FUNCTION__, 5 ) ) {
-		ai4seo_debug_message( 341531855, 'Prevented loop', true );
-		return false;
-	}
-
-	if ( ! ai4seo_prepare_settings_request_cache_for_current_site() ) {
-		return false;
-	}
-
-	if ( ! $ai4seo_are_settings_initialized ) {
-		ai4seo_init_settings();
-	}
-
-	if ( ! $ai4seo_are_settings_initialized ) {
-		ai4seo_debug_message( 5122824, 'Settings are not initialized.', true );
-		return false;
-	}
-
-	// Normalize instruction settings before validation so direct updates and settings-page saves behave the same.
-	$new_setting_value = ai4seo_normalize_custom_instructions_setting_value( $setting_name, $new_setting_value );
-
-	// Normalize checkbox, API, and compatibility representations before strict boolean validation.
-	$new_setting_value = ai4seo_normalize_boolean_setting_value( $setting_name, $new_setting_value );
-
-	// Canonicalize every supported incognito-owner representation before it reaches storage.
-	$new_setting_value = ai4seo_normalize_incognito_mode_user_id_setting_value( $setting_name, $new_setting_value );
-
-	// Keep slider values as strings across form saves and imported integer values.
-	$new_setting_value = ai4seo_normalize_prompt_slider_setting_value( $setting_name, $new_setting_value );
-
-	// Make sure that the new value of the setting is valid.
-	if ( ! ai4seo_validate_setting_value( $setting_name, $new_setting_value ) ) {
-		ai4seo_debug_message( 9122824, 'Invalid setting value for setting "' . $setting_name . '"', true );
-		return false;
-	}
-
-	// Compare against the effective default when a setting has not been stored explicitly yet.
-	$current_setting_value = $ai4seo_settings[ $setting_name ] ?? AI4SEO_DEFAULT_SETTINGS[ $setting_name ] ?? '';
-
-	// Invalid owner sentinels must never compare as equivalent to the canonical missing-owner zero.
-	if ( AI4SEO_SETTING_INCOGNITO_MODE_USER_ID === $setting_name ) {
-		$current_incognito_mode_user_id = ai4seo_normalize_incognito_mode_user_id( $current_setting_value );
-		$value_is_unchanged             = null !== $current_incognito_mode_user_id
-			&& $current_incognito_mode_user_id === $new_setting_value;
-	} else {
-		$value_is_unchanged = ai4seo_are_persisted_state_values_equivalent( $current_setting_value, $new_setting_value );
-	}
-
-	// Preserve the current representation and avoid a redundant option write when only storage type differs.
-	if ( $value_is_unchanged ) {
-		return true;
-	}
-
-	$settings_before_update = $ai4seo_settings;
-
-	// Overwrite entry in $ai4seo_settings-array.
-	$ai4seo_settings[ $setting_name ] = $new_setting_value;
-
-	if ( ai4seo_push_local_setting_changes_to_database() ) {
-		return true;
-	}
-
-	$ai4seo_settings = $settings_before_update;
-	ai4seo_store_settings_request_cache_for_current_site();
-	return false;
+	return ai4seo_bulk_update_settings( array( $setting_name => $new_setting_value ) );
 }
 
 
@@ -382,61 +316,11 @@ function ai4seo_update_setting( string $setting_name, $new_setting_value ): bool
  * @return bool True if the setting was updated successfully, false if not
  */
 function ai4seo_bulk_update_settings( array $setting_changes ): bool {
-	global $ai4seo_are_settings_initialized;
-	global $ai4seo_settings;
-
-	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
-		ai4seo_debug_message( 796348328, 'Prevented loop', true );
-		return false;
-	}
-
 	if ( ! ai4seo_prepare_settings_request_cache_for_current_site() ) {
 		return false;
 	}
-
-	if ( ! $ai4seo_are_settings_initialized ) {
-		ai4seo_init_settings();
-	}
-
-	if ( ! $ai4seo_are_settings_initialized ) {
-		return false;
-	}
-
-	$ai4seo_new_settings = $ai4seo_settings;
-
-	foreach ( $setting_changes as $this_setting_name => $this_setting_value ) {
-		// Normalize each instruction value before the batch is committed to the global settings array.
-		$this_setting_value = ai4seo_normalize_custom_instructions_setting_value( $this_setting_name, $this_setting_value );
-
-		// Keep bulk updates aligned with single-setting and form-save boolean normalization.
-		$this_setting_value = ai4seo_normalize_boolean_setting_value( $this_setting_name, $this_setting_value );
-
-		// Apply the same incognito-owner canonicalization used by single-setting updates and hydration.
-		$this_setting_value = ai4seo_normalize_incognito_mode_user_id_setting_value( $this_setting_name, $this_setting_value );
-
-		// Apply the same string normalization used by single-setting updates before validating the batch.
-		$this_setting_value = ai4seo_normalize_prompt_slider_setting_value( $this_setting_name, $this_setting_value );
-
-		// Make sure that the new value of the setting is valid.
-		if ( ! ai4seo_validate_setting_value( $this_setting_name, $this_setting_value ) ) {
-			ai4seo_debug_message( 40146824, 'Invalid setting value for setting "' . $this_setting_name . '"', true );
-			return false;
-		}
-
-		// Overwrite entry in $ai4seo_settings-array.
-		$ai4seo_new_settings[ $this_setting_name ] = $this_setting_value;
-	}
-
-	$settings_before_update = $ai4seo_settings;
-	$ai4seo_settings        = $ai4seo_new_settings;
-
-	if ( ai4seo_push_local_setting_changes_to_database() ) {
-		return true;
-	}
-
-	$ai4seo_settings = $settings_before_update;
-	ai4seo_store_settings_request_cache_for_current_site();
-	return false;
+	$result = ai4seo_patch_settings( $setting_changes );
+	return 'saved' === $result['status'];
 }
 
 
@@ -446,65 +330,29 @@ function ai4seo_bulk_update_settings( array $setting_changes ): bool {
  * @return bool
  */
 function ai4seo_push_local_setting_changes_to_database(): bool {
-	global $ai4seo_are_settings_initialized;
 	global $ai4seo_settings;
+	global $ai4seo_are_settings_initialized;
 
-	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
-		ai4seo_debug_message( 648276361, 'Prevented loop', true );
+	if ( ! ai4seo_prepare_settings_request_cache_for_current_site() || ! $ai4seo_are_settings_initialized || ! is_array( $ai4seo_settings ) ) {
 		return false;
 	}
-
-	if ( ! ai4seo_prepare_settings_request_cache_for_current_site()
-		|| ! $ai4seo_are_settings_initialized
-		|| ! is_array( $ai4seo_settings )
-	) {
+	$state = ai4seo_inspect_settings();
+	if ( ! $state['readable'] ) {
 		return false;
 	}
-
-	$ai4seo_settings_copy      = $ai4seo_settings;
-	$incognito_mode_is_enabled = true === ai4seo_normalize_boolean_setting_value(
-		AI4SEO_SETTING_ENABLE_INCOGNITO_MODE,
-		$ai4seo_settings_copy[ AI4SEO_SETTING_ENABLE_INCOGNITO_MODE ] ?? AI4SEO_DEFAULT_SETTINGS[ AI4SEO_SETTING_ENABLE_INCOGNITO_MODE ]
-	);
-
-	foreach ( $ai4seo_settings_copy as $ai4seo_setting_name => $ai4seo_setting_value ) {
-		if ( AI4SEO_SETTING_INCOGNITO_MODE_USER_ID === $ai4seo_setting_name ) {
-			$incognito_mode_user_id = ai4seo_normalize_incognito_mode_user_id( $ai4seo_setting_value );
-
-			// Retain malformed owner state only while mode is enabled so unrelated writes remain fail closed.
-			if ( null === $incognito_mode_user_id ) {
-				if ( ! $incognito_mode_is_enabled ) {
-					unset( $ai4seo_settings_copy[ $ai4seo_setting_name ] );
-				}
-
-				continue;
-			}
-
-			if ( ! $incognito_mode_is_enabled ) {
-				unset( $ai4seo_settings_copy[ $ai4seo_setting_name ] );
-			} else {
-				// Preserve an explicit zero while mode is enabled so administrators continue to receive the recovery path.
-				$ai4seo_settings_copy[ $ai4seo_setting_name ] = $incognito_mode_user_id;
-			}
-
-			continue;
-		}
-
-		// Omit default-equivalent values so the option stores overrides only.
-		if ( isset( AI4SEO_DEFAULT_SETTINGS[ $ai4seo_setting_name ] )
-			&& ai4seo_are_persisted_state_values_equivalent( AI4SEO_DEFAULT_SETTINGS[ $ai4seo_setting_name ], $ai4seo_setting_value ) ) {
-			unset( $ai4seo_settings_copy[ $ai4seo_setting_name ] );
+	// Legacy callers mutate the effective view. Only differences from the loaded view are intentional.
+	$scope    = ai4seo_get_site_options_request_cache_scope();
+	$baseline = $GLOBALS['ai4seo_settings_loaded_views'][ $scope ] ?? $state['settings'];
+	$changes  = array();
+	foreach ( $ai4seo_settings as $name => $value ) {
+		if ( array_key_exists( $name, AI4SEO_DEFAULT_SETTINGS )
+			&& ( ! array_key_exists( $name, $baseline ) || ! ai4seo_are_persisted_state_values_equivalent( $baseline[ $name ], $value ) ) ) {
+			$changes[ $name ] = $value;
 		}
 	}
-
-	// Save updated settings to database, then publish only the verified current-site view.
-	$settings_persisted = ai4seo_update_option( AI4SEO_SETTINGS_OPTION_NAME, $ai4seo_settings_copy, true );
-
-	if ( $settings_persisted ) {
-		ai4seo_store_settings_request_cache_for_current_site();
-	}
-
-	return $settings_persisted;
+	$expected = $GLOBALS['ai4seo_settings_loaded_states'][ $scope ]['raw'] ?? $state['raw'];
+	$result   = ai4seo_patch_settings( $changes, $expected );
+	return 'saved' === $result['status'];
 }
 
 
@@ -627,14 +475,14 @@ function ai4seo_user_has_active_generation_length_subscription( string $required
 		return false;
 	}
 
-	// Reuse the expiry-aware comparison for every slider rendered during this request.
-	if ( isset( $ai4seo_user_has_active_generation_length_subscription[ $required_plan ] ) ) {
-		return (bool) $ai4seo_user_has_active_generation_length_subscription[ $required_plan ];
+	// Unverified facts cannot reuse an earlier paid entitlement from this request.
+	$account = ai4seo_get_account_readiness();
+	if ( ! $account['plan_ready'] ) {
+		return false;
 	}
 
 	// Read the synchronized subscription directly because general plan helpers intentionally do not inspect expiry.
-	$robhub_api          = ai4seo_robhub_api();
-	$subscription        = $robhub_api->read_environmental_variable( $robhub_api::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION );
+	$subscription        = $account['subscription'];
 	$subscription_plan   = is_array( $subscription ) ? ai4seo_normalize_plan_identifier( $subscription['plan'] ?? 'free' ) : 'free';
 	$subscription_end    = is_array( $subscription ) ? ( $subscription['subscription_end'] ?? '' ) : '';
 	$subscription_expiry = is_numeric( $subscription_end ) ? (int) $subscription_end : strtotime( (string) $subscription_end );
@@ -888,6 +736,12 @@ function ai4seo_get_prompt_slider_setting_pre_240_migration_values( array $raw_s
  * @return bool True if the value is valid, false if not
  */
 function ai4seo_validate_setting_value( string $setting_name, $setting_value ): bool {
+	// Scalar settings must reject damaged containers before legacy validators cast or default them.
+	if ( array_key_exists( $setting_name, AI4SEO_DEFAULT_SETTINGS ) && ! is_array( AI4SEO_DEFAULT_SETTINGS[ $setting_name ] )
+		&& ( is_array( $setting_value ) || is_object( $setting_value ) || is_resource( $setting_value ) ) ) {
+		return false;
+	}
+
 	if ( ai4seo_prevent_loops( __FUNCTION__, 5 ) ) {
 		ai4seo_debug_message( 596454676, 'Prevented loop', true );
 		return false;
@@ -899,6 +753,22 @@ function ai4seo_validate_setting_value( string $setting_name, $setting_value ): 
 	}
 
 	switch ( $setting_name ) {
+		case AI4SEO_SETTING_ENABLED_ATTACHMENT_FILE_TYPES:
+			if ( ! is_array( $setting_value ) ) {
+				return false;
+			}
+			foreach ( $setting_value as $file_type ) {
+				if ( ! is_string( $file_type ) || ! isset( AI4SEO_ATTACHMENT_FILE_TYPE_MIME_TYPES[ $file_type ] ) ) {
+					return false;
+				}
+			}
+			return true;
+
+		case AI4SEO_SETTING_SHOW_ADMIN_OFFERS:
+		case AI4SEO_SETTING_SHOW_PLUGIN_OFFERS:
+		case AI4SEO_SETTING_SHOW_OTHER_NOTIFICATIONS:
+		case AI4SEO_SETTING_SHOW_MENU_COUNTERS:
+			return is_bool( $setting_value );
 		case AI4SEO_SETTING_DEFAULT_EDITOR_VIEW_MODE:
 			return is_string( $setting_value )
 				&& in_array( $setting_value, AI4SEO_EDITOR_VIEW_MODES, true );
@@ -961,6 +831,9 @@ function ai4seo_validate_setting_value( string $setting_name, $setting_value ): 
 			}
 
 			foreach ( $setting_value as $post_author_id ) {
+				if ( ! is_string( $post_author_id ) && ! is_int( $post_author_id ) ) {
+					return false;
+				}
 				$post_author_id = (string) $post_author_id;
 
 				if ( ! ctype_digit( $post_author_id ) || (int) $post_author_id <= 0 ) {
@@ -1007,6 +880,9 @@ function ai4seo_validate_setting_value( string $setting_name, $setting_value ): 
 				}
 
 				foreach ( $taxonomy_term_ids as $taxonomy_term_id ) {
+					if ( ! is_string( $taxonomy_term_id ) && ! is_int( $taxonomy_term_id ) ) {
+						return false;
+					}
 					$taxonomy_term_id = (string) $taxonomy_term_id;
 
 					if ( ! ctype_digit( $taxonomy_term_id ) || (int) $taxonomy_term_id <= 0 ) {
@@ -1016,6 +892,17 @@ function ai4seo_validate_setting_value( string $setting_name, $setting_value ): 
 				}
 			}
 
+			return true;
+
+		case AI4SEO_SETTING_ENABLED_BULK_GENERATION_TAXONOMIES:
+			if ( ! is_array( $setting_value ) ) {
+				return false;
+			}
+			foreach ( $setting_value as $taxonomy ) {
+				if ( ! is_string( $taxonomy ) || '' === $taxonomy || sanitize_key( $taxonomy ) !== $taxonomy ) {
+					return false;
+				}
+			}
 			return true;
 
 		case AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES:
@@ -1038,7 +925,7 @@ function ai4seo_validate_setting_value( string $setting_name, $setting_value ): 
 		case AI4SEO_SETTING_BULK_GENERATION_ORDER:
 			// Store only canonical order identifiers from the declared closed domain.
 			if ( ! defined( 'AI4SEO_AVAILABLE_BULK_GENERATION_ORDER_OPTIONS' ) || ! is_string( $setting_value ) || ! in_array( $setting_value, AI4SEO_AVAILABLE_BULK_GENERATION_ORDER_OPTIONS, true ) ) {
-				ai4seo_debug_message( 2911171224, 'Invalid value in the bulk generations order setting "' . $setting_value . '"', true );
+				ai4seo_debug_message( 2911171224, 'Invalid value in the bulk generations order setting.', true );
 				return false;
 			}
 
@@ -1270,6 +1157,9 @@ function ai4seo_validate_setting_value( string $setting_name, $setting_value ): 
 			return is_bool( $setting_value );
 
 		case AI4SEO_SETTING_PAYG_STRIPE_PRICE_ID:
+			if ( ! is_string( $setting_value ) ) {
+				return false;
+			}
 			// allow empty value for the setting, which means that the user is not using a credits pack.
 			if ( '' === $setting_value ) {
 				return true;
@@ -1296,6 +1186,25 @@ function ai4seo_validate_setting_value( string $setting_name, $setting_value ): 
 		default:
 			return false;
 	}
+}
+
+
+/**
+ * Initialize file-type selection at feature introduction without overriding an explicit selection.
+ *
+ * @param string $previous_version Last successfully migrated plugin version; empty for fresh installs.
+ * @param array  $raw_settings Stored settings before defaults are merged.
+ * @return array Required settings changes for the checked migration batch.
+ */
+function ai4seo_get_attachment_file_type_migration_values( string $previous_version, array $raw_settings ): array {
+	if ( array_key_exists( AI4SEO_SETTING_ENABLED_ATTACHMENT_FILE_TYPES, $raw_settings ) ) {
+		return array();
+	}
+	return array(
+		AI4SEO_SETTING_ENABLED_ATTACHMENT_FILE_TYPES => '' !== $previous_version && '0.0.0' !== $previous_version
+			? AI4SEO_LEGACY_ATTACHMENT_FILE_TYPES
+			: AI4SEO_DEFAULT_SETTINGS[ AI4SEO_SETTING_ENABLED_ATTACHMENT_FILE_TYPES ],
+	);
 }
 
 

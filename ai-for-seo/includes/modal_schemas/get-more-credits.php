@@ -26,24 +26,35 @@ $ai4seo_get_more_credits_footer_class   = $ai4seo_get_more_credits_is_ajax_rende
 	? 'ai4seo-modal-footer ai4seo-buttons-wrapper'
 	: 'ai4seo-modal-schema-footer';
 
+$ai4seo_account_readiness = ai4seo_get_account_readiness();
+if ( ! $ai4seo_account_readiness['credits_ready'] || ! $ai4seo_account_readiness['plan_ready'] ) {
+	echo '<div class="' . esc_attr( $ai4seo_get_more_credits_headline_class ) . '">' . esc_html__( 'Account data needs attention', 'ai-for-seo' ) . '</div>';
+	echo '<div class="' . esc_attr( $ai4seo_get_more_credits_content_class ) . '">';
+	ai4seo_echo_wp_kses( ai4seo_get_account_quality_notice() );
+	echo '</div><div class="' . esc_attr( $ai4seo_get_more_credits_footer_class ) . '">';
+	ai4seo_echo_wp_kses( ai4seo_get_modal_close_button_tag() );
+	echo '</div>';
+	return;
+}
+
 
 // ___________________________________________________________________________________________ \\
 // === PREPARE =============================================================================== \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
-$ai4seo_robhub_subscription = ai4seo_robhub_api()->read_environmental_variable( ai4seo_robhub_api()::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION );
+$ai4seo_robhub_subscription = $ai4seo_account_readiness['subscription'];
 
 $ai4seo_robhub_subscription_plan      = $ai4seo_robhub_subscription['plan'] ?? 'free';
 $ai4seo_robhub_subscription_plan_name = ai4seo_get_plan_name( $ai4seo_robhub_subscription_plan );
 
 $ai4seo_robhub_subscription_next_credits_refresh_date_and_time  = $ai4seo_robhub_subscription['next_credits_refresh'] ?? false;
-$ai4seo_robhub_subscription_next_credits_refresh_timestamp      = $ai4seo_robhub_subscription_next_credits_refresh_date_and_time
-	? strtotime( $ai4seo_robhub_subscription_next_credits_refresh_date_and_time ) : 0;
+$ai4seo_robhub_subscription_next_credits_refresh_timestamp      = is_numeric( $ai4seo_robhub_subscription_next_credits_refresh_date_and_time )
+	? (int) $ai4seo_robhub_subscription_next_credits_refresh_date_and_time : strtotime( (string) $ai4seo_robhub_subscription_next_credits_refresh_date_and_time );
 $ai4seo_robhub_subscription_next_credits_refresh_formatted_text = ai4seo_format_unix_timestamp( $ai4seo_robhub_subscription_next_credits_refresh_timestamp );
 
 $ai4seo_robhub_subscription_end_date_and_time   = $ai4seo_robhub_subscription['subscription_end'] ?? false;
-$ai4seo_robhub_subscription_end_timestamp       = $ai4seo_robhub_subscription_end_date_and_time
-	? strtotime( $ai4seo_robhub_subscription_end_date_and_time ) : 0;
+$ai4seo_robhub_subscription_end_timestamp       = is_numeric( $ai4seo_robhub_subscription_end_date_and_time )
+	? (int) $ai4seo_robhub_subscription_end_date_and_time : strtotime( (string) $ai4seo_robhub_subscription_end_date_and_time );
 $ai4seo_current_subscription_end_formatted_text = ai4seo_format_unix_timestamp( $ai4seo_robhub_subscription_end_timestamp );
 
 $ai4seo_user_is_on_free_plan               = ( 'free' === $ai4seo_robhub_subscription_plan ) || $ai4seo_robhub_subscription_end_timestamp < time();
@@ -86,6 +97,7 @@ echo '</div>';
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 	echo "<div class='" . esc_attr( $ai4seo_get_more_credits_content_class ) . "'>";
+	ai4seo_echo_wp_kses( ai4seo_get_settings_form_state_tag() );
 if ( ! $ai4seo_user_is_on_free_plan ) {
 	echo sprintf(
 	/* translators: %s: Current subscription plan name. */
@@ -241,7 +253,7 @@ if ( ! $ai4seo_user_is_on_free_plan ) {
 			echo esc_html__( 'Do you need more Credits for a one-time job? Please choose a Credits Pack that fits your needs.', 'ai-for-seo' );
 
 			// current discount.
-			ai4seo_echo_current_discount();
+		ai4seo_echo_current_discount( false );
 
 			echo '<br>';
 			ai4seo_echo_wp_kses( ai4seo_get_icon_button_tag( 'list', esc_html__( 'See options', 'ai-for-seo' ), 'ai4seo-primary-button', 'ai4seo_handle_open_select_credits_pack_modal();' ) );

@@ -56,6 +56,7 @@ $ai4seo_user_has_premium_plan_or_higher = ai4seo_user_has_at_least_plan( 'l' );
 
 // HEADLINE.
 echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
+	ai4seo_echo_wp_kses( ai4seo_get_settings_form_state_tag() );
 
 	// ___________________________________________________________________________________________ \\
 	// === TOP BUTTON ROW ======================================================================== \\
@@ -411,7 +412,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
 			echo "<div class='ai4seo-form-item-input-wrapper'>";
 				echo "<label for='" . esc_attr( $ai4seo_this_setting_input_name ) . "'>";
-					echo "<input type='checkbox' id='" . esc_attr( $ai4seo_this_setting_input_name ) . "' name='" . esc_attr( $ai4seo_this_setting_input_name ) . "' value='1' class='ai4seo-single-checkbox'" . ( $ai4seo_this_setting_input_value ? " checked='checked'" : '' ) . '/> ';
+					echo "<input type='checkbox' id='" . esc_attr( $ai4seo_this_setting_input_name ) . "' aria-label='" . esc_attr__( 'Show additional "Generate with SOOZ" buttons in external editors for metadata', 'ai-for-seo' ) . "' name='" . esc_attr( $ai4seo_this_setting_input_name ) . "' value='1' class='ai4seo-single-checkbox'" . ( $ai4seo_this_setting_input_value ? " checked='checked'" : '' ) . '/> ';
 					ai4seo_echo_wp_kses( $ai4seo_generate_with_sooz_buttons_toggle_label );
 					echo '<br>';
 				echo '</label>';
@@ -1389,6 +1390,29 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 				echo '</h2>';
 
 
+				// Generation eligibility is separate from viewing and editing existing media attributes.
+				$ai4seo_file_types_input   = ai4seo_get_prefixed_input_name( AI4SEO_SETTING_ENABLED_ATTACHMENT_FILE_TYPES );
+				$ai4seo_enabled_file_types = ai4seo_get_setting( AI4SEO_SETTING_ENABLED_ATTACHMENT_FILE_TYPES );
+				echo "<div class='ai4seo-form-item'><span class='ai4seo-form-item-label'>" . esc_html__( 'Enabled File Types:', 'ai-for-seo' ) . '</span>';
+				echo "<div class='ai4seo-form-item-input-wrapper'>";
+				ai4seo_echo_wp_kses( ai4seo_get_select_all_checkbox( $ai4seo_file_types_input, 'auto', __( 'Enabled File Types:', 'ai-for-seo' ) ) );
+				echo "<div class='ai4seo-medium-gap'></div>";
+				foreach ( AI4SEO_ATTACHMENT_FILE_TYPE_MIME_TYPES as $ai4seo_file_type => $ai4seo_file_mime ) {
+					$ai4seo_file_type_id = $ai4seo_file_types_input . '-' . $ai4seo_file_type;
+					echo "<label class='ai4seo-form-multiple-inputs' for='" . esc_attr( $ai4seo_file_type_id ) . "'>";
+					echo "<input type='checkbox' id='" . esc_attr( $ai4seo_file_type_id ) . "' name='" . esc_attr( $ai4seo_file_types_input ) . "[]' value='" . esc_attr( $ai4seo_file_type ) . "' " . checked( in_array( $ai4seo_file_type, (array) $ai4seo_enabled_file_types, true ), true, false ) . '/> ';
+					echo esc_html( 'jpeg' === $ai4seo_file_type ? 'JPEG (.jpg, .jpeg)' : strtoupper( $ai4seo_file_type ) );
+					if ( 'svg' === $ai4seo_file_type ) {
+						echo " <span class='ai4seo-green-bubble'>" . esc_html__( 'NEW', 'ai-for-seo' ) . '</span>';
+					}
+					echo '<br></label>';
+				}
+				echo "<p class='ai4seo-form-item-description'>" . esc_html__( 'Applies to manual generation, bulk actions and SEO Autopilot. Selecting none stops all media generation. Existing attributes remain editable. SVG supports already uploaded, static files up to 1 MiB.', 'ai-for-seo' ) . '</p>';
+				if ( ! ai4seo_robhub_api()->supports_svg_static_v1() ) {
+					echo "<p class='ai4seo-form-item-description'>" . esc_html__( 'SVG generation is currently unavailable because the conversion service is not ready. Your selection will be retained.', 'ai-for-seo' ) . '</p>';
+				}
+				echo '</div></div>';
+
 				// === AI4SEO_SETTING_ACTIVE_ATTACHMENT_ATTRIBUTES ========================================================== \\
 
 				$ai4seo_this_setting_name        = AI4SEO_SETTING_ACTIVE_ATTACHMENT_ATTRIBUTES;
@@ -1458,7 +1482,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
 				echo "<div class='ai4seo-form-item-input-wrapper'>";
 				echo "<label for='" . esc_attr( $ai4seo_this_setting_input_name ) . "'>";
-					echo "<input type='checkbox' id='" . esc_attr( $ai4seo_this_setting_input_name ) . "' name='" . esc_attr( $ai4seo_this_setting_input_name ) . "' value='1' class='ai4seo-single-checkbox'" . ( $ai4seo_this_setting_input_value ? " checked='checked'" : '' ) . ' /> ';
+					echo "<input type='checkbox' id='" . esc_attr( $ai4seo_this_setting_input_name ) . "' aria-label='" . esc_attr__( 'Show additional "Generate with SOOZ" buttons in external editors for media attributes', 'ai-for-seo' ) . "' name='" . esc_attr( $ai4seo_this_setting_input_name ) . "' value='1' class='ai4seo-single-checkbox'" . ( $ai4seo_this_setting_input_value ? " checked='checked'" : '' ) . ' /> ';
 					ai4seo_echo_wp_kses( $ai4seo_generate_with_sooz_buttons_toggle_label );
 					echo '<br>';
 				echo '</label>';

@@ -25,9 +25,6 @@ if ( wp_verify_nonce( $GLOBALS['ai4seo_ajax_nonce'] ?? '', AI4SEO_GLOBAL_NONCE_I
 // === PREPARE =============================================================================== \\
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
-global $ai4seo_allowed_image_mime_types;
-
-
 // === CHECK PARAMETER ============================================== \\
 
 // Make sure that input-fields exist.
@@ -69,23 +66,14 @@ if ( ! $ai4seo_this_attachment_post ) {
 
 // === GET ADDITIONAL DETAILS ===================================================================== \\
 
-$ai4seo_attachment_read_succeeded       = false;
-$ai4seo_attachment_post_exists          = false;
-$ai4seo_this_post_attachment_attributes = ai4seo_read_available_attachment_attributes(
-	$ai4seo_this_attachment_post_id,
-	$ai4seo_attachment_read_succeeded,
-	$ai4seo_attachment_post_exists
-);
+$ai4seo_editor_read_state               = ai4seo_read_editor_state( $ai4seo_this_attachment_post_id, 'attachment_attributes' );
+$ai4seo_this_post_attachment_attributes = $ai4seo_editor_read_state['values'];
 
-if ( ! $ai4seo_attachment_read_succeeded ) {
+if ( ! $ai4seo_editor_read_state['read_succeeded'] ) {
 	ai4seo_send_ajax_error( esc_html__( 'Media attributes could not be loaded. Please refresh the page and try again.', 'ai-for-seo' ), 2208262602 );
 	return;
 }
 
-if ( ! $ai4seo_attachment_post_exists ) {
-	ai4seo_send_ajax_error( esc_html__( 'Attachment Post not found.', 'ai-for-seo' ), 57177525 );
-	return;
-}
 
 // Media source hints only compare active attachment attributes with SOOZ generated-data snapshots.
 $ai4seo_attachment_attribute_source_details = ai4seo_read_attachment_attributes_editor_source_details(
@@ -93,27 +81,19 @@ $ai4seo_attachment_attribute_source_details = ai4seo_read_attachment_attributes_
 	$ai4seo_this_post_attachment_attributes
 );
 
-// Check if we have an image, by using $ai4seo_allowed_image_mime_types.
-$ai4seo_this_attachment_mime_type = ai4seo_get_attachment_post_mime_type( $ai4seo_this_attachment_post_id );
+// Display supported images independently of the formats currently enabled for generation.
+$ai4seo_this_attachment_mime_type   = $ai4seo_editor_read_state['mime_type'];
+$ai4seo_this_attachment_is_an_image = in_array( $ai4seo_this_attachment_mime_type, ai4seo_get_allowed_attachment_mime_types(), true );
 
-$ai4seo_this_attachment_is_an_image = false;
-
-foreach ( $ai4seo_allowed_image_mime_types as $ai4seo_this_allowed_image_mime_type ) {
-	if ( strpos( $ai4seo_this_attachment_mime_type, $ai4seo_this_allowed_image_mime_type ) !== false ) {
-		$ai4seo_this_attachment_is_an_image = true;
-		break;
-	}
-}
-
-$ai4seo_this_attachment_url = ai4seo_get_attachment_url( $ai4seo_this_attachment_post_id );
+$ai4seo_this_attachment_url = $ai4seo_editor_read_state['file_known'] ? ai4seo_get_attachment_url( $ai4seo_this_attachment_post_id ) : '';
 
 // fallback -> get guid.
 if ( ! $ai4seo_this_attachment_url ) {
-	$ai4seo_this_attachment_url = ai4seo_get_assets_images_url( 'icons/document-question-48x48.png' );
+	$ai4seo_this_attachment_url = ai4seo_get_assets_images_url( 'image/svg+xml' === $ai4seo_this_attachment_mime_type ? 'icons/document-svg.svg' : 'icons/document-question-48x48.png' );
 }
 
 // Reuse the attachment placeholder facts so the modal identity shows the same file data used by generation.
-$ai4seo_attachment_placeholder_replacements = ai4seo_get_attachment_placeholder_replacements( $ai4seo_this_attachment_post_id );
+$ai4seo_attachment_placeholder_replacements = $ai4seo_editor_read_state['file_known'] ? ai4seo_get_attachment_placeholder_replacements( $ai4seo_this_attachment_post_id ) : array();
 $ai4seo_attachment_identity_details         = array();
 $ai4seo_attachment_identity_details[]       = sprintf(
 	/* translators: %d: Attachment ID. */
@@ -179,7 +159,7 @@ $ai4seo_attachment_editor_field_order = array_values(
 
 $ai4seo_can_administer_plugin                     = ai4seo_can_administer_plugin();
 $ai4seo_settings_url                              = $ai4seo_can_administer_plugin ? ai4seo_get_subpage_url( 'settings' ) : '';
-$ai4seo_attachment_attributes_custom_instructions = ai4seo_read_custom_instructions_postmeta( $ai4seo_this_attachment_post_id, AI4SEO_POST_META_ATTACHMENT_ATTRIBUTES_CUSTOM_INSTRUCTIONS_META_KEY );
+$ai4seo_attachment_attributes_custom_instructions = $ai4seo_editor_read_state['instructions']['value'];
 $ai4seo_attachment_field_evaluations              = array();
 $ai4seo_attachment_preview_evaluation_identifiers = array(
 	'title'       => 'attachment-title',
@@ -261,17 +241,21 @@ if ( ! $ai4seo_active_attachment_attributes ) {
 	return;
 }
 
-$ai4seo_editor_default_view_mode       = ai4seo_get_editor_default_view_mode();
-$ai4seo_attachment_preview_context     = ai4seo_get_attachment_editor_preview_context(
+$ai4seo_editor_default_view_mode                   = ai4seo_get_editor_default_view_mode();
+$ai4seo_attachment_preview_context                 = ai4seo_get_attachment_editor_preview_context(
 	$ai4seo_this_post_attachment_attributes,
 	$ai4seo_active_attachment_attributes,
 	$ai4seo_this_attachment_is_an_image,
 	$ai4seo_this_attachment_url
 );
+$ai4seo_attachment_preview_context['isImageKnown'] = '' !== $ai4seo_this_attachment_mime_type && ( $ai4seo_this_attachment_is_an_image || ! $ai4seo_editor_read_state['image_candidate'] );
+if ( ! $ai4seo_editor_read_state['file_known'] ) {
+	$ai4seo_attachment_preview_context['fileName'] = '';
+}
 $ai4seo_editable_attachment_attributes = $ai4seo_active_attachment_attributes;
 
 // Alt Text has no editable control when the attachment is not a supported image.
-if ( ! $ai4seo_this_attachment_is_an_image ) {
+if ( ! $ai4seo_editor_read_state['image_candidate'] && '' !== $ai4seo_this_attachment_mime_type ) {
 	$ai4seo_editable_attachment_attributes = array_values(
 		array_diff( $ai4seo_editable_attachment_attributes, array( 'alt-text' ) )
 	);
@@ -294,12 +278,16 @@ echo '<div'
 			echo "<div class='ai4seo-attachment-editor-header-media'>";
 
 	// Keep the media preview beside the attachment identity while preserving its larger-preview interaction.
-	if ( $ai4seo_this_attachment_is_an_image ) {
+	if ( ! $ai4seo_editor_read_state['file_known'] ) {
+		echo "<div class='ai4seo-attachment-document-placeholder'>" . esc_html__( 'Media preview unavailable', 'ai-for-seo' ) . '</div>';
+	} elseif ( $ai4seo_this_attachment_is_an_image ) {
 		/* translators: Opens a larger visual preview of the current attachment. */
 		$ai4seo_attachment_context_image_label = __( 'Open larger image preview', 'ai-for-seo' );
 		echo "<button type='button' class='ai4seo-attachment-context-image-trigger' data-ai4seo-attachment-context-image-url='" . esc_url( $ai4seo_this_attachment_url ) . "' aria-label='" . esc_attr( $ai4seo_attachment_context_image_label ) . "'>";
-			echo "<img src='" . esc_url( $ai4seo_this_attachment_url ) . "' alt='' />";
-			echo "<span class='ai4seo-attachment-context-image-hover-preview' aria-hidden='true'><img src='" . esc_url( $ai4seo_this_attachment_url ) . "' alt='' /></span>";
+			ai4seo_echo_wp_kses( ai4seo_get_attachment_preview_image_tag( $ai4seo_this_attachment_url, '', $ai4seo_this_attachment_mime_type ) );
+			echo "<span class='ai4seo-attachment-context-image-hover-preview' aria-hidden='true'>";
+				ai4seo_echo_wp_kses( ai4seo_get_attachment_preview_image_tag( $ai4seo_this_attachment_url, '', $ai4seo_this_attachment_mime_type ) );
+			echo '</span>';
 		echo '</button>';
 	} else {
 		echo "<div class='ai4seo-attachment-document-placeholder'>" . esc_html__( 'Non-image attachment', 'ai-for-seo' ) . '</div>';
@@ -319,6 +307,7 @@ echo '<div'
 	echo '</div>';
 
 	echo "<div class='ai4seo-editor-workspace-scroll'>";
+	ai4seo_echo_wp_kses( ai4seo_get_editor_read_state_tag( $ai4seo_editor_read_state, 'attachment_attributes', $ai4seo_active_attachment_attributes ) );
 		echo "<div class='ai4seo-editor-shared-context-grid ai4seo-attachment-editor-shared-context-grid'>";
 			echo "<section class='ai4seo-editor-context-card ai4seo-attachment-editor-context'>";
 				ai4seo_echo_wp_kses(
@@ -332,6 +321,7 @@ echo '<div'
 				);
 				echo "<div class='ai4seo-attachment-editor-context-content'>";
 
+				if ( $ai4seo_editor_read_state['file_known'] ) {
 				// Usage context shares the media image row so a separate context block is unnecessary.
 				echo "<div class='ai4seo-attachment-usage-context-status' data-attachment-post-id='" . esc_attr( $ai4seo_this_attachment_post_id ) . "'>";
 					echo "<div class='ai4seo-attachment-usage-context-loading'>";
@@ -341,6 +331,9 @@ echo '<div'
 
 					echo "<div class='ai4seo-attachment-usage-context-result'></div>";
 				echo '</div>';
+				} else {
+					echo '<p>' . esc_html__( 'Media file data is unavailable. Context detection is paused for this entry.', 'ai-for-seo' ) . '</p>';
+				}
 				echo '</div>';
 			echo '</section>';
 
@@ -452,8 +445,10 @@ echo '<div'
 						echo "<div class='ai4seo-attachment-preview-image-shell'>";
 
 			// The caption simulation uses the same image/applicability decision as the context card.
-			if ( $ai4seo_this_attachment_is_an_image ) {
-				echo "<img src='" . esc_url( $ai4seo_this_attachment_url ) . "' alt='' />";
+			if ( ! $ai4seo_editor_read_state['file_known'] ) {
+				echo "<div class='ai4seo-attachment-document-placeholder'>" . esc_html__( 'Media preview unavailable', 'ai-for-seo' ) . '</div>';
+			} elseif ( $ai4seo_this_attachment_is_an_image ) {
+				ai4seo_echo_wp_kses( ai4seo_get_attachment_preview_image_tag( $ai4seo_this_attachment_url, '', $ai4seo_this_attachment_mime_type ) );
 			} else {
 				echo "<div class='ai4seo-attachment-document-placeholder'>" . esc_html__( 'Non-image attachment', 'ai-for-seo' ) . '</div>';
 			}
@@ -499,6 +494,7 @@ echo '<div'
 
 		$ai4seo_this_attachment_attribute_value      = $ai4seo_this_post_attachment_attributes[ $ai4seo_this_attachment_attribute_identifier ];
 		$ai4seo_this_attachment_attribute_input_name = ai4seo_get_prefixed_input_name( 'attachment_attribute_' . $ai4seo_this_attachment_attribute_identifier );
+		$ai4seo_field_read_attributes                = ai4seo_get_editor_read_attributes( $ai4seo_editor_read_state['fields'][ $ai4seo_this_attachment_attribute_identifier ] );
 		$ai4seo_attachment_field_evaluation          = $ai4seo_attachment_field_evaluations[ $ai4seo_this_attachment_attribute_identifier ] ?? array();
 		$ai4seo_attachment_attribute_minimum_length  = absint( $ai4seo_attachment_field_evaluation['minimum_length'] ?? 0 );
 		$ai4seo_attachment_attribute_maximum_length  = absint( $ai4seo_attachment_field_evaluation['maximum_length'] ?? 0 );
@@ -553,6 +549,7 @@ echo '<div'
 				. ' id="' . esc_attr( $ai4seo_this_attachment_attribute_input_name ) . '"'
 				. ' name="' . esc_attr( $ai4seo_this_attachment_attribute_input_name ) . '"'
 				. ' value="' . esc_attr( $ai4seo_this_attachment_attribute_value ) . '"'
+				. $ai4seo_field_read_attributes // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Fixed attributes from the shared read-state renderer.
 				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Each conditional attribute value is escaped when the string is assembled above.
 				. $ai4seo_attachment_length_input_attributes
 				. ' />';
@@ -562,6 +559,7 @@ echo '<div'
 				. " class='ai4seo-textarea ai4seo-editor-textarea ai4seo-auto-resize-textarea" . esc_attr( $ai4seo_attachment_length_input_class ) . "'"
 				. " id='" . esc_attr( $ai4seo_this_attachment_attribute_input_name ) . "'"
 				. " name='" . esc_attr( $ai4seo_this_attachment_attribute_input_name ) . "'"
+				. $ai4seo_field_read_attributes // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Fixed attributes from the shared read-state renderer.
 				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Each conditional attribute value is escaped when the string is assembled above.
 				. $ai4seo_attachment_length_input_attributes . '>'
 				. esc_textarea( $ai4seo_this_attachment_attribute_value )

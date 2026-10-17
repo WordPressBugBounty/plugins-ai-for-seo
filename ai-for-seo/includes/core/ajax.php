@@ -181,6 +181,9 @@ function ai4seo_ajax_security_gate() {
  * @return bool
  */
 function ai4seo_save_payload_requires_administration( array $upcoming_updates ): bool {
+	if ( array_key_exists( 'activation_original', $upcoming_updates ) ) {
+		return true;
+	}
 	$administrative_names = array_merge(
 		array_keys( AI4SEO_DEFAULT_SETTINGS ),
 		array_keys( AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES ),
@@ -198,6 +201,7 @@ function ai4seo_save_payload_requires_administration( array $upcoming_updates ):
  * @return bool
  */
 function ai4seo_is_valid_incognito_recovery_save_payload( array $upcoming_updates ): bool {
+	unset( $upcoming_updates['settings_edit'] );
 	if ( 1 !== count( $upcoming_updates ) || ! array_key_exists( AI4SEO_SETTING_ENABLE_INCOGNITO_MODE, $upcoming_updates ) ) {
 		return false;
 	}
@@ -587,11 +591,20 @@ function ai4seo_save_anything( $additional_upcoming_updates = array() ) {
 		$upcoming_save_anything_updates[ AI4SEO_ENVIRONMENTAL_VARIABLE_BULK_GENERATION_NEW_OR_EXISTING_FILTER_REFERENCE_TIME ] = $ai4seo_reference_value;
 	}
 
+	// Load the email validator before preflight; every save category runs after snapshot validation.
+	require_once ai4seo_get_includes_ajax_process_path( 'save-anything-categories/save-activation-preferences.php' );
+	$notification_preflight = ai4seo_prepare_notification_preference_save( $upcoming_save_anything_updates );
+	if ( is_wp_error( $notification_preflight ) ) {
+		ai4seo_release_semaphore( 'notification-preferences' );
+		ai4seo_send_ajax_error( $notification_preflight->get_error_message(), (int) $notification_preflight->get_error_code() );
+		return;
+	}
 	// Keep each processor declaration paired with its callback so category additions have one registration point.
 	$save_anything_processors = array(
 		'save-anything-categories/save-settings.php' => 'ai4seo_process_save_anything_settings',
 		'save-anything-categories/save-environmental-variables.php' => 'ai4seo_process_save_anything_environmental_variables',
 		'save-anything-categories/save-robhub-environmental-variables.php' => 'ai4seo_process_save_anything_robhub_environmental_variables',
+		'save-anything-categories/save-activation-preferences.php' => 'ai4seo_process_save_anything_activation_preferences',
 		'save-anything-categories/save-metadata-editor-values.php' => 'ai4seo_process_save_anything_metadata_editor_values',
 		'save-anything-categories/save-attachment-attributes-editor-values.php' => 'ai4seo_process_save_anything_attachment_attributes_editor_values',
 	);
@@ -618,17 +631,20 @@ function ai4seo_save_anything( $additional_upcoming_updates = array() ) {
 		}
 
 		// Keep JSON response formatting centralized in the existing AJAX error mechanism.
+		ai4seo_release_semaphore( 'notification-preferences' );
 		ai4seo_send_ajax_error(
 			$save_anything_processor_result->get_error_message(),
 			(int) $save_anything_processor_result->get_error_code(),
 			'',
 			true,
-			is_array( $save_anything_processor_result->get_error_data() ) ? $save_anything_processor_result->get_error_data() : array()
+			array_replace_recursive( $save_anything_response, is_array( $save_anything_processor_result->get_error_data() ) ? $save_anything_processor_result->get_error_data() : array() )
 		);
 		return;
 	}
 
 	// Report success only after every category has completed without returning an error.
+	$save_anything_response = array_replace_recursive( $save_anything_response, ai4seo_finish_notification_preference_save( $upcoming_save_anything_updates ) );
+	ai4seo_release_semaphore( 'notification-preferences' );
 	ai4seo_send_ajax_success( $save_anything_response );
 }
 
@@ -773,7 +789,8 @@ function ai4seo_stop_bulk_generation() {
 	}
 
 	// stop bulk generation.
-	if ( ! ai4seo_update_setting( AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES, AI4SEO_DEFAULT_SETTINGS[ AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES ] ) ) {
+	if ( ! ai4seo_update_setting( AI4SEO_SETTING_ENABLED_BULK_GENERATION_TAXONOMIES, array() )
+		|| ! ai4seo_update_setting( AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES, AI4SEO_DEFAULT_SETTINGS[ AI4SEO_SETTING_ENABLED_BULK_GENERATION_POST_TYPES ] ) ) {
 		ai4seo_send_ajax_error( esc_html__( 'Bulk generation could not be stopped. Please try again.', 'ai-for-seo' ), 12109842 );
 		return;
 	}
@@ -859,9 +876,7 @@ function ai4seo_clear_bulk_generation_queue() {
 
 	// send success.
 	ai4seo_send_ajax_success(
-		array(
-			'queue_count' => ai4seo_get_bulk_generation_queue_count(),
-		)
+		ai4seo_build_bulk_action_response( array() )
 	);
 }
 
@@ -930,12 +945,12 @@ function ai4seo_apply_bulk_generation_queue_action() {
 	);
 
 	if ( $queue_transition_failed ) {
-		ai4seo_send_ajax_error( esc_html__( 'The selected bulk action could not be applied.', 'ai-for-seo' ), 2208062601 );
+		ai4seo_send_ajax_error( esc_html( $result['error_message'] ?? __( 'The selected bulk action could not be applied.', 'ai-for-seo' ) ), 2208062601 );
 		return;
 	}
 
 	// send success.
-	ai4seo_send_ajax_success( $result );
+	ai4seo_send_ajax_success( ai4seo_build_bulk_action_response( $result ) );
 }
 
 
@@ -1085,7 +1100,7 @@ function ai4seo_get_content_type_status_filters() {
 				'nonce_name'                   => 'ai4seo_content_type_filter_nonce',
 				'is_bulk_generation_activated' => ai4seo_is_bulk_generation_enabled( 'attachment' ),
 				'should_auto_queue_bulk_generation_entries' => ai4seo_should_auto_queue_bulk_generation_entries(),
-				'has_enough_credits'           => ( ai4seo_robhub_api()->get_credits_balance() >= $approximate_cost_per_attachment_post ),
+				'has_enough_credits'           => ( ai4seo_get_account_readiness()['credits_ready'] && ai4seo_get_account_readiness()['credits'] >= $approximate_cost_per_attachment_post ),
 				'new_or_existing_filter'       => $bulk_generation_new_or_existing_filter,
 				'new_or_existing_filter_reference_timestamp' => $bulk_generation_new_or_existing_filter_reference_timestamp,
 			)
@@ -1123,7 +1138,7 @@ function ai4seo_get_content_type_status_filters() {
 			'nonce_name'                                 => 'ai4seo_content_type_filter_nonce',
 			'is_bulk_generation_activated'               => ai4seo_is_bulk_generation_enabled( $post_type ),
 			'should_auto_queue_bulk_generation_entries'  => ai4seo_should_auto_queue_bulk_generation_entries(),
-			'has_enough_credits'                         => ( ai4seo_robhub_api()->get_credits_balance() >= $metadata_credits_costs_per_post ),
+			'has_enough_credits'                         => ( ai4seo_get_account_readiness()['credits_ready'] && ai4seo_get_account_readiness()['credits'] >= $metadata_credits_costs_per_post ),
 			'new_or_existing_filter'                     => $bulk_generation_new_or_existing_filter,
 			'new_or_existing_filter_reference_timestamp' => $bulk_generation_new_or_existing_filter_reference_timestamp,
 		)
@@ -1291,28 +1306,13 @@ function ai4seo_refresh_robhub_account() {
 		return;
 	}
 
-	$check_for_purchase                        = (bool) sanitize_text_field( wp_unslash( $_POST['check_for_purchase'] ?? false ) );
-	$robhub_api                                = ai4seo_robhub_api();
-	$had_api_password_rotation_recovery_intent = $robhub_api->has_api_password_rotation_recovery_intent();
-
-	$robhub_api->set_auth_data_locked( false );
-	$robhub_api->reset_last_account_sync();
+	$check_for_purchase = (bool) sanitize_text_field( wp_unslash( $_POST['check_for_purchase'] ?? false ) );
+	$robhub_api         = ai4seo_robhub_api();
+	// Transport owns confirmed authentication failures. A refresh must not unlock or
+	// permanently lock credentials merely because a connection or local save failed.
 	$api_response = ai4seo_sync_robhub_account( 'manual_refresh' );
 
 	if ( ! $robhub_api->was_call_successful( $api_response ) ) {
-		// Any non-missing pending state must bypass the generic authentication lock.
-		// Server-backed reconciliation resolves quarantined or temporarily unreadable state.
-		$recovery_transition_owns_auth_state = (
-			$had_api_password_rotation_recovery_intent
-				|| $robhub_api->has_api_password_rotation_recovery_intent()
-		)
-			&& ! $robhub_api->is_auth_data_locked()
-			&& $robhub_api->check_credentials();
-
-		if ( ! $robhub_api->has_pending_api_password_rotation() && ! $recovery_transition_owns_auth_state ) {
-			$robhub_api->set_auth_data_locked( true );
-		}
-		$robhub_api->reset_last_account_sync();
 		$api_response_error_message = $api_response['message'] ?? esc_html__( 'Please try to reconnect account', 'ai-for-seo' );
 
 		ai4seo_send_ajax_error(
@@ -1323,6 +1323,7 @@ function ai4seo_refresh_robhub_account() {
 			),
 			44129002
 		);
+		return;
 	}
 
 	$ajax_response = array();
@@ -4377,25 +4378,42 @@ function ai4seo_get_dashboard_html() {
 	require_once ai4seo_get_includes_pages_path( 'dashboard.php' );
 	$dashboard_content = ob_get_clean();
 
-	// Keep the complete refresh root as markup so notifications and dashboard cards share one response boundary.
-	$start_pattern = "<div class='ai4seo-dashboard-refresh-root'>";
-	$start_pos     = strpos( $dashboard_content, $start_pattern );
+	$dashboard_refresh_root_html = ai4seo_extract_dashboard_refresh_root( $dashboard_content );
 
-	if ( false !== $start_pos ) {
-		$dashboard_refresh_root_html = substr( $dashboard_content, $start_pos );
-
-		// The dashboard page outputs one refresh root, so its final closing div ends the refresh response.
-		$last_div_pos = strrpos( $dashboard_refresh_root_html, '</div>' );
-
-		if ( false !== $last_div_pos ) {
-			$dashboard_refresh_root_html = substr( $dashboard_refresh_root_html, 0, $last_div_pos + strlen( '</div>' ) );
-			ai4seo_send_ajax_success( $dashboard_refresh_root_html );
-		} else {
-			ai4seo_send_ajax_error( esc_html__( 'Dashboard refresh root closing tag not found', 'ai-for-seo' ), 71628825 );
-		}
-	} else {
-		ai4seo_send_ajax_error( esc_html__( 'Dashboard refresh root not found', 'ai-for-seo' ), 81628825 );
+	if ( is_wp_error( $dashboard_refresh_root_html ) ) {
+		ai4seo_send_ajax_error( $dashboard_refresh_root_html->get_error_message(), $dashboard_refresh_root_html->get_error_code() );
+		return;
 	}
+
+	ai4seo_send_ajax_success( $dashboard_refresh_root_html );
+}
+
+
+/**
+ * Keep notifications, cards and freshness attributes in one dashboard response.
+ *
+ * @param string $dashboard_content Rendered dashboard template.
+ * @return string|WP_Error Refresh markup or the existing response-boundary error.
+ */
+function ai4seo_extract_dashboard_refresh_root( string $dashboard_content ) {
+	// Match the class token while allowing either quote style, other classes and additional attributes.
+	$start_pattern = '~<div\b(?:[^>"\']|"[^"]*"|\'[^\']*\')*?\sclass\s*=\s*(["\'])(?:[^"\']*\s)?ai4seo-dashboard-refresh-root(?:\s[^"\']*)?\1(?:[^>"\']|"[^"]*"|\'[^\']*\')*>~i';
+	$found_root    = preg_match( $start_pattern, $dashboard_content, $root_match, PREG_OFFSET_CAPTURE );
+
+	if ( 1 !== $found_root ) {
+		return new WP_Error( 81628825, esc_html__( 'Dashboard refresh root not found', 'ai-for-seo' ) );
+	}
+
+	$dashboard_refresh_root_html = substr( $dashboard_content, $root_match[0][1] );
+
+	// The dashboard template ends with this root; retain its original markup without reserializing it.
+	$last_div_pos = strrpos( $dashboard_refresh_root_html, '</div>' );
+
+	if ( false === $last_div_pos ) {
+		return new WP_Error( 71628825, esc_html__( 'Dashboard refresh root closing tag not found', 'ai-for-seo' ) );
+	}
+
+	return substr( $dashboard_refresh_root_html, 0, $last_div_pos + strlen( '</div>' ) );
 }
 
 
@@ -4484,6 +4502,9 @@ function ai4seo_dismiss_notification() {
 		$response   = ai4seo_robhub_api()->call( 'client/activation-preferences', array( 'preferences' => wp_json_encode( $preference ) ) );
 		if ( ai4seo_robhub_api()->was_call_successful( $response ) ) {
 			ai4seo_store_activation_data( $response['data'] ?? array() );
+		} else {
+			ai4seo_send_ajax_error( esc_html__( 'Could not hide this offer. Please try again.', 'ai-for-seo' ), 5092703 );
+			return;
 		}
 	}
 	$result = ai4seo_mark_notification_as_dismissed( $notification_index );

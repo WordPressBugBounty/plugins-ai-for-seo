@@ -1984,11 +1984,12 @@ function ai4seo_clear_post_id_options( array $option_names, &$did_change = null 
  * is held. Every required write gets one exact raw-snapshot CAS, so an out-of-band conflict fails closed
  * instead of semantically retrying against a later generation of the same numeric post ID.
  *
- * @param array $primary_to_paired_option_names Pending option names mapped to their Force option.
- * @param array $removed_post_ids_by_primary Receives canonical Pending IDs cleared per primary option.
+ * @param array         $primary_to_paired_option_names Pending option names mapped to their Force option.
+ * @param array         $removed_post_ids_by_primary Receives canonical Pending IDs cleared per primary option.
+ * @param callable|null $validate_removal Optional current-state guard evaluated under the queue fence.
  * @return bool True only when every requested pair was verified and the shared fence released.
  */
-function ai4seo_clear_primary_post_id_option_pairs( array $primary_to_paired_option_names, &$removed_post_ids_by_primary = null ): bool {
+function ai4seo_clear_primary_post_id_option_pairs( array $primary_to_paired_option_names, &$removed_post_ids_by_primary = null, ?callable $validate_removal = null ): bool {
 	$allowed_pairs                 = array(
 		AI4SEO_PENDING_METADATA_POST_IDS_OPTION_NAME => AI4SEO_FORCE_OVERWRITE_METADATA_POST_IDS_OPTION_NAME,
 		AI4SEO_PENDING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME => AI4SEO_FORCE_OVERWRITE_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME,
@@ -2036,6 +2037,9 @@ function ai4seo_clear_primary_post_id_option_pairs( array $primary_to_paired_opt
 		}
 
 		// Freeze every pair's exact raw generation before the first destructive write.
+		if ( null !== $validate_removal && ! $validate_removal() ) {
+			return false;
+		}
 		foreach ( $normalized_pairs as $primary_option_name => $paired_option_name ) {
 			if ( ! ai4seo_renew_post_id_option_transition_semaphore() ) {
 				$operation_succeeded = false;
@@ -2060,6 +2064,10 @@ function ai4seo_clear_primary_post_id_option_pairs( array $primary_to_paired_opt
 
 		if ( $operation_succeeded ) {
 			foreach ( $pair_snapshots as $primary_option_name => $pair_snapshot ) {
+				if ( null !== $validate_removal && ! $validate_removal() ) {
+					$operation_succeeded = false;
+					break;
+				}
 				if ( ! ai4seo_renew_post_id_option_transition_semaphore() ) {
 					$operation_succeeded = false;
 					break;
@@ -2248,7 +2256,14 @@ function ai4seo_mutate_post_id_option_membership(
 		}
 
 		$current_post_ids = ai4seo_normalize_option_post_id_collection( $option_snapshot['value'] );
-		$new_post_ids     = array();
+		// A membership change must never discard unknown operative entries, even after a concurrent edit.
+		if ( in_array( $option_name, AI4SEO_ALL_POST_ID_OPTIONS, true ) && ! in_array( $option_name, AI4SEO_SEO_COVERAGE_POST_ID_OPTIONS, true ) ) {
+			$inspection = ai4seo_inspect_analysis_post_id_option( $option_name, $option_snapshot );
+			if ( ! $inspection['read_succeeded'] || ! $inspection['complete'] ) {
+				return false;
+			}
+		}
+		$new_post_ids = array();
 
 		foreach ( $current_post_ids as $post_id ) {
 			if ( ! isset( $remove_lookup[ $post_id ] ) ) {
@@ -2599,9 +2614,10 @@ function ai4seo_apply_normalized_post_id_option_transition_under_lock(
  * @param array $additions Option names mapped to IDs that must be present.
  * @param array $removals Option names mapped to IDs that must be absent.
  * @param bool  $did_change Receives whether any option membership changed.
+ * @param array $required_complete_options Optional read-only sources revalidated under the fence.
  * @return bool True only when the complete requested final state was verified and the lock released.
  */
-function ai4seo_apply_post_id_option_transition( array $additions, array $removals, &$did_change = null ): bool {
+function ai4seo_apply_post_id_option_transition( array $additions, array $removals, &$did_change = null, array $required_complete_options = array() ): bool {
 	$additions  = ai4seo_normalize_post_id_option_mutation_map( $additions );
 	$removals   = ai4seo_normalize_post_id_option_mutation_map( $removals );
 	$option_set = array_fill_keys( array_merge( array_keys( $additions ), array_keys( $removals ) ), true );
@@ -2620,6 +2636,12 @@ function ai4seo_apply_post_id_option_transition( array $additions, array $remova
 	}
 
 	try {
+		foreach ( $required_complete_options as $option_name ) {
+			$inspection = ai4seo_inspect_analysis_post_id_option( $option_name );
+			if ( ! $inspection['complete'] || ! $inspection['read_succeeded'] || ! ai4seo_renew_post_id_option_transition_semaphore() ) {
+				return false;
+			}
+		}
 		$transition_succeeded = ai4seo_apply_normalized_post_id_option_transition_under_lock(
 			$additions,
 			$removals,
@@ -2645,6 +2667,7 @@ function ai4seo_apply_post_id_option_transition( array $additions, array $remova
  * @param array $blocking_option_names Option names whose current members must be excluded.
  * @param array $admitted_post_ids Receives candidates not found in a blocker under the fence.
  * @param bool  $did_change Receives whether any admitted membership changed.
+ * @param array $required_complete_options Optional read-only sources revalidated under the fence.
  * @return bool True only when blocking state and the complete filtered transition were verified.
  */
 function ai4seo_apply_post_id_option_admission_transition(
@@ -2652,7 +2675,8 @@ function ai4seo_apply_post_id_option_admission_transition(
 	array $removals,
 	array $blocking_option_names,
 	&$admitted_post_ids = null,
-	&$did_change = null
+	&$did_change = null,
+	array $required_complete_options = array()
 ): bool {
 	$additions          = ai4seo_normalize_post_id_option_mutation_map( $additions );
 	$removals           = ai4seo_normalize_post_id_option_mutation_map( $removals );
@@ -2706,6 +2730,12 @@ function ai4seo_apply_post_id_option_admission_transition(
 			return false;
 		}
 
+		foreach ( $required_complete_options as $option_name ) {
+			$inspection = ai4seo_inspect_analysis_post_id_option( $option_name );
+			if ( ! $inspection['complete'] || ! $inspection['read_succeeded'] || ! ai4seo_renew_post_id_option_transition_semaphore() ) {
+				return false;
+			}
+		}
 		$blocked_post_id_lookup = array();
 
 		foreach ( array_keys( $normalized_blocking_option_names ) as $blocking_option_name ) {
@@ -3432,6 +3462,26 @@ function ai4seo_is_processing_claim_lease_active( array $lease, ?int $current_ti
 
 
 /**
+ * Reject implausible deadlines without expiring or requeueing an uncertain owner.
+ *
+ * @param array    $leases Validated Processing leases.
+ * @param int|null $now Reference clock.
+ * @return bool Whether deadlines fit the maximum supported lease plus clock tolerance.
+ */
+function ai4seo_are_processing_claim_deadlines_plausible( array $leases, ?int $now = null ): bool {
+	$now = null === $now ? time() : $now;
+	// The largest supported duration is five minutes, with two minutes of claim overhead.
+	$maximum_deadline = $now + 7 * MINUTE_IN_SECONDS + 30;
+	foreach ( $leases as $lease ) {
+		if ( $lease['expires_at'] > $maximum_deadline ) {
+			return false;
+		}
+	}
+	return true;
+}
+
+
+/**
  * Create an opaque Processing ownership token.
  *
  * @return string Claim token.
@@ -3474,6 +3524,7 @@ function ai4seo_read_processing_claim_leases_under_lock( string $processing_opti
 		if (
 			! ai4seo_validate_processing_claim_leases( $lease_snapshot['value'], $normalized_leases )
 			|| ! ai4seo_validate_processing_claim_lease_context( $processing_option_name, $normalized_leases )
+			|| ! ai4seo_are_processing_claim_deadlines_plausible( $normalized_leases )
 		) {
 			return false;
 		}
@@ -3988,6 +4039,22 @@ function ai4seo_claim_post_id_for_processing_state(
 
 		if ( null === $pending_snapshot || null === $processing_snapshot || null === $force_snapshot ) {
 			return false;
+		}
+		// Production claims must not normalize away damaged queue members observed after preflight.
+		if ( $uses_durable_lease ) {
+			foreach ( array(
+				$pending_option_name         => $pending_snapshot,
+				$processing_option_name      => $processing_snapshot,
+				$force_overwrite_option_name => $force_snapshot,
+			) as $option_name => $snapshot ) {
+				if ( false === $snapshot ) {
+					continue;
+				}
+				$inspection = ai4seo_inspect_analysis_post_id_option( $option_name, $snapshot );
+				if ( ! $inspection['read_succeeded'] || ! $inspection['complete'] ) {
+					return false;
+				}
+			}
 		}
 
 		$pending_lookup         = array_fill_keys(
