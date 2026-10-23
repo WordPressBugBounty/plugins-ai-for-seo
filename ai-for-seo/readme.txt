@@ -18,11 +18,9 @@ Sync generated focus keyphrases, meta titles, meta descriptions and social-media
 
 Achieve better metadata and alt text results than with ChatGPT. *SOOZ - AI for SEO* understands your entire website and uses expertly crafted SEO prompts designed to drive real search traffic.
 
-**Image SEO at scale:** Create alt text, image titles, captions, and descriptions across your library (jpg, png, gif, webp, avif, and supported static svg). SVG analysis uses a private rendered preview while preserving the original file. Enable SVG under Settings > Media Attributes > Enabled File Types after upgrading an existing installation.
+**Image SEO at scale:** Create alt text, image titles, captions, and descriptions across your library (jpg, png, gif, webp, avif, svg).
 
-**Category and taxonomy archive SEO:** Edit and generate metadata for categories, tags, public custom taxonomies, WooCommerce product categories and tags, and product attributes with enabled archives. Find them under **Taxonomies**, review their SEO coverage, generate individual fields or selected entries, or select each taxonomy in SEO Autopilot. New and changed terms are picked up by the background inventory refresh.
-
-Saved taxonomy metadata is output on the first public archive page according to your existing Meta Tag Output Mode. Empty fields leave existing tags unchanged. Later archive pages, canonical URLs, robots/noindex, hreflang, structured data and social images remain unchanged. Direct synchronization of taxonomy metadata with SEO plugins is not included. See Help for taxonomy-specific generation and filtering rules.
+**Category and taxonomy archive SEO:** Generate and edit metadata for category, tag, and other public taxonomy archives.
 
 **Accessibility-ready:** Helps meet European Accessibility Act (EAA) requirements by automatically generating missing alt text for a more inclusive experience.
 
@@ -31,9 +29,9 @@ Saved taxonomy metadata is output on the first public archive page according to 
 = 🚀 How to Get Started =
 1. **Open the Dashboard:** Go to **SOOZ - AI for SEO** to view statistics about your current SEO coverage.
 2. **Sync with your SEO plugin (optional):** Go to **Settings** -> **Sync "SOOZ - AI for SEO" Changes** and select Yoast SEO, Rank Math, All in One SEO, or another supported SEO plugin to keep your metadata updated.
-3. **Review your content:** Open **Pages**, **Posts**, **Products**, **Media**, or a populated **Taxonomies** entry and check its SEO status. Other supported content types are grouped under **Other Post Types**.
+3. **Review your content:** Open **Pages**, **Posts**, **Products**, **Media**, or a populated **Taxonomies** entry and check its SEO status.
 4. **Get a first win (optional):** Click the edit button for a specific entry, generate the desired fields, review the preview, and save the result.
-5. **Set up Autopilot:** On your **SOOZ - AI for SEO** dashboard, click **Set up SEO Autopilot**, choose your content types such as Pages, Posts, Products, or Media, and start bulk generation. Select taxonomy archives separately; they are not enabled automatically for existing sites. Only taxonomies with entries appear in the selection.
+5. **Set up Autopilot:** On your **SOOZ - AI for SEO** dashboard, click **Set up SEO Autopilot**, choose your content types such as Pages, Posts, Products, or Media, and start bulk generation.
 
 For a step-by-step guide, see "Help" -> "Getting Started" -> "First Steps".
 Need help? Email [support@sooz.ai](mailto:support@sooz.ai).
@@ -55,15 +53,13 @@ You can also click the *SOOZ - AI for SEO* button in the top admin bar to open t
 
 = 🎯 Key Features =
 ✅ **SEO Autopilot (bulk):** Automatically generate and refresh metadata for new and existing content.
-✅ **Alt text & image attributes:** Create alt text, titles, captions, and descriptions site-wide (jpg/png/gif/webp/avif and supported static svg).
-✅ **SVG image support:** Analyze validated static SVGs without replacing the original media file. SVG upload permissions remain controlled by your WordPress setup.
-✅ **Category & taxonomy pages:** Generate, edit and publish archive metadata, with separate taxonomy selection in SEO Autopilot.
+✅ **Alt text & image attributes:** Create alt text, titles, captions, and descriptions site-wide (jpg/png/gif/webp/avif and svg).
+✅ **Category & taxonomy pages:** Generate, edit and publish archive metadata.
 ✅ **WooCommerce SEO:** Optimize product metadata to attract higher-intent buyers from search.
 ✅ **Sync with your SEO plugin:** Keep metadata updated in Yoast SEO, Rank Math, All in One SEO, and others.
 ✅ **Edit where you work:** "Generate with SOOZ" in the Block Editor (Gutenberg), Media Library, Elementor, BeBuilder, and Yoast SEO. An SEO Copilot embedded in your workflow.
 ✅ **Accessibility-ready:** Helps meet European Accessibility Act (EAA) requirements by automatically generating missing alt text for a more inclusive experience.
-✅ **Progress tracking:** Monitor coverage and recent activity from the Dashboard, including separate taxonomy coverage and links to review missing fields.
-✅ **Review before saving:** Generate field drafts in the editor, inspect the preview, and save with checks for conflicting changes. Queue and status messages flag incomplete or unavailable data for review.
+✅ **Progress tracking:** Monitor coverage and recent activity from the Dashboard.
 ✅ **For agencies & teams:** White-label, incognito mode, export/import settings, Multisite support.
 ✅ **One account, many websites:** Share subscriptions or Credits Packs across any number of sites.
 ✅ **Flexible credits:** Free daily Credits for low balances, plus rollover and Pay-As-You-Go options.
@@ -90,7 +86,6 @@ See the list below for confirmed compatibility.
 
 If your favorite plugin or theme isn’t listed, please email us the name, URL, and the fields you’d like to sync, we prioritize new compatibility based on demand: [support@sooz.ai](mailto:support@sooz.ai)
 Focus keyphrases and meta tags are automatically imported from Yoast SEO, Rank Math, and other supported plugins. You can review, modify, and regenerate this data at any time, then sync it back to your preferred SEO plugin.
-This synchronization applies to supported posts, pages, products and other post types. Taxonomy archive metadata stays in SOOZ; already-rendered tags from SEO plugins are handled only by the selected Meta Tag Output Mode.
 
 == Installation ==
 Install like any other WordPress plugin.
@@ -136,13 +131,6 @@ Yes. *SOOZ - AI for SEO* is compatible with major SEO plugins. Metadata generate
 = How do I control which meta tags *SOOZ - AI for SEO* outputs on the frontend? =
 Open Settings > Metadata and use "Active Meta Tags" to choose which SEO fields *SOOZ - AI for SEO* may output in the frontend header. Then use "Meta Tag Output Mode" to decide how *SOOZ - AI for SEO* handles existing tags from themes or SEO plugins. This lets you control SEO title, meta description, Open Graph, Twitter Card, and other tags, and helps avoid duplicate frontend meta tags when another SEO plugin is active.
 
-= Where does taxonomy metadata appear, and does it sync with my SEO plugin? =
-After you save metadata for a category, tag, or other taxonomy term, SOOZ can publish the non-empty fields on the first page of its active public archive. Under Settings > Metadata, Active Meta Tags selects the fields and Meta Tag Output Mode controls how they interact with existing tags. If HTML output is disabled, the values remain saved but SOOZ does not publish them.
-
-Empty fields do not erase or replace existing tags. Page 2 and later keep their existing output. Saving SEO metadata does not change the visible term name, description, or list of posts.
-
-Taxonomy metadata is not synchronized directly with Yoast SEO, Rank Math, or other SEO plugins. Canonical URLs, robots/noindex, hreflang, structured data and social images remain unchanged. Author, date, search and general post-type archives are not included.
-
 = Does *SOOZ - AI for SEO* analyze my page, post, product, or media content before generating SEO data? =
 Yes. *SOOZ - AI for SEO* analyzes the selected page, post, product, or media file and uses that content as context when generating SEO titles, meta descriptions, focus keyphrases, alt text, and other SEO data.
 
@@ -176,18 +164,6 @@ Custom instructions can guide wording, tone, terminology, emphasis, calls to act
 
 = Can I choose which image attributes *SOOZ - AI for SEO* generates, such as alt text, title, caption, or description? =
 Yes. *SOOZ - AI for SEO* lets you decide which media attributes, such as alt text, image title, caption, and description, should be generated. Configure them in the Active Media Attributes section of the settings to match your image SEO and accessibility needs.
-
-= Can SOOZ generate alt text and other attributes for SVG images? =
-Yes. SOOZ can generate alt text, titles, captions and descriptions for supported static SVG images in the Media Library, individually or through bulk generation. Enable SVG under Settings > Media Attributes > Enabled File Types. SVG starts disabled when upgrading an existing installation; new installations include it by default. The conversion service must also be available.
-
-= Does SOOZ enable SVG uploads or replace my SVG file? =
-No. SVG support analyzes existing media; it does not enable SVG uploads in WordPress. For analysis, the service validates the SVG and creates a private PNG preview. Your original SVG file and media URL remain unchanged. Generated attributes are saved in the existing WordPress media fields.
-
-= Why is SVG generation unavailable or my SVG rejected? =
-Use a static, uncompressed SVG file of at most 1 MiB. Scripts, animation, external resources, embedded images or fonts, and unsupported SVG features are rejected before image analysis. Export a simpler static SVG, or use a PNG version. Also check that SVG is enabled under Settings > Media Attributes > Enabled File Types. If the conversion service is unavailable, generation cannot start; existing attributes remain editable.
-
-= Why can text in an SVG look different during analysis? =
-The service may use replacement fonts when rendering SVG text, so the analysis preview can differ from your browser. If exact lettering matters, convert text to paths in your graphics editor before exporting the SVG, then review the generated attributes. The original media file is not rewritten by SOOZ.
 
 = How are Credits used for metadata, meta tags, alt text, and media attributes in *SOOZ - AI for SEO*? =
 Credits are used when *SOOZ - AI for SEO* generates SEO data for posts, pages, products, media files, or other supported content. The amount of Credits required depends on the selected active meta tags, SEO fields, and media attributes, such as alt text, title, caption, or description.
