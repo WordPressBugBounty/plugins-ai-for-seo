@@ -540,15 +540,9 @@ function ai4seo_get_supported_taxonomy_terms(): array {
 		foreach ( (array) $this_taxonomy_objects as $this_taxonomy_name => $this_taxonomy_object ) {
 			$this_taxonomy_name = sanitize_key( $this_taxonomy_name );
 
-			if ( '' === $this_taxonomy_name ) {
-				continue;
-			}
-
-			if ( empty( $this_taxonomy_object->public ) || empty( $this_taxonomy_object->show_ui ) ) {
-				continue;
-			}
-
-			if ( 'post_format' === $this_taxonomy_name ) {
+			if ( '' === $this_taxonomy_name
+				|| empty( $this_taxonomy_object->public ) || empty( $this_taxonomy_object->show_ui )
+				|| 'post_format' === $this_taxonomy_name ) {
 				continue;
 			}
 
@@ -1008,6 +1002,28 @@ function ai4seo_read_taxonomy_assignments_for_post_ids( array $post_ids, array $
 }
 
 /**
+ * Normalizes taxonomy-filter candidates while preserving first-seen order.
+ *
+ * Keep the permissive integer casts used by taxonomy enforcement callers.
+ *
+ * @param array $post_ids Candidate post IDs.
+ * @return int[] Unique positive post IDs.
+ */
+function ai4seo_normalize_taxonomy_filter_post_ids( array $post_ids ): array {
+	$post_ids = array_map( 'intval', $post_ids );
+	$post_ids = array_values( array_unique( $post_ids ) );
+	return array_values(
+		array_filter(
+			$post_ids,
+			static function ( $post_id ) {
+				return $post_id > 0;
+			}
+		)
+	);
+}
+
+
+/**
  * Returns post IDs whose assigned taxonomy terms include at least one disabled term.
  *
  * @param array     $post_ids Candidate post IDs.
@@ -1019,16 +1035,7 @@ function ai4seo_get_post_ids_with_any_disabled_taxonomy_terms( array $post_ids, 
 	global $wpdb;
 
 	$read_succeeded = false;
-	$post_ids       = array_map( 'intval', $post_ids );
-	$post_ids       = array_values( array_unique( $post_ids ) );
-	$post_ids       = array_values(
-		array_filter(
-			$post_ids,
-			static function ( $post_id ) {
-				return $post_id > 0;
-			}
-		)
-	);
+	$post_ids       = ai4seo_normalize_taxonomy_filter_post_ids( $post_ids );
 
 	// Enforcement must retain the persisted policy when live taxonomy discovery is unavailable.
 	$disabled_taxonomy_terms = ai4seo_sanitize_disabled_taxonomy_terms_value( $disabled_taxonomy_terms, false );
@@ -1089,16 +1096,7 @@ function ai4seo_get_post_ids_with_only_disabled_taxonomy_terms( array $post_ids,
 	global $wpdb;
 
 	$read_succeeded = false;
-	$post_ids       = array_map( 'intval', $post_ids );
-	$post_ids       = array_values( array_unique( $post_ids ) );
-	$post_ids       = array_values(
-		array_filter(
-			$post_ids,
-			static function ( $post_id ) {
-				return $post_id > 0;
-			}
-		)
-	);
+	$post_ids       = ai4seo_normalize_taxonomy_filter_post_ids( $post_ids );
 
 	// Enforcement must retain the persisted policy when live taxonomy discovery is unavailable.
 	$disabled_taxonomy_terms = ai4seo_sanitize_disabled_taxonomy_terms_value( $disabled_taxonomy_terms, false );
@@ -1248,6 +1246,78 @@ function ai4seo_get_disabled_author_ids_by_setting_name( string $setting_name ):
 
 
 /**
+ * Read only IDs and types in bounded queries, avoiding one full WP_Post load per ID.
+ *
+ * @param array     $post_ids Requested IDs.
+ * @param bool|null $read_succeeded Whether all authoritative queries and row checks succeeded.
+ * @return array Post types keyed by ID; absent posts are omitted.
+ */
+function ai4seo_read_post_types_by_post_ids( array $post_ids, ?bool &$read_succeeded = null ): array {
+	global $wpdb;
+
+	$read_succeeded      = false;
+	$requested_id_lookup = array_fill_keys( $post_ids, true );
+
+	if ( ! $requested_id_lookup ) {
+		$read_succeeded = true;
+		return array();
+	}
+
+	$post_types_by_post_id = array();
+
+	foreach ( array_chunk( array_keys( $requested_id_lookup ), ai4seo_get_database_chunk_size() ) as $this_post_id_chunk ) {
+		$post_snapshot_query = ai4seo_prepare_database_query(
+			'SELECT ID, post_type FROM {{posts_table}} WHERE ID IN ({{post_ids}})',
+			array(
+				'posts_table' => ai4seo_database_identifier_binding( 'table.posts' ),
+				'post_ids'    => ai4seo_database_list_binding( '%d', array_values( $this_post_id_chunk ) ),
+			)
+		);
+
+		if ( false === $post_snapshot_query ) {
+			return array();
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler prepares this primary-key-bounded authoritative snapshot; metadata providers and summary reconciliation both require current post types.
+		$post_rows = $wpdb->get_results( $post_snapshot_query, ARRAY_A );
+
+		if ( $wpdb->last_error || ! is_array( $post_rows ) ) {
+			ai4seo_debug_message( 984321682, 'Database error: ' . $wpdb->last_error, true );
+			return array();
+		}
+
+		foreach ( $post_rows as $post_row ) {
+			if ( ! is_array( $post_row )
+				|| 2 !== count( $post_row )
+				|| ! array_key_exists( 'ID', $post_row )
+				|| ! array_key_exists( 'post_type', $post_row )
+			) {
+				return array();
+			}
+
+			$post_id   = ai4seo_normalize_database_id( $post_row['ID'] );
+			$post_type = $post_row['post_type'];
+
+			if ( false === $post_id
+				|| ! isset( $requested_id_lookup[ $post_id ] )
+				|| isset( $post_types_by_post_id[ $post_id ] )
+				|| ! is_string( $post_type )
+				|| '' === $post_type
+				|| sanitize_key( $post_type ) !== $post_type
+			) {
+				return array();
+			}
+
+			$post_types_by_post_id[ $post_id ] = $post_type;
+		}
+	}
+
+	$read_succeeded = true;
+	return $post_types_by_post_id;
+}
+
+
+/**
  * Returns public post types that WordPress can expose through normal front-end requests.
  *
  * @return array Post type labels keyed by post type name.
@@ -1298,6 +1368,45 @@ function ai4seo_get_publicly_accessible_post_types(): array {
 	}
 
 	return $publicly_accessible_post_types;
+}
+
+
+/**
+ * Checks content eligibility, including availability of taxonomy-proxy archives.
+ *
+ * @param int          $post_id Post ID or taxonomy-proxy ID to check.
+ * @param WP_Post|null $post Optional post object; taxonomy proxies use their archive context.
+ * @return bool Whether the entry is eligible for metadata generation.
+ */
+function ai4seo_is_post_a_valid_content_post( int $post_id, ?WP_Post $post = null ): bool {
+	// Taxonomy proxies use archive availability instead of ordinary post-type and status checks.
+	if ( ai4seo_is_taxonomy_proxy( $post_id ) ) {
+		$archive = ai4seo_get_taxonomy_proxy_editor_context( $post_id );
+		return ! is_wp_error( $archive ) && $archive['available'];
+	}
+	if ( ! is_numeric( $post_id ) ) {
+		return false;
+	}
+
+	if ( null === $post ) {
+		$post = get_post( $post_id );
+	}
+
+	if ( ! $post || is_wp_error( $post ) || ! isset( $post->post_type ) ) {
+		return false;
+	}
+
+	$supported_post_types = ai4seo_get_supported_post_types();
+
+	if ( ! in_array( $post->post_type, $supported_post_types, true ) ) {
+		return false;
+	}
+
+	if ( ! in_array( $post->post_status, array( 'publish', 'future', 'private', 'pending' ), true ) ) {
+		return false;
+	}
+
+	return true;
 }
 
 
@@ -1961,10 +2070,17 @@ function ai4seo_get_condensed_post_content_from_database(
 	$first_h1               = ai4seo_extract_first_local_h1( $analysis_content );
 
 	// Preserve the existing transport condenser while deriving language evidence from the local source.
+	$sources_are_identical  = $analysis_content === $post_content;
 	$transport_visible_text = null;
 	$transport_succeeded    = false;
 	ai4seo_condense_raw_post_content( $post_content, 2000, 2250, $transport_visible_text, $transport_succeeded );
-	ai4seo_condense_raw_post_content( $analysis_content, 2000, 2250, $strict_visible_text, $extraction_succeeded );
+
+	if ( $sources_are_identical ) {
+		$strict_visible_text  = $transport_visible_text;
+		$extraction_succeeded = $transport_succeeded;
+	} else {
+		ai4seo_condense_raw_post_content( $analysis_content, 2000, 2250, $strict_visible_text, $extraction_succeeded );
+	}
 	$extraction_succeeded = $extraction_succeeded && $transport_succeeded;
 
 	if ( $debug ) {
@@ -2906,10 +3022,7 @@ function ai4seo_add_post_context(
 
 				if ( '' !== $product_price_raw && null !== $product_price_raw ) {
 					$product_price = ai4seo_deep_sanitize( wc_price( $product_price_raw ) );
-					$product_price = wp_strip_all_tags( $product_price );
-					$product_price = html_entity_decode( $product_price, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
-					$product_price = str_replace( ' ', ' ', $product_price );
-					$product_price = trim( $product_price );
+					$product_price = ai4seo_normalize_metadata_price_text( $product_price );
 				}
 
 				$product_price_instruction_added = false;
@@ -3059,6 +3172,11 @@ function ai4seo_is_post_edit_screen(): bool {
  * @return void
  */
 function ai4seo_mark_post_to_be_analyzed( int $post_id, ?WP_Post $post = null, bool $update = false ) { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- Preserve the save_post callback contract.
+	$storage = ai4seo_read_post_state_storage_status();
+	if ( $storage && 'legacy' !== $storage['phase'] ) {
+		ai4seo_mutate_analysis_reconciliation( array( $post_id ), true );
+		return;
+	}
 	// check if the post is a revision.
 	if ( wp_is_post_revision( $post_id ) ) {
 		return;
@@ -3146,7 +3264,10 @@ function ai4seo_analyze_post( int $post_id ): bool {
  * @return bool True when authoritative storage was checked and any claim was committed.
  */
 function ai4seo_claim_next_post_to_be_analyzed( ?int &$claimed_post_id = null ): bool {
-	$claimed_post_id       = null;
+	$claimed_post_id = null;
+	if ( ai4seo_uses_post_state_tables() || ai4seo_is_post_state_storage_paused() ) {
+		return false;
+	}
 	$critical_section_name = ai4seo_get_post_id_option_transition_semaphore_name();
 	$operation_succeeded   = false;
 	$release_succeeded     = false;
@@ -3200,6 +3321,9 @@ function ai4seo_claim_next_post_to_be_analyzed( ?int &$claimed_post_id = null ):
  * @return bool True when queue membership was verified.
  */
 function ai4seo_restore_post_analysis_claim( int $post_id ): bool {
+	if ( ai4seo_uses_post_state_tables() ) {
+		return ai4seo_mutate_analysis_reconciliation( array( $post_id ), true );
+	}
 	if ( $post_id <= 0 ) {
 		return false;
 	}
@@ -3228,6 +3352,14 @@ function ai4seo_schedule_post_analysis_reconciliation(): bool {
  * @return void
  */
 function ai4seo_handle_posts_to_be_analyzed() {
+	if ( ai4seo_uses_post_state_tables() ) {
+		// Cron reconciles durable tokens under its analysis lock.
+		ai4seo_schedule_generation_status_summary_rebuild( false );
+		return;
+	}
+	if ( ai4seo_is_post_state_storage_paused() ) {
+		return;
+	}
 	// Queue analysis runs only for users inside the configured content-role boundary.
 	if ( ! ai4seo_can_use_plugin_content() ) {
 		return;

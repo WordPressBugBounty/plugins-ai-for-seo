@@ -10,6 +10,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+$ai4seo_metadata_field_descriptors = ai4seo_get_generation_field_descriptors( 'metadata' );
+
 if ( ! ai4seo_can_use_plugin_content() ) {
 	return;
 }
@@ -168,7 +170,7 @@ $ai4seo_should_defer_status_filters                    = false;
 // Optimized SQL has no per-user capability clause, so ownership-restricted users keep the exact WP_Query path.
 $ai4seo_content_type_list_result = array( 'is_optimized' => false );
 
-if ( ai4seo_can_edit_others_posts_for_post_types( array( $ai4seo_post_type ) ) ) {
+if ( ai4seo_uses_post_state_tables() || ai4seo_can_edit_others_posts_for_post_types( array( $ai4seo_post_type ) ) ) {
 	$ai4seo_content_type_list_result = ai4seo_resolve_optimized_post_content_type_list(
 		array(
 			'post_type'                                  => $ai4seo_post_type,
@@ -443,7 +445,7 @@ $ai4seo_retry_all_failed_metadata_generations_container_class  = $ai4seo_should_
 $ai4seo_active_meta_tags       = ai4seo_get_active_meta_tags();
 $ai4seo_active_meta_tags_names = array();
 
-foreach ( AI4SEO_METADATA_DETAILS as $ai4seo_field_identifier => $ai4seo_field_details ) {
+foreach ( $ai4seo_metadata_field_descriptors as $ai4seo_field_identifier => $ai4seo_field_details ) {
 	if ( in_array( $ai4seo_field_identifier, $ai4seo_active_meta_tags, true ) && isset( $ai4seo_field_details['name'] ) ) {
 		$ai4seo_active_meta_tags_names[ $ai4seo_field_identifier ] = $ai4seo_field_details['name'];
 	}

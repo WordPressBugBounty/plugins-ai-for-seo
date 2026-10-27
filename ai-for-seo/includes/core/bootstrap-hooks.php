@@ -37,6 +37,20 @@ add_action( AI4SEO_TAXONOMY_PROXY_SYNC_CRON_HOOK, 'ai4seo_taxonomy_proxy_sync_cr
 add_action( AI4SEO_TAXONOMY_PROXY_CONTINUATION_CRON_HOOK, 'ai4seo_taxonomy_proxy_sync_cron_job' );
 register_deactivation_hook( AI4SEO_PLUGIN_FILE, 'ai4seo_unschedule_taxonomy_proxy_sync' );
 
+// Preserve post edits during storage migration in REST, CLI, cron and frontend requests too.
+add_action( 'save_post', 'ai4seo_capture_post_state_post_change', 99, 1 );
+add_action( 'pre_post_update', 'ai4seo_capture_title_order_before_change', 1, 1 );
+add_action( 'before_delete_post', 'ai4seo_capture_title_order_before_change', 1, 1 );
+add_action( AI4SEO_TITLE_ORDER_CRON_HOOK, 'ai4seo_title_order_cron_job' );
+add_action( 'added_post_meta', 'ai4seo_capture_post_state_metadata_change', 99, 4 );
+add_action( 'updated_post_meta', 'ai4seo_capture_post_state_metadata_change', 99, 4 );
+add_action( 'deleted_post_meta', 'ai4seo_capture_post_state_metadata_change', 99, 4 );
+add_action( 'deleted_post', 'ai4seo_capture_post_state_post_change', 99, 1 );
+
+// Importers can change coverage exclusions without saving the post itself.
+add_action( 'set_object_terms', 'ai4seo_capture_post_state_post_change', 99, 1 );
+add_action( 'deleted_term_relationships', 'ai4seo_capture_post_state_post_change', 99, 1 );
+
 // Scope the known Fix Alt Text 1.9.1 cache leak for saves in admin, REST, cron and frontend requests.
 add_action( 'save_post', 'ai4seo_prepare_fix_alt_text_cache_scope', 998, 0 );
 add_action( 'attachment_updated', 'ai4seo_prepare_fix_alt_text_cache_scope', 998, 0 );

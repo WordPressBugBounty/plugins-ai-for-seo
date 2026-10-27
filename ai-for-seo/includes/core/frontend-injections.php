@@ -76,6 +76,8 @@ function ai4seo_init_frontend_injections() {
  * @return array The supported metadata tags grouped by metadata identifier.
  */
 function ai4seo_get_meta_tags_from_html( string $head_html ): array {
+	$metadata_field_descriptors = ai4seo_get_generation_field_descriptors( 'metadata' );
+
 	// Prevent nested output-buffer parsing from recursively analyzing the same document head.
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 764731280, 'Prevented loop', true );
@@ -105,7 +107,7 @@ function ai4seo_get_meta_tags_from_html( string $head_html ): array {
 			}
 		}
 		// Match actual tags through the output registry, independent of attribute order or quoting.
-		foreach ( AI4SEO_METADATA_DETAILS as $identifier => $details ) {
+		foreach ( $metadata_field_descriptors as $identifier => $details ) {
 			$type = $details['output-tag-type'] ?? '';
 			if ( 'title' === $type && 'title' === $token['tag']
 				&& preg_match( '/^<title\b[^>]*>(.*)<\/title\s*>$/is', $token['raw-html'], $title ) ) {
@@ -251,6 +253,8 @@ function ai4seo_remove_header_line_break_placeholders( string $string ): string 
  * @return string Modified HTML response buffer.
  */
 function ai4seo_inject_our_meta_tags_into_the_html_head( string $full_html_buffer ): string {
+	$metadata_field_descriptors = ai4seo_get_generation_field_descriptors( 'metadata' );
+
 	if ( ! ai4seo_singleton( __FUNCTION__ ) ) {
 		return $full_html_buffer;
 	}
@@ -329,7 +333,7 @@ function ai4seo_inject_our_meta_tags_into_the_html_head( string $full_html_buffe
 	$current_post_title_for_placeholders    = $metadata_placeholder_replacements['TITLE'] ?? '';
 	$current_product_price_for_placeholders = $metadata_placeholder_replacements['PRODUCT_PRICE'] ?? '';
 
-	foreach ( AI4SEO_METADATA_DETAILS as $this_metadata_identifier => $this_metadata_field_details ) {
+	foreach ( $metadata_field_descriptors as $this_metadata_identifier => $this_metadata_field_details ) {
 		if ( ! in_array( $this_metadata_identifier, $active_meta_tags, true )
 			|| in_array( $this_metadata_identifier, $output_state['unknown'], true ) ) {
 			continue;
@@ -352,6 +356,18 @@ function ai4seo_inject_our_meta_tags_into_the_html_head( string $full_html_buffe
 			if ( $this_our_metadata ) {
 				$this_our_metadata                         = ai4seo_resolve_third_party_seo_metadata_variables( $this_our_metadata, $post_id, $this_metadata_identifier );
 				$our_metadata[ $this_metadata_identifier ] = $this_our_metadata;
+			}
+		}
+
+		// Providers can inherit our price template into an otherwise empty social field.
+		// Reuse the existing renderer only for an exact known source in replace mode.
+		if ( ! $is_taxonomy && 'product' === $current_post_type && 'replace' === $meta_tag_output_mode && empty( $this_our_metadata ) ) {
+			foreach ( $this_found_third_party_meta_tags as $inherited_tag ) {
+				$inherited_value = html_entity_decode( $inherited_tag['content'], ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+				if ( false !== strpos( $inherited_value, '{WC_PRICE=' ) && in_array( $inherited_value, $our_metadata, true ) ) {
+					$this_our_metadata = $inherited_value;
+					break;
+				}
 			}
 		}
 
@@ -421,7 +437,7 @@ function ai4seo_inject_our_meta_tags_into_the_html_head( string $full_html_buffe
 		// Build metadata tags from the selected values while preserving the registry's output shapes.
 		foreach ( $add_this_metadata as $this_metadata_identifier => $this_metadata_content ) {
 			// Read field details and affixes after output-mode selection has accepted the resolved metadata value.
-			$this_metadata_field_details = AI4SEO_METADATA_DETAILS[ $this_metadata_identifier ] ?? array();
+			$this_metadata_field_details = $metadata_field_descriptors[ $this_metadata_identifier ] ?? array();
 			$this_metadata_prefix_raw    = $ai4seo_metadata_prefixes[ $this_metadata_identifier ] ?? '';
 			$this_metadata_suffix_raw    = $ai4seo_metadata_suffixes[ $this_metadata_identifier ] ?? '';
 
@@ -468,9 +484,7 @@ function ai4seo_inject_our_meta_tags_into_the_html_head( string $full_html_buffe
 				$this_metadata_content = preg_replace_callback(
 					'/\{WC_PRICE=([^}]+)}/',
 					function ( $matches ) use ( $current_product_price_for_placeholders ) {
-						$fallback_price = html_entity_decode( wp_strip_all_tags( $matches[1] ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
-						$fallback_price = str_replace( ' ', ' ', $fallback_price );
-						$fallback_price = trim( $fallback_price );
+						$fallback_price = ai4seo_normalize_metadata_price_text( $matches[1] );
 
 						if ( '' !== $current_product_price_for_placeholders ) {
 							return $current_product_price_for_placeholders;

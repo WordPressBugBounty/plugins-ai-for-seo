@@ -68,6 +68,29 @@ function ai4seo_inspect_plugin_update_origin(): array {
 }
 
 /**
+ * Validate the same persisted step contract before reading and publishing it.
+ *
+ * @param mixed $step Worker result or stored step.
+ * @return bool Whether every required field can be read without normalization.
+ */
+function ai4seo_is_valid_plugin_update_step( $step ): bool {
+	if ( ! is_array( $step )
+		|| ! in_array( $step['status'] ?? null, array( 'completed', 'pending', 'deferred', 'blocked', 'failed' ), true )
+		|| ! is_string( $step['reason'] ?? null ) || ! is_int( $step['next_retry'] ?? null )
+		|| ! is_int( $step['cursor'] ?? null ) || $step['cursor'] < 0
+		|| ! is_int( $step['issues'] ?? null ) || $step['issues'] < 0
+		|| ! is_array( $step['examples'] ?? null ) || count( $step['examples'] ) > 20 ) {
+		return false;
+	}
+	foreach ( $step['examples'] as $id ) {
+		if ( ! is_int( $id ) || $id < 0 ) {
+			return false;
+		}
+	}
+	return true;
+}
+
+/**
  * Read the additive progress format; never replace an unreadable or future format.
  *
  * @param array|null $snapshot Exact raw snapshot for the following checked publication.
@@ -90,18 +113,8 @@ function ai4seo_read_plugin_update_progress( ?array &$snapshot = null ): ?array 
 		return null;
 	}
 	foreach ( $value['steps'] as $key => $step ) {
-		if ( ! is_string( $key ) || ! is_array( $step )
-			|| ! in_array( $step['status'] ?? null, array( 'completed', 'pending', 'blocked', 'failed' ), true )
-			|| ! is_string( $step['reason'] ?? null ) || ! is_int( $step['next_retry'] ?? null )
-			|| ! is_int( $step['cursor'] ?? null ) || $step['cursor'] < 0
-			|| ! is_int( $step['issues'] ?? null ) || $step['issues'] < 0
-			|| ! is_array( $step['examples'] ?? null ) || count( $step['examples'] ) > 20 ) {
+		if ( ! is_string( $key ) || ! ai4seo_is_valid_plugin_update_step( $step ) ) {
 			return null;
-		}
-		foreach ( $step['examples'] as $id ) {
-			if ( ! is_int( $id ) || $id < 0 ) {
-				return null;
-			}
 		}
 	}
 	return $value;
@@ -170,7 +183,7 @@ function ai4seo_run_plugin_update_step( string $name, callable $callback, bool $
 	if ( is_bool( $result ) ) {
 		$result = ai4seo_plugin_update_step_result( $result ? 'completed' : 'failed', $result ? '' : 'step_failed' );
 	}
-	if ( ! is_array( $result ) || ! isset( $result['status'] ) || ! ai4seo_is_database_advisory_lock_owned_by_current_connection( $lock_name ) ) {
+	if ( ! ai4seo_is_valid_plugin_update_step( $result ) || ! ai4seo_is_database_advisory_lock_owned_by_current_connection( $lock_name ) ) {
 		return false;
 	}
 	$progress['steps'][ $name ] = $result;
@@ -475,6 +488,19 @@ function ai4seo_publish_plugin_update_markers( array $changes ): bool {
 }
 
 /**
+ * Recognize routine waits without hiding failed checkpoints or unknown update results.
+ *
+ * @param string $name Update step name.
+ * @param array  $step Persisted step result.
+ * @return bool Whether this step needs only an informational presentation.
+ */
+function ai4seo_is_expected_plugin_update_step( string $name, array $step ): bool {
+	return 'post_state_storage_v1' === $name && ai4seo_is_valid_plugin_update_step( $step )
+		&& 'deferred' === $step['status'] && 0 === $step['issues'] && ! $step['examples']
+		&& in_array( $step['reason'], array( 'migration_in_progress', 'active_generations', 'analysis_busy' ), true );
+}
+
+/**
  * Read-only diagnostics shared by normal plugin pages and the API-independent recovery screen.
  *
  * @return string Escaped HTML with no refresh loop or automatic mutation.
@@ -496,8 +522,14 @@ function ai4seo_get_plugin_update_notice_html(): string {
 	if ( ! $unresolved ) {
 		return '';
 	}
-	$html    = '<div class="notice notice-warning ai4seo-update-status"><p><strong>' . esc_html__( 'Some update steps are still pending', 'ai-for-seo' ) . '</strong></p><p>'
-		. esc_html__( 'Available functions can still be used. Affected operations remain restricted until their data can be verified. Unreadable original data has been retained.', 'ai-for-seo' ) . '</p><ul>';
+	$groups = array(
+		'info'    => array(),
+		'warning' => array(),
+	);
+	foreach ( $unresolved as $name => $step ) {
+		$groups[ ai4seo_is_expected_plugin_update_step( $name, $step ) ? 'info' : 'warning' ][ $name ] = $step;
+	}
+	$html    = '';
 	$labels  = array(
 		'history'               => __( 'Installation history', 'ai-for-seo' ),
 		'legacy_cache'          => __( 'Previous generation data', 'ai-for-seo' ),
@@ -506,6 +538,7 @@ function ai4seo_get_plugin_update_notice_html(): string {
 		'account_maintenance'   => __( 'Account synchronization', 'ai-for-seo' ),
 		'account_compatibility' => __( 'Previous account configuration', 'ai-for-seo' ),
 		'cache_invalidation'    => __( 'Cached statistics', 'ai-for-seo' ),
+		'post_state_storage_v1' => __( 'Post status storage', 'ai-for-seo' ),
 	);
 	$reasons = array(
 		'history_unknown'           => __( 'The previous installation version could not be verified.', 'ai-for-seo' ),
@@ -513,18 +546,36 @@ function ai4seo_get_plugin_update_notice_html(): string {
 		'settings_not_committed'    => __( 'Some compatibility settings could not be safely applied.', 'ai-for-seo' ),
 		'heavy_operations_disabled' => __( 'Intensive database operations are disabled in your settings.', 'ai-for-seo' ),
 		'legacy_data_retained'      => __( 'Original data is retained while its migration is incomplete.', 'ai-for-seo' ),
+		'migration_in_progress'     => __( 'Post status storage is being migrated in batches. Saved progress will be resumed.', 'ai-for-seo' ),
+		'active_generations'        => __( 'Post status migration is waiting for running generations to finish.', 'ai-for-seo' ),
+		'analysis_busy'             => __( 'Another background task is finishing. Update preparation will continue automatically.', 'ai-for-seo' ),
 	);
-	foreach ( $unresolved as $name => $step ) {
-		$label  = $labels[ $name ] ?? __( 'Compatibility settings', 'ai-for-seo' );
-		$reason = $reasons[ $step['reason'] ] ?? __( 'This step could not be completed. It will be checked again.', 'ai-for-seo' );
-		$html  .= '<li><strong>' . esc_html( $label ) . ':</strong> ' . esc_html( $reason );
-		if ( $step['issues'] > 0 ) {
-			/* translators: %d: Number of original records requiring attention. */
-			$html .= ' ' . esc_html( sprintf( __( 'Affected records: %d.', 'ai-for-seo' ), $step['issues'] ) );
+	foreach ( $groups as $type => $steps ) {
+		if ( ! $steps ) {
+			continue;
 		}
-		$html .= '<details><summary>' . esc_html__( 'Diagnostic details', 'ai-for-seo' ) . '</summary><code>' . esc_html( $name . ': ' . $step['reason'] . ( $step['examples'] ? ' (IDs: ' . implode( ', ', $step['examples'] ) . ')' : '' ) ) . '</code></details></li>';
+		$is_expected = 'info' === $type;
+		$title       = $is_expected ? __( 'Update in progress', 'ai-for-seo' ) : __( 'Some update steps are still pending', 'ai-for-seo' );
+		$intro       = $is_expected
+			? __( 'SOOZ is preparing your existing SEO status data. Analysis will resume after preparation is complete. Your saved progress is retained.', 'ai-for-seo' )
+			: __( 'Available functions can still be used. Affected operations remain restricted until their data can be verified. Unreadable original data has been retained.', 'ai-for-seo' );
+		$html       .= '<div class="notice notice-' . esc_attr( $type ) . ' ai4seo-update-status" role="status"><p><strong>' . esc_html( $title ) . '</strong></p><p>' . esc_html( $intro ) . '</p><ul>';
+		foreach ( $steps as $name => $step ) {
+			$label  = $labels[ $name ] ?? __( 'Compatibility settings', 'ai-for-seo' );
+			$reason = $reasons[ $step['reason'] ] ?? __( 'This step could not be completed. It will be checked again.', 'ai-for-seo' );
+			$html  .= '<li><strong>' . esc_html( $label ) . ':</strong> ' . esc_html( $reason );
+			if ( $step['issues'] > 0 ) {
+				/* translators: %d: Number of original records requiring attention. */
+				$html .= ' ' . esc_html( sprintf( __( 'Affected records: %d.', 'ai-for-seo' ), $step['issues'] ) );
+			}
+			$html .= '<details><summary>' . esc_html__( 'Diagnostic details', 'ai-for-seo' ) . '</summary><code>' . esc_html( $name . ': ' . $step['reason'] . ( $step['examples'] ? ' (IDs: ' . implode( ', ', $step['examples'] ) . ')' : '' ) ) . '</code></details></li>';
+		}
+		$guidance = $is_expected
+			? __( 'This is a normal update step. No action is needed.', 'ai-for-seo' )
+			: __( 'After correcting the data, use “Retry pending update steps” in Help. Automatic retries are limited.', 'ai-for-seo' );
+		$html    .= '</ul><p>' . esc_html( $guidance ) . '</p></div>';
 	}
-	return $html . '</ul><p>' . esc_html__( 'After correcting the data, use “Retry pending update steps” in Help. Automatic retries are limited.', 'ai-for-seo' ) . '</p></div>';
+	return $html;
 }
 
 /** Render local diagnostics when the remote-service component cannot initialize. */

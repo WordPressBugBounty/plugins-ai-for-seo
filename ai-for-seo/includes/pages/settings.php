@@ -10,6 +10,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+$ai4seo_metadata_field_descriptors   = ai4seo_get_generation_field_descriptors( 'metadata' );
+$ai4seo_attachment_field_descriptors = ai4seo_get_generation_field_descriptors( 'attachment_attributes' );
+
 // Defense in depth protects direct includes independently from menu registration and route dispatch.
 if ( ! ai4seo_can_administer_plugin() ) {
 	wp_die(
@@ -319,7 +322,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 				echo "<div class='ai4seo-medium-gap'></div>";
 
 				// Loop through all available user-roles and display checkboxes for each of them.
-		foreach ( AI4SEO_METADATA_DETAILS as $ai4seo_this_metadata_identifier => $ai4seo_this_metadata_details ) {
+		foreach ( $ai4seo_metadata_field_descriptors as $ai4seo_this_metadata_identifier => $ai4seo_this_metadata_details ) {
 			$ai4seo_this_translated_checkbox_label = $ai4seo_this_metadata_details['name'] ?? $ai4seo_this_metadata_identifier;
 			$ai4seo_this_checkbox_id               = "{$ai4seo_this_setting_input_name}-{$ai4seo_this_metadata_identifier}";
 
@@ -908,14 +911,14 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
 			echo "<div class='ai4seo-form-item-input-wrapper'>";
 		foreach ( AI4SEO_METADATA_FALLBACK_MAPPING as $ai4seo_this_metadata_identifier => $ai4seo_this_fallback_setting_name ) {
-			if ( ! isset( AI4SEO_METADATA_DETAILS[ $ai4seo_this_metadata_identifier ] ) ) {
+			if ( ! isset( $ai4seo_metadata_field_descriptors[ $ai4seo_this_metadata_identifier ] ) ) {
 				continue;
 			}
 
 			$ai4seo_this_setting_input_name  = ai4seo_get_prefixed_input_name( $ai4seo_this_fallback_setting_name );
 			$ai4seo_this_setting_input_value = ai4seo_get_setting( $ai4seo_this_fallback_setting_name );
 			$ai4seo_this_allowed_options     = ai4seo_get_metadata_fallback_allowed_values( $ai4seo_this_metadata_identifier );
-			$ai4seo_this_label               = AI4SEO_METADATA_DETAILS[ $ai4seo_this_metadata_identifier ]['name'] ?? $ai4seo_this_metadata_identifier;
+			$ai4seo_this_label               = $ai4seo_metadata_field_descriptors[ $ai4seo_this_metadata_identifier ]['name'] ?? $ai4seo_this_metadata_identifier;
 
 			echo "<div class='ai4seo-prefix-suffix-setting-holder'>";
 				echo "<label class='ai4seo-prefix-suffix-setting-headline' for='" . esc_attr( $ai4seo_this_setting_input_name ) . "'>";
@@ -974,7 +977,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
 				echo "<div class='ai4seo-form-item-input-wrapper'>";
 				// Loop through all available metadata-details and display input-fields for each of them.
-				foreach ( AI4SEO_METADATA_DETAILS as $ai4seo_this_metadata_identifier => $ai4seo_this_metadata_details ) {
+				foreach ( $ai4seo_metadata_field_descriptors as $ai4seo_this_metadata_identifier => $ai4seo_this_metadata_details ) {
 					// Prefixes and suffixes apply only to metadata fields rendered in the document head.
 					if ( in_array( $ai4seo_this_metadata_identifier, array( 'focus-keyphrase', 'keywords' ), true ) ) {
 						continue;
@@ -1154,7 +1157,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 					echo "<div class='ai4seo-medium-gap'></div>";
 
 					// Loop through all available user-roles and display checkboxes for each of them.
-				foreach ( AI4SEO_METADATA_DETAILS as $ai4seo_this_metadata_identifier => $ai4seo_this_metadata_details ) {
+				foreach ( $ai4seo_metadata_field_descriptors as $ai4seo_this_metadata_identifier => $ai4seo_this_metadata_details ) {
 					$ai4seo_this_translated_checkbox_label = $ai4seo_this_metadata_details['name'] ?? $ai4seo_this_metadata_identifier;
 					$ai4seo_this_checkbox_id               = "{$ai4seo_this_setting_input_name}-{$ai4seo_this_metadata_identifier}";
 
@@ -1243,7 +1246,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 				echo "<div class='ai4seo-medium-gap'></div>";
 
 				// Loop through all available user-roles and display checkboxes for each of them.
-				foreach ( AI4SEO_METADATA_DETAILS as $ai4seo_this_metadata_identifier => $ai4seo_this_metadata_details ) {
+				foreach ( $ai4seo_metadata_field_descriptors as $ai4seo_this_metadata_identifier => $ai4seo_this_metadata_details ) {
 					$ai4seo_this_translated_checkbox_label = $ai4seo_this_metadata_details['name'] ?? $ai4seo_this_metadata_identifier;
 					$ai4seo_this_checkbox_id               = "{$ai4seo_this_setting_input_name}-{$ai4seo_this_metadata_identifier}";
 
@@ -1409,7 +1412,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 				}
 				echo "<p class='ai4seo-form-item-description'>" . esc_html__( 'Applies to manual generation, bulk actions and SEO Autopilot. Selecting none stops all media generation. Existing attributes remain editable. SVG supports already uploaded, static files up to 1 MiB.', 'ai-for-seo' ) . '</p>';
 				if ( ! ai4seo_robhub_api()->supports_svg_static_v1() ) {
-					echo "<p class='ai4seo-form-item-description'>" . esc_html__( 'SVG generation is currently unavailable because the conversion service is not ready. Your selection will be retained.', 'ai-for-seo' ) . '</p>';
+					echo "<p class='ai4seo-form-item-description'>" . esc_html( ai4seo_get_svg_unavailability_message() ) . '</p>';
 				}
 				echo '</div></div>';
 
@@ -1438,7 +1441,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 				echo "<div class='ai4seo-medium-gap'></div>";
 
 				// Loop through all available user-roles and display checkboxes for each of them.
-				foreach ( AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS as $ai4seo_this_media_attribute_identifier => $ai4seo_this_media_attribute_details ) {
+				foreach ( $ai4seo_attachment_field_descriptors as $ai4seo_this_media_attribute_identifier => $ai4seo_this_media_attribute_details ) {
 					$ai4seo_this_translated_checkbox_label = $ai4seo_this_media_attribute_details['name'] ?? $ai4seo_this_media_attribute_identifier;
 					$ai4seo_this_checkbox_id               = "{$ai4seo_this_setting_input_name}-{$ai4seo_this_media_attribute_identifier}";
 
@@ -1747,7 +1750,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 
 				echo "<div class='ai4seo-form-item-input-wrapper'>";
 				// Loop through all available attachment-attributes-details and display input-fields for each of them.
-				foreach ( AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS as $ai4seo_this_attachment_attributes_identifier => $ai4seo_this_attachment_attributes_details ) {
+				foreach ( $ai4seo_attachment_field_descriptors as $ai4seo_this_attachment_attributes_identifier => $ai4seo_this_attachment_attributes_details ) {
 					$ai4seo_this_translated_setting_label                         = $ai4seo_this_attachment_attributes_details['name'] ?? $ai4seo_this_attachment_attributes_identifier;
 					$ai4seo_this_attachment_attributes_prefix_setting_input_name  = "{$ai4seo_attachment_attributes_prefix_setting_input_name}[{$ai4seo_this_attachment_attributes_identifier}]";
 					$ai4seo_this_attachment_attributes_suffix_setting_input_name  = "{$ai4seo_attachment_attributes_suffix_setting_input_name}[{$ai4seo_this_attachment_attributes_identifier}]";
@@ -1786,7 +1789,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 				$ai4seo_this_setting_name        = AI4SEO_SETTING_ENABLE_ENHANCED_CELEBRITY_RECOGNITION;
 				$ai4seo_this_setting_input_name  = ai4seo_get_prefixed_input_name( $ai4seo_this_setting_name );
 				$ai4seo_this_setting_input_value = (bool) ai4seo_get_setting( $ai4seo_this_setting_name );
-				$ai4seo_this_setting_description = esc_html__( 'Using advanced face detection tools we are able to recognize 99% of all publicly known people in images.', 'ai-for-seo' );
+				$ai4seo_this_setting_description = esc_html__( 'Helps identify public figures in images using enhanced recognition. Recognition is not guaranteed; review generated names before publishing.', 'ai-for-seo' );
 				$ai4seo_premium_plan_html        = '';
 				$ai4seo_upgrade_to_premium_html  = '';
 
@@ -1858,7 +1861,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 				echo "<div class='ai4seo-medium-gap'></div>";
 
 				// Loop through all available user-roles and display checkboxes for each of them.
-				foreach ( AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS as $ai4seo_attachment_attribute_name => $ai4seo_attachment_attribute_details ) {
+				foreach ( $ai4seo_attachment_field_descriptors as $ai4seo_attachment_attribute_name => $ai4seo_attachment_attribute_details ) {
 					$ai4seo_this_translated_checkbox_label = $ai4seo_attachment_attribute_details['name'] ?? $ai4seo_attachment_attribute_name;
 					$ai4seo_this_checkbox_id               = "{$ai4seo_this_setting_input_name}-{$ai4seo_attachment_attribute_name}";
 

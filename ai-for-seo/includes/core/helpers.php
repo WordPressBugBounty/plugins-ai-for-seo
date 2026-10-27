@@ -75,6 +75,26 @@ function ai4seo_format_number_i18n( $number, int $decimals = 0 ): string {
 
 
 /**
+ * Abbreviate large counts without overstating them, retaining locale separators.
+ *
+ * @param int $count Non-negative item count.
+ * @return string Exact count below 10,000, otherwise a floored count in thousands.
+ */
+function ai4seo_format_compact_count_i18n( int $count ): string {
+	if ( $count < 10000 ) {
+		return ai4seo_format_number_i18n( $count );
+	}
+
+	// Truncate before formatting so locale-aware rounding cannot increase the count.
+	if ( $count < 100000 ) {
+		return ai4seo_format_number_i18n( intdiv( $count, 100 ) / 10, 1 ) . 'k';
+	}
+
+	return ai4seo_format_number_i18n( intdiv( $count, 1000 ) ) . 'k';
+}
+
+
+/**
  * Return whether a coverage value represents exactly one hundred percent.
  *
  * @param mixed $coverage_percentage Coverage value from calculations or persisted state.

@@ -11,6 +11,7 @@ const ai4seo_official_contact_url = 'https://sooz.ai/contact';
 let ai4seo_mousedown_origin = null;
 const AI4SEO_GLOBAL_NONCE_IDENTIFIER = 'ai4seo_ajax_nonce';
 let ai4seo_unsaved_changes_navigation_initialized = false;
+let ai4seo_content_list_search_focus_was_checked = false;
 
 // Keep clean form snapshots and their coalesced refresh state under stable jQuery data keys.
 const ai4seo_unsaved_changes_data_attribute = 'ai4seo-unsaved-changes';
@@ -29,6 +30,7 @@ let ai4seo_tooltip_document_close_handler_initialized = false;
 // Keep shared global handlers stable while element-level initialization stays root-scoped.
 let ai4seo_sticky_modal_footer_resize_handler = null;
 let ai4seo_pending_third_party_sync_warning_was_consumed = false;
+let ai4seo_autopilot_item_dismissal_pending = false;
 
 // Keep the chosen editor mode for this page session while allowing a reload to restore the saved default.
 const ai4seo_editor_runtime_view_modes = {};
@@ -7351,12 +7353,18 @@ function ai4seo_resolve_metadata_preview_value(workspace, metadata_identifier) {
 		return resolve_raw_value( fallback_identifier, visited_identifiers.concat( identifier ) );
 	}
 
-	const raw_value = resolve_raw_value( metadata_identifier );
+	let raw_value = resolve_raw_value( metadata_identifier );
 
 	// Empty effective fields remain empty so Important states are not obscured by affixes alone.
 	if (!raw_value) {
 		return '';
 	}
+
+	// Match frontend price rendering while retaining the editable placeholder in the form.
+	raw_value = raw_value.replace( /\{WC_PRICE=([^}]+)}/g, function (match, fallback_price) {
+		const live_price = String( context.productPrice ?? '' ).trim();
+		return live_price || ai4seo_decode_html_entities( fallback_price ).replace( /\u00a0/g, ' ' ).trim();
+	} );
 
 	// Prefixes and suffixes mirror frontend rendering without modifying the stored editor value.
 	const prefix = context.prefixes ? String( context.prefixes[ metadata_identifier ] || '' ) : '';
@@ -9619,7 +9627,7 @@ function ai4seo_init_select_all_checkboxes(scope = null) {
 
 		// if no target-checkbox-elements are found, then skip this element.
 		if (!ai4seo_exists_$( $all_target_checkboxes )) {
-			$this_select_all_checkbox.prop( 'checked', false ).prop( 'disabled', true );
+			$this_select_all_checkbox.prop( 'checked', false ).prop( 'indeterminate', false ).prop( 'disabled', true );
 			// Disabled-only target lists are valid during locked states, so remove stale handlers and keep the select-all control inert.
 			if (ai4seo_exists_$( $all_target_checkboxes_including_disabled )) {
 				$this_select_all_checkbox.off( 'change.ai4seo-checkboxes' );
@@ -9687,8 +9695,9 @@ function ai4seo_refresh_select_all_checkbox_state($select_all_checkbox, $all_tar
 	const num_checked_target_checkboxes = parseInt( $all_target_checkboxes.filter( ':checked' ).length );
 	const num_all_target_checkboxes = parseInt( $all_target_checkboxes.length );
 
-	// if there are more checked checkboxes, than unchecked checkboxes, then the "select all checkbox" is checked as well.
+	// Distinguish complete, partial and empty selections without changing the selected children.
 	$select_all_checkbox.prop( 'checked', num_all_target_checkboxes === num_checked_target_checkboxes );
+	$select_all_checkbox.prop( 'indeterminate', num_checked_target_checkboxes > 0 && num_checked_target_checkboxes < num_all_target_checkboxes );
 }
 
 // =========================================================================================== \\
@@ -10129,6 +10138,37 @@ function ai4seo_init_slider_inputs(scope = null) {
  */
 function ai4seo_init_content_list_search_forms() {
 	const $content_list_search_forms = ai4seo_normalize_$( '.ai4seo-content-list-search-form' );
+	const focus_storage_key = 'ai4seo-content-list-search-focus';
+	const context_defaults = {
+		page: '', ai4seo_subpage: '', ai4seo_post_type: '', ai4seo_taxonomy: '',
+		ai4seo_page: '1', ai4seo_filter_status: 'all', ai4seo_filter_language: '', orderby: 'id', order: 'desc'
+	};
+
+	// Consume the intent once, even when navigation reaches another page or an unavailable list.
+	if (!ai4seo_content_list_search_focus_was_checked) {
+		ai4seo_content_list_search_focus_was_checked = true;
+		try {
+			const stored_focus = window.sessionStorage.getItem( focus_storage_key );
+			window.sessionStorage.removeItem( focus_storage_key );
+			const pending_focus = stored_focus ? JSON.parse( stored_focus ) : null;
+			const current_url = new URL( window.location.href );
+			const context = JSON.stringify( Object.entries( context_defaults ).map( ([name, fallback]) => current_url.searchParams.get( name ) || fallback ) );
+			const navigation = typeof window.performance.getEntriesByType === 'function'
+				? window.performance.getEntriesByType( 'navigation' )[0] : null;
+			const $search_input = $content_list_search_forms.find( '#ai4seo-content-list-search-input-main' );
+			const age = pending_focus ? Date.now() - pending_focus.created_at : -1;
+
+			// Restore only an explicit search navigation; leave existing user or modal focus alone.
+			if (pending_focus && age >= 0 && age < 30000 && navigation && navigation.type === 'navigate'
+				&& pending_focus.pathname === current_url.pathname && pending_focus.context === context
+				&& current_url.searchParams.has( 'ai4seo_filter_text' ) && $search_input.is( ':visible:enabled' )
+				&& (document.activeElement === document.body || document.activeElement === document.documentElement)) {
+				$search_input.trigger( 'focus' );
+			}
+		} catch (error) {
+			// Search remains usable when browser storage is unavailable or its intent is invalid.
+		}
+	}
 
 	if (!ai4seo_exists_$( $content_list_search_forms )) {
 		return;
@@ -10147,6 +10187,21 @@ function ai4seo_init_content_list_search_forms() {
 
 		if (ai4seo_exists_$( $form.closest( '.ai4seo-related-attachments-modal-content' ) )) {
 			return true;
+		}
+
+		// Record only the destination list controls, never search text or nonce values.
+		try {
+			const target_url = new URL( $form.get( 0 ).action, window.location.href );
+			const parameters = new URLSearchParams( new FormData( $form.get( 0 ) ) );
+			if (target_url.origin === window.location.origin) {
+				window.sessionStorage.setItem( focus_storage_key, JSON.stringify( {
+					pathname: target_url.pathname,
+					context: JSON.stringify( Object.entries( context_defaults ).map( ([name, fallback]) => parameters.get( name ) || fallback ) ),
+					created_at: Date.now()
+				} ) );
+			}
+		} catch (error) {
+			// Storage restrictions must not prevent submitting the existing search form.
 		}
 
 		const $submit_button = $form.find( '.ai4seo-content-list-search-submit' ).first();
@@ -11358,14 +11413,21 @@ function ai4seo_handle_bulk_custom_instructions_action_success(response) {
  */
 function ai4seo_handle_bulk_generation_queue_action_success(response, bulk_generation_queue_action_form = null) {
 	ai4seo_update_bulk_generation_queue_status( response?.queue_count, response?.queue_count_complete );
-	if (response?.statistics_pending === true) {
-		// Keep the success confirmation and the independent statistics notice visible together.
+	const has_svg_unavailability_message = Number( response?.svg_unavailable || 0 ) > 0 && typeof response?.svg_unavailable_message === 'string';
+	if (response?.statistics_pending === true || has_svg_unavailability_message) {
+		// Keep partial results readable until the user explicitly refreshes the list.
 		ai4seo_open_generic_success_notification_modal(
 			jQuery( '<div>' ).append(
-				jQuery( '<p>' ).text( wp.i18n.sprintf( wp.i18n.__( '%d entries changed successfully.', 'ai-for-seo' ), Number( response.changed || 0 ) ) ),
-				jQuery( '<p>' ).addClass( 'ai4seo-bulk-statistics-notice' ).text( wp.i18n.__( 'Statistics are still pending an update. The changes above have been saved.', 'ai-for-seo' ) )
+				jQuery( '<p>' ).text( Number( response.changed || 0 ) > 0
+					? wp.i18n.sprintf( wp.i18n._n( '%d entry changed successfully.', '%d entries changed successfully.', Number( response.changed ), 'ai-for-seo' ), Number( response.changed ) )
+					: wp.i18n.__( 'No entries were changed.', 'ai-for-seo' ) ),
+				response?.statistics_pending === true
+					? jQuery( '<p>' ).addClass( 'ai4seo-bulk-statistics-notice' ).text( wp.i18n.__( 'Statistics are still pending an update. The changes above have been saved.', 'ai-for-seo' ) ) : null,
+				has_svg_unavailability_message
+					? jQuery( '<p>' ).text( response.svg_unavailable_message ) : null
 			).html(),
-			jQuery( '<button type="button" class="ai4seo-button ai4seo-primary-button">' ).text( wp.i18n.__( 'Refresh list', 'ai-for-seo' ) ).attr( 'onclick', 'ai4seo_reload_page();' ).prop( 'outerHTML' )
+			jQuery( '<button type="button" class="ai4seo-button ai4seo-primary-button">' ).text( wp.i18n.__( 'Refresh list', 'ai-for-seo' ) ).attr( 'onclick', 'ai4seo_reload_page();' ).prop( 'outerHTML' ),
+			has_svg_unavailability_message ? { headline: wp.i18n.__( 'Some entries were skipped', 'ai-for-seo' ), close_on_outside_click: false } : {}
 		);
 		return;
 	}
@@ -12188,8 +12250,8 @@ function ai4seo_portal_editor_tooltip($tooltip, $tooltip_holder) {
 		return false;
 	}
 
-	// Coverage details and dashboard heading help also need viewport bounds without card or table clipping.
-	if (!$tooltip_holder.hasClass( 'ai4seo-coverage-tooltip-holder' ) && !ai4seo_exists_$( $tooltip_holder.closest( '.ai4seo-editor-workspace-modal, .ai4seo-license-resend-modal, .ai4seo-dashboard-statistics-intro' ) )) {
+	// Coverage details and dashboard help need viewport bounds outside scaled charts, cards and tables.
+	if (!$tooltip_holder.hasClass( 'ai4seo-coverage-tooltip-holder' ) && !$tooltip_holder.hasClass( 'ai4seo-chart-count-tooltip' ) && !ai4seo_exists_$( $tooltip_holder.closest( '.ai4seo-editor-workspace-modal, .ai4seo-license-resend-modal, .ai4seo-dashboard-statistics-intro' ) )) {
 		return false;
 	}
 
@@ -15428,6 +15490,14 @@ function ai4seo_apply_metadata_to_live_yoast_editor(post_id, yoast_metadata) {
 		all_fields_were_updated = false;
 	} finally {
 		ai4seo_is_applying_metadata_to_live_yoast_editor = false;
+	}
+
+	// Save callbacks run while controls are locked; rebuild their counts after the save releases those locks.
+	const $yoast_roots = ai4seo_normalize_$( ai4seo_yoast_editor_root_selector );
+	if (all_fields_were_updated && ai4seo_exists_$( $yoast_roots )) {
+		ai4seo_schedule_next_animation_frame(
+			() => ai4seo_init_generate_all_buttons( $yoast_roots, 'metadata' )
+		);
 	}
 
 	return all_fields_were_updated;
@@ -22024,6 +22094,54 @@ function ai4seo_dismiss_recent_activity_error(button, post_id, activity_action, 
 	} );
 }
 
+/** Dismiss the displayed item events without hiding a newer dashboard response. */
+function ai4seo_dismiss_autopilot_item_notice(button) {
+	if (!ai4seo_exists_$( button )) {
+		return;
+	}
+	const $button = ai4seo_normalize_$( button );
+	const $notice = $button.closest( '.ai4seo-autopilot-item-notice' );
+	if (!$notice.length || ai4seo_autopilot_item_dismissal_pending || $button.data( 'ai4seo-dismissing' )) {
+		return;
+	}
+	let tokens;
+	try {
+		tokens = JSON.parse( $notice.attr( 'data-ai4seo-item-tokens' ) );
+	} catch (error) {
+		return;
+	}
+	const signature = $notice.attr( 'data-ai4seo-item-signature' );
+	ai4seo_autopilot_item_dismissal_pending = true;
+	$button.data( 'ai4seo-dismissing', true ).prop( 'disabled', true );
+	ai4seo_add_loading_html_to_element( $button );
+	ai4seo_lock_and_disable_lockable_input_fields();
+	// Discard an older refresh that may have captured the notice before this acknowledgement.
+	ai4seo_cancel_dashboard_in_flight_request();
+	return Promise.resolve().then( () => ai4seo_perform_ajax_call( 'ai4seo_dismiss_autopilot_item_notice', {
+		ai4seo_item_tokens: tokens,
+		ai4seo_item_signature: signature,
+	} ) ).then( response => {
+		const acknowledged = response?.dismissed_item_tokens;
+		if (!Array.isArray( acknowledged ) || !tokens.every( token => acknowledged.includes( token ) )) {
+			throw new Error( wp.i18n.__( 'The item notice could not be dismissed. Please try again.', 'ai-for-seo' ) );
+		}
+		jQuery( '.ai4seo-autopilot-item-notice' ).filter( function () {
+			return jQuery( this ).attr( 'data-ai4seo-item-signature' ) === signature;
+		} ).remove();
+		ai4seo_cancel_dashboard_in_flight_request();
+	} ).catch( error => {
+		if (!error?.displayed) {
+			ai4seo_show_error_toast( error?.code || 481809263, error?.message || wp.i18n.__( 'The item notice could not be dismissed. Please try again.', 'ai-for-seo' ) );
+		}
+	} ).finally( () => {
+		ai4seo_remove_loading_html_from_element( $button );
+		ai4seo_unlock_and_enable_lockable_input_fields();
+		$button.removeData( 'ai4seo-dismissing' ).prop( 'disabled', false );
+		ai4seo_autopilot_item_dismissal_pending = false;
+		ai4seo_schedule_dashboard_refresh();
+	} );
+}
+
 // =========================================================================================== \\
 
 /** Initialize field quality notices and retain the form's original settings values. */
@@ -27249,7 +27367,7 @@ function ai4seo_update_dashboard_freshness(failed) {
  */
 function ai4seo_fetch_and_update_dashboard() {
 	// Skip if already refreshing.
-	if (ai4seo_dashboard_refresh_lock || ai4seo_dashboard_statistics_refresh_pending) {
+	if (ai4seo_dashboard_refresh_lock || ai4seo_dashboard_statistics_refresh_pending || ai4seo_autopilot_item_dismissal_pending) {
 		return;
 	}
 
@@ -27577,10 +27695,22 @@ function ai4seo_sync_dashboard_notifications(current_notifications_element, new_
 
 			if (current_notification_element && current_notification_element.outerHTML !== new_notification_element.outerHTML) {
 				const replacement_notification_element = new_notification_element.cloneNode( true );
-				current_notifications_element.replaceChild( replacement_notification_element, current_notification_element );
-				current_notification_element = replacement_notification_element;
-				current_notifications_by_index.set( notification_index, current_notification_element );
-				changes_made = true;
+				// Compare with the reader's disclosure state so unchanged diagnostics retain their DOM and text selection.
+				const current_analysis_details = current_notification_element.querySelector( 'details.ai4seo-analysis-details' );
+				const replacement_analysis_details = replacement_notification_element.querySelector( 'details.ai4seo-analysis-details' );
+				if (current_analysis_details && replacement_analysis_details) {
+					replacement_analysis_details.open = current_analysis_details.open;
+				}
+				if (current_notification_element.outerHTML !== replacement_notification_element.outerHTML) {
+					const restore_analysis_focus = current_analysis_details && current_analysis_details.querySelector( 'summary' ) === document.activeElement;
+					current_notifications_element.replaceChild( replacement_notification_element, current_notification_element );
+					if (restore_analysis_focus && replacement_analysis_details) {
+						replacement_analysis_details.querySelector( 'summary' ).focus( {preventScroll: true} );
+					}
+					current_notification_element = replacement_notification_element;
+					current_notifications_by_index.set( notification_index, current_notification_element );
+					changes_made = true;
+				}
 			}
 
 			if (!current_notification_element) {
@@ -27822,6 +27952,10 @@ function ai4seo_sync_node_attributes(old_element, new_element) {
 	// Remove attributes not in new node.
 	for (let j = old_attributes.length - 1; j >= 0; j--) {
 		const this_old_attributes = old_attributes[j];
+		// The analysis fallback in the statistics card shares the native disclosure state with its reader.
+		if (this_old_attributes.name === 'open' && old_element.matches( 'details.ai4seo-analysis-details' )) {
+			continue;
+		}
 		if (!new_element.hasAttribute( this_old_attributes.name )) {
 			old_element.removeAttribute( this_old_attributes.name );
 			changes_made = true;

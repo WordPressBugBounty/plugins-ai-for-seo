@@ -1193,7 +1193,10 @@ function ai4seo_get_account_readiness( bool $fresh = false ): array {
  */
 function ai4seo_maybe_refresh_account_state(): array {
 	$state = ai4seo_get_account_readiness( true );
-	if ( ( $state['credits_ready'] && $state['plan_ready'] ) || ( ! $state['access_ready'] && ! $state['can_bootstrap'] ) ) {
+	if ( $state['credits_ready'] && $state['plan_ready'] ) {
+		return ai4seo_maybe_refresh_svg_capability() ? ai4seo_get_account_readiness( true ) : $state;
+	}
+	if ( ! $state['access_ready'] && ! $state['can_bootstrap'] ) {
 		return $state;
 	}
 	if ( ! get_transient( 'ai4seo_account_quality_refresh' ) ) {
@@ -1222,6 +1225,37 @@ function ai4seo_can_sync_account_settings( string $setting_name = '', ?array $st
 }
 
 /**
+ * Refresh a temporary SVG outage independently of the normal account interval.
+ *
+ * Runs before admission/worker locks, never from MIME predicates inside those locks.
+ * The transient also bounds failed HTTP attempts which do not advance last_account_sync.
+ *
+ * @return bool Whether a free account refresh was attempted.
+ */
+function ai4seo_maybe_refresh_svg_capability(): bool {
+	$api        = ai4seo_robhub_api();
+	$file_types = ai4seo_get_setting( AI4SEO_SETTING_ENABLED_ATTACHMENT_FILE_TYPES );
+	if ( ! $api->is_account_synced() || $api->supports_svg_static_v1()
+		|| ! is_array( $file_types ) || ! in_array( 'svg', $file_types, true ) ) {
+		return false;
+	}
+	$status = $api->read_environmental_variable( $api::ENVIRONMENTAL_VARIABLE_SVG_STATUS );
+	if ( 'disabled' === ( $status['state'] ?? '' ) ) {
+		return false;
+	}
+	$retry_after = max( 60, min( 3600, (int) ( $status['retry_after'] ?? 60 ) ) );
+	$last_sync   = (int) $api->read_environmental_variable( $api::ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC );
+	if ( time() - $last_sync < $retry_after || get_transient( 'ai4seo_svg_capability_refresh' ) ) {
+		return false;
+	}
+	if ( ! set_transient( 'ai4seo_svg_capability_refresh', true, $retry_after ) ) {
+		return false;
+	}
+	ai4seo_sync_robhub_account( 'svg_capability_retry' );
+	return true;
+}
+
+/**
  * Synchronize account facts on the established polling schedule.
  *
  * @return void
@@ -1235,6 +1269,10 @@ function ai4seo_check_for_robhub_account_sync(): void {
 	$account = ai4seo_get_account_readiness( true );
 	if ( ! $account['credits_ready'] || ! $account['plan_ready'] ) {
 		ai4seo_maybe_refresh_account_state();
+		return;
+	}
+
+	if ( ai4seo_maybe_refresh_svg_capability() ) {
 		return;
 	}
 

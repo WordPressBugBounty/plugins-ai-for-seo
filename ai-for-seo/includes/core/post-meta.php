@@ -1500,25 +1500,3 @@ function ai4seo_get_manual_generation_history_readiness( int $post_id ): string 
 	ai4seo_read_authoritative_generated_data_postmeta_snapshot( $post_id, $read, $reason );
 	return $read ? 'ready' : $reason;
 }
-
-/**
- * Preserve paid output when optional history persistence fails.
- *
- * @param array $values Generated text fields.
- * @param array $results API response.
- * @param bool  $saved Confirmed history persistence.
- * @param int   $generated_at Generation time.
- * @param array $operation_details History writer outcome.
- * @return array Manual editor response.
- */
-function ai4seo_build_manual_generation_response( array $values, array $results, bool $saved, int $generated_at, array $operation_details ): array {
-	return array(
-		'generated_data'      => $values,
-		'generated_at'        => $saved ? $generated_at : 0,
-		'generated_at_output' => $saved ? ai4seo_format_unix_timestamp( $generated_at ) : '',
-		'history_status'      => $saved ? 'saved' : ( 'possibly_committed' === ( $operation_details['commit_state'] ?? '' ) ? 'unconfirmed' : 'not_saved' ),
-		'active_values_saved' => false,
-		'credits_consumed'    => (int) ( $results['credits-consumed'] ?? 0 ),
-		'new_credits_balance' => (int) ( $results['new-credits-balance'] ?? 0 ),
-	);
-}

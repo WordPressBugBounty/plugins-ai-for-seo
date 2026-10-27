@@ -19,6 +19,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return WP_Error|array|null Error on failure, optional acknowledgement on success, null on no-op.
  */
 function ai4seo_process_save_anything_attachment_attributes_editor_values( array &$upcoming_save_anything_updates ) {
+	$attachment_field_descriptors = ai4seo_get_generation_field_descriptors( 'attachment_attributes' );
+
 	// Preserve the category's silent no-op behavior outside the configured content boundary.
 	if ( ! ai4seo_can_use_plugin_content() ) {
 		return null;
@@ -55,7 +57,7 @@ function ai4seo_process_save_anything_attachment_attributes_editor_values( array
 	$ai4seo_new_attachment_attributes = array();
 
 	// Validate every submitted media field before writing any attachment values.
-	foreach ( AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS as $ai4seo_attachment_attribute_identifier => $ai4seo_attachment_attribute_details ) {
+	foreach ( $attachment_field_descriptors as $ai4seo_attachment_attribute_identifier => $ai4seo_attachment_attribute_details ) {
 		$ai4seo_attachment_attribute_input_name = 'attachment_attribute_' . $ai4seo_attachment_attribute_identifier;
 
 		// The shared save endpoint can contain unrelated categories, so process only present attachment fields.

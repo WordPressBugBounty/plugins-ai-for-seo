@@ -992,7 +992,11 @@ if ( ! function_exists( 'ai4seo_read_content_type_status_snapshot' ) ) {
 		);
 		foreach ( ai4seo_get_content_type_status_option_names( $content_context ) as $status => $option ) {
 			$source = array();
-			ai4seo_get_content_type_option_post_ids( $option, $source, true );
+			if ( ai4seo_uses_post_state_tables() ) {
+				$source = ai4seo_inspect_post_state_candidates( $option, array() );
+			} else {
+				ai4seo_get_content_type_option_post_ids( $option, $source, true );
+			}
 			$result['ids'][ $status ]     = $source['ids'];
 			$result['sources'][ $status ] = $source;
 			$result['quality'][ $status ] = $source['read_succeeded'] && $source['complete'];
@@ -1031,9 +1035,8 @@ if ( ! function_exists( 'ai4seo_apply_content_type_status_quality' ) ) {
 				$counts[ $status ] = null;
 			}
 		}
-		if ( ! $snapshot['quality']['hidden'] ) {
-			$counts['unverified'] = null;
-		}
+		// This is a diagnostic view, not another membership group of visible posts.
+		$counts['unverified'] = $snapshot['quality']['hidden'] ? 0 : null;
 		return $counts;
 	}
 }
@@ -1076,8 +1079,8 @@ if ( ! function_exists( 'ai4seo_prepare_content_type_list_view' ) ) {
 	 */
 	function ai4seo_prepare_content_type_list_view( array &$filter_context, array &$counts, array &$page_ids, array $snapshot, int $read_failures ): void {
 		$filter_status = $filter_context['filter_status'];
-		if ( 'unverified' === $filter_status && isset( $counts['all'] ) ) {
-			$counts['unverified'] = $counts['all'];
+		if ( 'unverified' === $filter_status && $snapshot['quality']['hidden'] ) {
+			$page_ids = array();
 		}
 		$read_succeeded                    = ai4seo_content_type_list_read_failures() === $read_failures;
 		$filter_context['view_available']  = $read_succeeded && ! empty( $snapshot['quality'][ $filter_status ] );
@@ -1646,6 +1649,13 @@ if ( ! function_exists( 'ai4seo_intersect_content_type_option_ids_with_page' ) )
 	 * @return array Current page IDs found in the option.
 	 */
 	function ai4seo_intersect_content_type_option_ids_with_page( string $option_name, array $current_page_post_ids ): array {
+		if ( ai4seo_uses_post_state_tables() ) {
+			$inspection = ai4seo_inspect_post_state_candidates( $option_name, $current_page_post_ids );
+			if ( ! $inspection['read_succeeded'] ) {
+				ai4seo_content_type_list_read_failures( true );
+			}
+			return $inspection['ids'];
+		}
 		$current_page_post_ids = array_values( array_unique( array_filter( array_map( 'absint', $current_page_post_ids ) ) ) );
 
 		if ( ! $current_page_post_ids ) {
@@ -1712,6 +1722,9 @@ if ( ! function_exists( 'ai4seo_get_content_type_exact_status_counts_from_option
 	 * @return array Status counts.
 	 */
 	function ai4seo_get_content_type_exact_status_counts_from_options( array $args ): array {
+		if ( ai4seo_uses_post_state_tables() ) {
+			return ai4seo_read_post_state_list_counts( $args );
+		}
 		$content_context              = ai4seo_normalize_content_type_list_context( (string) ( $args['content_context'] ?? AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA ) );
 		$post_types                   = ! empty( $args['post_types'] )
 			? (array) $args['post_types']
@@ -1841,6 +1854,9 @@ if ( ! function_exists( 'ai4seo_resolve_optimized_content_type_list' ) ) {
 	 * @return array Resolver result. `is_optimized` false means caller should use legacy exact path.
 	 */
 	function ai4seo_resolve_optimized_content_type_list( array $args ): array {
+		if ( ai4seo_uses_post_state_tables() ) {
+			return ai4seo_resolve_indexed_content_type_list( $args );
+		}
 		$content_context              = ai4seo_normalize_content_type_list_context( (string) ( $args['content_context'] ?? AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA ) );
 		$status_snapshot              = ai4seo_read_content_type_status_snapshot( $content_context );
 		$read_failures                = ai4seo_content_type_list_read_failures();
@@ -1980,11 +1996,11 @@ if ( ! function_exists( 'ai4seo_resolve_optimized_content_type_list' ) ) {
 
 		// The default unfiltered list is the mandatory fast path: bounded page IDs plus a separate count.
 		if ( 'all' === $filter_status || 'unverified' === $filter_status ) {
-			$total_items           = $visible_all_count;
+			$total_items           = 'unverified' === $filter_status && $status_snapshot['quality']['hidden'] ? 0 : $visible_all_count;
 			$total_pages           = $total_items ? (int) ceil( $total_items / $per_page ) : 1;
 			$current_page          = min( max( 1, $current_page ), max( 1, $total_pages ) );
 			$offset                = ( $current_page - 1 ) * $per_page;
-			$current_page_post_ids = ai4seo_read_content_type_post_list_page_ids(
+			$current_page_post_ids = $total_items ? ai4seo_read_content_type_post_list_page_ids(
 				$post_types,
 				$post_statuses,
 				$author_not_in,
@@ -1995,7 +2011,7 @@ if ( ! function_exists( 'ai4seo_resolve_optimized_content_type_list' ) ) {
 				$per_page,
 				$validated_hidden_ids,
 				$post_mime_types
-			);
+			) : array();
 
 			$should_derive_current_page_status_ids = $is_large_site;
 		} else {
@@ -2234,31 +2250,36 @@ if ( ! function_exists( 'ai4seo_get_content_type_status_filter_hydration_result'
 			return $request_cache[ $cache_key ];
 		}
 
-		// Exact deferred filters validate option IDs against the active SQL constraints instead of using summary totals.
-		$hidden_ids           = ai4seo_get_content_type_status_ids( $content_context, 'hidden' );
-		$validated_hidden_ids = ai4seo_validate_content_type_post_ids_for_list( $hidden_ids, $post_types, $post_statuses, $author_not_in, $filter_text, $post_mime_types, $disabled_wpml_language_codes );
-		$base_all_count       = ai4seo_count_content_type_post_list_entries( $post_types, $post_statuses, $author_not_in, $filter_text, $post_mime_types, $disabled_wpml_language_codes );
+		if ( ai4seo_uses_post_state_tables() ) {
+			$status_counts = ai4seo_read_post_state_list_counts( $args );
+		} else {
+			// Exact deferred filters validate option IDs against the active SQL constraints instead of using summary totals.
+			$hidden_ids           = ai4seo_get_content_type_status_ids( $content_context, 'hidden' );
+			$validated_hidden_ids = ai4seo_validate_content_type_post_ids_for_list( $hidden_ids, $post_types, $post_statuses, $author_not_in, $filter_text, $post_mime_types, $disabled_wpml_language_codes );
+			$base_all_count       = ai4seo_count_content_type_post_list_entries( $post_types, $post_statuses, $author_not_in, $filter_text, $post_mime_types, $disabled_wpml_language_codes );
 
-		$status_counts = ai4seo_get_content_type_exact_status_counts_from_options(
-			array(
-				'content_context'              => $content_context,
-				'post_types'                   => $post_types,
-				'post_status'                  => $post_statuses,
-				'post_mime_types'              => $post_mime_types,
-				'author_not_in'                => $author_not_in,
-				'disabled_wpml_language_codes' => $disabled_wpml_language_codes,
-				'filter_text'                  => $filter_text,
-				'status_options'               => $status_options,
-				'all_count'                    => $base_all_count,
-				'hidden_ids'                   => $validated_hidden_ids,
-				'hidden_ids_are_validated'     => true,
-				'is_bulk_generation_activated' => $is_bulk_generation_activated,
-				'should_auto_queue_bulk_generation_entries' => $should_auto_queue_bulk_generation_entries,
-				'has_enough_credits'           => $has_enough_credits,
-				'new_or_existing_filter'       => $new_or_existing_filter,
-				'new_or_existing_filter_reference_timestamp' => $new_or_existing_filter_reference_timestamp,
-			)
-		);
+			$status_counts = ai4seo_get_content_type_exact_status_counts_from_options(
+				array(
+					'content_context'              => $content_context,
+					'post_types'                   => $post_types,
+					'post_status'                  => $post_statuses,
+					'post_mime_types'              => $post_mime_types,
+					'author_not_in'                => $author_not_in,
+					'disabled_wpml_language_codes' => $disabled_wpml_language_codes,
+					'filter_text'                  => $filter_text,
+					'status_options'               => $status_options,
+					'all_count'                    => $base_all_count,
+					'hidden_ids'                   => $validated_hidden_ids,
+					'hidden_ids_are_validated'     => true,
+					'is_bulk_generation_activated' => $is_bulk_generation_activated,
+					'should_auto_queue_bulk_generation_entries' => $should_auto_queue_bulk_generation_entries,
+					'has_enough_credits'           => $has_enough_credits,
+					'new_or_existing_filter'       => $new_or_existing_filter,
+					'new_or_existing_filter_reference_timestamp' => $new_or_existing_filter_reference_timestamp,
+				)
+			);
+
+		}
 
 		$status_counts = ai4seo_apply_content_type_status_quality( $status_counts, $status_snapshot );
 		if ( ai4seo_content_type_list_read_failures() !== $read_failures ) {
@@ -2935,11 +2956,45 @@ if ( ! function_exists( 'ai4seo_get_content_type_filter_controls_html' ) ) {
 		}
 
 		// Keep labels local when an AJAX-rendered Related Media list shares the document with its parent list.
-		$control_scope   = sanitize_html_class( (string) ( $render_args['list_location'] ?? 'main' ) );
-		$search_input_id = 'ai4seo-content-list-search-input-' . $control_scope;
-		$output          = '<div class="ai4seo-filter-bar ai4seo-content-list-controls">';
-		if ( in_array( null, $status_counts, true ) || 'unverified' === $filter_status ) {
-			$output .= '<p class="ai4seo-content-list-quality" role="status">' . esc_html__( 'Some status or exclusion data is unavailable. Unavailable filters cannot show reliable results. Use Unverified exclusions to review entries when hidden entries cannot be determined; bulk selection remains disabled there.', 'ai-for-seo' ) . '</p>';
+		$control_scope         = sanitize_html_class( (string) ( $render_args['list_location'] ?? 'main' ) );
+		$search_input_id       = 'ai4seo-content-list-search-input-' . $control_scope;
+		$search_description_id = $search_input_id . '-description';
+
+		$search_placeholder = AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA === $content_context
+			&& in_array( (string) ( $render_args['post_type'] ?? '' ), array( 'post', 'page' ), true )
+			? __( 'Search by title, ID, or URL', 'ai-for-seo' )
+			: __( 'Search by title, ID, or URL/filename', 'ai-for-seo' );
+
+		$output = '<div class="ai4seo-filter-bar ai4seo-content-list-controls">';
+		if ( in_array( null, $status_counts, true ) ) {
+			$analysis       = ai4seo_get_posts_table_analysis_status();
+			$notice_title   = __( 'Some filter counts are unavailable', 'ai-for-seo' );
+			$notice_message = __( 'Some status data could not be read reliably. The affected filters cannot currently show reliable counts or results.', 'ai-for-seo' );
+
+			// Explain normal analysis progress without presenting paused or failed work as still running.
+			if ( ! empty( $analysis['preparing'] ) ) {
+				$notice_title   = __( 'Preparing analysis', 'ai-for-seo' );
+				$notice_message = __( 'An update is preparing your existing SEO status data. Some filter counts and results will become available after preparation and analysis finish. You can continue browsing your entries.', 'ai-for-seo' );
+			} elseif ( 'incomplete' === $analysis['status'] ) {
+				$notice_title   = __( 'SEO statistics are being updated', 'ai-for-seo' );
+				$notice_message = __( 'The analysis of your pages and media files is not finished yet. Some filter counts and results are temporarily unavailable until the analysis is complete. You can continue browsing your entries in the meantime.', 'ai-for-seo' );
+			} elseif ( 'deferred' === $analysis['status'] ) {
+				$notice_title   = __( 'Analysis is paused', 'ai-for-seo' );
+				$notice_message = __( 'Some filter counts and results are unavailable because the analysis is paused. They will become available once the analysis resumes and finishes.', 'ai-for-seo' );
+			} elseif ( 'failed' === $analysis['status'] ) {
+				$notice_title   = __( 'Analysis could not be completed', 'ai-for-seo' );
+				$notice_message = __( 'Some filter counts and results are unavailable because the analysis could not be completed. See the Dashboard for details.', 'ai-for-seo' );
+			}
+
+			$output .= '<div class="notice notice-info inline ai4seo-notice ai4seo-content-list-quality" role="status">'
+				. ai4seo_get_sooz_logo_image_tag( 'sooz-oo' )
+				. '<p><strong>' . esc_html( $notice_title ) . '</strong></p><p>' . esc_html( $notice_message ) . '</p>';
+
+			if ( array_key_exists( 'hidden', $status_counts ) && null === $status_counts['hidden'] ) {
+				$output .= '<p>' . esc_html__( 'Exclusions could not be verified. Use Unverified exclusions to review entries; bulk selection is disabled in that view.', 'ai-for-seo' ) . '</p>';
+			}
+
+			$output .= '</div>';
 		}
 			$output             .= '<div class="ai4seo-content-list-controls__top">';
 				$output         .= '<div class="ai4seo-content-list-controls__views">';
@@ -2949,7 +3004,8 @@ if ( ! function_exists( 'ai4seo_get_content_type_filter_controls_html' ) ) {
 					$output     .= '<form method="get" action="' . esc_url( $form_action_url ) . '" class="ai4seo-content-list-search-form search-box">';
 						$output .= $search_hidden_fields_html;
 						$output .= '<label class="screen-reader-text" for="' . esc_attr( $search_input_id ) . '">' . esc_html__( 'Search', 'ai-for-seo' ) . '</label>';
-						$output .= '<input class="ai4seo-textfield" autocomplete="off" id="' . esc_attr( $search_input_id ) . '" type="search" name="ai4seo_filter_text" value="' . esc_attr( $filter_text ) . '" placeholder="' . esc_attr__( 'Search by title, ID, or URL/filename', 'ai-for-seo' ) . '" />';
+						$output .= '<input class="ai4seo-textfield" autocomplete="off" id="' . esc_attr( $search_input_id ) . '" type="search" name="ai4seo_filter_text" value="' . esc_attr( $filter_text ) . '" placeholder="' . esc_attr( $search_placeholder ) . '" aria-describedby="' . esc_attr( $search_description_id ) . '" />';
+						$output .= '<span class="screen-reader-text" id="' . esc_attr( $search_description_id ) . '">' . esc_html( $search_placeholder ) . '</span>';
 						$output .= $language_select_html;
 
 						// Add stable classes so shared JS can submit on Enter and reset on Escape across media/post lists and modals.

@@ -53,6 +53,13 @@ function ai4seo_get_option( string $option_name, $default = false, bool $use_dir
 		return $default;
 	}
 
+	// Status transactions already hold the write fence. Use its current locked
+	// environmental row, never the transaction's older repeatable-read snapshot.
+	if ( AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME === $option_name && ( $GLOBALS['ai4seo_post_state_transaction'] ?? null ) === (string) $wpdb->options ) {
+		$snapshot = ai4seo_get_raw_option_snapshot( $option_name );
+		return null !== $snapshot && $snapshot['exists'] ? $snapshot['value'] : $default;
+	}
+
 	try {
 		// Directly query the options table for this specific option.
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- This is the plugin's cache-aware direct option reader.
@@ -101,7 +108,8 @@ function ai4seo_get_raw_option_snapshot( string $option_name ): ?array {
 	}
 
 	$option_snapshot_query = ai4seo_prepare_database_query(
-		'SELECT option_id, option_name, option_value, autoload FROM {{options_table}} WHERE option_name = {{option_name}} LIMIT 1',
+		'SELECT option_id, option_name, option_value, autoload FROM {{options_table}} WHERE option_name = {{option_name}} LIMIT 1'
+			. ( AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME === $option_name && ( $GLOBALS['ai4seo_post_state_transaction'] ?? null ) === (string) $wpdb->options ? ' FOR UPDATE' : '' ),
 		array(
 			'options_table' => ai4seo_database_identifier_binding( 'table.options' ),
 			'option_name'   => ai4seo_database_scalar_binding( '%s', $option_name ),
@@ -488,6 +496,25 @@ function ai4seo_compare_and_swap_option_snapshot(
 	bool $autoload = false,
 	bool $publish_wordpress_hooks = false
 ): ?bool {
+	return ai4seo_guard_legacy_post_state_write(
+		$option_name,
+		static function () use ( $option_name, $expected_snapshot, $new_option_value, $autoload, $publish_wordpress_hooks ): ?bool {
+			return ai4seo_compare_and_swap_legacy_option_snapshot( $option_name, $expected_snapshot, $new_option_value, $autoload, $publish_wordpress_hooks );
+		}
+	);
+}
+
+/**
+ * Execute the existing CAS after the migration routing guard.
+ *
+ * @param string $option_name Option.
+ * @param array  $expected_snapshot Expected bytes.
+ * @param mixed  $new_option_value Replacement.
+ * @param bool   $autoload Autoload.
+ * @param bool   $publish_wordpress_hooks Publish hooks.
+ * @return bool|null
+ */
+function ai4seo_compare_and_swap_legacy_option_snapshot( string $option_name, array $expected_snapshot, $new_option_value, bool $autoload = false, bool $publish_wordpress_hooks = false ): ?bool {
 	global $wpdb;
 
 	$option_name = trim( $option_name );
@@ -605,6 +632,23 @@ function ai4seo_compare_and_delete_option_snapshot(
 	array $expected_snapshot,
 	bool $publish_wordpress_hooks = false
 ): ?bool {
+	return ai4seo_guard_legacy_post_state_write(
+		$option_name,
+		static function () use ( $option_name, $expected_snapshot, $publish_wordpress_hooks ): ?bool {
+			return ai4seo_compare_and_delete_legacy_option_snapshot( $option_name, $expected_snapshot, $publish_wordpress_hooks );
+		}
+	);
+}
+
+/**
+ * Delete exact legacy bytes after the migration routing guard.
+ *
+ * @param string $option_name Option.
+ * @param array  $expected_snapshot Expected bytes.
+ * @param bool   $publish_wordpress_hooks Publish hooks.
+ * @return bool|null
+ */
+function ai4seo_compare_and_delete_legacy_option_snapshot( string $option_name, array $expected_snapshot, bool $publish_wordpress_hooks = false ): ?bool {
 	global $wpdb;
 
 	$option_name = trim( $option_name );
@@ -766,18 +810,9 @@ function ai4seo_refresh_option_cache( string $option_name, $option_value = null,
  * @return void
  */
 function ai4seo_invalidate_bulk_deleted_option_caches( array $option_names ): void {
-	$option_names = array_values(
-		array_unique(
-			array_filter(
-				array_map(
-					static function ( $option_name ): string {
-						return is_string( $option_name ) ? $option_name : '';
-					},
-					$option_names
-				)
-			)
-		)
-	);
+	// Preserve legacy filtering: only nonempty strings are invalidated, excluding the string '0'.
+	$option_names = array_filter( $option_names, 'is_string' );
+	$option_names = array_unique( array_filter( $option_names ) );
 
 	if ( ! $option_names || ! function_exists( 'wp_cache_delete' ) ) {
 		return;
@@ -971,6 +1006,24 @@ function ai4seo_delete_legacy_robhub_api_lock_options(): bool {
  * @return bool True after a direct write/cache reconciliation or delegated change, false on failure or a delegated no-op.
  */
 function ai4seo_update_option( string $option_name, $option_value, $autoload = false, bool $use_direct_database_call = true ): bool {
+	return (bool) ai4seo_guard_legacy_post_state_write(
+		$option_name,
+		static function () use ( $option_name, $option_value, $autoload, $use_direct_database_call ): bool {
+			return ai4seo_update_legacy_option( $option_name, $option_value, $autoload, $use_direct_database_call );
+		}
+	);
+}
+
+/**
+ * Execute the existing option writer after migration routing.
+ *
+ * @param string $option_name Option.
+ * @param mixed  $option_value Replacement.
+ * @param mixed  $autoload Autoload.
+ * @param bool   $use_direct_database_call Direct storage.
+ * @return bool
+ */
+function ai4seo_update_legacy_option( string $option_name, $option_value, $autoload = false, bool $use_direct_database_call = true ): bool {
 	global $wpdb;
 
 	if ( ai4seo_prevent_loops( __FUNCTION__, 2 ) ) {
@@ -1150,6 +1203,22 @@ function ai4seo_update_option( string $option_name, $option_value, $autoload = f
  * @return bool True if the option was deleted or already absent, false on a detected failure.
  */
 function ai4seo_delete_option( string $option_name, bool $use_direct_database_call = true ): bool {
+	return (bool) ai4seo_guard_legacy_post_state_write(
+		$option_name,
+		static function () use ( $option_name, $use_direct_database_call ): bool {
+			return ai4seo_delete_legacy_option( $option_name, $use_direct_database_call );
+		}
+	);
+}
+
+/**
+ * Execute an option deletion after migration routing.
+ *
+ * @param string $option_name Option.
+ * @param bool   $use_direct_database_call Direct storage.
+ * @return bool
+ */
+function ai4seo_delete_legacy_option( string $option_name, bool $use_direct_database_call = true ): bool {
 	global $wpdb;
 
 	if ( ai4seo_prevent_loops( __FUNCTION__, 2 ) ) {
@@ -1294,10 +1363,19 @@ function ai4seo_normalize_option_post_id_collection( $option_value, bool $sort_n
 /**
  * Reads post IDs from an option while retaining its legacy array and JSON shapes.
  *
- * @param string $option Option name containing post IDs.
+ * @param string     $option Option name containing post IDs.
+ * @param array|null $candidate_ids Optional bounded set of identities.
  * @return array
  */
-function ai4seo_get_post_ids_from_option( string $option ): array {
+function ai4seo_get_post_ids_from_option( string $option, ?array $candidate_ids = null ): array {
+	if ( null !== $candidate_ids ) {
+		return ai4seo_uses_post_state_tables()
+			? ai4seo_inspect_post_state_candidates( $option, $candidate_ids )['ids']
+			: array_values( array_intersect( ai4seo_get_post_ids_from_option( $option ), $candidate_ids ) );
+	}
+	if ( isset( AI4SEO_POST_STATE_BUCKETS[ $option ] ) && ai4seo_uses_post_state_tables() ) {
+		return ai4seo_export_post_state_ids( $option ) ?? array();
+	}
 	if ( ai4seo_prevent_loops( __FUNCTION__, 2 ) ) {
 		ai4seo_debug_message( 769714633, 'Prevented loop', true );
 		return array();
@@ -1467,6 +1545,10 @@ function ai4seo_end_generation_status_summary_bulk_rebuild_suppression( array $s
  */
 function ai4seo_track_generation_status_summary_option_change( string $option_name, $old_value, $new_value ): void {
 	global $wpdb;
+	// An explicit rollback export already describes the current projection.
+	if ( ( $GLOBALS['ai4seo_post_state_export_scope'] ?? null ) === (string) $wpdb->options ) {
+		return;
+	}
 
 	// Ignore settings and internal options that never contribute buckets to the dashboard summary.
 	if ( ! in_array( $option_name, ai4seo_get_generation_status_summary_source_option_names(), true ) ) {
@@ -1475,6 +1557,12 @@ function ai4seo_track_generation_status_summary_option_change( string $option_na
 
 	// Reset-owned bulk changes are reconciled by one durable authoritative rebuild, never per ID.
 	if ( ai4seo_is_generation_status_summary_bulk_rebuild_suppressed() ) {
+		return;
+	}
+
+	// An owned analysis commit already updates the summary before publishing its cursor.
+	// Failed commits retry the same rows; a second shutdown reconciliation would duplicate that work.
+	if ( ( $GLOBALS['ai4seo_analysis_summary_write_scope'] ?? null ) === (string) $wpdb->options ) {
 		return;
 	}
 
@@ -1642,7 +1730,7 @@ function ai4seo_requeue_generation_status_summary_pending_scope( string $options
 
 
 /**
- * Preserve a detached site batch and durably request an authoritative replacement analysis.
+ * Preserve a detached site batch for bounded reconciliation without restarting the scan.
  *
  * @param string $options_table Options-table identity for the site scope.
  * @param array  $pending_scope Detached scope to preserve for any later flush in this request.
@@ -1656,7 +1744,16 @@ function ai4seo_defer_generation_status_summary_pending_scope( string $options_t
 		return false;
 	}
 
-	$rebuild_scheduled = ai4seo_schedule_generation_status_summary_rebuild();
+	$options_by_post_id = array();
+	foreach ( $pending_scope['changes'] ?? array() as $option_name => $changes ) {
+		foreach ( array_keys( $changes ) as $post_id ) {
+			$options_by_post_id[ $post_id ][] = $option_name;
+		}
+	}
+	$admitted = ai4seo_mutate_analysis_reconciliation( array_keys( $options_by_post_id ), false, array(), $options_by_post_id );
+	// A failed queue write is the exceptional fallback: never lose an already committed source
+	// change at shutdown. Ordinary lock contention only needs the durable ID queue above.
+	$rebuild_scheduled = ai4seo_schedule_generation_status_summary_rebuild( ! $admitted );
 
 	if ( ! $rebuild_scheduled ) {
 		ai4seo_debug_message( 175943824, 'Could not schedule a deferred generation-status summary reconciliation.', true );
@@ -1754,7 +1851,7 @@ function ai4seo_flush_generation_status_summary_option_changes(): bool {
 				? ai4seo_get_posts_table_analysis_database_lock_name()
 				: '';
 
-			// Never race a full analysis. Preserve the request batch and persist a restart requirement instead.
+			// Never race a full analysis. Persist the affected IDs for a later reconciliation.
 			if ( '' === $database_lock_name || ! ai4seo_acquire_database_advisory_lock( $database_lock_name ) ) {
 				$scope_deferred       = ai4seo_defer_generation_status_summary_pending_scope( (string) $options_table, $pending_scope );
 				$all_scopes_succeeded = $all_scopes_succeeded && $scope_deferred;
@@ -1841,6 +1938,21 @@ function ai4seo_renew_post_id_option_transition_semaphore(): bool {
  * @return bool True after exact empty storage was persisted or observed.
  */
 function ai4seo_clear_post_id_option_under_lock( string $option_name, bool &$membership_changed ): bool {
+	if ( isset( AI4SEO_POST_STATE_BUCKETS[ $option_name ] ) && ai4seo_uses_post_state_tables() ) {
+		$membership_changed = false;
+		do {
+			$page = ai4seo_read_post_state_page( $option_name );
+			if ( null === $page ) {
+				return false;
+			}
+			$changed = false;
+			if ( $page && ! ai4seo_apply_post_state_id_transition( array(), array( $option_name => array_map( 'intval', array_column( $page, 'post_id' ) ) ), $changed ) ) {
+				return false;
+			}
+			$membership_changed = $membership_changed || $changed;
+		} while ( $page );
+		return true;
+	}
 	$membership_changed = false;
 	$attempt_limit      = ai4seo_get_post_id_option_mutation_attempt_limit();
 	$empty_raw_value    = (string) maybe_serialize( array() );
@@ -1951,6 +2063,10 @@ function ai4seo_clear_post_id_options( array $option_names, &$did_change = null 
 				break;
 			}
 
+			if ( ai4seo_uses_post_state_tables() && isset( AI4SEO_POST_STATE_BUCKETS[ $option_name ] ) ) {
+				$verification_succeeded = $verification_succeeded && array() === ai4seo_read_post_state_page( $option_name, 0, 1 );
+				continue;
+			}
 			$option_snapshot = ai4seo_get_raw_option_snapshot( $option_name );
 
 			if (
@@ -2019,6 +2135,9 @@ function ai4seo_clear_primary_post_id_option_pairs( array $primary_to_paired_opt
 
 	if ( ! $normalized_pairs || count( $normalized_pairs ) !== count( $primary_to_paired_option_names ) ) {
 		return false;
+	}
+	if ( ai4seo_uses_post_state_tables() ) {
+		return ai4seo_clear_indexed_pending_pairs( $normalized_pairs, $removed_post_ids_by_primary, $validate_removal );
 	}
 
 	$critical_section_name = ai4seo_get_post_id_option_transition_semaphore_name();
@@ -2241,8 +2360,11 @@ function ai4seo_mutate_post_id_option_membership(
 	bool &$membership_changed
 ): bool {
 	$membership_changed = false;
-	$remove_lookup      = array_fill_keys( $post_ids_to_remove, true );
-	$attempt_limit      = ai4seo_get_post_id_option_mutation_attempt_limit();
+	if ( isset( AI4SEO_POST_STATE_BUCKETS[ $option_name ] ) && ai4seo_uses_post_state_tables() ) {
+		return ai4seo_apply_post_state_id_transition( array( $option_name => $post_ids_to_add ), array( $option_name => $post_ids_to_remove ), $membership_changed );
+	}
+	$remove_lookup = array_fill_keys( $post_ids_to_remove, true );
+	$attempt_limit = ai4seo_get_post_id_option_mutation_attempt_limit();
 
 	for ( $attempt = 0; $attempt < $attempt_limit; ++$attempt ) {
 		if ( ! ai4seo_renew_post_id_option_transition_semaphore() ) {
@@ -2343,6 +2465,22 @@ function ai4seo_apply_normalized_post_id_option_transition_under_lock(
 	&$did_change,
 	&$changed_options = null
 ): bool {
+	if ( ai4seo_uses_post_state_tables() && ! array_diff( array_merge( array_keys( $additions ), array_keys( $removals ) ), AI4SEO_ALL_POST_ID_OPTIONS ) ) {
+		$did_change      = false;
+		$changed_options = array();
+		if ( ! ai4seo_renew_post_id_option_transition_semaphore() ) {
+			return false;
+		}
+		if ( array_intersect( array_keys( $additions ), array( AI4SEO_PENDING_METADATA_POST_IDS_OPTION_NAME, AI4SEO_PENDING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME, AI4SEO_FORCE_OVERWRITE_METADATA_POST_IDS_OPTION_NAME, AI4SEO_FORCE_OVERWRITE_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME ) )
+			&& ! ai4seo_clear_disabled_queue_inspection_state_under_lock() ) {
+			return false;
+		}
+		$stored = ai4seo_apply_post_state_id_transition( $additions, $removals, $did_change );
+		if ( $stored && $did_change ) {
+			$changed_options = array_fill_keys( array_unique( array_merge( array_keys( $additions ), array_keys( $removals ) ) ), true );
+		}
+		return $stored;
+	}
 	$option_set      = array_fill_keys( array_merge( array_keys( $additions ), array_keys( $removals ) ), true );
 	$did_change      = false;
 	$changed_options = array();
@@ -2637,7 +2775,7 @@ function ai4seo_apply_post_id_option_transition( array $additions, array $remova
 
 	try {
 		foreach ( $required_complete_options as $option_name ) {
-			$inspection = ai4seo_inspect_analysis_post_id_option( $option_name );
+			$inspection = ai4seo_inspect_post_state_candidates( $option_name, array() );
 			if ( ! $inspection['complete'] || ! $inspection['read_succeeded'] || ! ai4seo_renew_post_id_option_transition_semaphore() ) {
 				return false;
 			}
@@ -2731,7 +2869,7 @@ function ai4seo_apply_post_id_option_admission_transition(
 		}
 
 		foreach ( $required_complete_options as $option_name ) {
-			$inspection = ai4seo_inspect_analysis_post_id_option( $option_name );
+			$inspection = ai4seo_inspect_post_state_candidates( $option_name, $candidate_post_ids );
 			if ( ! $inspection['complete'] || ! $inspection['read_succeeded'] || ! ai4seo_renew_post_id_option_transition_semaphore() ) {
 				return false;
 			}
@@ -2743,7 +2881,7 @@ function ai4seo_apply_post_id_option_admission_transition(
 				return false;
 			}
 
-			$blocking_snapshot = ai4seo_get_raw_option_snapshot( $blocking_option_name );
+			$blocking_snapshot = ai4seo_read_post_state_candidate_snapshot( $blocking_option_name, $candidate_post_ids );
 
 			if ( null === $blocking_snapshot ) {
 				return false;
@@ -3498,11 +3636,20 @@ function ai4seo_create_processing_claim_token(): string {
 /**
  * Read a production Processing lease map while the shared transition fence is held.
  *
- * @param string $processing_option_name Processing option name.
- * @param array  $leases Receives normalized leases.
+ * @param string     $processing_option_name Processing option name.
+ * @param array      $leases Receives normalized leases.
+ * @param array|null $post_ids Optional bounded set of owners.
  * @return bool True when authoritative storage was read under an owned fence.
  */
-function ai4seo_read_processing_claim_leases_under_lock( string $processing_option_name, array &$leases ): bool {
+function ai4seo_read_processing_claim_leases_under_lock( string $processing_option_name, array &$leases, ?array $post_ids = null ): bool {
+	if ( ai4seo_uses_post_state_tables() ) {
+		$value  = ai4seo_read_post_state_work( AI4SEO_POST_STATE_BUCKETS[ $processing_option_name ] ?? 0, $post_ids );
+		$leases = array();
+		return null !== $value && ai4seo_renew_post_id_option_transition_semaphore()
+			&& ai4seo_validate_processing_claim_leases( $value, $leases )
+			&& ai4seo_validate_processing_claim_lease_context( $processing_option_name, $leases )
+			&& ai4seo_are_processing_claim_deadlines_plausible( $leases );
+	}
 	$leases            = array();
 	$lease_option_name = ai4seo_get_processing_claim_lease_option_name( $processing_option_name );
 
@@ -3576,6 +3723,10 @@ function ai4seo_mutate_processing_claim_lease_under_lock(
 		}
 
 		$replacement_lease = $normalized_replacement[ $post_id ];
+	}
+
+	if ( ai4seo_uses_post_state_tables() ) {
+		return ai4seo_mutate_post_state_lease( $processing_option_name, $post_id, $replacement_lease, $expected_token, $predicate_matched );
 	}
 
 	$attempt_limit = ai4seo_get_post_id_option_mutation_attempt_limit();
@@ -3750,7 +3901,7 @@ function ai4seo_reconcile_orphan_processing_rollback_leases_under_lock(
 		return false;
 	}
 
-	$processing_snapshot = ai4seo_get_raw_option_snapshot( $processing_option_name );
+	$processing_snapshot = ai4seo_read_post_state_candidate_snapshot( $processing_option_name, $post_ids );
 
 	if ( null === $processing_snapshot ) {
 		return false;
@@ -3780,7 +3931,7 @@ function ai4seo_reconcile_orphan_processing_rollback_leases_under_lock(
 	);
 	$leases            = array();
 
-	if ( ! ai4seo_read_processing_claim_leases_under_lock( $processing_option_name, $leases ) ) {
+	if ( ! ai4seo_read_processing_claim_leases_under_lock( $processing_option_name, $leases, $post_ids ) ) {
 		return false;
 	}
 
@@ -4030,12 +4181,15 @@ function ai4seo_claim_post_id_for_processing_state(
 			return false;
 		}
 
+		if ( ai4seo_is_post_state_storage_paused() ) {
+			return false;
+		}
 		// Both ownership predicates must come from authoritative snapshots read inside the same fence.
-		$pending_snapshot    = ai4seo_get_raw_option_snapshot( $pending_option_name );
-		$processing_snapshot = ai4seo_get_raw_option_snapshot( $processing_option_name );
+		$pending_snapshot    = ai4seo_read_post_state_candidate_snapshot( $pending_option_name, array( $post_id ) );
+		$processing_snapshot = ai4seo_read_post_state_candidate_snapshot( $processing_option_name, array( $post_id ) );
 		$force_snapshot      = '' === $force_overwrite_option_name
 			? false
-			: ai4seo_get_raw_option_snapshot( $force_overwrite_option_name );
+			: ai4seo_read_post_state_candidate_snapshot( $force_overwrite_option_name, array( $post_id ) );
 
 		if ( null === $pending_snapshot || null === $processing_snapshot || null === $force_snapshot ) {
 			return false;
@@ -4086,7 +4240,7 @@ function ai4seo_claim_post_id_for_processing_state(
 		if ( $uses_durable_lease ) {
 			$current_leases = array();
 
-			if ( ! ai4seo_read_processing_claim_leases_under_lock( $processing_option_name, $current_leases ) ) {
+			if ( ! ai4seo_read_processing_claim_leases_under_lock( $processing_option_name, $current_leases, array( $post_id ) ) ) {
 				return false;
 			}
 
@@ -4446,24 +4600,35 @@ function ai4seo_remove_post_ids_from_all_generation_status_options( $post_ids ) 
 
 
 /**
+ * Returns configured overwrite fields that are strictly present in the active fields.
+ *
+ * @param array  $active_fields Active field identifiers in the caller's domain.
+ * @param string $overwrite_setting Setting containing the requested overwrite fields.
+ * @return array Matching fields in configured order, retaining duplicates.
+ */
+function ai4seo_get_active_overwrite_fields( array $active_fields, string $overwrite_setting ): array {
+	$overwrite_fields        = ai4seo_get_setting( $overwrite_setting );
+	$active_overwrite_fields = array();
+
+	foreach ( $overwrite_fields as $field ) {
+		if ( in_array( $field, $active_fields, true ) ) {
+			$active_overwrite_fields[] = $field;
+		}
+	}
+
+	return $active_overwrite_fields;
+}
+
+
+/**
  * Returns the active overwrite existing metadata settings
  *
  * @return array The active overwrite existing metadata settings
  */
 function ai4seo_get_active_overwrite_existing_metadata(): array {
-	$active_meta_tags            = ai4seo_get_active_meta_tags();
-	$overwrite_existing_metadata = ai4seo_get_setting( AI4SEO_SETTING_OVERWRITE_EXISTING_METADATA );
+	$active_meta_tags = ai4seo_get_active_meta_tags();
 
-	// remove from $overwrite_existing_metadata any meta tag that is not in $active_meta_tags.
-	$active_overwrite_existing_metadata = array();
-
-	foreach ( $overwrite_existing_metadata as $this_overwrite_existing_metadata ) {
-		if ( in_array( $this_overwrite_existing_metadata, $active_meta_tags, true ) ) {
-			$active_overwrite_existing_metadata[] = $this_overwrite_existing_metadata;
-		}
-	}
-
-	return $active_overwrite_existing_metadata;
+	return ai4seo_get_active_overwrite_fields( $active_meta_tags, AI4SEO_SETTING_OVERWRITE_EXISTING_METADATA );
 }
 
 
@@ -4485,19 +4650,9 @@ function ai4seo_do_generate_metadata_for_fully_covered_entries(): bool {
  * @return array The active overwrite existing media attributes settings
  */
 function ai4seo_get_active_overwrite_existing_attachment_attributes(): array {
-	$active_attachment_attributes             = ai4seo_get_active_attachment_attributes();
-	$overwrite_existing_attachment_attributes = ai4seo_get_setting( AI4SEO_SETTING_OVERWRITE_EXISTING_ATTACHMENT_ATTRIBUTES );
+	$active_attachment_attributes = ai4seo_get_active_attachment_attributes();
 
-	// remove from $overwrite_existing_attachment_attributes any attachment attribute that is not in $active_attachment_attributes.
-	$active_overwrite_existing_attachment_attributes = array();
-
-	foreach ( $overwrite_existing_attachment_attributes as $this_overwrite_existing_attachment_attribute ) {
-		if ( in_array( $this_overwrite_existing_attachment_attribute, $active_attachment_attributes, true ) ) {
-			$active_overwrite_existing_attachment_attributes[] = $this_overwrite_existing_attachment_attribute;
-		}
-	}
-
-	return $active_overwrite_existing_attachment_attributes;
+	return ai4seo_get_active_overwrite_fields( $active_attachment_attributes, AI4SEO_SETTING_OVERWRITE_EXISTING_ATTACHMENT_ATTRIBUTES );
 }
 
 

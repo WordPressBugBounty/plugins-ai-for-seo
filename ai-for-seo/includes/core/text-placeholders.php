@@ -89,6 +89,19 @@ function ai4seo_get_metadata_placeholder_replacements( int $post_id, string $pro
 
 
 /**
+ * Normalize formatted prices shared by metadata generation and placeholder rendering.
+ *
+ * @param mixed $price Formatted price accepted by the WordPress tag sanitizer.
+ * @return string Price text with decoded entities and normalized non-breaking spaces.
+ */
+function ai4seo_normalize_metadata_price_text( $price ): string {
+	$price = html_entity_decode( wp_strip_all_tags( $price ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+	$price = str_replace( ' ', ' ', $price );
+	return trim( $price );
+}
+
+
+/**
  * Return the runtime placeholder replacements used by rendered metadata and editor previews.
  *
  * @param int $post_id Current post ID.
@@ -115,10 +128,7 @@ function ai4seo_get_metadata_output_placeholder_replacements( int $post_id ): ar
 
 			if ( '' !== $product_price_raw && null !== $product_price_raw ) {
 				$product_price = wc_price( $product_price_raw );
-				$product_price = wp_strip_all_tags( $product_price );
-				$product_price = html_entity_decode( $product_price, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
-				$product_price = str_replace( ' ', ' ', $product_price );
-				$product_price = trim( $product_price );
+				$product_price = ai4seo_normalize_metadata_price_text( $product_price );
 			}
 		}
 	}
@@ -299,10 +309,6 @@ function ai4seo_replace_text_placeholders( string $text, array $replacements ): 
  * @return string
  */
 function ai4seo_replace_metadata_title_placeholder( string $text, string $post_title ): string {
-	if ( '' === $text ) {
-		return $text;
-	}
-
 	// Delegate syntax and case handling to the shared placeholder resolver.
 	return ai4seo_replace_text_placeholders(
 		$text,

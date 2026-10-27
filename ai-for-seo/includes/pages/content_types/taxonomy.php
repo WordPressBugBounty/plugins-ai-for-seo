@@ -9,6 +9,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+$ai4seo_metadata_field_descriptors = ai4seo_get_generation_field_descriptors( 'metadata' );
+
 /**
  * Selected route inherited from includes/menu-frame.php.
  *
@@ -105,13 +107,14 @@ if ( $ai4seo_taxonomy_list['has_errors'] ) {
 }
 
 $ai4seo_taxonomy_ids               = array_column( $ai4seo_taxonomy_list['rows'], 'post_id' );
-$ai4seo_taxonomy_generation_status = ai4seo_read_taxonomy_generation_status_summary( $ai4seo_current_taxonomy );
+$ai4seo_taxonomy_page_inspections  = array();
+$ai4seo_taxonomy_generation_status = ai4seo_read_taxonomy_generation_status_summary( $ai4seo_current_taxonomy, false, $ai4seo_taxonomy_page_inspections, $ai4seo_taxonomy_ids );
 $ai4seo_taxonomy_field_states      = array();
 $ai4seo_taxonomy_issues            = array();
 $ai4seo_taxonomy_coverage          = ai4seo_read_percentage_of_available_metadata_by_post_ids( $ai4seo_taxonomy_ids, 0, $ai4seo_taxonomy_metadata_known, $ai4seo_taxonomy_field_states, $ai4seo_taxonomy_issues );
 $ai4seo_taxonomy_fields            = ai4seo_get_active_meta_tags();
 $ai4seo_taxonomy_field_names       = array();
-foreach ( AI4SEO_METADATA_DETAILS as $ai4seo_field_identifier => $ai4seo_field_details ) {
+foreach ( $ai4seo_metadata_field_descriptors as $ai4seo_field_identifier => $ai4seo_field_details ) {
 	if ( in_array( $ai4seo_field_identifier, $ai4seo_taxonomy_fields, true ) && isset( $ai4seo_field_details['name'] ) ) {
 		$ai4seo_taxonomy_field_names[ $ai4seo_field_identifier ] = $ai4seo_field_details['name'];
 	}

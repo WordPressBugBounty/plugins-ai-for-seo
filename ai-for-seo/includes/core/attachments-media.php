@@ -522,6 +522,8 @@ function ai4seo_get_attachment_attributes_coverage_summary( array $attachment_at
  * @return array The empty attachment attributes coverage array
  */
 function ai4seo_create_empty_attachment_attributes_coverage_array( array $attachment_post_ids ): array {
+	$attachment_field_descriptors = ai4seo_get_generation_field_descriptors( 'attachment_attributes' );
+
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 155352411, 'Prevented loop', true );
 		return array();
@@ -555,7 +557,7 @@ function ai4seo_create_empty_attachment_attributes_coverage_array( array $attach
 	foreach ( $attachment_post_ids as $post_id ) {
 		$attachment_attributes_coverage[ $post_id ] = array();
 
-		foreach ( AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS as $this_attachment_attribute_identifier => $this_attachment_attribute_details ) {
+		foreach ( $attachment_field_descriptors as $this_attachment_attribute_identifier => $this_attachment_attribute_details ) {
 			if ( ! in_array( $this_attachment_attribute_identifier, $active_attachment_attributes, true ) ) {
 				continue;
 			}
@@ -1006,6 +1008,9 @@ function ai4seo_refresh_one_posts_attachment_attributes_coverage(
 	$post = null,
 	bool $clear_failed_generation_status = false
 ): bool {
+	if ( ai4seo_is_post_state_storage_paused() ) {
+		return ai4seo_mutate_analysis_reconciliation( array( $attachment_post_id ), true );
+	}
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
 		ai4seo_debug_message( 393113591, 'Prevented loop', true );
 		return false;
@@ -1093,9 +1098,10 @@ function ai4seo_is_post_a_valid_attachment( int $attachment_post_id, ?WP_Post $a
  * Resolve generation-only MIME eligibility without changing inventory or editing support.
  *
  * @param array|null $settings_snapshot Optional authoritative Settings option snapshot from a queue lock.
+ * @param bool       $require_svg_capability Whether to apply the server capability gate.
  * @return array Enabled and currently available MIME types. Invalid storage fails closed.
  */
-function ai4seo_get_enabled_attachment_mime_types( ?array $settings_snapshot = null ): array {
+function ai4seo_get_enabled_attachment_mime_types( ?array $settings_snapshot = null, bool $require_svg_capability = true ): array {
 	$file_types = ai4seo_get_setting( AI4SEO_SETTING_ENABLED_ATTACHMENT_FILE_TYPES );
 	if ( null !== $settings_snapshot ) {
 		$settings = ai4seo_safe_maybe_unserialize( $settings_snapshot['value'] ?? array() );
@@ -1113,7 +1119,7 @@ function ai4seo_get_enabled_attachment_mime_types( ?array $settings_snapshot = n
 	}
 	$mime_types = array();
 	foreach ( array_unique( $file_types ) as $file_type ) {
-		if ( 'svg' !== $file_type || ai4seo_robhub_api()->supports_svg_static_v1() ) {
+		if ( 'svg' !== $file_type || ! $require_svg_capability || ai4seo_robhub_api()->supports_svg_static_v1() ) {
 			$mime_types[] = AI4SEO_ATTACHMENT_FILE_TYPE_MIME_TYPES[ $file_type ];
 		}
 	}
@@ -1124,23 +1130,68 @@ function ai4seo_get_enabled_attachment_mime_types( ?array $settings_snapshot = n
 /**
  * Filter only generation additions; removal, editing, and hiding retain supported media.
  *
- * @param array $post_ids Candidate attachment IDs.
+ * @param array    $post_ids Candidate attachment IDs.
+ * @param int|null $svg_unavailable Receives the count excluded only by the SVG service gate.
  * @return array Eligible IDs.
  */
-function ai4seo_filter_generation_enabled_attachment_ids( array $post_ids ): array {
+function ai4seo_filter_generation_enabled_attachment_ids( array $post_ids, ?int &$svg_unavailable = null ): array {
+	$svg_unavailable   = 0;
 	$settings_snapshot = ai4seo_get_raw_option_snapshot( AI4SEO_SETTINGS_OPTION_NAME );
 	if ( null === $settings_snapshot ) {
 		return array();
 	}
-	$mime_types = ai4seo_get_enabled_attachment_mime_types( $settings_snapshot );
-	return array_values(
-		array_filter(
-			$post_ids,
-			static function ( $post_id ) use ( $mime_types ): bool {
-				return in_array( ai4seo_get_attachment_post_mime_type( (int) $post_id ), $mime_types, true );
-			}
-		)
-	);
+	$mime_types = ai4seo_get_enabled_attachment_mime_types( $settings_snapshot, false );
+	$svg_ready  = ai4seo_robhub_api()->supports_svg_static_v1();
+	$eligible   = array();
+	foreach ( $post_ids as $post_id ) {
+		$mime_type = ai4seo_get_attachment_post_mime_type( (int) $post_id );
+		if ( ! in_array( $mime_type, $mime_types, true ) ) {
+			continue;
+		}
+		if ( 'image/svg+xml' === $mime_type && ! $svg_ready ) {
+			++$svg_unavailable;
+			continue;
+		}
+		$eligible[] = $post_id;
+	}
+	return $eligible;
+}
+
+/**
+ * Explain the service gate without exposing provider credentials or response bodies.
+ *
+ * @param int $skipped Optional number of SVG entries excluded by this gate.
+ * @return string Translatable, plain-text explanation.
+ */
+function ai4seo_get_svg_unavailability_message( int $skipped = 0 ): string {
+	$api    = ai4seo_robhub_api();
+	$status = $api->read_environmental_variable( $api::ENVIRONMENTAL_VARIABLE_SVG_STATUS );
+	$reason = $status['reason'] ?? '';
+
+	if ( $api->supports_svg_static_v1() ) {
+		$message = __( 'SVG conversion is available again. Please retry the skipped entries.', 'ai-for-seo' );
+	} elseif ( ! $api->is_account_synced() ) {
+		$message = __( 'SVG availability could not be confirmed because account data is not synchronized. Refresh account data and try again.', 'ai-for-seo' );
+	} elseif ( 'disabled' === $reason ) {
+		$message = __( 'SVG conversion is disabled on the service. Your selection is retained.', 'ai-for-seo' );
+	} elseif ( 'configuration_unavailable' === $reason ) {
+		$message = __( 'The SVG conversion service is not configured or ready. Please contact support. Your selection is retained.', 'ai-for-seo' );
+	} else {
+		$message  = 'provider_timeout' === $reason
+			? __( 'The SVG availability check timed out.', 'ai-for-seo' )
+			: __( 'SVG conversion is temporarily unavailable or its availability could not be confirmed.', 'ai-for-seo' );
+		$message .= ' ' . ( (int) ( $status['retry_after'] ?? 60 ) > 60
+			? __( 'Please try again later. Your SVG selection is retained.', 'ai-for-seo' )
+			: __( 'Please try again in a minute. Your SVG selection is retained.', 'ai-for-seo' ) );
+	}
+	if ( $skipped > 0 ) {
+		$message = sprintf(
+			/* translators: %s: number of SVG entries skipped because the conversion service was unavailable. */
+			_n( '%s SVG entry skipped.', '%s SVG entries skipped.', $skipped, 'ai-for-seo' ),
+			ai4seo_format_number_i18n( $skipped )
+		) . ' ' . $message;
+	}
+	return $message;
 }
 
 
@@ -3243,6 +3294,8 @@ function ai4seo_update_attachment_attributes(
 	?array &$operation_details = null,
 	?array $expected_values = null
 ): bool {
+	$attachment_field_descriptors = ai4seo_get_generation_field_descriptors( 'attachment_attributes' );
+
 	global $wpdb;
 
 	$operation_details = array(
@@ -3289,7 +3342,7 @@ function ai4seo_update_attachment_attributes(
 		&& absint( $attachment_post->post_parent ) > 0;
 
 	// Resolve requested fields into their WordPress and optional provider write sets before any mutation.
-	foreach ( AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS as $this_attachment_attribute_identifier => $this_attachment_attribute_details ) {
+	foreach ( $attachment_field_descriptors as $this_attachment_attribute_identifier => $this_attachment_attribute_details ) {
 		if ( ! in_array( $this_attachment_attribute_identifier, $ai4seo_active_attachment_attributes, true ) ) {
 			continue;
 		}
@@ -5160,17 +5213,7 @@ function ai4seo_get_col_with_optional_statement_timeout( string $select_sql, int
 		return array();
 	}
 
-	if ( 'mariadb' === $timeout_support['engine'] ) {
-		$timed_select_sql = 'SET STATEMENT max_statement_time=' . $timeout_seconds . ' FOR ' . $select_sql;
-	} else {
-		$timeout_milliseconds = $timeout_seconds * 1000;
-		$timed_select_sql     = preg_replace(
-			'/^SELECT\s/i',
-			'SELECT /*+ MAX_EXECUTION_TIME(' . $timeout_milliseconds . ') */ ',
-			$select_sql,
-			1
-		);
-	}
+	$timed_select_sql = ai4seo_prepare_optional_timed_select_sql( $select_sql, $timeout_seconds, $timeout_support['engine'] );
 
 	if ( ! $timed_select_sql ) {
 		ai4seo_debug_message( 630085037, 'Optional timed query skipped because the timeout wrapper could not be built. ' . $debug_context, true );
@@ -5686,6 +5729,8 @@ function ai4seo_calculate_attachment_attributes_credits_cost_per_attachment_post
  * @return array Attachment attribute identifiers mapped to credit costs.
  */
 function ai4seo_get_attachment_attributes_price_table( $only_this_attachment_attributes = null ): array {
+	$attachment_field_descriptors = ai4seo_get_generation_field_descriptors( 'attachment_attributes' );
+
 	// Keep a non-empty caller filter restrictive even when all submitted identifiers normalize away.
 	$active_attachment_attributes                = ai4seo_get_active_attachment_attributes();
 	$restrict_to_requested_attachment_attributes = is_array( $only_this_attachment_attributes ) && ! empty( $only_this_attachment_attributes );
@@ -5705,12 +5750,12 @@ function ai4seo_get_attachment_attributes_price_table( $only_this_attachment_att
 			continue;
 		}
 
-		if ( ! defined( 'AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS' ) || ! is_array( AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS ) ) {
+		if ( ! defined( 'AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS' ) ) {
 			$price_table[ $this_active_attachment_attribute_identifier ] = 1; // fallback to 1 credit per attribute.
 			continue;
 		}
 
-		$price_table[ $this_active_attachment_attribute_identifier ] = AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS[ $this_active_attachment_attribute_identifier ]['flat-credits-cost'] ?? 1;
+		$price_table[ $this_active_attachment_attribute_identifier ] = $attachment_field_descriptors[ $this_active_attachment_attribute_identifier ]['flat-credits-cost'] ?? 1;
 	}
 
 	return $price_table;
@@ -5724,6 +5769,8 @@ function ai4seo_get_attachment_attributes_price_table( $only_this_attachment_att
  * @return array Active attachment attribute display names.
  */
 function ai4seo_get_active_attachment_attributes_names( $active_attachment_attributes = null ): array {
+	$attachment_field_descriptors = ai4seo_get_generation_field_descriptors( 'attachment_attributes' );
+
 	// Align optional caller input with the canonical setting domain used by the default accessor.
 	if ( null === $active_attachment_attributes ) {
 		$active_attachment_attributes = ai4seo_get_active_attachment_attributes();
@@ -5735,7 +5782,7 @@ function ai4seo_get_active_attachment_attributes_names( $active_attachment_attri
 
 	$active_attachment_attributes_names = array();
 
-	foreach ( AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS as $ai4seo_this_attachment_attribute_identifier => $ai4seo_this_attachment_attribute_details ) {
+	foreach ( $attachment_field_descriptors as $ai4seo_this_attachment_attribute_identifier => $ai4seo_this_attachment_attribute_details ) {
 		if ( in_array( $ai4seo_this_attachment_attribute_identifier, $active_attachment_attributes, true ) && isset( $ai4seo_this_attachment_attribute_details['name'] ) ) {
 			$active_attachment_attributes_names[] = $ai4seo_this_attachment_attribute_details['name'];
 		}

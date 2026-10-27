@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 // Centralize plugin identity and asset-cache declarations consumed throughout bootstrap.
-const AI4SEO_PLUGIN_VERSION_NUMBER              = '2.6.0';
+const AI4SEO_PLUGIN_VERSION_NUMBER              = '2.6.1';
 const AI4SEO_PLUGIN_NAME                        = 'SOOZ - AI for SEO';
 const AI4SEO_SHORT_PLUGIN_NAME                  = 'SOOZ';
 const AI4SEO_PLUGIN_DESCRIPTION                 = 'One-Click SEO solution. SOOZ - AI for SEO helps your website to rank higher in Web Search results.';
@@ -49,9 +49,29 @@ const AI4SEO_ROBHUB_ENVIRONMENTAL_VARIABLES_OPTION_NAME   = '_ai4seo_robhub_envi
 const AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME          = '_ai4seo_environmental_variables';
 const AI4SEO_GENERATION_STATUS_SUMMARY_OPTION_NAME        = '_ai4seo_generation_status_summary';
 const AI4SEO_GENERATION_STATUS_SUMMARY_TOTALS_OPTION_NAME = '_ai4seo_generation_status_summary_totals';
+const AI4SEO_ANALYSIS_RECONCILIATION_OPTION_NAME          = '_ai4seo_analysis_reconciliation';
 const AI4SEO_DISABLED_QUEUE_INSPECTION_STATE_OPTION_NAME  = 'ai4seo_disabled_queue_inspection_state';
 const AI4SEO_AUTO_RETRY_FAILED_REQUIRED_OPTION_NAME       = '_ai4seo_auto_retry_failed_required';
 const AI4SEO_CONTENT_TYPE_LIST_CACHE_VERSION_OPTION_NAME  = '_ai4seo_content_type_list_cache_version';
+const AI4SEO_TITLE_ORDER_VERSION                          = 1;
+const AI4SEO_TITLE_ORDER_BLOCK_SIZE                       = 256;
+const AI4SEO_TITLE_ORDER_BLOCK_GAP                        = 1048576;
+const AI4SEO_TITLE_ORDER_PACKET_BYTES                     = 2097152;
+const AI4SEO_TITLE_ORDER_WORK_KIND                        = 19;
+const AI4SEO_TITLE_ORDER_CRON_HOOK                        = 'ai4seo_title_order_cron_job';
+const AI4SEO_TITLE_ORDER_BITS                             = array(
+	'complete'              => 1,
+	'missing'               => 2,
+	'generated'             => 4,
+	'queued'                => 8,
+	'processing'            => 16,
+	'failed'                => 32,
+	'hidden'                => 64,
+	'auto_queue_disallowed' => 128,
+	'all'                   => 256,
+	'unverified'            => 512,
+	'waiting_to_queue'      => 1024,
+);
 const AI4SEO_POSTS_TO_BE_ANALYZED_OPTION_NAME             = '_ai4seo_posts_to_be_analyzed';
 const AI4SEO_NOTIFICATIONS_OPTION_NAME                    = '_ai4seo_notifications';
 
@@ -142,12 +162,24 @@ const AI4SEO_SEMAPHORE_POLL_INTERVAL_SECONDS               = .1; // .1 seconds
 const AI4SEO_SEMAPHORE_TTL_SECONDS                         = 30; // 30 seconds
 const AI4SEO_POST_TABLE_ANALYSIS_BATCH_SIZE                = 10000; // number of posts to analyze per batch.
 const AI4SEO_POST_TABLE_ANALYSIS_MAX_EXECUTION_TIME        = 2; // maximum execution time in seconds per batch.
+const AI4SEO_DASHBOARD_ANALYSIS_MAX_EXECUTION_TIME         = 3; // Shared analysis budget per dashboard request.
 const AI4SEO_POST_TABLE_ANALYSIS_SLEEP_BETWEEN_RUNS        = 100000; // microseconds to sleep between runs.
 const AI4SEO_POST_TABLE_ANALYSIS_PROCESSING_TIMEOUT        = 90; // seconds.
 const AI4SEO_LARGE_SITE_POSTS_THRESHOLD                    = 50000;
+const AI4SEO_LARGE_SITE_ANALYSIS_BATCH_SIZE                = 1000;
+const AI4SEO_ANALYSIS_RECONCILIATION_BATCH_SIZE            = 25;
+const AI4SEO_ANALYSIS_RECONCILIATION_RETRY_DELAY           = 900;
 const AI4SEO_LARGE_SITE_AUTOMATIC_ANALYSIS_INTERVAL        = 86400; // 24h
 const AI4SEO_DEEP_CONTEXT_SEARCH_POSTMETA_THRESHOLD        = 1000000;
 const AI4SEO_DEEP_CONTEXT_SEARCH_MAX_TIMEOUTS_PER_CRON_RUN = 3;
+
+// Maximum block counts and their full-analysis quiet periods; larger sites use the daily interval.
+const AI4SEO_ANALYSIS_REFRESH_INTERVALS = array(
+	2   => 0,
+	10  => 300,
+	100 => 3600,
+);
+
 // Keep neutral SQL date bindings inside MySQL's supported DATETIME range under strict modes.
 const AI4SEO_MYSQL_DATETIME_MINIMUM = '1000-01-01 00:00:00';
 
@@ -248,6 +280,22 @@ const AI4SEO_METADATA_KEYWORDS_RECOMMENDED_MAX_ITEMS = 10;
  */
 function ai4seo_get_change_log(): array {
 	return array(
+		array(
+			'date'      => '2026-10-27',
+			'version'   => '2.6.1',
+			'important' => false,
+			'updates'   => array(
+				'Improved handling of large content libraries in filtered lists, title sorting, and SEO Autopilot.',
+				'Kept completed SEO statistics visible during background updates, with changes to content included before the new results appear.',
+				'Made large dashboard counts easier to read, with exact values in tooltips and clearer analysis progress, scheduling, and pause messages.',
+				'Improved recovery from temporary SVG generation outages with clearer explanations and preserved selections for retrying.',
+				'Fixed product price placeholders in metadata previews and inherited social sharing tags when using WooCommerce with Yoast SEO.',
+				'Kept metadata editor fields and actions accessible at high browser zoom and in short windows.',
+				'Fixed an upgrade issue that could leave updates from very old plugin versions unfinished.',
+				'Updated translations for nine languages and made bundled JavaScript translations available across plugin updates.',
+				'Bug Fixes & Maintenance: Fixed 2 minor bugs.',
+			),
+		),
 		array(
 			'date'      => '2026-10-17',
 			'version'   => '2.6.0',
@@ -743,6 +791,7 @@ const AI4SEO_FORCE_OVERWRITE_METADATA_POST_IDS_OPTION_NAME       = 'ai4seo_force
 const AI4SEO_HIDDEN_METADATA_POST_IDS_OPTION_NAME                = 'ai4seo_hidden_metadata_post_ids';
 const AI4SEO_AUTO_QUEUE_DISALLOWED_METADATA_POST_IDS_OPTION_NAME = 'ai4seo_auto_queue_disallowed_metadata_post_ids';
 const AI4SEO_LATEST_ACTIVITY_OPTION_NAME                         = '_ai4seo_latest_activity'; // todo: replace with database table.
+const AI4SEO_AUTOPILOT_ITEM_DISMISSALS_USER_OPTION               = 'ai4seo_autopilot_item_dismissals';
 
 const AI4SEO_FULLY_COVERED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME         = 'ai4seo_fully_covered_attachment_attributes_post_ids';
 const AI4SEO_MISSING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME               = 'ai4seo_missing_attachment_attributes_post_ids';
@@ -753,6 +802,31 @@ const AI4SEO_FAILED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME                = 
 const AI4SEO_FORCE_OVERWRITE_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME       = 'ai4seo_force_overwrite_attachment_attributes_post_ids';
 const AI4SEO_HIDDEN_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME                = 'ai4seo_hidden_attachment_attributes_post_ids';
 const AI4SEO_AUTO_QUEUE_DISALLOWED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME = 'ai4seo_auto_queue_disallowed_attachment_attributes_post_ids';
+
+// Persisted bucket identifiers never depend on registry order or the public plugin version.
+const AI4SEO_POST_STATE_STORAGE_VERSION   = 1;
+const AI4SEO_ANALYSIS_BUILD_WORK_KIND     = 2;
+const AI4SEO_BACKGROUND_ANALYSIS_INTERVAL = 30;
+const AI4SEO_POST_STATE_BUCKETS           = array(
+	AI4SEO_MISSING_METADATA_POST_IDS_OPTION_NAME         => 1,
+	AI4SEO_GENERATED_METADATA_POST_IDS_OPTION_NAME       => 2,
+	AI4SEO_FULLY_COVERED_METADATA_POST_IDS_OPTION_NAME   => 3,
+	AI4SEO_PENDING_METADATA_POST_IDS_OPTION_NAME         => 4,
+	AI4SEO_PROCESSING_METADATA_POST_IDS_OPTION_NAME      => 5,
+	AI4SEO_FAILED_METADATA_POST_IDS_OPTION_NAME          => 6,
+	AI4SEO_FORCE_OVERWRITE_METADATA_POST_IDS_OPTION_NAME => 7,
+	AI4SEO_HIDDEN_METADATA_POST_IDS_OPTION_NAME          => 8,
+	AI4SEO_AUTO_QUEUE_DISALLOWED_METADATA_POST_IDS_OPTION_NAME => 9,
+	AI4SEO_MISSING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME => 10,
+	AI4SEO_GENERATED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME => 11,
+	AI4SEO_FULLY_COVERED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME => 12,
+	AI4SEO_PENDING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME => 13,
+	AI4SEO_PROCESSING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME => 14,
+	AI4SEO_FAILED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME => 15,
+	AI4SEO_FORCE_OVERWRITE_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME => 16,
+	AI4SEO_HIDDEN_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME => 17,
+	AI4SEO_AUTO_QUEUE_DISALLOWED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME => 18,
+);
 
 const AI4SEO_ADDITIONAL_TOS_ACCEPT_DETAILS_OPTION_NAME                    = '_ai4seo_additional_tos_accept_details';
 const AI4SEO_ADDITIONAL_TOS_ACCEPT_DETAILS_LAST_TRY_TIMESTAMP_OPTION_NAME = '_ai4seo_additional_tos_accept_details_last_try_timestamp';
@@ -2274,7 +2348,12 @@ const AI4SEO_ENVIRONMENTAL_VARIABLE_JUST_PURCHASED_SOMETHING_TIME               
 const AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_LOW_CREDITS_FIRST_OCCURRENCE_TIME       = 'payg_low_credits_first_occurrence_time';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_LOW_CREDITS_LAST_SYNC_TIME              = 'payg_low_credits_last_sync_time';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_LAST_POST_ID            = 'posts_table_analysis_last_post_id';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_ANALYSIS_REFRESH                             = 'analysis_refresh';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_PROGRESS                = 'posts_table_analysis_progress';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_TIMING                  = 'posts_table_analysis_timing';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_POST_STATE_STORAGE                           = 'post_state_storage';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_POST_STATE_LIST_CACHE                        = 'post_state_list_cache';
+const AI4SEO_ENVIRONMENTAL_VARIABLE_TITLE_ORDER                                  = 'title_order';
 const AI4SEO_ENVIRONMENTAL_VARIABLE_AUTO_QUEUE_SELECTION_PROGRESS                = 'auto_queue_selection_progress';
 const AI4SEO_AUTO_QUEUE_SELECTION_CHUNK_SIZE                                     = 100;
 const AI4SEO_AUTO_QUEUE_SELECTION_CHUNKS_PER_RUN                                 = 4;
@@ -2332,7 +2411,12 @@ const AI4SEO_DEFAULT_ENVIRONMENTAL_VARIABLES = array(
 	AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_LOW_CREDITS_FIRST_OCCURRENCE_TIME => 0,
 	AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_LOW_CREDITS_LAST_SYNC_TIME => 0,
 	AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_LAST_POST_ID => 0,
+	AI4SEO_ENVIRONMENTAL_VARIABLE_ANALYSIS_REFRESH         => array(),
 	AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_PROGRESS => array(),
+	AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_TIMING => array(),
+	AI4SEO_ENVIRONMENTAL_VARIABLE_POST_STATE_STORAGE       => array(),
+	AI4SEO_ENVIRONMENTAL_VARIABLE_POST_STATE_LIST_CACHE    => array(),
+	AI4SEO_ENVIRONMENTAL_VARIABLE_TITLE_ORDER              => array(),
 	AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_STATE => 'idle',
 	AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_START_TIME => 0,
 	AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_LAST_CORE_RUN_TIME => 0,
@@ -2419,7 +2503,7 @@ add_action(
 					'name'                       => esc_html__( 'Facebook Title', 'ai-for-seo' ),
 					'icon'                       => 'square-facebook',
 					'input'                      => 'textarea',
-					'hint'                       => __( '<strong>Best Practice:</strong> This title will be displayed as the headline in the preview when your content is shared on Facebook, helping to capture attention and increase engagement.<br><br>The recommended natural quality window is <strong>45 to 65</strong> characters. Your active Generation Length setting may use a different target.<br><br>The Facebook title is added to the <strong>og:title tag</strong> of your website.', 'ai-for-seo' ),
+					'hint'                       => __( '<strong>Best Practice:</strong> This field provides the preferred headline for link previews when your content is shared on Facebook. The final preview may differ.<br><br>The recommended natural quality window is <strong>45 to 65</strong> characters. Your active Generation Length setting may use a different target.<br><br>The Facebook title is added to the <strong>og:title tag</strong> of your website.', 'ai-for-seo' ),
 					'api-identifier'             => 'meta_facebook_title',
 					'output-tag-type'            => 'meta property',
 					'output-tag-identifier'      => 'og:title',
@@ -2431,7 +2515,7 @@ add_action(
 					'name'                       => esc_html__( 'Facebook Description', 'ai-for-seo' ),
 					'icon'                       => 'square-facebook',
 					'input'                      => 'textarea',
-					'hint'                       => __( '<strong>Best Practice:</strong> This description will appear in the preview when your content is shared, providing a summary that encourages users to engage with your content.<br><br>The recommended natural quality window is <strong>90 to 120</strong> characters. Your active Generation Length setting may use a different target.<br><br>The Facebook description is added to the <strong>og:description tag</strong> of your website.', 'ai-for-seo' ),
+					'hint'                       => __( '<strong>Best Practice:</strong> This field provides the preferred summary for link previews when your content is shared on Facebook. The final preview may differ.<br><br>The recommended natural quality window is <strong>90 to 120</strong> characters. Your active Generation Length setting may use a different target.<br><br>The Facebook description is added to the <strong>og:description tag</strong> of your website.', 'ai-for-seo' ),
 					'api-identifier'             => 'meta_facebook_description',
 					'output-tag-type'            => 'meta property',
 					'output-tag-identifier'      => 'og:description',
@@ -2443,7 +2527,7 @@ add_action(
 					'name'                       => esc_html__( 'Twitter/X Title', 'ai-for-seo' ),
 					'icon'                       => 'square-twitter-x',
 					'input'                      => 'textarea',
-					'hint'                       => __( '<strong>Best Practice:</strong> An attention-grabbing title for your page or post, optimized for sharing on Twitter/X. This title will be displayed as the headline in the preview when your content is tweeted, helping to increase visibility and encourage clicks.<br><br>The recommended natural quality window is <strong>45 to 65</strong> characters. Your active Generation Length setting may use a different target.<br><br>The Twitter/X title is added to the <strong>twitter:title tag</strong> of your website.', 'ai-for-seo' ),
+					'hint'                       => __( '<strong>Best Practice:</strong> This field provides the preferred headline for link previews when your content is shared on Twitter/X. The final preview may differ.<br><br>The recommended natural quality window is <strong>45 to 65</strong> characters. Your active Generation Length setting may use a different target.<br><br>The Twitter/X title is added to the <strong>twitter:title tag</strong> of your website.', 'ai-for-seo' ),
 					'api-identifier'             => 'meta_twitter_title',
 					'output-tag-type'            => 'meta name',
 					'output-tag-identifier'      => 'twitter:title',
@@ -2455,7 +2539,7 @@ add_action(
 					'name'                       => esc_html__( 'Twitter/X Description', 'ai-for-seo' ),
 					'icon'                       => 'square-twitter-x',
 					'input'                      => 'textarea',
-					'hint'                       => __( '<strong>Best Practice:</strong> A concise and engaging description for your page or post, optimized for sharing on Twitter/X. This description will appear in the preview when your content is tweeted, providing a brief summary that encourages users to click and interact.<br><br>The recommended natural quality window is <strong>90 to 125</strong> characters. Your active Generation Length setting may use a different target.<br><br>The Twitter/X description is added to the <strong>twitter:description tag</strong> of your website.', 'ai-for-seo' ),
+					'hint'                       => __( '<strong>Best Practice:</strong> This field provides the preferred summary for link previews when your content is shared on Twitter/X. The final preview may differ.<br><br>The recommended natural quality window is <strong>90 to 125</strong> characters. Your active Generation Length setting may use a different target.<br><br>The Twitter/X description is added to the <strong>twitter:description tag</strong> of your website.', 'ai-for-seo' ),
 					'api-identifier'             => 'meta_twitter_description',
 					'output-tag-type'            => 'meta name',
 					'output-tag-identifier'      => 'twitter:description',
@@ -2595,6 +2679,12 @@ function ai4seo_get_allowed_html_tags_and_attributes(): array {
 			'data-ai4seo-editor-field-source-identifier' => array(),
 			// Keep evaluation labels available after modal output passes through the plugin KSES allowlist.
 			'data-ai4seo-editor-evaluation-label'        => array(),
+		),
+		'progress' => array(
+			'class'      => array(),
+			'value'      => array(),
+			'max'        => array(),
+			'aria-label' => array(),
 		),
 		'details'  => array(
 			'class' => array(),
@@ -3038,6 +3128,7 @@ const AI4SEO_ALLOWED_AJAX_FUNCTIONS = array(
 	'ai4seo_show_terms_of_service',
 	'ai4seo_dismiss_notification',
 	'ai4seo_dismiss_recent_activity_error',
+	'ai4seo_dismiss_autopilot_item_notice',
 	'ai4seo_get_dashboard_html',
 	'ai4seo_reset_plugin_data',
 	'ai4seo_clear_debug_message_log',

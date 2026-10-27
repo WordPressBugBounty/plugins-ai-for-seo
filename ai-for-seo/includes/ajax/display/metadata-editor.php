@@ -10,6 +10,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+$ai4seo_metadata_field_descriptors = ai4seo_get_generation_field_descriptors( 'metadata' );
+
 if ( ! ai4seo_can_use_plugin_content() ) {
 	return;
 }
@@ -189,7 +191,7 @@ $ai4seo_metadata_preview_context    = ai4seo_get_metadata_editor_preview_context
 $ai4seo_metadata_evaluation_details = array();
 
 // Build the field footer contract once so Preview and Editor use identical labels, targets, sources, and IDs.
-foreach ( AI4SEO_METADATA_DETAILS as $ai4seo_metadata_identifier => $ai4seo_metadata_details ) {
+foreach ( $ai4seo_metadata_field_descriptors as $ai4seo_metadata_identifier => $ai4seo_metadata_details ) {
 	if ( ! in_array( $ai4seo_metadata_identifier, $ai4seo_active_meta_tags, true ) ) {
 		continue;
 	}
@@ -337,7 +339,7 @@ echo '<div'
 			$ai4seo_focus_keyphrase_edit_actions = ai4seo_get_editor_preview_edit_actions(
 				array( 'focus-keyphrase' ),
 				$ai4seo_active_meta_tags,
-				AI4SEO_METADATA_DETAILS
+				$ai4seo_metadata_field_descriptors
 			);
 			if ( isset( $ai4seo_focus_keyphrase_edit_actions['focus-keyphrase'] ) ) {
 				$ai4seo_focus_keyphrase_edit_actions['focus-keyphrase'] = __( 'Edit Keyphrase', 'ai-for-seo' );
@@ -374,11 +376,11 @@ echo '<div'
 		}
 			echo '</section>';
 
-			if ( isset( AI4SEO_METADATA_DETAILS['focus-keyphrase'], $ai4seo_metadata_evaluation_details['focus-keyphrase'] ) ) {
+			if ( isset( $ai4seo_metadata_field_descriptors['focus-keyphrase'], $ai4seo_metadata_evaluation_details['focus-keyphrase'] ) ) {
 				ai4seo_echo_wp_kses(
 					ai4seo_get_metadata_editor_field_tag(
 						'focus-keyphrase',
-						AI4SEO_METADATA_DETAILS['focus-keyphrase'],
+						$ai4seo_metadata_field_descriptors['focus-keyphrase'],
 						sanitize_text_field( $ai4seo_this_metadata_values['focus-keyphrase'] ?? '' ),
 						sanitize_text_field( $ai4seo_metadata_prefixes['focus-keyphrase'] ?? '' ),
 						sanitize_text_field( $ai4seo_metadata_suffixes['focus-keyphrase'] ?? '' ),
@@ -404,7 +406,7 @@ echo '<div'
 							'',
 							__( 'An approximate search result using your effective meta title, description, URL, and configured fallbacks. Google may rewrite or truncate the final result.', 'ai-for-seo' ),
 							__( 'Google Search preview: Help', 'ai-for-seo' ),
-							ai4seo_get_editor_preview_edit_actions( $ai4seo_google_preview_fields, $ai4seo_active_meta_tags, AI4SEO_METADATA_DETAILS )
+							ai4seo_get_editor_preview_edit_actions( $ai4seo_google_preview_fields, $ai4seo_active_meta_tags, $ai4seo_metadata_field_descriptors )
 						)
 					);
 					echo "<div class='ai4seo-google-preview'>";
@@ -426,7 +428,7 @@ echo '<div'
 							'',
 							__( 'A code representation of the stored meta keywords tag. Five to ten distinct, comma-separated keywords provide a useful amount of context without creating an unfocused list.', 'ai-for-seo' ),
 							__( 'Keywords preview: Help', 'ai-for-seo' ),
-							ai4seo_get_editor_preview_edit_actions( $ai4seo_keywords_preview_fields, $ai4seo_active_meta_tags, AI4SEO_METADATA_DETAILS )
+							ai4seo_get_editor_preview_edit_actions( $ai4seo_keywords_preview_fields, $ai4seo_active_meta_tags, $ai4seo_metadata_field_descriptors )
 						)
 					);
 					echo "<pre class='ai4seo-keywords-code-preview' aria-label='" . esc_attr__( 'Meta keywords HTML representation', 'ai-for-seo' ) . "'><code><span class='ai4seo-code-punctuation'>&lt;</span><span class='ai4seo-code-tag'>meta</span> <span class='ai4seo-code-attribute'>name</span><span class='ai4seo-code-punctuation'>=</span><span class='ai4seo-code-string'>&quot;keywords&quot;</span> <span class='ai4seo-code-attribute'>content</span><span class='ai4seo-code-punctuation'>=</span><span class='ai4seo-code-string'>&quot;</span><span class='ai4seo-keywords-code-value'></span><span class='ai4seo-code-string'>&quot;</span><span class='ai4seo-code-punctuation'>&gt;</span></code></pre>";
@@ -469,7 +471,7 @@ echo '<div'
 								'',
 								$ai4seo_social_preview['tooltip'],
 								$ai4seo_social_preview['label'] . ': ' . __( 'Help', 'ai-for-seo' ),
-								ai4seo_get_editor_preview_edit_actions( $ai4seo_social_preview_fields, $ai4seo_active_meta_tags, AI4SEO_METADATA_DETAILS )
+								ai4seo_get_editor_preview_edit_actions( $ai4seo_social_preview_fields, $ai4seo_active_meta_tags, $ai4seo_metadata_field_descriptors )
 							)
 						);
 						echo "<div class='ai4seo-social-preview'>";
@@ -493,7 +495,7 @@ echo '<div'
 									'',
 									__( 'An approximate chat-style link preview using the effective Open Graph title, description, and WordPress featured image. WhatsApp determines the final content and layout.', 'ai-for-seo' ),
 									__( 'WhatsApp preview: Help', 'ai-for-seo' ),
-									ai4seo_get_editor_preview_edit_actions( $ai4seo_social_preview_fields, $ai4seo_active_meta_tags, AI4SEO_METADATA_DETAILS )
+									ai4seo_get_editor_preview_edit_actions( $ai4seo_social_preview_fields, $ai4seo_active_meta_tags, $ai4seo_metadata_field_descriptors )
 								)
 							);
 							// Both cards edit the same Open Graph fields, so explain their shared values beside the preview.
@@ -516,7 +518,7 @@ echo '<div'
 
 		// Render the remaining editable controls after the preview cards so both modes share one form.
 
-		foreach ( AI4SEO_METADATA_DETAILS as $ai4seo_this_metadata_identifier => $ai4seo_this_metadata_details ) {
+		foreach ( $ai4seo_metadata_field_descriptors as $ai4seo_this_metadata_identifier => $ai4seo_this_metadata_details ) {
 			// Make sure that required value-entries exist.
 			if ( ! isset( $ai4seo_this_metadata_details['name'] ) || ! isset( $ai4seo_this_metadata_details['input'] ) || ! isset( $ai4seo_this_metadata_details['hint'] ) ) {
 				continue;
@@ -559,7 +561,7 @@ echo '<div'
 			ai4seo_echo_wp_kses(
 				ai4seo_get_editor_inactive_fields_notice_tag(
 					$ai4seo_skipped_meta_tags,
-					AI4SEO_METADATA_DETAILS,
+					$ai4seo_metadata_field_descriptors,
 					$ai4seo_inactive_fields_notice,
 					$ai4seo_settings_url
 				)

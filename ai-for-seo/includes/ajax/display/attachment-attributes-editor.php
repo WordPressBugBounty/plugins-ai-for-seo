@@ -10,6 +10,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+$ai4seo_attachment_field_descriptors = ai4seo_get_generation_field_descriptors( 'attachment_attributes' );
+
 if ( ! ai4seo_can_use_plugin_content() ) {
 	return;
 }
@@ -152,7 +154,7 @@ $ai4seo_attachment_editor_field_order = array_values(
 	array_unique(
 		array_merge(
 			array( 'title', 'description', 'alt-text', 'caption' ),
-			array_keys( AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS ),
+			array_keys( $ai4seo_attachment_field_descriptors ),
 		),
 	),
 );
@@ -169,7 +171,7 @@ $ai4seo_attachment_preview_evaluation_identifiers = array(
 );
 
 // Build each field footer once so Preview and Editor render identical metrics and source information.
-foreach ( array_keys( AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS ) as $ai4seo_attachment_field_identifier ) {
+foreach ( array_keys( $ai4seo_attachment_field_descriptors ) as $ai4seo_attachment_field_identifier ) {
 	if ( ! ai4seo_has_active_editor_fields( array( $ai4seo_attachment_field_identifier ), $ai4seo_active_attachment_attributes ) ) {
 		continue;
 	}
@@ -379,7 +381,7 @@ echo '<div'
 							__( 'Title', 'ai-for-seo' ),
 							ai4seo_get_editor_preview_edit_target( array( 'title' ), $ai4seo_editable_attachment_attributes ),
 							'',
-							( AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS['title']['hint'] ?? '' ) . '<br><br>' . $ai4seo_attachment_preview_descriptions['title'],
+							( $ai4seo_attachment_field_descriptors['title']['hint'] ?? '' ) . '<br><br>' . $ai4seo_attachment_preview_descriptions['title'],
 							__( 'Title: Help', 'ai-for-seo' )
 						)
 					);
@@ -399,7 +401,7 @@ echo '<div'
 							__( 'Description', 'ai-for-seo' ),
 							ai4seo_get_editor_preview_edit_target( array( 'description' ), $ai4seo_editable_attachment_attributes ),
 							'',
-							( AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS['description']['hint'] ?? '' ) . '<br><br>' . $ai4seo_attachment_preview_descriptions['description'],
+							( $ai4seo_attachment_field_descriptors['description']['hint'] ?? '' ) . '<br><br>' . $ai4seo_attachment_preview_descriptions['description'],
 							__( 'Description: Help', 'ai-for-seo' )
 						)
 					);
@@ -418,7 +420,7 @@ echo '<div'
 							__( 'Alt Text', 'ai-for-seo' ),
 							ai4seo_get_editor_preview_edit_target( array( 'alt-text' ), $ai4seo_editable_attachment_attributes ),
 							'',
-							( AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS['alt-text']['hint'] ?? '' ) . '<br><br>' . $ai4seo_attachment_preview_descriptions['alt-text'],
+							( $ai4seo_attachment_field_descriptors['alt-text']['hint'] ?? '' ) . '<br><br>' . $ai4seo_attachment_preview_descriptions['alt-text'],
 							__( 'Alt Text: Help', 'ai-for-seo' )
 						)
 					);
@@ -437,7 +439,7 @@ echo '<div'
 							__( 'Caption', 'ai-for-seo' ),
 							ai4seo_get_editor_preview_edit_target( array( 'caption' ), $ai4seo_editable_attachment_attributes ),
 							'',
-							( AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS['caption']['hint'] ?? '' ) . '<br><br>' . $ai4seo_attachment_preview_descriptions['caption'],
+							( $ai4seo_attachment_field_descriptors['caption']['hint'] ?? '' ) . '<br><br>' . $ai4seo_attachment_preview_descriptions['caption'],
 							__( 'Caption: Help', 'ai-for-seo' )
 						)
 					);
@@ -474,7 +476,7 @@ echo '<div'
 	$ai4seo_help_aria_label = __( 'Help', 'ai-for-seo' );
 
 	foreach ( $ai4seo_attachment_editor_field_order as $ai4seo_this_attachment_attribute_identifier ) {
-		$ai4seo_this_attachment_attribute_details = AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS[ $ai4seo_this_attachment_attribute_identifier ] ?? array();
+		$ai4seo_this_attachment_attribute_details = $ai4seo_attachment_field_descriptors[ $ai4seo_this_attachment_attribute_identifier ] ?? array();
 
 		if ( ! in_array( $ai4seo_this_attachment_attribute_identifier, $ai4seo_active_attachment_attributes, true ) ) {
 			$ai4seo_skipped_attachment_attributes[] = $ai4seo_this_attachment_attribute_identifier;
@@ -591,7 +593,7 @@ echo '<div'
 		ai4seo_echo_wp_kses(
 			ai4seo_get_editor_inactive_fields_notice_tag(
 				$ai4seo_skipped_attachment_attributes,
-				AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS,
+				$ai4seo_attachment_field_descriptors,
 				$ai4seo_inactive_fields_notice,
 				$ai4seo_settings_url
 			)

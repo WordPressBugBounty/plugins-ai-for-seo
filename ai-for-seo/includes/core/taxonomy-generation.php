@@ -393,7 +393,12 @@ function ai4seo_validate_taxonomy_generation_write( int $post_id, array $context
 		}
 	}
 	// This guard also runs inside the metadata lock: inspect ownership without reversing lock order.
-	$snapshot = ai4seo_get_raw_option_snapshot( ai4seo_get_processing_claim_lease_option_name( AI4SEO_PROCESSING_METADATA_POST_IDS_OPTION_NAME ) );
+	$snapshot = ai4seo_uses_post_state_tables()
+		? array(
+			'exists' => true,
+			'value'  => ai4seo_read_post_state_work( 5, array( $post_id ) ),
+		)
+		: ai4seo_get_raw_option_snapshot( ai4seo_get_processing_claim_lease_option_name( AI4SEO_PROCESSING_METADATA_POST_IDS_OPTION_NAME ) );
 	$leases   = array();
 	return null !== $snapshot && $snapshot['exists'] && ai4seo_validate_processing_claim_leases( $snapshot['value'], $leases )
 		&& isset( $leases[ $post_id ] ) && hash_equals( $claim['claim_token'], $leases[ $post_id ]['token'] )
@@ -420,9 +425,23 @@ function ai4seo_maybe_prepare_taxonomy_generation_index(): void {
  * @param string     $taxonomy Taxonomy name.
  * @param bool       $active_only Restrict dashboard coverage to active inventory entries.
  * @param array|null $option_inspections Optional caller-owned snapshot shared within one render. Reset after writes or before a new render; omitted calls read fresh.
+ * @param array|null $candidate_ids Optional visible page identities.
  * @return array|WP_Error
  */
-function ai4seo_read_taxonomy_generation_status_summary( string $taxonomy, bool $active_only = false, ?array &$option_inspections = null ) {
+function ai4seo_read_taxonomy_generation_status_summary( string $taxonomy, bool $active_only = false, ?array &$option_inspections = null, ?array $candidate_ids = null ) {
+	if ( null !== $candidate_ids && ai4seo_uses_post_state_tables() ) {
+		$options             = ai4seo_get_bulk_generation_queue_options_by_context( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA );
+		$options['complete'] = AI4SEO_FULLY_COVERED_METADATA_POST_IDS_OPTION_NAME;
+		$members             = ai4seo_read_post_state_for_ids( $candidate_ids, array_values( $options ) );
+		if ( null === $members ) {
+			return new WP_Error( 'taxonomy_status_unavailable' );
+		}
+		$result = array();
+		foreach ( $options as $key => $option ) {
+			$result[ $key ] = array_keys( $members[ $option ] );
+		}
+		return $result;
+	}
 	$summary = array();
 	$ids     = ai4seo_query_taxonomy_proxy_inventory(
 		'SELECT p.ID FROM {{posts}} p WHERE p.post_type = {{type}} AND EXISTS

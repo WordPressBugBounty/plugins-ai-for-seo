@@ -25,7 +25,7 @@ $ai4seo_current_utc_hour = (int) ai4seo_gmdate( 'H' );
 
 // Keep chart completion on the shared status while preserving the chart renderer's existing state input.
 $ai4seo_posts_table_analysis_status     = ai4seo_get_posts_table_analysis_status();
-$ai4seo_posts_table_analysis_state      = 'completed' === $ai4seo_posts_table_analysis_status['status'] ? 'completed' : 'idle';
+$ai4seo_posts_table_analysis_state      = ( 'completed' === $ai4seo_posts_table_analysis_status['status'] || ! empty( $ai4seo_posts_table_analysis_status['background'] ) ) ? 'completed' : 'idle';
 $ai4seo_analysis_readiness              = $ai4seo_posts_table_analysis_status['readiness'];
 $ai4seo_analysis_has_queue_restrictions = ! empty( $ai4seo_analysis_readiness['blocked_options'] );
 
@@ -103,9 +103,12 @@ $ai4seo_is_waiting_for_manual_queue_entries = (
 	&& 0 === $ai4seo_bulk_generation_processing_count
 );
 $ai4seo_background_job                      = ai4seo_get_background_job_readiness( AI4SEO_BULK_GENERATION_CRON_JOB_NAME );
-$ai4seo_bulk_generation_status              = $ai4seo_background_job['status'];
 $ai4seo_bulk_queue_presentation             = null;
 $ai4seo_bulk_queue_warnings                 = ai4seo_get_bulk_generation_queue_warnings( $ai4seo_bulk_queue_presentation );
+$ai4seo_autopilot_item_notice               = ai4seo_get_autopilot_item_notice( $ai4seo_bulk_queue_presentation, $ai4seo_background_job );
+$ai4seo_background_job                      = ai4seo_get_autopilot_dashboard_presentation( $ai4seo_background_job );
+$ai4seo_selection_continuation_warnings     = array_intersect_key( $ai4seo_bulk_queue_warnings, $ai4seo_bulk_queue_presentation['continuation'] );
+$ai4seo_bulk_queue_warnings                 = array_intersect_key( $ai4seo_bulk_queue_warnings, $ai4seo_bulk_queue_presentation['operational'] );
 $ai4seo_last_bulk_generation_update_time    = $ai4seo_background_job['updated_at'];
 $ai4seo_next_cron_job_call                  = wp_next_scheduled( AI4SEO_BULK_GENERATION_CRON_JOB_NAME );
 $ai4seo_next_cron_job_call_diff             = ( $ai4seo_next_cron_job_call ? $ai4seo_next_cron_job_call - time() : null );
@@ -304,16 +307,19 @@ if ( $ai4seo_all_supported_post_types || $ai4seo_dashboard_taxonomies || $ai4seo
 	}
 		echo '</div>';
 
-	// Completed scans retain a visible warning when corrupt history was excluded from coverage.
-	if ( 'completed' !== $ai4seo_posts_table_analysis_state || $ai4seo_posts_table_analysis_status['warning'] ) {
-		echo "<div class='ai4seo-dashboard-posts-table-analysis-not-completed-hint'>";
-			ai4seo_echo_wp_kses( ai4seo_get_svg_tag( 'completed' === $ai4seo_posts_table_analysis_state ? 'triangle-exclamation' : 'gear', '', 'incomplete' === $ai4seo_posts_table_analysis_status['status'] ? 'ai4seo-spinning-icon' : '' ) );
-			echo ' ';
-			echo esc_html( $ai4seo_posts_table_analysis_status['message'] );
-		echo '</div>';
+	// Keep diagnostics available when the banner is absent, without repeating a visible notification.
+	if ( 'completed' !== $ai4seo_posts_table_analysis_state || $ai4seo_posts_table_analysis_status['warning'] || ! empty( $ai4seo_posts_table_analysis_status['background'] ) ) {
+		if ( ! isset( $ai4seo_notifications['unfinished-posts-table-analysis'] ) ) {
+			echo '<div class="ai4seo-dashboard-analysis-status">';
+			ai4seo_echo_wp_kses( ai4seo_get_posts_table_analysis_notice_message( $ai4seo_posts_table_analysis_status ) );
+			echo '</div>';
+		}
+		if ( 'completed' !== $ai4seo_posts_table_analysis_state ) {
+			echo '<div class="ai4seo-dashboard-analysis-preliminary">' . esc_html__( 'Preliminary results', 'ai-for-seo' ) . '</div>';
+		}
 
 		// Fast refresh is useful only while another bounded analysis attempt can make progress.
-		if ( ! $ai4seo_heavy_db_operations_disabled && 'incomplete' === $ai4seo_posts_table_analysis_status['status'] ) {
+		if ( ! $ai4seo_heavy_db_operations_disabled && 'incomplete' === $ai4seo_posts_table_analysis_status['status'] && empty( $ai4seo_posts_table_analysis_status['background'] ) ) {
 			echo "<div id='ai4seo-no-dashboard-refresh-delay'></div>";
 		}
 	}
@@ -458,33 +464,39 @@ if ( $ai4seo_all_supported_post_types || $ai4seo_dashboard_taxonomies || $ai4seo
 	}
 
 	// Taxonomies retain their own identities and list routes, outside the public post-type registry.
-	$ai4seo_enabled_dashboard_taxonomies = ai4seo_get_enabled_bulk_generation_taxonomies();
-	$ai4seo_taxonomy_option_inspections  = array();
+	$ai4seo_enabled_dashboard_taxonomies   = ai4seo_get_enabled_bulk_generation_taxonomies();
+	$ai4seo_taxonomy_option_inspections    = array();
+	$ai4seo_taxonomy_blocked_options       = array_intersect( array_values( ai4seo_get_bulk_generation_queue_options_by_context( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA ) ), $ai4seo_analysis_readiness['blocked_options'] );
+	$ai4seo_has_unavailable_taxonomy_chart = false;
 	foreach ( $ai4seo_dashboard_taxonomies as $ai4seo_taxonomy_name => $ai4seo_taxonomy_entry ) {
 		if ( empty( $ai4seo_taxonomy_entry['has_entries'] ) || is_wp_error( $ai4seo_public_taxonomies ) || ! isset( $ai4seo_public_taxonomies[ $ai4seo_taxonomy_name ] ) ) {
 			continue;
 		}
-		$ai4seo_taxonomy_summary = ai4seo_read_taxonomy_generation_status_summary( $ai4seo_taxonomy_name, true, $ai4seo_taxonomy_option_inspections );
-		if ( is_wp_error( $ai4seo_taxonomy_summary ) || empty( $ai4seo_analysis_readiness['contexts'][ AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA ] ) ) {
-			echo '<p class="ai4seo-dashboard-statistics-message-row" role="status">' . esc_html( $ai4seo_taxonomy_entry['label'] . ': ' . __( 'Status is being prepared', 'ai-for-seo' ) ) . '</p>';
+		$ai4seo_taxonomy_summary  = ai4seo_read_taxonomy_generation_counts( $ai4seo_taxonomy_name, true, $ai4seo_taxonomy_option_inspections );
+		$ai4seo_taxonomy_headline = ai4seo_get_dashicon_tag_for_navigation( $ai4seo_taxonomy_name ) . esc_html( rtrim( $ai4seo_taxonomy_entry['label'], " \t\n\r\0\x0B:" ) );
+		if ( is_wp_error( $ai4seo_taxonomy_summary ) || $ai4seo_taxonomy_blocked_options || 'completed' !== $ai4seo_posts_table_analysis_state ) {
+			$ai4seo_has_unavailable_taxonomy_chart = true;
+			$ai4seo_taxonomy_is_preparing          = ! is_wp_error( $ai4seo_taxonomy_summary ) && ! $ai4seo_taxonomy_blocked_options && 'incomplete' === $ai4seo_posts_table_analysis_status['status'] && empty( $ai4seo_posts_table_analysis_status['background'] );
+			$ai4seo_taxonomy_status_label          = $ai4seo_taxonomy_is_preparing ? __( 'Status is being prepared', 'ai-for-seo' ) : __( 'Status is currently unavailable', 'ai-for-seo' );
+			ai4seo_echo_half_donut_chart_with_headline_and_percentage( $ai4seo_taxonomy_headline, array(), 0, 0, $ai4seo_posts_table_analysis_state, 'taxonomy-' . $ai4seo_taxonomy_name, '', $ai4seo_taxonomy_status_label );
 			continue;
 		}
 
 		// Count each archive once, even while a complete entry is queued for regeneration.
 		$ai4seo_taxonomy_complete = $ai4seo_taxonomy_summary['complete'];
-		$ai4seo_taxonomy_queued   = array_diff( array_unique( array_merge( $ai4seo_taxonomy_summary['pending'], $ai4seo_taxonomy_summary['processing'] ) ), $ai4seo_taxonomy_complete );
-		$ai4seo_taxonomy_failed   = array_diff( $ai4seo_taxonomy_summary['failed'], $ai4seo_taxonomy_complete, $ai4seo_taxonomy_queued );
-		$ai4seo_taxonomy_missing  = array_diff( $ai4seo_taxonomy_summary['missing'], $ai4seo_taxonomy_complete, $ai4seo_taxonomy_queued, $ai4seo_taxonomy_failed );
+		$ai4seo_taxonomy_queued   = $ai4seo_taxonomy_summary['queued'];
+		$ai4seo_taxonomy_failed   = $ai4seo_taxonomy_summary['failed'];
+		$ai4seo_taxonomy_missing  = $ai4seo_taxonomy_summary['missing'];
 
 		// Status and credit totals also include complete archives explicitly queued for regeneration.
 		if ( in_array( $ai4seo_taxonomy_name, $ai4seo_enabled_dashboard_taxonomies, true ) ) {
-			$ai4seo_taxonomy_pending_count            = count( array_unique( array_merge( $ai4seo_taxonomy_summary['pending'], $ai4seo_taxonomy_summary['processing'], $ai4seo_taxonomy_missing ) ) );
+			$ai4seo_taxonomy_pending_count            = $ai4seo_taxonomy_summary['pending'];
 			$ai4seo_total_num_pending_posts          += $ai4seo_taxonomy_pending_count;
 			$ai4seo_total_num_pending_metadata_posts += $ai4seo_taxonomy_pending_count;
 		}
 
 		// Missing fields alone do not prove automatic eligibility: archive content may be too short.
-		$ai4seo_chart_values = ai4seo_get_seo_coverage_chart_values( count( $ai4seo_taxonomy_complete ), count( $ai4seo_taxonomy_queued ), 0, count( $ai4seo_taxonomy_missing ), count( $ai4seo_taxonomy_failed ) );
+		$ai4seo_chart_values = ai4seo_get_seo_coverage_chart_values( $ai4seo_taxonomy_complete, $ai4seo_taxonomy_queued, 0, $ai4seo_taxonomy_missing, $ai4seo_taxonomy_failed );
 		$ai4seo_total_value  = array_sum( array_column( $ai4seo_chart_values, 'value' ) );
 		if ( 0 === $ai4seo_total_value ) {
 			continue;
@@ -493,9 +505,8 @@ if ( $ai4seo_all_supported_post_types || $ai4seo_dashboard_taxonomies || $ai4seo
 		foreach ( $ai4seo_chart_values as $ai4seo_chart_status => $ai4seo_chart_status_info ) {
 			$ai4seo_chart_legend_values[ $ai4seo_chart_status ]['value'] += $ai4seo_chart_status_info['value'];
 		}
-		$ai4seo_taxonomy_headline         = ai4seo_get_dashicon_tag_for_navigation( $ai4seo_taxonomy_name ) . esc_html( $ai4seo_taxonomy_entry['label'] );
 		$ai4seo_review_missing_fields_url = '';
-		if ( 'completed' === $ai4seo_posts_table_analysis_state && count( $ai4seo_taxonomy_complete ) < $ai4seo_total_value ) {
+		if ( 'completed' === $ai4seo_posts_table_analysis_state && $ai4seo_taxonomy_complete < $ai4seo_total_value ) {
 			$ai4seo_review_missing_fields_url = add_query_arg(
 				array(
 					'ai4seo_page'                  => 1,
@@ -505,7 +516,7 @@ if ( $ai4seo_all_supported_post_types || $ai4seo_dashboard_taxonomies || $ai4seo
 				$ai4seo_taxonomy_entry['url']
 			);
 		}
-		ai4seo_echo_half_donut_chart_with_headline_and_percentage( $ai4seo_taxonomy_headline, $ai4seo_chart_values, count( $ai4seo_taxonomy_complete ), $ai4seo_total_value, $ai4seo_posts_table_analysis_state, 'taxonomy-' . $ai4seo_taxonomy_name, $ai4seo_review_missing_fields_url );
+		ai4seo_echo_half_donut_chart_with_headline_and_percentage( $ai4seo_taxonomy_headline, $ai4seo_chart_values, $ai4seo_taxonomy_complete, $ai4seo_total_value, $ai4seo_posts_table_analysis_state, 'taxonomy-' . $ai4seo_taxonomy_name, $ai4seo_review_missing_fields_url );
 	}
 
 		// chart legend container.
@@ -515,8 +526,16 @@ if ( $ai4seo_all_supported_post_types || $ai4seo_dashboard_taxonomies || $ai4seo
 		echo '</div>';
 	}
 
+	// Keep the refresh explanation inside the card, below every chart and the shared legend.
+	ai4seo_echo_wp_kses(
+		ai4seo_get_dashboard_analysis_refresh_notice(
+			ai4seo_get_dashboard_analysis_refresh_pause( $ai4seo_posts_table_analysis_status ),
+			$ai4seo_can_administer_plugin
+		)
+	);
+
 		// no data message.
-	if ( ! $ai4seo_could_output_any_chart && empty( $ai4seo_posts_table_analysis_status['progress']['warnings']['count'] ) && 'completed' === $ai4seo_posts_table_analysis_state ) {
+	if ( ! $ai4seo_could_output_any_chart && ! $ai4seo_has_unavailable_taxonomy_chart && empty( $ai4seo_posts_table_analysis_status['progress']['warnings']['count'] ) && 'completed' === $ai4seo_posts_table_analysis_state ) {
 		echo "<div class='ai4seo-no-data-message ai4seo-dashboard-statistics-message-row ai4seo-red-message'>";
 			echo "<div class='ai4seo-dashboard-statistics-message-content ai4seo-red-message'>";
 				echo '<strong>' . esc_html__( 'Note:', 'ai-for-seo' ) . '</strong> ';
@@ -718,7 +737,8 @@ if ( $ai4seo_can_administer_plugin ) {
 	// === SEO AUTOPILOT ========================================================================= \\
 	// ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
-	$ai4seo_additional_sub_status_text = '<br>';
+	$ai4seo_is_waiting_for_cron_trigger = ! $ai4seo_background_job['active'] && $ai4seo_background_job['next_run'] && $ai4seo_background_job['next_run'] <= time();
+	$ai4seo_additional_sub_status_text  = '<br>';
 
 	// Add the last cron job call in a readable format.
 if ( $ai4seo_last_bulk_generation_update_time ) {
@@ -736,16 +756,16 @@ if ( null === $ai4seo_next_cron_job_call_diff ) {
 } elseif ( $ai4seo_next_cron_job_call_diff >= 10 ) {
 	$ai4seo_next_cron_job_call_diff_minutes = ceil( $ai4seo_next_cron_job_call_diff / 60 );
 	$ai4seo_additional_sub_status_text     .= ' ' . sprintf(
-		/* translators: %s: time until next execution */
-		esc_html__( 'It should continue in less than %s.', 'ai-for-seo' ),
+		/* translators: %s: time until the next scheduled automatic check. */
+		esc_html__( 'The next automatic check is scheduled within %s.', 'ai-for-seo' ),
 		sprintf(
 			/* translators: %s: number of minutes */
 			_n( '%s minute', '%s minutes', $ai4seo_next_cron_job_call_diff_minutes, 'ai-for-seo' ),
 			ai4seo_format_number_i18n( $ai4seo_next_cron_job_call_diff_minutes )
 		),
 	);
-} else {
-	$ai4seo_additional_sub_status_text .= ' ' . esc_html__( 'It should continue in a few moments.', 'ai-for-seo' );
+} elseif ( ! $ai4seo_is_waiting_for_cron_trigger ) {
+	$ai4seo_additional_sub_status_text .= ' ' . esc_html__( 'The next automatic check is due shortly.', 'ai-for-seo' );
 }
 
 	// Emphasize the existing automatic refresh behavior because the manual refresh fallback is no longer shown.
@@ -775,20 +795,23 @@ if ( ! $ai4seo_account_readiness['credits_ready'] ) {
 	echo "<div class='ai4seo-bulk-generation-status-subtext'>";
 	echo esc_html__( 'SEO Autopilot has not been set up yet.', 'ai-for-seo' );
 	echo '</div>';
-} elseif ( $ai4seo_bulk_queue_warnings || 'data-blocked' === $ai4seo_bulk_generation_status ) {
-	echo "<img src='" . esc_url( ai4seo_get_sooz_logo_url( '256x256' ) ) . "' alt='' class='ai4seo-bulk-generation-status-active-logo ai4seo-bulk-generation-status-opaque-logo'>";
-	$ai4seo_queue_label = $ai4seo_bulk_queue_warnings && ! $ai4seo_bulk_queue_presentation['needs_attention']
-		? $ai4seo_bulk_queue_presentation['label'] : __( 'SEO Autopilot needs attention', 'ai-for-seo' );
-	echo '<div class="ai4seo-bulk-generation-status-text">' . esc_html( $ai4seo_queue_label ) . '</div>';
-	echo '<div class="ai4seo-bulk-generation-status-subtext">' . esc_html( $ai4seo_bulk_queue_warnings ? implode( ' ', array_unique( $ai4seo_bulk_queue_warnings ) ) : __( 'Blocked entries remain queued. See Latest Activity for the affected entries. They will be checked again on the next scheduled run.', 'ai-for-seo' ) ) . '</div>';
-} elseif ( $ai4seo_analysis_has_queue_restrictions ) {
-	echo "<img src='" . esc_url( ai4seo_get_sooz_logo_url( '256x256' ) ) . "' alt='' class='ai4seo-bulk-generation-status-active-logo ai4seo-bulk-generation-status-opaque-logo'>";
-	echo '<div class="ai4seo-bulk-generation-status-text">' . esc_html__( 'Automatic queue entries restricted', 'ai-for-seo' ) . '</div>';
-	echo '<div class="ai4seo-bulk-generation-status-subtext">' . esc_html( $ai4seo_posts_table_analysis_status['warning'] ) . '</div>';
 } elseif ( $ai4seo_background_job['needs_attention'] ) {
 	echo "<img src='" . esc_url( ai4seo_get_sooz_logo_url( '256x256' ) ) . "' alt='' class='ai4seo-bulk-generation-status-active-logo ai4seo-bulk-generation-status-opaque-logo'>";
 	ai4seo_echo_wp_kses( ai4seo_get_background_job_status_html( $ai4seo_background_job ) );
-	ai4seo_echo_wp_kses( $ai4seo_execute_sooner_button );
+	if ( ! $ai4seo_is_waiting_for_cron_trigger ) {
+		ai4seo_echo_wp_kses( $ai4seo_execute_sooner_button );
+	}
+} elseif ( $ai4seo_bulk_queue_warnings && ! $ai4seo_background_job['active'] ) {
+	echo "<img src='" . esc_url( ai4seo_get_sooz_logo_url( '256x256' ) ) . "' alt='' class='ai4seo-bulk-generation-status-active-logo ai4seo-bulk-generation-status-opaque-logo'>";
+	$ai4seo_queue_label = ! in_array( true, $ai4seo_bulk_queue_presentation['operational'], true )
+		? $ai4seo_bulk_queue_presentation['label'] : __( 'Some Autopilot tasks are restricted', 'ai-for-seo' );
+	echo '<div class="ai4seo-bulk-generation-status-text">' . esc_html( $ai4seo_queue_label ) . '</div>';
+	echo '<div class="ai4seo-bulk-generation-status-subtext">' . esc_html( implode( ' ', array_unique( $ai4seo_bulk_queue_warnings ) ) ) . '</div>';
+	ai4seo_echo_wp_kses( $ai4seo_additional_sub_status_text );
+} elseif ( $ai4seo_analysis_has_queue_restrictions && ! $ai4seo_background_job['active'] ) {
+	echo "<img src='" . esc_url( ai4seo_get_sooz_logo_url( '256x256' ) ) . "' alt='' class='ai4seo-bulk-generation-status-active-logo ai4seo-bulk-generation-status-opaque-logo'>";
+	echo '<div class="ai4seo-bulk-generation-status-text">' . esc_html__( 'Automatic queue entries restricted', 'ai-for-seo' ) . '</div>';
+	echo '<div class="ai4seo-bulk-generation-status-subtext">' . esc_html( $ai4seo_posts_table_analysis_status['warning'] ) . '</div>';
 } elseif ( $ai4seo_is_waiting_for_manual_queue_entries && ! $ai4seo_background_job['active'] ) {
 	echo "<img src='" . esc_url( ai4seo_get_sooz_logo_url( '256x256' ) ) . "' alt='" . esc_attr__( 'SEO Autopilot is waiting for manually queued entries', 'ai-for-seo' ) . "' class='ai4seo-bulk-generation-status-active-logo'>";
 
@@ -799,18 +822,22 @@ if ( ! $ai4seo_account_readiness['credits_ready'] ) {
 	echo "<div class='ai4seo-bulk-generation-status-subtext'>";
 		echo esc_html__( 'Auto Queue Entries is disabled and the queue is empty. Add entries to the queue manually from the Posts or Media lists so SEO Autopilot can continue.', 'ai-for-seo' );
 	echo '</div>';
-} elseif ( 'completed' !== $ai4seo_posts_table_analysis_state ) {
+} elseif ( 'completed' !== $ai4seo_posts_table_analysis_state && ! $ai4seo_background_job['active'] ) {
 	// Autopilot waits on the same analysis outcome shown above the coverage charts.
 	echo "<img src='" . esc_url( ai4seo_get_sooz_logo_url( '256x256' ) ) . "' alt='" . esc_attr__( 'SEO Autopilot is active, but it is currently waiting for the analysis tasks to finish.', 'ai-for-seo' ) . "' class='ai4seo-bulk-generation-status-active-logo'>";
 
 	echo "<div class='ai4seo-bulk-generation-status-text'>";
+	if ( ! empty( $ai4seo_posts_table_analysis_status['preparing'] ) ) {
+		echo esc_html__( 'Preparing analysis', 'ai-for-seo' );
+	} else {
 		echo 'incomplete' === $ai4seo_posts_table_analysis_status['status'] ? esc_html__( 'Analyzing...', 'ai-for-seo' ) : esc_html__( 'Analysis needs attention', 'ai-for-seo' );
+	}
 	echo '</div>';
 
 	echo "<div class='ai4seo-bulk-generation-status-subtext'>";
 		echo esc_html( $ai4seo_posts_table_analysis_status['message'] );
 	echo '</div>';
-} elseif ( isset( $ai4seo_total_num_pending_posts ) && 0 === $ai4seo_total_num_pending_posts && 0 === $ai4seo_bulk_generation_processing_count && ! $ai4seo_background_job['active'] ) {
+} elseif ( isset( $ai4seo_total_num_pending_posts ) && 0 === $ai4seo_total_num_pending_posts && 0 === $ai4seo_bulk_generation_processing_count && ! $ai4seo_background_job['active'] && ! $ai4seo_autopilot_item_notice['all_tokens'] && ! $ai4seo_selection_continuation_warnings ) {
 	echo "<img src='" . esc_url( ai4seo_get_sooz_logo_url( '256x256' ) ) . "' alt='" . esc_attr__( 'SEO Autopilot is active but idling', 'ai-for-seo' ) . "' class='ai4seo-bulk-generation-status-active-logo ai4seo-bulk-generation-status-idle-logo'>";
 
 	echo "<div class='ai4seo-bulk-generation-status-text'>";
@@ -820,7 +847,7 @@ if ( ! $ai4seo_account_readiness['credits_ready'] ) {
 	echo "<div class='ai4seo-bulk-generation-status-subtext'>";
 		echo esc_html__( 'Waiting for new entries to process.', 'ai-for-seo' );
 	echo '</div>';
-} elseif ( ! $ai4seo_can_afford_at_least_one_generation ) {
+} elseif ( ! $ai4seo_can_afford_at_least_one_generation && ! $ai4seo_background_job['active'] ) {
 	echo "<img src='" . esc_url( ai4seo_get_sooz_logo_url( '256x256' ) ) . "' alt='" . esc_attr__( 'SEO Autopilot is active but no credits available', 'ai-for-seo' ) . "' class='ai4seo-bulk-generation-status-active-logo'>";
 
 	// triangle-exclamation on the top right corner.
@@ -839,7 +866,9 @@ if ( ! $ai4seo_account_readiness['credits_ready'] ) {
 } elseif ( ! $ai4seo_background_job['active'] ) {
 	echo "<img src='" . esc_url( ai4seo_get_sooz_logo_url( '256x256' ) ) . "' alt='' class='ai4seo-bulk-generation-status-active-logo ai4seo-bulk-generation-status-opaque-logo'>";
 	ai4seo_echo_wp_kses( ai4seo_get_background_job_status_html( $ai4seo_background_job ) );
-	ai4seo_echo_wp_kses( $ai4seo_additional_sub_status_text );
+	if ( ! $ai4seo_is_waiting_for_cron_trigger ) {
+		ai4seo_echo_wp_kses( $ai4seo_additional_sub_status_text );
+	}
 } else {
 	echo "<div class='ai4seo-bulk-generation-status-animated-logo-container'>";
 		echo "<img src='" . esc_url( ai4seo_get_sooz_logo_url( '512x512-animated' ) ) . "' class='ai4seo-bulk-generation-status-animated-logo-pulse'>";
@@ -855,6 +884,19 @@ if ( ! $ai4seo_account_readiness['credits_ready'] ) {
 		// Reinforce that the processing state will update without requiring a manual reload.
 		echo ' <strong>' . esc_html__( 'This page will refresh automatically.', 'ai-for-seo' ) . '</strong>';
 	echo '</div>';
+}
+
+	// Item diagnostics supplement the live execution state and never replace its schedule or animation.
+if ( $ai4seo_bulk_queue_warnings && ( $ai4seo_background_job['active'] || $ai4seo_background_job['needs_attention'] ) ) {
+		echo '<p class="ai4seo-autopilot-operational-notice">' . esc_html( implode( ' ', array_unique( $ai4seo_bulk_queue_warnings ) ) ) . '</p>';
+}
+if ( $ai4seo_autopilot_item_notice['tokens'] ) {
+		echo '<div class="ai4seo-autopilot-item-notice ai4seo-review-notice" data-ai4seo-item-tokens="' . esc_attr( wp_json_encode( $ai4seo_autopilot_item_notice['tokens'] ) ) . '" data-ai4seo-item-signature="' . esc_attr( $ai4seo_autopilot_item_notice['signature'] ) . '">';
+		echo '<strong>' . esc_html__( 'Some items need review', 'ai-for-seo' ) . '</strong>';
+		echo '<p>' . esc_html( implode( ' ', $ai4seo_autopilot_item_notice['messages'] ) ) . '</p>';
+		ai4seo_echo_wp_kses( ai4seo_get_a_tag_icon_button_tag( '#ai4seo-recent-activity', '', '', 'list', esc_html__( 'View Recent Activity', 'ai-for-seo' ), 'ai4seo-small-button' ) );
+		ai4seo_echo_wp_kses( ai4seo_get_small_icon_button_tag( 'xmark', esc_html__( 'Dismiss', 'ai-for-seo' ), '', 'ai4seo_dismiss_autopilot_item_notice(this);' ) );
+		echo '</div>';
 }
 
 			echo '</div>';

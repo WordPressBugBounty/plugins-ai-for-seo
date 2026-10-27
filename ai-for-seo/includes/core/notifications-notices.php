@@ -2823,7 +2823,7 @@ function ai4seo_check_for_unfinished_posts_table_analysis_notification( $force =
 	$notification_index = 'unfinished-posts-table-analysis';
 	$analysis           = ai4seo_get_posts_table_analysis_status();
 
-	if ( 'completed' === $analysis['status'] ) {
+	if ( 'completed' === $analysis['status'] || ( ! empty( $analysis['background'] ) && 'incomplete' === $analysis['status'] && empty( $analysis['readiness']['blocked_options'] ) ) ) {
 		ai4seo_remove_routine_notification( $notification_index );
 		return;
 	}
@@ -2833,29 +2833,12 @@ function ai4seo_check_for_unfinished_posts_table_analysis_notification( $force =
 		return;
 	}
 
-	// The initial row count is a reference total; only exhausted scan bounds establish completion.
-	$message  = esc_html( $analysis['message'] );
-	$progress = $analysis['progress'];
-
-	if ( in_array( (int) ( $progress['version'] ?? 0 ), array( 1, 2 ), true ) ) {
-		$examined_rows   = (int) $progress['examined_rows'];
-		$total_rows      = (int) $progress['total_rows'];
-		$percentage_done = $total_rows > 0 ? min( 99, (int) floor( 100 * ( $examined_rows / $total_rows ) ) ) : 0;
-		$message        .= '<br><br>';
-		$message        .= "<progress class='ai4seo-seo-coverage-progress-bar' value='" . esc_attr( $percentage_done ) . "' max='100'></progress> ";
-		$message        .= sprintf(
-			/* translators: 1: Progress percentage. 2: Rows examined. 3: Number of rows when this scan started. */
-			esc_html__( 'Progress: %1$s%% (%2$s rows examined; %3$s rows at the start of this scan).', 'ai-for-seo' ),
-			esc_html( ai4seo_format_number_i18n( $percentage_done ) ),
-			esc_html( ai4seo_format_number_i18n( $examined_rows ) ),
-			esc_html( ai4seo_format_number_i18n( $total_rows ) )
-		);
-	}
+	$message = ai4seo_get_posts_table_analysis_notice_message( $analysis );
 
 	// Keep intentional pauses distinct from failures while retaining the existing permanent notice.
 	$notice_type = 'failed' === $analysis['status'] ? 'notice-error' : 'notice-info';
 
-	if ( 'deferred' === $analysis['status'] ) {
+	if ( 'deferred' === $analysis['status'] && empty( $analysis['preparing'] ) ) {
 		$notice_type = 'notice-warning';
 	}
 

@@ -270,6 +270,29 @@ function ai4seo_drain_ajax_output_buffers(): string {
 
 
 /**
+ * Preserve paid output when optional history persistence fails.
+ *
+ * @param array $values Generated text fields.
+ * @param array $results API response.
+ * @param bool  $saved Confirmed history persistence.
+ * @param int   $generated_at Generation time.
+ * @param array $operation_details History writer outcome.
+ * @return array Manual editor response.
+ */
+function ai4seo_build_manual_generation_response( array $values, array $results, bool $saved, int $generated_at, array $operation_details ): array {
+	return array(
+		'generated_data'      => $values,
+		'generated_at'        => $saved ? $generated_at : 0,
+		'generated_at_output' => $saved ? ai4seo_format_unix_timestamp( $generated_at ) : '',
+		'history_status'      => $saved ? 'saved' : ( 'possibly_committed' === ( $operation_details['commit_state'] ?? '' ) ? 'unconfirmed' : 'not_saved' ),
+		'active_values_saved' => false,
+		'credits_consumed'    => (int) ( $results['credits-consumed'] ?? 0 ),
+		'new_credits_balance' => (int) ( $results['new-credits-balance'] ?? 0 ),
+	);
+}
+
+
+/**
  * Helper: send clean JSON and log any noise safely.
  *
  * @param mixed $response JSON data or a raw HTML string when raw-response mode is enabled.
@@ -429,6 +452,8 @@ function ai4seo_print_ajax_nonce_field(): void {
  * @return void
  */
 function ai4seo_save_anything( $additional_upcoming_updates = array() ) {
+	$metadata_field_descriptors = ai4seo_get_generation_field_descriptors( 'metadata' );
+
 	if ( ! ai4seo_singleton( __FUNCTION__ ) ) {
 		return;
 	}
@@ -523,7 +548,7 @@ function ai4seo_save_anything( $additional_upcoming_updates = array() ) {
 
 			// Metadata text must retain literals that settings controls use as transport sentinels.
 			$is_metadata_text = 'metadata_editor_custom_instructions' === $ai4seo_this_input_id
-				|| ( 0 === strpos( $ai4seo_this_input_id, 'metadata_' ) && isset( AI4SEO_METADATA_DETAILS[ substr( $ai4seo_this_input_id, 9 ) ] ) );
+				|| ( 0 === strpos( $ai4seo_this_input_id, 'metadata_' ) && isset( $metadata_field_descriptors[ substr( $ai4seo_this_input_id, 9 ) ] ) );
 			if ( ! $is_metadata_text ) {
 				// Only settings controls interpret these literals as checkbox values.
 				// todo: use better indicator like "checkbox-true".
@@ -827,6 +852,26 @@ function ai4seo_dismiss_recent_activity_error() {
 	}
 
 	ai4seo_send_ajax_success( array( 'resolved_activity_tokens' => array( $action => $token ) ) );
+}
+
+/**
+ * Persist a personal acknowledgement without changing item errors or generation state.
+ *
+ * @return void
+ */
+function ai4seo_dismiss_autopilot_item_notice() {
+	if ( ! ai4seo_singleton( __FUNCTION__ ) ) {
+		return;
+	}
+	// phpcs:disable WordPress.Security.NonceVerification.Missing -- The allowlisted dispatcher verifies the request nonce.
+	$tokens    = isset( $_POST['ai4seo_item_tokens'] ) && is_array( $_POST['ai4seo_item_tokens'] ) ? array_map( 'sanitize_text_field', wp_unslash( $_POST['ai4seo_item_tokens'] ) ) : array();
+	$signature = isset( $_POST['ai4seo_item_signature'] ) && is_string( $_POST['ai4seo_item_signature'] ) ? sanitize_text_field( wp_unslash( $_POST['ai4seo_item_signature'] ) ) : '';
+	// phpcs:enable WordPress.Security.NonceVerification.Missing
+	if ( ! ai4seo_dismiss_autopilot_item_events( $tokens, $signature ) ) {
+		ai4seo_send_ajax_error( esc_html__( 'The item notice could not be dismissed. Please refresh the page and try again.', 'ai-for-seo' ), 481809263 );
+		return;
+	}
+	ai4seo_send_ajax_success( array( 'dismissed_item_tokens' => $tokens ) );
 }
 
 
@@ -1272,7 +1317,7 @@ function ai4seo_refresh_dashboard_statistics() {
 	}
 
 	// The browser may display refreshed statistics only after a complete successful analysis.
-	if ( ! ai4seo_analyze_plugin_performance( false, true ) ) {
+	if ( ! ai4seo_analyze_plugin_performance( false, true, false, false, 'manual' ) ) {
 		ai4seo_send_ajax_error(
 			esc_html__( 'Statistics could not be refreshed. Please try again.', 'ai-for-seo' ),
 			44129003
@@ -2874,7 +2919,12 @@ function ai4seo_read_generated_data_reset_processing_post_ids_under_lock( ?calla
 			);
 		}
 
-		$processing_snapshot = ai4seo_get_raw_option_snapshot( $processing_option_name );
+		$processing_snapshot = ai4seo_uses_post_state_tables()
+			? array(
+				'exists' => true,
+				'value'  => ai4seo_export_post_state_ids( $processing_option_name ),
+			)
+			: ai4seo_get_raw_option_snapshot( $processing_option_name );
 
 		if ( null === $processing_snapshot ) {
 			return new WP_Error(
@@ -2926,7 +2976,12 @@ function ai4seo_read_generated_data_reset_processing_post_ids_under_lock( ?calla
 			);
 		}
 
-		$lease_snapshot = ai4seo_get_raw_option_snapshot( $lease_option_name );
+		$lease_snapshot = ai4seo_uses_post_state_tables()
+			? array(
+				'exists' => true,
+				'value'  => ai4seo_read_post_state_export_value( $lease_option_name ),
+			)
+			: ai4seo_get_raw_option_snapshot( $lease_option_name );
 
 		if ( null === $lease_snapshot ) {
 			return new WP_Error(

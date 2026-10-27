@@ -469,6 +469,15 @@ function ai4seo_store_taxonomy_proxy_source( array $post, array $source ) {
 	if ( ! ai4seo_is_database_advisory_lock_owned_by_current_connection( ai4seo_get_taxonomy_proxy_sync_lock_name() ) ) {
 		return new WP_Error( 'taxonomy_lock_lost' );
 	}
+	// Persist admission before changing source bytes. The reconciliation worker takes this same
+	// inventory lock, so it cannot acknowledge the entry before the source write finishes.
+	$previous_coverage_source = $post['source'];
+	$next_coverage_source     = $source;
+	unset( $previous_coverage_source['count'], $next_coverage_source['count'] );
+	if ( $previous_coverage_source !== $next_coverage_source
+		&& ! ai4seo_enqueue_analysis_reconciliation( array( (int) $post['ID'] ), true ) ) {
+		return new WP_Error( 'taxonomy_analysis_admission_failed' );
+	}
 	if ( $post['source'] !== $source ) {
 		// Avoid a stale cached value causing update_post_meta() to skip a required repair.
 		wp_cache_delete( (int) $post['ID'], 'post_meta' );
@@ -485,11 +494,7 @@ function ai4seo_store_taxonomy_proxy_source( array $post, array $source ) {
 		|| $post['source']['archive_url'] !== $source['archive_url'] ) ) ) {
 		ai4seo_purge_taxonomy_archive_cache( array( $post['source']['archive_url'] ?? '', $source['archive_url'] ) );
 	}
-	$result = ai4seo_sync_taxonomy_proxy_list_fields( $verified );
-	if ( ! is_wp_error( $result ) && $post['source'] !== $source ) {
-		ai4seo_schedule_generation_status_summary_rebuild();
-	}
-	return $result;
+	return ai4seo_sync_taxonomy_proxy_list_fields( $verified );
 }
 
 
@@ -672,30 +677,54 @@ function ai4seo_get_taxonomy_proxy_count_labels( int $count, string $option_name
 			ai4seo_format_number_i18n( $amount )
 		);
 	};
-	$summary  = ai4seo_read_generation_status_summary( false, true );
-	$ids      = $summary[ $option_name ][ AI4SEO_TAXONOMY_PROXY_POST_TYPE ]['post_ids'] ?? array();
-	if ( count( $ids ) !== $count ) {
-		return array( $fallback( $count ) );
-	}
-	$counts = array();
-	foreach ( array_chunk( $ids, ai4seo_get_database_chunk_size() ) as $chunk ) {
-		$rows = ai4seo_query_taxonomy_proxy_inventory(
-			'SELECT p.ID, MIN(m.meta_value) AS taxonomy FROM {{posts}} p INNER JOIN {{meta}} m ON m.post_id = p.ID
-			WHERE p.post_type = {{type}} AND m.meta_key = {{name_key}} AND p.ID IN ({{ids}})
-			GROUP BY p.ID HAVING COUNT(*) = 1',
-			array(
-				'posts'    => ai4seo_database_identifier_binding( 'table.posts' ),
-				'meta'     => ai4seo_database_identifier_binding( 'table.postmeta' ),
-				'type'     => ai4seo_database_scalar_binding( '%s', AI4SEO_TAXONOMY_PROXY_POST_TYPE ),
-				'name_key' => ai4seo_database_scalar_binding( '%s', AI4SEO_TAXONOMY_PROXY_NAME_META_KEY ),
-				'ids'      => ai4seo_database_list_binding( '%d', $chunk ),
-			)
+	$counts   = array();
+	if ( ai4seo_uses_post_state_tables() ) {
+		$state = ai4seo_read_post_state_storage_status();
+		$key   = null === $state ? null : ai4seo_post_state_key( $option_name, 2, $state );
+		$rows  = null === $key ? null : ai4seo_post_state_query(
+			'SELECT names.taxonomy,COUNT(*) AS amount FROM
+			(SELECT s.post_id,MIN(m.meta_value) AS taxonomy FROM {{memberships}} s
+			JOIN {{meta}} m ON m.post_id=s.post_id AND m.meta_key={{name_key}}
+			WHERE s.area={{area}} AND s.generation={{generation}} AND s.bucket={{bucket}} AND s.post_type={{type}}
+			GROUP BY s.post_id HAVING COUNT(*)=1) names GROUP BY names.taxonomy',
+			$key + array(
+				'name_key' => AI4SEO_TAXONOMY_PROXY_NAME_META_KEY,
+				'type'     => AI4SEO_TAXONOMY_PROXY_POST_TYPE,
+			),
+			true
 		);
-		if ( is_wp_error( $rows ) ) {
+		if ( null === $rows ) {
 			return array( $fallback( $count ) );
 		}
 		foreach ( $rows as $row ) {
-			$counts[ $row['taxonomy'] ] = ( $counts[ $row['taxonomy'] ] ?? 0 ) + 1;
+			$counts[ $row['taxonomy'] ] = (int) $row['amount'];
+		}
+	} else {
+		$summary = ai4seo_read_generation_status_summary( false, true );
+		$ids     = $summary[ $option_name ][ AI4SEO_TAXONOMY_PROXY_POST_TYPE ]['post_ids'] ?? array();
+		if ( count( $ids ) !== $count ) {
+			return array( $fallback( $count ) );
+		}
+		$counts = array();
+		foreach ( array_chunk( $ids, ai4seo_get_database_chunk_size() ) as $chunk ) {
+			$rows = ai4seo_query_taxonomy_proxy_inventory(
+				'SELECT p.ID, MIN(m.meta_value) AS taxonomy FROM {{posts}} p INNER JOIN {{meta}} m ON m.post_id = p.ID
+			WHERE p.post_type = {{type}} AND m.meta_key = {{name_key}} AND p.ID IN ({{ids}})
+			GROUP BY p.ID HAVING COUNT(*) = 1',
+				array(
+					'posts'    => ai4seo_database_identifier_binding( 'table.posts' ),
+					'meta'     => ai4seo_database_identifier_binding( 'table.postmeta' ),
+					'type'     => ai4seo_database_scalar_binding( '%s', AI4SEO_TAXONOMY_PROXY_POST_TYPE ),
+					'name_key' => ai4seo_database_scalar_binding( '%s', AI4SEO_TAXONOMY_PROXY_NAME_META_KEY ),
+					'ids'      => ai4seo_database_list_binding( '%d', $chunk ),
+				)
+			);
+			if ( is_wp_error( $rows ) ) {
+				return array( $fallback( $count ) );
+			}
+			foreach ( $rows as $row ) {
+				$counts[ $row['taxonomy'] ] = ( $counts[ $row['taxonomy'] ] ?? 0 ) + 1;
+			}
 		}
 	}
 	$labels = array();
@@ -797,6 +826,24 @@ function ai4seo_read_taxonomy_proxy_list_page( string $taxonomy, string $availab
 	// Only supply compiler bindings used by the chosen query.
 	if ( false === strpos( $where, '{{state_key}}' ) ) {
 		unset( $bindings['state_key'], $bindings['state_meta'] );
+	}
+	if ( $missing_only && ai4seo_uses_post_state_tables() ) {
+		$state = ai4seo_read_post_state_storage_status();
+		$ready = ai4seo_get_posts_table_analysis_readiness();
+		if ( null === $state || empty( $ready['contexts'][ AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA ] ) ) {
+			return new WP_Error( 'taxonomy_status_unavailable' );
+		}
+		$predicate = ai4seo_post_state_sql(
+			' AND EXISTS (SELECT 1 FROM {{memberships}} s WHERE s.area=1 AND s.post_id=p.ID
+			AND ((s.generation={{generation}} AND s.bucket=1) OR (s.generation=0 AND s.bucket IN (4,5,6))))
+			AND NOT EXISTS (SELECT 1 FROM {{memberships}} c WHERE c.area=1 AND c.post_id=p.ID AND c.generation={{generation}} AND c.bucket=3)',
+			array( 'generation' => $state['generation'] )
+		);
+		if ( false === $predicate ) {
+			return new WP_Error( 'taxonomy_status_unavailable' );
+		}
+		$where       .= $predicate;
+		$missing_only = false;
 	}
 	if ( $missing_only ) {
 		$readiness = ai4seo_get_posts_table_analysis_readiness();
@@ -1041,10 +1088,10 @@ function ai4seo_retire_taxonomy_proxy_queue_state( int $post_id, bool $deleted =
 	}
 	try {
 		if ( $deleted ) {
-			$processing = ai4seo_inspect_analysis_post_id_option( AI4SEO_PROCESSING_METADATA_POST_IDS_OPTION_NAME );
+			$processing = ai4seo_inspect_post_state_candidates( AI4SEO_PROCESSING_METADATA_POST_IDS_OPTION_NAME, array( $post_id ) );
 			$leases     = array();
 			if ( ! $processing['read_succeeded'] || ! $processing['complete']
-				|| ! ai4seo_read_processing_claim_leases_under_lock( AI4SEO_PROCESSING_METADATA_POST_IDS_OPTION_NAME, $leases ) ) {
+				|| ! ai4seo_read_processing_claim_leases_under_lock( AI4SEO_PROCESSING_METADATA_POST_IDS_OPTION_NAME, $leases, array( $post_id ) ) ) {
 				return new WP_Error( 'taxonomy_queue_unreadable' );
 			}
 			if ( in_array( $post_id, $processing['ids'], true ) || isset( $leases[ $post_id ] ) ) {
@@ -1054,7 +1101,7 @@ function ai4seo_retire_taxonomy_proxy_queue_state( int $post_id, bool $deleted =
 		$options  = $deleted ? AI4SEO_ALL_POST_ID_OPTIONS : array( AI4SEO_PENDING_METADATA_POST_IDS_OPTION_NAME, AI4SEO_FORCE_OVERWRITE_METADATA_POST_IDS_OPTION_NAME );
 		$removals = array_fill_keys( $options, array( $post_id ) );
 		foreach ( $options as $option ) {
-			$inspection = ai4seo_inspect_analysis_post_id_option( $option );
+			$inspection = ai4seo_inspect_post_state_candidates( $option, array( $post_id ) );
 			if ( ! $inspection['read_succeeded'] || ! $inspection['complete'] ) {
 				return new WP_Error( 'taxonomy_queue_unreadable' );
 			}
@@ -1086,7 +1133,7 @@ function ai4seo_delete_taxonomy_proxy( int $post_id, array &$progress, array &$s
 		return $post;
 	}
 	if ( $post ) {
-		$processing = ai4seo_inspect_analysis_post_id_option( AI4SEO_PROCESSING_METADATA_POST_IDS_OPTION_NAME );
+		$processing = ai4seo_inspect_post_state_candidates( AI4SEO_PROCESSING_METADATA_POST_IDS_OPTION_NAME, array( $post_id ) );
 		if ( ! $processing['read_succeeded'] || ! $processing['complete'] || in_array( $post_id, $processing['ids'], true ) ) {
 			return new WP_Error( 'taxonomy_generation_busy' );
 		}

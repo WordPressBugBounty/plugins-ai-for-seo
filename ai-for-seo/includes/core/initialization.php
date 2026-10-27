@@ -621,7 +621,12 @@ function ai4seo_check_and_handle_plugin_update( bool $force = false ) {
 	if ( null === $progress || 'newer' === $origin['status'] ) {
 		return;
 	}
+	$post_state_storage = ai4seo_read_post_state_storage_status();
+	$title_order_state  = ai4seo_read_title_order_state();
 	if ( ! $force && AI4SEO_PLUGIN_VERSION_NUMBER === $origin['source'] && AI4SEO_PLUGIN_VERSION_NUMBER === $progress['target']
+		&& in_array( $post_state_storage['phase'] ?? '', array( 'active', 'legacy' ), true )
+		&& ( 'legacy' === ( $post_state_storage['phase'] ?? '' ) || ( 'ready' === ( $title_order_state['phase'] ?? '' )
+			&& ai4seo_title_order_signature() === $title_order_state['signature'] && $post_state_storage['generation'] === $title_order_state['source_generation'] ) )
 		&& 'completed' === ( $progress['steps']['initialization']['status'] ?? '' )
 		&& ! array_filter(
 			$progress['steps'],
@@ -1056,12 +1061,12 @@ function ai4seo_tidy_up( string $last_known_plugin_version = AI4SEO_PLUGIN_VERSI
 
 					// V1.2.1: Rename some post ids options
 					// (ai4seo_failed_to_fill_metadata_post_ids -> ai4seo_failed_metadata_post_ids)
-					// (ai4seo_failed_to_fill_attributes_attachment_post_ids -> ai4seo_failed_attributes_attachment_post_ids).
+					// Transfer legacy attachment failures to the registered attachment queue.
 					if ( ! ai4seo_migrate_plugin_update_option( 'ai4seo_failed_to_fill_metadata_post_ids', 'ai4seo_failed_metadata_post_ids' ) ) {
 						return false;
 					}
 
-					if ( ! ai4seo_migrate_plugin_update_option( 'ai4seo_failed_to_fill_attributes_attachment_post_ids', 'ai4seo_failed_attributes_attachment_post_ids' ) ) {
+					if ( ! ai4seo_migrate_plugin_update_option( 'ai4seo_failed_to_fill_attributes_attachment_post_ids', AI4SEO_FAILED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME ) ) {
 						return false;
 					}
 				}
@@ -1368,6 +1373,23 @@ function ai4seo_tidy_up( string $last_known_plugin_version = AI4SEO_PLUGIN_VERSI
 			},
 			$force
 		);
+		if ( ! in_array( false, $results, true ) ) {
+			$results[] = ai4seo_run_plugin_update_step(
+				'post_state_storage_v1',
+				static function (): array {
+					return ai4seo_migrate_post_state_storage_batch();
+				},
+				$force,
+				true
+			);
+		}
+		if ( ! in_array( false, $results, true ) ) {
+			// Derived title preparation has its own checkpoint and does not pause generation.
+			$title_result = ai4seo_build_title_order_batch( 0.05 );
+			if ( 'completed' !== $title_result['status'] ) {
+				ai4seo_schedule_background_job_checked( AI4SEO_TITLE_ORDER_CRON_HOOK, 20 );
+			}
+		}
 		return ! in_array( false, $results, true ) && ai4seo_run_plugin_update_step(
 			'initialization',
 			static function (): bool {
@@ -2830,7 +2852,7 @@ function ai4seo_set_localization_parameters( array $asset_contexts ) {
 	// region REGISTER SCRIPT LOCALIZATION =========================================.
 
 	wp_localize_script( AI4SEO_SCRIPTS_HANDLE, 'ai4seo_localization', $localization_parameters );
-	wp_set_script_translations( AI4SEO_SCRIPTS_HANDLE, 'ai-for-seo' );
+	wp_set_script_translations( AI4SEO_SCRIPTS_HANDLE, 'ai-for-seo', AI4SEO_PLUGIN_DIR_PATH . 'languages' );
 }
 
 

@@ -88,6 +88,8 @@ function ai4seo_classify_active_metadata_rows( int $post_id, array $rows ): arra
  * @return array Unambiguous, individually valid display values.
  */
 function ai4seo_read_damaged_metadata_display_values( int $post_id, array $rows ): array {
+	$metadata_field_descriptors = ai4seo_get_generation_field_descriptors( 'metadata' );
+
 	$values      = array();
 	$unknown     = array();
 	$previous_id = 0;
@@ -106,7 +108,7 @@ function ai4seo_read_damaged_metadata_display_values( int $post_id, array $rows 
 			return array();
 		}
 		foreach ( $decoded as $field => $value ) {
-			if ( ! isset( AI4SEO_METADATA_DETAILS[ $field ] ) ) {
+			if ( ! isset( $metadata_field_descriptors[ $field ] ) ) {
 				continue;
 			}
 			$valid = array();
@@ -459,8 +461,10 @@ function ai4seo_get_confirmed_active_metadata_updates( array $updates, array $vi
  * @return bool Whether all submitted primary and provider writes succeeded.
  */
 function ai4seo_update_active_metadata_with_recovery( int $post_id, array $updates, bool $overwrite, array &$details, array $context ): bool {
+	$metadata_field_descriptors = ai4seo_get_generation_field_descriptors( 'metadata' );
+
 	$canonical = array();
-	foreach ( AI4SEO_METADATA_DETAILS as $field => $definition ) {
+	foreach ( $metadata_field_descriptors as $field => $definition ) {
 		if ( isset( $updates[ $field ] ) || isset( $updates[ $definition['api-identifier'] ] ) ) {
 			$canonical[ $field ] = $updates[ $field ] ?? $updates[ $definition['api-identifier'] ];
 		}

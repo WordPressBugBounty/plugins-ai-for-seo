@@ -201,6 +201,7 @@ function ai4seo_handle_native_bulk_generation_queue_action( $redirect_to, $doact
 			'ai4seo_bulk_generation_queue_transition_failed' => $queue_transition_failed ? 1 : 0,
 			'ai4seo_bulk_generation_queue_not_applicable'  => (int) ( $result['not_applicable'] ?? 0 ),
 			'ai4seo_bulk_generation_queue_skipped'         => (int) ( $result['skipped'] ?? 0 ),
+			'ai4seo_bulk_generation_svg_unavailable'       => (int) ( $result['svg_unavailable'] ?? 0 ),
 			'ai4seo_bulk_generation_queue_generated_data_deleted' => (int) ( $result['generated_data_deleted'] ?? 0 ),
 			'ai4seo_bulk_generation_queue_active_metadata_deleted' => (int) ( $result['active_metadata_deleted'] ?? 0 ),
 
@@ -232,6 +233,7 @@ function ai4seo_remove_bulk_generation_queue_bulk_action_query_args( string $url
 			'ai4seo_bulk_generation_queue_changed',
 			'ai4seo_bulk_generation_queue_not_applicable',
 			'ai4seo_bulk_generation_queue_skipped',
+			'ai4seo_bulk_generation_svg_unavailable',
 			'ai4seo_bulk_generation_queue_generated_data_deleted',
 			'ai4seo_bulk_generation_queue_active_metadata_deleted',
 			'ai4seo_bulk_generation_queue_modal_required',
@@ -471,6 +473,11 @@ function ai4seo_show_bulk_generation_queue_bulk_action_admin_notice() {
 		echo esc_html( $skipped_entries_label );
 	}
 	echo '</p></div>';
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Capability-gated, read-only notice; only a normalized count is consumed.
+	$svg_unavailable = absint( wp_unslash( $_GET['ai4seo_bulk_generation_svg_unavailable'] ?? 0 ) );
+	if ( $svg_unavailable > 0 ) {
+		echo '<div class="notice notice-warning"><p>' . esc_html( ai4seo_get_svg_unavailability_message( $svg_unavailable ) ) . '</p></div>';
+	}
 	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Capability-gated, read-only notice; no submitted text is rendered.
 	if ( ! empty( $_GET['ai4seo_bulk_generation_statistics_pending'] ) ) {
 		echo '<div class="notice notice-warning"><p>' . esc_html__( 'Statistics are still pending an update. The changes above have been saved.', 'ai-for-seo' ) . '</p></div>';

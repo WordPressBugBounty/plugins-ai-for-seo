@@ -74,9 +74,10 @@ function ai4seo_normalize_environmental_variable_overrides_for_runtime( $current
  * This reader never publishes defaults or failed storage into request globals. Rechecking the
  * options-table identity after the query also prevents a site switch from mis-scoping its result.
  *
+ * @param array $required_valid_keys Optional keys that must never fall back from corrupt storage.
  * @return array{success: bool, values: array} Snapshot result.
  */
-function ai4seo_read_authoritative_environmental_variables_snapshot(): array {
+function ai4seo_read_authoritative_environmental_variables_snapshot( array $required_valid_keys = array() ): array {
 	global $wpdb;
 
 	// Keep one stable failure shape so lock-owning callers can fail closed without publishing defaults.
@@ -96,7 +97,8 @@ function ai4seo_read_authoritative_environmental_variables_snapshot(): array {
 	// Use a value-only direct read so missing storage remains distinct from query failure without cache input.
 	try {
 		$option_query = ai4seo_prepare_database_query(
-			'SELECT option_value FROM {{options_table}} WHERE option_name = {{option_name}} LIMIT 1',
+			'SELECT option_value FROM {{options_table}} WHERE option_name = {{option_name}} LIMIT 1'
+				. ( ( $GLOBALS['ai4seo_post_state_transaction'] ?? null ) === $options_table ? ' FOR UPDATE' : '' ),
 			array(
 				'options_table' => ai4seo_database_identifier_binding( 'table.options' ),
 				'option_name'   => ai4seo_database_scalar_binding( '%s', AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME ),
@@ -127,6 +129,18 @@ function ai4seo_read_authoritative_environmental_variables_snapshot(): array {
 	$stored_environmental_variables = null === $serialized_environmental_variables
 		? array()
 		: ai4seo_safe_maybe_unserialize( $serialized_environmental_variables );
+
+	if ( $required_valid_keys ) {
+		if ( ! is_array( $stored_environmental_variables ) ) {
+			return $failed_snapshot;
+		}
+		foreach ( $required_valid_keys as $key ) {
+			if ( array_key_exists( $key, $stored_environmental_variables )
+				&& ! ai4seo_validate_environmental_variable_value( $key, $stored_environmental_variables[ $key ] ) ) {
+				return $failed_snapshot;
+			}
+		}
+	}
 
 	return array(
 		'success' => true,
@@ -357,6 +371,24 @@ function ai4seo_mutate_environmental_variable_overrides( callable $mutation_call
 
 
 /**
+ * Apply the single-value writers' shared sanitization policy after validation.
+ *
+ * @param string $environmental_variable_name Validated environmental variable name.
+ * @param mixed  $value Validated replacement value.
+ * @return mixed Sanitized value, retaining raw internal projections and their types.
+ */
+function ai4seo_sanitize_environmental_variable_value( string $environmental_variable_name, $value ) {
+	// These internal projections retain raw titles and typed IDs; their validators own the complete shape.
+	if ( in_array( $environmental_variable_name, array( AI4SEO_ENVIRONMENTAL_VARIABLE_POST_STATE_LIST_CACHE, AI4SEO_ENVIRONMENTAL_VARIABLE_TITLE_ORDER ), true ) ) {
+		return $value;
+	}
+
+	$value_sanitizer = in_array( $environmental_variable_name, array( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVATION, AI4SEO_ENVIRONMENTAL_VARIABLE_NOTIFICATION_PREFERENCES ), true ) ? 'ai4seo_sanitize_activation_state_value' : 'sanitize_text_field';
+	return ai4seo_deep_sanitize( $value, $value_sanitizer );
+}
+
+
+/**
  * Mutates one environmental value from the latest authoritative option snapshot.
  *
  * The callback runs inside every outer compare-and-swap attempt, receives the
@@ -422,8 +454,7 @@ function ai4seo_mutate_environmental_variable_value(
 				return array();
 			}
 
-			$value_sanitizer       = in_array( $environmental_variable_name, array( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVATION, AI4SEO_ENVIRONMENTAL_VARIABLE_NOTIFICATION_PREFERENCES ), true ) ? 'ai4seo_sanitize_activation_state_value' : 'sanitize_text_field';
-			$replacement_value     = ai4seo_deep_sanitize( $replacement_value, $value_sanitizer );
+			$replacement_value     = ai4seo_sanitize_environmental_variable_value( $environmental_variable_name, $replacement_value );
 			$replacement_overrides = $current_overrides;
 			$did_change            = false;
 
@@ -496,9 +527,7 @@ function ai4seo_update_environmental_variable( string $environmental_variable_na
 		return false;
 	}
 
-	// sanitize.
-	$value_sanitizer                  = in_array( $environmental_variable_name, array( AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVATION, AI4SEO_ENVIRONMENTAL_VARIABLE_NOTIFICATION_PREFERENCES ), true ) ? 'ai4seo_sanitize_activation_state_value' : 'sanitize_text_field';
-	$new_environmental_variable_value = ai4seo_deep_sanitize( $new_environmental_variable_value, $value_sanitizer );
+	$new_environmental_variable_value = ai4seo_sanitize_environmental_variable_value( $environmental_variable_name, $new_environmental_variable_value );
 
 	return ai4seo_mutate_environmental_variable_value(
 		$environmental_variable_name,
@@ -712,7 +741,7 @@ function ai4seo_bulk_update_environmental_variables( array $environmental_variab
 			continue;
 		}
 
-		$validated_updates[ $this_name ] = ai4seo_deep_sanitize( $this_value );
+		$validated_updates[ $this_name ] = AI4SEO_ENVIRONMENTAL_VARIABLE_TITLE_ORDER === $this_name ? $this_value : ai4seo_deep_sanitize( $this_value );
 	}
 
 	if ( ! $validated_updates ) {
@@ -824,8 +853,10 @@ function ai4seo_compare_and_swap_environmental_variable_value(
 		return false;
 	}
 
-	$expected_value    = ai4seo_deep_sanitize( $expected_value );
-	$replacement_value = ai4seo_deep_sanitize( $replacement_value );
+	if ( AI4SEO_ENVIRONMENTAL_VARIABLE_TITLE_ORDER !== $environmental_variable_name ) {
+		$expected_value    = ai4seo_deep_sanitize( $expected_value );
+		$replacement_value = ai4seo_deep_sanitize( $replacement_value );
+	}
 
 	if ( AI4SEO_ENVIRONMENTAL_VARIABLE_SUPPORTED_TAXONOMY_TERMS_CACHE === $environmental_variable_name ) {
 		$mutation_succeeded = ai4seo_mutate_supported_taxonomy_terms_cache(
@@ -893,7 +924,17 @@ function ai4seo_compare_and_swap_environmental_variable_value(
  * @param mixed  $environmental_variable_value The value of the environmental variable.
  */
 function ai4seo_validate_environmental_variable_value( string $environmental_variable_name, $environmental_variable_value ): bool {
-	if ( ai4seo_prevent_loops( __FUNCTION__, 5 ) ) {
+	if ( AI4SEO_ENVIRONMENTAL_VARIABLE_TITLE_ORDER === $environmental_variable_name ) {
+		return ai4seo_validate_title_order_state( $environmental_variable_value );
+	}
+	if ( AI4SEO_ENVIRONMENTAL_VARIABLE_POST_STATE_LIST_CACHE === $environmental_variable_name ) {
+		return ai4seo_validate_post_state_list_cache( $environmental_variable_value );
+	}
+	if ( AI4SEO_ENVIRONMENTAL_VARIABLE_POST_STATE_STORAGE === $environmental_variable_name ) {
+		return ai4seo_validate_post_state_storage_status( $environmental_variable_value );
+	}
+	// Sequential validation in long imports is not recursion and must never invalidate later settings.
+	if ( ai4seo_prevent_loops( __FUNCTION__, 5, PHP_INT_MAX ) ) {
 		ai4seo_debug_message( 705807482, 'Prevented loop', true );
 		return false;
 	}
@@ -905,6 +946,24 @@ function ai4seo_validate_environmental_variable_value( string $environmental_var
 	switch ( $environmental_variable_name ) {
 		case AI4SEO_ENVIRONMENTAL_VARIABLE_WELCOME_NOTIFICATION_STATE:
 			return in_array( $environmental_variable_value, array( 'unknown', 'pending', 'suppressed', 'handled' ), true );
+
+		case AI4SEO_ENVIRONMENTAL_VARIABLE_ANALYSIS_REFRESH:
+			if ( array() === $environmental_variable_value ) {
+				return true;
+			}
+			if ( ! is_array( $environmental_variable_value )
+				|| array_keys( ai4seo_get_analysis_refresh_policy() ) !== array_keys( $environmental_variable_value ) ) {
+				return false;
+			}
+			foreach ( array( 'version', 'started_at', 'completed_at', 'duration', 'rows', 'next_allowed_at', 'pending_at' ) as $key ) {
+				if ( false === ai4seo_normalize_option_post_id( $environmental_variable_value[ $key ], true ) ) {
+					return false;
+				}
+			}
+			$reasons = array( '', 'initial', 'routine', 'repair', 'settings', 'manual', 'resume' );
+			return 1 === (int) $environmental_variable_value['version']
+				&& in_array( $environmental_variable_value['reason'], $reasons, true )
+				&& in_array( $environmental_variable_value['pending_reason'], $reasons, true );
 
 		case AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_PROGRESS:
 			// An empty value is the reset state and keeps completed legacy scans readable.
@@ -991,6 +1050,23 @@ function ai4seo_validate_environmental_variable_value( string $environmental_var
 				&& is_string( $failure['field'] )
 				&& 1 === preg_match( '/^[a-z0-9_]{0,64}$/', $failure['field'] ) );
 
+		case AI4SEO_ENVIRONMENTAL_VARIABLE_POSTS_TABLE_ANALYSIS_TIMING:
+			if ( array() === $environmental_variable_value ) {
+				return true;
+			}
+			$timing_keys = array( 'upper_post_id', 'total_rows', 'first_rows', 'first_time', 'last_rows', 'last_time' );
+			if ( ! is_array( $environmental_variable_value ) || array_keys( $environmental_variable_value ) !== $timing_keys ) {
+				return false;
+			}
+			foreach ( $timing_keys as $timing_key ) {
+				if ( false === ai4seo_normalize_option_post_id( $environmental_variable_value[ $timing_key ], true ) ) {
+					return false;
+				}
+			}
+			return (int) $environmental_variable_value['first_time'] > 0
+				&& (int) $environmental_variable_value['last_time'] >= (int) $environmental_variable_value['first_time']
+				&& (int) $environmental_variable_value['last_rows'] >= (int) $environmental_variable_value['first_rows'];
+
 		case AI4SEO_ENVIRONMENTAL_VARIABLE_AUTO_QUEUE_SELECTION_PROGRESS:
 			if ( ! is_array( $environmental_variable_value ) || array_diff( array_keys( $environmental_variable_value ), array( 'metadata', 'attachment_attributes' ) ) ) {
 				return false;
@@ -1056,8 +1132,8 @@ function ai4seo_validate_environmental_variable_value( string $environmental_var
 			return is_string( $environmental_variable_value ) && in_array( $environmental_variable_value, array( 'idle', 'processing', 'completed' ), true );
 
 		case AI4SEO_ENVIRONMENTAL_VARIABLE_GENERATION_STATUS_SUMMARY_REBUILD_STATE:
-			// A required rebuild restarts once; processing resumes the same bounded replacement analysis.
-			return is_string( $environmental_variable_value ) && in_array( $environmental_variable_value, array( 'idle', 'required', 'processing' ), true );
+			// Recovery finishes the saved scan before honoring an older, potentially genuine rebuild request.
+			return is_string( $environmental_variable_value ) && in_array( $environmental_variable_value, array( 'idle', 'required', 'processing', 'resume_then_rebuild' ), true );
 
 		case AI4SEO_ENVIRONMENTAL_VARIABLE_ACTIVATION:
 			return ai4seo_validate_activation_state( $environmental_variable_value );

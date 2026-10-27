@@ -4,7 +4,7 @@ Contributors: spacecodes
 Donate link: https://spa.ce.codes
 Requires at least: 6.6
 Tested up to: 7.1
-Stable tag: 2.6.0
+Stable tag: 2.6.1
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -223,6 +223,17 @@ It depends on how the generated data is stored and used. If *SOOZ - AI for SEO* 
 We welcome feature requests, editor integration ideas, page builder compatibility requests, and SEO workflow feedback. Please email [support@sooz.ai](mailto:support@sooz.ai) with your suggestions.
 
 == Changelog ==
+
+= 2.6.1 =
+* Improved handling of large content libraries in filtered lists, title sorting, and SEO Autopilot.
+* Kept completed SEO statistics visible during background updates, with changes to content included before the new results appear.
+* Made large dashboard counts easier to read, with exact values in tooltips and clearer analysis progress, scheduling, and pause messages.
+* Improved recovery from temporary SVG generation outages with clearer explanations and preserved selections for retrying.
+* Fixed product price placeholders in metadata previews and inherited social sharing tags when using WooCommerce with Yoast SEO.
+* Kept metadata editor fields and actions accessible at high browser zoom and in short windows.
+* Fixed an upgrade issue that could leave updates from very old plugin versions unfinished.
+* Updated translations for nine languages and made bundled JavaScript translations available across plugin updates.
+* Bug Fixes & Maintenance: Fixed 2 minor bugs.
 
 = 2.6.0 =
 * Added metadata editing and generation for category, tag, and public taxonomy archives, with separate SEO coverage and SEO Autopilot selection.

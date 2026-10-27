@@ -19,6 +19,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return WP_Error|array|null Error on failure, response data on metadata success, or null on no-op.
  */
 function ai4seo_process_save_anything_metadata_editor_values( array &$upcoming_save_anything_updates ) {
+	$metadata_field_descriptors = ai4seo_get_generation_field_descriptors( 'metadata' );
+
 	// Preserve the category's silent no-op behavior outside the configured content boundary.
 	if ( ! ai4seo_can_use_plugin_content() ) {
 		return null;
@@ -50,7 +52,7 @@ function ai4seo_process_save_anything_metadata_editor_values( array &$upcoming_s
 		return new WP_Error( 728451917, __( 'Invalid metadata resolution request. Reload this entry and try again.', 'ai-for-seo' ) );
 	}
 	foreach ( $ai4seo_recovery_context['resolutions'] as $field => $resolution ) {
-		if ( ! isset( AI4SEO_METADATA_DETAILS[ $field ] ) || ! is_array( $resolution )
+		if ( ! isset( $metadata_field_descriptors[ $field ] ) || ! is_array( $resolution )
 			|| ! in_array( $resolution['kind'] ?? '', array( 'stored', 'custom' ), true )
 			|| ! isset( $upcoming_save_anything_updates[ 'metadata_' . $field ] ) ) {
 			return new WP_Error( 728451917, __( 'Invalid metadata resolution request. Reload this entry and try again.', 'ai-for-seo' ) );
@@ -61,7 +63,7 @@ function ai4seo_process_save_anything_metadata_editor_values( array &$upcoming_s
 	$ai4seo_new_metadata = array();
 
 	// Validate and normalize every submitted metadata field before writing any editor values.
-	foreach ( AI4SEO_METADATA_DETAILS as $ai4seo_metadata_identifier => $ai4seo_metadata_details ) {
+	foreach ( $metadata_field_descriptors as $ai4seo_metadata_identifier => $ai4seo_metadata_details ) {
 		$ai4seo_metadata_input_name = 'metadata_' . $ai4seo_metadata_identifier;
 
 		// The shared save endpoint can contain unrelated categories, so process only present metadata fields.
@@ -363,6 +365,8 @@ function ai4seo_process_save_anything_metadata_editor_values( array &$upcoming_s
  * @return array Additive response with checked values and safe diagnostics.
  */
 function ai4seo_build_metadata_editor_save_response( int $ai4seo_this_post_id, array $ai4seo_new_metadata, array $ai4seo_metadata_update_details, array $ai4seo_fenced_save_details ): array {
+	$metadata_field_descriptors = ai4seo_get_generation_field_descriptors( 'metadata' );
+
 	global $wpdb;
 
 	// Primary persistence and the overall outcome differ when optional synchronization fails.
@@ -455,8 +459,8 @@ function ai4seo_build_metadata_editor_save_response( int $ai4seo_this_post_id, a
 		foreach ( $ai4seo_failed_third_party_syncs as $ai4seo_provider => $ai4seo_failed_fields ) {
 			$ai4seo_field_names = array();
 			foreach ( $ai4seo_failed_fields as $ai4seo_failed_field ) {
-				if ( isset( AI4SEO_METADATA_DETAILS[ $ai4seo_failed_field ]['name'] ) ) {
-					$ai4seo_field_names[] = wp_strip_all_tags( AI4SEO_METADATA_DETAILS[ $ai4seo_failed_field ]['name'] );
+				if ( isset( $metadata_field_descriptors[ $ai4seo_failed_field ]['name'] ) ) {
+					$ai4seo_field_names[] = wp_strip_all_tags( $metadata_field_descriptors[ $ai4seo_failed_field ]['name'] );
 				}
 			}
 			if ( $ai4seo_field_names ) {

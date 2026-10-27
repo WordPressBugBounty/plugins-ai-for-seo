@@ -466,6 +466,9 @@ class Ai4Seo_RobHubApiCommunicator {
 	private array $non_retriable_error_codes = array(
 		self::INSUFFICIENT_CREDITS_ERROR_CODE, // No more credits.
 		self::CREDIT_SETTLEMENT_ERROR_CODE, // Credits settlement failed.
+		76102426, // Invalid generation profile; retrying the same request cannot fix it.
+		77102426, // Generation profiles are not available on this server yet.
+		78102426, // Master review could not confirm a result; do not repeat the paid pipeline automatically.
 		591716925, // could not send email (send-licence-data).
 		41228125, // Please log in using the license data provided (get-free-account).
 		25164525, // error while downloading file from url / http status code != 200.
@@ -510,6 +513,9 @@ class Ai4Seo_RobHubApiCommunicator {
 		1215424,   // no credits left.
 		self::INSUFFICIENT_CREDITS_ERROR_CODE, // No credits left (server side).
 		self::CREDIT_SETTLEMENT_ERROR_CODE, // Credits settlement failed.
+		76102426, // Invalid generation profile.
+		77102426, // Generation profile support is unavailable; the post is not at fault.
+		78102426, // An inconclusive Master review is not a post or credentials error.
 		201313823, // endpoint not allowed.
 		211313823, // request method not allowed.
 		2113111223, // missing or corrupt auth credentials.
@@ -626,6 +632,7 @@ class Ai4Seo_RobHubApiCommunicator {
 	public const ENVIRONMENTAL_VARIABLE_IS_AUTH_LOCKED               = 'is_auth_locked';
 	public const ENVIRONMENTAL_VARIABLE_GROUP                        = 'group';
 	public const ENVIRONMENTAL_VARIABLE_SVG_STATIC_V1                = 'svg_static_v1';
+	public const ENVIRONMENTAL_VARIABLE_SVG_STATUS                   = 'svg_static_v1_status';
 	public const ENVIRONMENTAL_VARIABLE_CREDENTIAL_CHANGES_SUPPORTED = 'credential_changes_supported';
 
 	public const DEFAULT_ENVIRONMENTAL_VARIABLES = array(
@@ -640,6 +647,7 @@ class Ai4Seo_RobHubApiCommunicator {
 		self::ENVIRONMENTAL_VARIABLE_IS_AUTH_LOCKED    => false,
 		self::ENVIRONMENTAL_VARIABLE_GROUP             => 'x',
 		self::ENVIRONMENTAL_VARIABLE_SVG_STATIC_V1     => false,
+		self::ENVIRONMENTAL_VARIABLE_SVG_STATUS        => array(),
 		self::ENVIRONMENTAL_VARIABLE_CREDENTIAL_CHANGES_SUPPORTED => false,
 	);
 	/**
@@ -1081,6 +1089,11 @@ class Ai4Seo_RobHubApiCommunicator {
 		$attempt = 0;
 
 		$max_api_attempts_for_endpoint = $this->max_api_attempts;
+		if ( 'client/sync' === $endpoint && 'svg_capability_retry' === ( $parameters['reason'] ?? '' ) ) {
+			// Availability recovery is a short probe; a later request owns any retry.
+			$max_api_attempts_for_endpoint = 1;
+			$api_arguments['timeout']      = min( 10, (int) ( $api_arguments['timeout'] ?? 10 ) );
+		}
 
 		if ( in_array( $endpoint, self::SINGLE_ATTEMPT_ENDPOINTS, true )
 			|| in_array( $endpoint, self::COORDINATED_GENERATION_ENDPOINTS, true ) ) {
@@ -5002,6 +5015,12 @@ class Ai4Seo_RobHubApiCommunicator {
 				$updates[ $name ] = $value;
 			}
 		}
+		// Publish details with the same boolean, and discard stale details from older servers.
+		$svg_status                = $data['capabilities']['svg_static_v1_status'] ?? array();
+		$has_consistent_svg_status = $this->validate_environmental_variable_value( self::ENVIRONMENTAL_VARIABLE_SVG_STATUS, $svg_status )
+			&& $svg_status && is_bool( $data['capabilities']['svg_static_v1'] ?? null )
+			&& ( 'available' === $svg_status['state'] ) === $data['capabilities']['svg_static_v1'];
+		$updates[ self::ENVIRONMENTAL_VARIABLE_SVG_STATUS ] = $has_consistent_svg_status ? $svg_status : array();
 		if ( ! $this->persist_environmental_variables( array_merge( $this->read_all_environmental_variables(), $updates ), $updates, true ) ) {
 			return $this->respond_error( esc_html__( 'Account data was received but could not be saved locally. Please refresh account data again.', 'ai-for-seo' ), 27101304 );
 		}
@@ -5447,6 +5466,13 @@ class Ai4Seo_RobHubApiCommunicator {
 			if ( is_int( $data ) && 'ai4seo_wp_kses' === $sanitize_value_function_name
 				&& ( 'client/activation-preferences' === $endpoint
 					|| ( 'client/sync' === $endpoint && 'activation' === ( $path[0] ?? '' ) ) ) ) {
+				return $data;
+			}
+
+			// SVG status timestamps and retry delays retain their JSON integer types.
+			if ( 'client/sync' === $endpoint && 'ai4seo_wp_kses' === $sanitize_value_function_name && is_int( $data )
+				&& 3 === count( $path ) && 'capabilities' === $path[0] && 'svg_static_v1_status' === $path[1]
+				&& in_array( $path[2], array( 'checked_at', 'retry_after' ), true ) ) {
 				return $data;
 			}
 
@@ -6395,6 +6421,35 @@ class Ai4Seo_RobHubApiCommunicator {
 	 */
 	public function validate_environmental_variable_value( string $environmental_variable_name, $environmental_variable_value ): bool {
 		switch ( $environmental_variable_name ) {
+			case self::ENVIRONMENTAL_VARIABLE_SVG_STATUS:
+				if ( array() === $environmental_variable_value ) {
+					return true;
+				}
+				if ( ! is_array( $environmental_variable_value ) || 4 !== count( $environmental_variable_value )
+					|| ! is_int( $environmental_variable_value['checked_at'] ?? null ) || $environmental_variable_value['checked_at'] < 0
+					|| ! is_int( $environmental_variable_value['retry_after'] ?? null ) || $environmental_variable_value['retry_after'] < 60 || $environmental_variable_value['retry_after'] > 3600 ) {
+					return false;
+				}
+				$reasons = array(
+					'available' => array( 'ok' ),
+					'disabled'  => array( 'disabled', 'configuration_unavailable' ),
+					'temporary' => array(
+						'check_budget_exhausted',
+						'runtime_unavailable',
+						'provider_timeout',
+						'provider_unreachable',
+						'provider_rate_limited',
+						'provider_error',
+						'provider_auth',
+						'provider_response_invalid',
+						'provider_account_unverified',
+						'provider_credits_exhausted',
+						'engine_unavailable',
+						'legacy_unavailable',
+					),
+				);
+				return is_string( $environmental_variable_value['state'] ?? null )
+					&& in_array( $environmental_variable_value['reason'] ?? null, $reasons[ $environmental_variable_value['state'] ] ?? array(), true );
 			case self::ENVIRONMENTAL_VARIABLE_SVG_STATIC_V1:
 			case self::ENVIRONMENTAL_VARIABLE_CREDENTIAL_CHANGES_SUPPORTED:
 				return is_bool( $environmental_variable_value );

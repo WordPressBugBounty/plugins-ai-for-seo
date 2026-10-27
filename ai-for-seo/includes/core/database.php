@@ -82,6 +82,31 @@ function ai4seo_get_database_statement_timeout_support(): array {
 }
 
 /**
+ * Wrap a prepared SELECT query in the database engine's statement-timeout syntax.
+ *
+ * Callers validate the SELECT query and normalize the timeout before formatting it.
+ *
+ * @param string $select_sql      Validated, fully prepared SELECT query.
+ * @param int    $timeout_seconds Normalized timeout in seconds.
+ * @param string $engine          Database engine; non-MariaDB values use MySQL syntax.
+ * @return string Timed SELECT query, or an empty string if formatting fails.
+ */
+function ai4seo_prepare_optional_timed_select_sql( string $select_sql, int $timeout_seconds, string $engine ): string {
+	if ( 'mariadb' === $engine ) {
+		return 'SET STATEMENT max_statement_time=' . $timeout_seconds . ' FOR ' . $select_sql;
+	}
+
+	$timeout_milliseconds = $timeout_seconds * 1000;
+
+	return preg_replace(
+		'/^SELECT\s/i',
+		'SELECT /*+ MAX_EXECUTION_TIME(' . $timeout_milliseconds . ') */ ',
+		$select_sql,
+		1
+	) ?? '';
+}
+
+/**
  * Returns the maximum number of values that one prepared query may bind.
  *
  * The budget covers the largest supported ID chunk plus fixed filters while
@@ -181,10 +206,16 @@ function ai4seo_get_database_identifier_registry(): array {
 	// Derive known integration tables from the active site prefix before validating each identifier.
 	if ( isset( $wpdb->prefix ) && is_string( $wpdb->prefix ) ) {
 		$prefixed_tables = array(
-			'table.aioseo_posts'     => 'aioseo_posts',
-			'table.nextgen_gallery'  => 'ngg_gallery',
-			'table.nextgen_pictures' => 'ngg_pictures',
-			'table.squirrly'         => 'qss',
+			'table.post_memberships'  => 'ai4seo_post_memberships',
+			'table.post_totals'       => 'ai4seo_post_totals',
+			'table.post_work'         => 'ai4seo_post_work',
+			'table.post_title_rows'   => 'ai4seo_post_title_rows',
+			'table.post_title_blocks' => 'ai4seo_post_title_blocks',
+			'table.post_title_counts' => 'ai4seo_post_title_counts',
+			'table.aioseo_posts'      => 'aioseo_posts',
+			'table.nextgen_gallery'   => 'ngg_gallery',
+			'table.nextgen_pictures'  => 'ngg_pictures',
+			'table.squirrly'          => 'qss',
 		);
 
 		foreach ( $prefixed_tables as $registry_key => $suffix ) {

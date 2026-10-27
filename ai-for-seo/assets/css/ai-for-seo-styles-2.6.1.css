@@ -1182,6 +1182,14 @@ div.ai4seo-max-width-100 {
 		grid-row: 2;
 		justify-self: center;
 	}
+
+	/* type: component — dashboard card actions: keep the account refresh clear of the title. */
+	.ai4seo-dashboard > .ai4seo-card > .ai4seo-top-right-refresh-button-wrapper {
+		position: static;
+		flex: 0 0 100%;
+		margin-bottom: 1rem;
+		text-align: center;
+	}
 }
 
 /* type: component — dashboard statistics card */
@@ -1229,14 +1237,19 @@ div.ai4seo-max-width-100 {
 	transform: scale(1.2);
 }
 
-/* type: module — dashboard chart: reserve a multilingual explanation row above each aligned review button. */
+/* type: module — dashboard chart: place review actions directly below the completion count. */
 .ai4seo-chart-review {
 	position: absolute;
 	top: 100%;
 	left: 0;
 	width: 100%;
-	margin-top: 24px;
+	margin-top: 4px;
 	text-align: center;
+}
+
+/* Keep the WPML explanation on its own row above the media review action. */
+.ai4seo-chart-container:has(.ai4seo-half-donut-chart-sub-info) .ai4seo-chart-review {
+	margin-top: 24px;
 }
 
 /* type: module — dashboard chart: use the shared small secondary button styling. */
@@ -1289,6 +1302,11 @@ div.ai4seo-max-width-100 {
 	font-size: 12px;
 }
 
+/* type: module — dashboard chart: signal that the compact count offers exact details. */
+.ai4seo-chart-count-tooltip {
+	cursor: help;
+}
+
 /* type: module — dashboard chart */
 .ai4seo-half-donut-chart-complete {
 	color: #005500;
@@ -1297,6 +1315,26 @@ div.ai4seo-max-width-100 {
 /* type: module — dashboard chart */
 .ai4seo-half-donut-chart-incomplete {
 	color: var(--ai4seo-black);
+}
+
+/* type: module — dashboard chart: unknown values keep the existing geometry without implying zero coverage. */
+.ai4seo-chart-unavailable .ai4seo-half-donut-chart-container > [role='status'] > svg {
+	opacity: .42;
+}
+
+.ai4seo-chart-segment-unavailable {
+	--ai4seo-chart-segment-color: var(--ai4seo-border-light);
+}
+
+.ai4seo-chart-unavailable .ai4seo-half-donut-chart-percentage {
+	color: var(--ai4seo-border-muted);
+	font-weight: normal;
+}
+
+.ai4seo-chart-unavailable .ai4seo-half-donut-chart-complete-count {
+	bottom: -18px;
+	font-size: 11px;
+	color: var(--ai4seo-muted-text);
 }
 
 
@@ -3115,6 +3153,25 @@ input.ai4seo-single-checkbox[type="checkbox"]:disabled::after {
 	max-width: 80% !important;
 }
 
+/* type: module - select all: show partial selection when WordPress removes native checkbox appearance. */
+input.ai4seo-select-all-checkbox[type="checkbox"]:indeterminate {
+	position: relative;
+	background: var(--wp-admin-theme-color);
+	border-color: var(--wp-admin-theme-color);
+}
+
+input.ai4seo-select-all-checkbox[type="checkbox"]:indeterminate::before {
+	content: "";
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 50%;
+	height: 0;
+	margin: 0;
+	border-top: 2px solid #fff;
+	transform: translate(-50%, -50%);
+}
+
 /* type: module — form layout */
 .ai4seo-contact-form {
 	max-width: 520px;
@@ -4447,15 +4504,28 @@ div.ai4seo-sidebar-headline {
 	margin-top: 25px;
 }
 
+/* type: content — Dashboard: give the grid a definite width inside the admin shell's flex column. */
+.ai4seo-dashboard-refresh-root {
+	width: 100%;
+	min-width: 0;
+	contain: inline-size;
+}
+
 /* type: module — card */
 div.ai4seo-cards-container {
 	box-sizing: border-box;
-	display: flex;
-	flex-wrap: wrap;
+	display: grid;
+	/* Fit complete columns to the available content width, including at fractional browser zoom levels. */
+	grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(512px + 4rem)), 1fr));
 	gap: 1.5rem;
-	justify-content: flex-start;
 	align-items: flex-start;
 	max-width: calc((3 * 512px) + (3 * 4rem) + (2 * 1.5rem));
+}
+
+/* type: module — card: fill each grid track while preserving standalone card sizing. */
+div.ai4seo-cards-container > div.ai4seo-card {
+	min-width: 0;
+	max-width: none;
 }
 
 /* type: module — card */
@@ -4548,14 +4618,7 @@ div.ai4seo-fully-centered-card {
 
 /* type: module — card */
 div.ai4seo-three-column-card {
-	max-width: calc((3 * 512px) + (3 * 4rem) + (2 * 1.5rem));
-}
-
-@media (max-width: calc((3 * 512px) + (3 * 4rem) + (2 * 1.5rem) + 457px)) {
-/* type: module — card */
-	div.ai4seo-three-column-card {
-		max-width: calc((2 * 512px) + (2 * 4rem) + (1 * 1.5rem));
-	}
+	grid-column: 1 / -1;
 }
 
 /* type: module — card */
@@ -6655,6 +6718,97 @@ div.ai4seo-notice li {
 	word-break: break-word;
 }
 
+/* type: module — analysis status: reuse notice, progress and native collapsible formatting. */
+.ai4seo-analysis-status-header {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	align-items: baseline;
+	gap: .25rem 1rem;
+}
+
+.ai4seo-analysis-status > progress.ai4seo-seo-coverage-progress-bar {
+	margin: .6rem 0;
+}
+
+.ai4seo-analysis-warning {
+	font-size: .875rem;
+	line-height: 1.6;
+	color: var(--ai4seo-gray-dark);
+}
+
+.ai4seo-analysis-warning svg {
+	width: 1rem;
+	height: 1rem;
+	vertical-align: middle;
+}
+
+.ai4seo-analysis-status-failed .ai4seo-analysis-status-header strong {
+	color: var(--ai4seo-red);
+}
+
+.ai4seo-dashboard-analysis-status {
+	width: 100%;
+	margin: .5rem 0 1rem;
+	text-align: left;
+}
+
+.ai4seo-dashboard-analysis-preliminary {
+	width: 100%;
+	text-align: center;
+	font-size: .875rem;
+	color: var(--ai4seo-muted-text);
+}
+
+.ai4seo-dashboard-analysis-refresh-notice {
+	flex: 0 0 100%;
+	width: 100%;
+	text-align: center;
+	font-size: .875rem;
+	line-height: 1.6;
+}
+
+/* Leave room for review actions while bringing the refresh notice closer to the charts. */
+.ai4seo-dashboard-statistics-card:has(> .ai4seo-dashboard-analysis-refresh-notice) > .ai4seo-chart-container {
+	margin-bottom: 24px;
+}
+
+.ai4seo-dashboard-statistics-card:has(> .ai4seo-dashboard-analysis-refresh-notice):has(.ai4seo-chart-review) > .ai4seo-chart-container {
+	margin-bottom: 48px;
+}
+
+.ai4seo-dashboard-statistics-card .ai4seo-dashboard-analysis-refresh-notice > p {
+	box-sizing: border-box;
+	width: 100%;
+	max-width: 960px;
+	margin: 16px auto 40px;
+	padding: 16px 20px;
+	border: 1px solid #b6d5ef;
+	border-radius: 6px;
+	background-color: #eef6fc;
+	color: var(--ai4seo-blue-dark);
+	font-size: inherit;
+	line-height: inherit;
+}
+
+.ai4seo-analysis-details {
+	text-align: left;
+	overflow-wrap: anywhere;
+}
+
+.ai4seo-analysis-warning-inline,
+.ai4seo-analysis-details-inline {
+	display: inline;
+}
+
+.ai4seo-analysis-details-inline {
+	margin-top: 0;
+}
+
+.ai4seo-analysis-details-inline > summary {
+	margin-inline-start: .5rem;
+}
+
 /* type: content — Global UI → Notices */
 div.ai4seo-discount-available-message {
 	position: relative;
@@ -8573,8 +8727,8 @@ on mobile devices -> make td.ai4seo-generation-coverage smaller
 	}
 }
 
-/* Keep narrow editor content usable when stacked header and generation actions exceed the viewport. */
-@media screen and (max-width: 600px) {
+/* Keep editor content usable when narrow or short viewports leave too little room between header and actions. */
+@media screen and (max-width: 600px), screen and (max-height: 600px) {
 	.ai4seo-editor-workspace-modal {
 		display: block;
 		height: auto;
@@ -8589,7 +8743,9 @@ on mobile devices -> make td.ai4seo-generation-coverage smaller
 	.ai4seo-editor-workspace-scroll {
 		overflow: visible;
 	}
+}
 
+@media screen and (max-width: 600px) {
 	.ai4seo-editor-preview-card-heading {
 		align-items: flex-start;
 		flex-wrap: wrap;
@@ -9655,4 +9811,47 @@ div.ai4seo-bulk-generation-status-animated-logo-container > img.ai4seo-bulk-gene
 	width: auto;
 	min-width: 140px;
 	white-space: normal;
+}
+.ai4seo-review-notice {
+	box-sizing: border-box;
+	margin: 24px auto 0;
+	padding: 16px 20px;
+	width: 100%;
+	max-width: 760px;
+	border: 1px solid #e0c77d;
+	border-radius: 6px;
+	background: #fffaf0;
+	text-align: center;
+}
+
+.ai4seo-review-notice .ai4seo-analysis-status-header {
+	justify-content: center;
+}
+
+.ai4seo-review-notice .ai4seo-analysis-details {
+	text-align: center;
+}
+
+.ai4seo-autopilot-item-notice p {
+	margin: 8px 0 12px;
+}
+
+.ai4seo-autopilot-item-notice .ai4seo-button {
+	margin: 4px 8px 4px 0;
+}
+
+/* Published statistics remain visible during a quieter background refresh. */
+.ai4seo-analysis-progress-text {
+	font-weight: 400;
+}
+
+.ai4seo-analysis-background {
+	font-size: 14px;
+	color: #646970;
+}
+
+.ai4seo-analysis-background .ai4seo-analysis-status-header,
+.ai4seo-analysis-background .ai4seo-analysis-details {
+	display: inline;
+	margin-right: 12px;
 }

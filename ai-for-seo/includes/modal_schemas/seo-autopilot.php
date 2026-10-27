@@ -184,7 +184,7 @@ $ai4seo_selected_taxonomies         = ai4seo_get_enabled_bulk_generation_taxonom
 $ai4seo_taxonomy_analysis_ready     = ai4seo_get_posts_table_analysis_readiness()['contexts'][ AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA ];
 $ai4seo_taxonomy_option_inspections = array();
 foreach ( $ai4seo_autopilot_taxonomies as $ai4seo_taxonomy_name => $ai4seo_taxonomy_entry ) {
-	$ai4seo_taxonomy_counts     = ai4seo_read_taxonomy_generation_status_summary( $ai4seo_taxonomy_name, false, $ai4seo_taxonomy_option_inspections );
+	$ai4seo_taxonomy_counts     = ai4seo_read_taxonomy_generation_counts( $ai4seo_taxonomy_name, false, $ai4seo_taxonomy_option_inspections );
 	$ai4seo_autopilot_choices[] = array(
 		'id'      => 'taxonomy-' . $ai4seo_taxonomy_name,
 		'value'   => $ai4seo_taxonomy_name,
@@ -192,7 +192,7 @@ foreach ( $ai4seo_autopilot_taxonomies as $ai4seo_taxonomy_name => $ai4seo_taxon
 		'icon'    => ai4seo_get_dashicon_tag_for_navigation( $ai4seo_taxonomy_name ),
 		'setting' => AI4SEO_SETTING_ENABLED_BULK_GENERATION_TAXONOMIES,
 		'checked' => in_array( $ai4seo_taxonomy_name, $ai4seo_selected_taxonomies, true ),
-		'missing' => is_wp_error( $ai4seo_taxonomy_counts ) ? 0 : count( $ai4seo_taxonomy_counts['missing'] ),
+		'missing' => is_wp_error( $ai4seo_taxonomy_counts ) ? 0 : $ai4seo_taxonomy_counts['raw_missing'],
 		'context' => AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA,
 		'pending' => is_wp_error( $ai4seo_taxonomy_counts ) || ! $ai4seo_taxonomy_analysis_ready,
 	);

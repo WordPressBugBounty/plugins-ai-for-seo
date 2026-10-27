@@ -291,6 +291,7 @@ function ai4seo_execute_debug_operation( string $operation, array $request ): ar
 				true, // Force analysis throttles.
 				true, // Trusted admin mutation.
 				true, // Heavy DB operations debug override.
+				'manual'
 			);
 			return ai4seo_get_posts_table_analysis_debug_operation_result( $analysis_succeeded );
 

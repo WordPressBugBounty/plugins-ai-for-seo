@@ -197,7 +197,7 @@ function ai4seo_get_custom_instructions_textarea_tag(
 		. ' id="' . esc_attr( $input_id ) . '"'
 		. ' name="' . esc_attr( $input_name ) . '"'
 		. ' rows="1"'
-		. ' aria-describedby="' . esc_attr( trim( $description_id . ' ' . $input_id . '-truncation' ) ) . '"'
+		. ' aria-describedby="' . esc_attr( trim( $description_id . ' ' . $input_id . '-counter ' . $input_id . '-truncation' ) ) . '"'
 		. ( '' !== $placeholder ? " placeholder='" . esc_attr( $placeholder ) . "'" : '' )
 		. ' data-ai4seo-custom-instructions-limit="' . esc_attr( $length_limit ) . '"'
 		. ' data-ai4seo-custom-instructions-label="' . esc_attr( $field_label ) . '"'
@@ -217,7 +217,7 @@ function ai4seo_get_custom_instructions_character_counter_tag( string $input_id 
 
 	// Pair the counter with the textarea id so AJAX-rendered forms can initialize counters after insertion.
 	$html  = '<p class="ai4seo-form-item-description ai4seo-custom-instructions-counter" data-input-id="' . esc_attr( $input_id ) . '" data-max-length="' . esc_attr( $length_limit ) . '">';
-	$html .= '<span class="ai4seo-custom-instructions-characters-left">';
+	$html .= '<span id="' . esc_attr( $input_id . '-counter' ) . '" class="ai4seo-custom-instructions-characters-left">';
 	$html .= sprintf(
 		/* translators: %1$s: Number of used characters. %2$s: Character limit. */
 		esc_html__( '%1$s / %2$s characters', 'ai-for-seo' ),

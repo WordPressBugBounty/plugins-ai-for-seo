@@ -10,6 +10,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+$ai4seo_attachment_field_descriptors = ai4seo_get_generation_field_descriptors( 'attachment_attributes' );
+
 if ( ! ai4seo_can_use_plugin_content() ) {
 	return;
 }
@@ -205,12 +207,13 @@ $ai4seo_filter_query_args = ai4seo_get_content_type_filter_query_args( $ai4seo_f
 // Try the bounded resolver for the full media page; related-media scopes stay exact and self-contained.
 $ai4seo_content_type_list_result = array( 'is_optimized' => false );
 
-if ( ! $ai4seo_attachment_post_ids_filter_is_active
-	&& ai4seo_can_edit_others_posts_for_post_types( (array) $ai4seo_post_types ) ) {
+if ( ai4seo_uses_post_state_tables() || ( ! $ai4seo_attachment_post_ids_filter_is_active
+	&& ai4seo_can_edit_others_posts_for_post_types( (array) $ai4seo_post_types ) ) ) {
 	$ai4seo_content_type_list_result = ai4seo_resolve_optimized_content_type_list(
 		array(
 			'content_context'                            => AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES,
 			'post_types'                                 => (array) $ai4seo_post_types,
+			'scoped_post_ids'                            => $ai4seo_attachment_post_ids_filter_is_active ? $ai4seo_attachment_post_ids_filter : null,
 			'post_status'                                => array( 'publish', 'future', 'inherit' ),
 			'post_mime_types'                            => (array) $ai4seo_allowed_attachment_mime_types,
 			'author_not_in'                              => $ai4seo_disabled_attachment_post_author_ids,
@@ -514,7 +517,7 @@ $ai4seo_consider_purchasing_more_credits_link_tag = $ai4seo_can_administer_plugi
 
 $ai4seo_active_attachment_attributes      = ai4seo_get_active_attachment_attributes();
 $ai4seo_active_attachment_attribute_names = array();
-foreach ( AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS as $ai4seo_field_identifier => $ai4seo_field_details ) {
+foreach ( $ai4seo_attachment_field_descriptors as $ai4seo_field_identifier => $ai4seo_field_details ) {
 	if ( in_array( $ai4seo_field_identifier, $ai4seo_active_attachment_attributes, true ) && isset( $ai4seo_field_details['name'] ) ) {
 		$ai4seo_active_attachment_attribute_names[ $ai4seo_field_identifier ] = $ai4seo_field_details['name'];
 	}

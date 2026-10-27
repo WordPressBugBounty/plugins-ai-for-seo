@@ -37,8 +37,6 @@ function ai4seo_add_latest_activity_entry(
 		return false;
 	}
 
-	$new_entry['timestamp'] = time();
-
 	// check if the post_id is a valid post id.
 	if ( $post_id < 0 ) {
 		ai4seo_debug_message( 231410125, 'Invalid post id in latest activity log.', true );
@@ -151,12 +149,8 @@ function ai4seo_add_latest_activity_entry(
 			false
 		);
 
-		if ( null === $compare_and_swap_result ) {
-			return false;
-		}
-
-		if ( $compare_and_swap_result ) {
-			return true;
+		if ( null === $compare_and_swap_result || true === $compare_and_swap_result ) {
+			return true === $compare_and_swap_result;
 		}
 	}
 
@@ -173,22 +167,20 @@ function ai4seo_add_latest_activity_entry(
 function ai4seo_get_latest_activity_generated_field_registry( string $action ): array {
 	$action = sanitize_key( $action );
 
-	// Metadata activity must resolve names through the same declarations used by editors and save paths.
+	// Metadata activity resolves names through the shared generation-field declarations.
 	if (
 		in_array( $action, array( 'metadata-manually-generated', 'metadata-bulk-generated' ), true )
 		&& defined( 'AI4SEO_METADATA_DETAILS' )
-		&& is_array( AI4SEO_METADATA_DETAILS )
 	) {
-		return AI4SEO_METADATA_DETAILS;
+		return ai4seo_get_generation_field_descriptors( 'metadata' );
 	}
 
-	// Media activity stays isolated from metadata identifiers by using its own canonical declarations.
+	// Media activity retains its own field identifiers and translated labels.
 	if (
 		in_array( $action, array( 'attachment-attributes-manually-generated', 'attachment-attributes-bulk-generated' ), true )
 		&& defined( 'AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS' )
-		&& is_array( AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS )
 	) {
-		return AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS;
+		return ai4seo_get_generation_field_descriptors( 'attachment_attributes' );
 	}
 
 	return array();

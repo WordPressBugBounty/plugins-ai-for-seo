@@ -1126,13 +1126,17 @@ function ai4seo_get_edit_attachment_attributes_button(
  * @return string The HTML for the button.
  */
 function ai4seo_get_related_attachments_button( int $post_id, string $button_text = '' ): string {
+	$content_type_label = ai4seo_get_accessible_content_type_label( $post_id );
+	/* translators: 1: Singular content-type label, such as Post or Page. 2: WordPress post ID. */
+	$button_label = sprintf( __( 'Related Media for %1$s ID %2$d', 'ai-for-seo' ), $content_type_label, $post_id );
+
 	// Reuse the shared icon-button renderer so post-list and editor buttons stay visually aligned.
 	return ai4seo_get_icon_button_tag(
 		'image',
 		$button_text,
 		'',
 		'ai4seo_open_related_attachments_modal(' . esc_js( $post_id ) . ');',
-		AI4SEO_PLUGIN_NAME . ': ' . esc_html__( 'Related Media', 'ai-for-seo' )
+		$button_label
 	);
 }
 
@@ -1285,6 +1289,150 @@ function ai4seo_get_seo_coverage_chart_values(
 
 
 /**
+ * Translate an entire approximate duration in the plugin's text domain.
+ *
+ * @param int $seconds Estimated remaining seconds.
+ * @return string Localized remaining-time label.
+ */
+function ai4seo_get_analysis_remaining_time_label( int $seconds ): string {
+	if ( $seconds < MINUTE_IN_SECONDS ) {
+		return __( 'less than a minute remaining', 'ai-for-seo' );
+	}
+	if ( $seconds >= DAY_IN_SECONDS ) {
+		$count = (int) round( $seconds / DAY_IN_SECONDS );
+		/* translators: %s: Approximate number of days. */
+		$label = _n( 'about %s day remaining', 'about %s days remaining', $count, 'ai-for-seo' );
+	} elseif ( $seconds >= HOUR_IN_SECONDS ) {
+		$count = (int) round( $seconds / HOUR_IN_SECONDS );
+		/* translators: %s: Approximate number of hours. */
+		$label = _n( 'about %s hour remaining', 'about %s hours remaining', $count, 'ai-for-seo' );
+	} else {
+		$count = (int) round( $seconds / MINUTE_IN_SECONDS );
+		/* translators: %s: Approximate number of minutes. */
+		$label = _n( 'about %s minute remaining', 'about %s minutes remaining', $count, 'ai-for-seo' );
+	}
+	return sprintf( $label, ai4seo_format_number_i18n( $count ) );
+}
+
+/**
+ * Present the existing analysis snapshot without changing its state or diagnostic message.
+ *
+ * @param array $analysis Authoritative analysis status and progress snapshot.
+ * @return string Escaped compact status markup with expandable diagnostics.
+ */
+function ai4seo_get_posts_table_analysis_notice_message( array $analysis ): string {
+	$status    = $analysis['status'] ?? 'failed';
+	$progress  = $analysis['progress'] ?? array();
+	$headlines = array(
+		'incomplete' => __( 'SEO statistics are being updated', 'ai-for-seo' ),
+		'deferred'   => __( 'Analysis is paused', 'ai-for-seo' ),
+		'failed'     => __( 'Analysis failed', 'ai-for-seo' ),
+		'completed'  => empty( $analysis['warning'] ) ? __( 'Analysis complete.', 'ai-for-seo' ) : __( 'Analysis completed with warnings.', 'ai-for-seo' ),
+	);
+	$preparing = ! empty( $analysis['preparing'] );
+	$headline  = $preparing ? __( 'Preparing analysis', 'ai-for-seo' ) : ( $headlines[ $status ] ?? $headlines['failed'] );
+	$waiting   = ! empty( $analysis['waiting'] );
+	if ( $waiting ) {
+		$headline = __( 'SEO statistics update is scheduled', 'ai-for-seo' );
+	}
+	$details       = esc_html( $analysis['message'] ?? '' );
+	$bar           = '';
+	$progress_text = '';
+	$background    = ! empty( $analysis['background'] ) && 'incomplete' === $status && empty( $analysis['readiness']['blocked_options'] );
+
+	// The initial row count remains a reference total, never proof that the scan has completed.
+	if ( in_array( (int) ( $progress['version'] ?? 0 ), array( 1, 2 ), true ) ) {
+		$examined_rows = (int) $progress['examined_rows'];
+		$total_rows    = (int) $progress['total_rows'];
+		$details      .= '<br><br>' . ( $preparing ? esc_html__( 'Saved analysis progress (separate from update preparation):', 'ai-for-seo' ) . ' ' : '' ) . sprintf(
+			/* translators: 1: Rows examined. 2: Number of rows when this scan started. */
+			esc_html__( '%1$s rows examined; %2$s rows at the start of this scan.', 'ai-for-seo' ),
+			esc_html( ai4seo_format_number_i18n( $examined_rows ) ),
+			esc_html( ai4seo_format_number_i18n( $total_rows ) )
+		);
+		if ( 'incomplete' === $status && ! $waiting ) {
+			$percentage    = $total_rows > 0 ? min( 99, (int) floor( 100 * ( $examined_rows / $total_rows ) ) ) : 0;
+			$progress_text = ' · ' . ai4seo_format_number_i18n( $percentage ) . '%';
+			$remaining     = $analysis['estimated_remaining_seconds'] ?? null;
+			if ( is_int( $remaining ) && $remaining > 0 ) {
+				$progress_text .= ' · ' . ai4seo_get_analysis_remaining_time_label( $remaining );
+			} else {
+				$progress_text .= ' · ' . __( 'Estimating remaining time…', 'ai-for-seo' );
+			}
+			$bar = '<progress class="ai4seo-seo-coverage-progress-bar" value="' . esc_attr( $percentage ) . '" max="100" aria-label="' . esc_attr__( 'Analysis progress', 'ai-for-seo' ) . '"></progress>';
+		}
+	}
+
+	$notice_class = 'completed' === $status && ! empty( $analysis['warning'] ) ? ' ai4seo-review-notice' : '';
+
+	$html  = '<div class="ai4seo-analysis-status ai4seo-analysis-status-' . esc_attr( $status ) . $notice_class . ( $background ? ' ai4seo-analysis-background' : '' ) . '">';
+	$html .= '<div class="ai4seo-analysis-status-header"><span><strong>' . esc_html( $headline ) . '</strong><span class="ai4seo-analysis-progress-text">' . esc_html( $progress_text ) . '</span></span>';
+	$html .= '</div>' . ( $background ? '' : $bar );
+	if ( $background ) {
+		$details = esc_html__( 'Statistics are being updated in the background. The last completed results remain visible; subsequent changes are checked before the new results are published.', 'ai-for-seo' ) . '<br><br>' . $details;
+		return $html . ai4seo_get_collapsible_tag( __( 'Show details', 'ai-for-seo' ), $details, 'ai4seo-notice-technical-details ai4seo-analysis-details' ) . '</div>';
+	}
+	if ( $preparing ) {
+		$html .= '<p>' . esc_html__( 'Analysis will resume after the update. No action is needed to continue preparation.', 'ai-for-seo' ) . '</p>';
+	}
+
+	$has_warnings = ! empty( $progress['warnings']['count'] );
+	if ( $has_warnings ) {
+		$count = (int) $progress['warnings']['count'];
+		$html .= '<div class="ai4seo-analysis-warning ai4seo-analysis-warning-inline">' . ai4seo_get_svg_tag( 'triangle-exclamation', '', 'ai4seo-orange-icon', true ) . ' <strong>' . sprintf(
+			/* translators: %s: Number of entries excluded from analysis. */
+			esc_html( _n( '%s entry could not be analyzed.', '%s entries could not be analyzed.', $count, 'ai-for-seo' ) ),
+			esc_html( ai4seo_format_number_i18n( $count ) )
+		) . '</strong> ' . esc_html__( 'These entries are excluded from statistics and SEO Autopilot.', 'ai-for-seo' ) . '</div> ';
+	}
+	$html .= ai4seo_get_collapsible_tag( __( 'Show details', 'ai-for-seo' ), $details, 'ai4seo-notice-technical-details ai4seo-analysis-details' . ( $has_warnings ? ' ai4seo-analysis-details-inline' : '' ) );
+	if ( ! empty( $analysis['readiness']['blocked_options'] ) ) {
+		$html .= '<div class="ai4seo-analysis-warning">' . esc_html__( 'Some status totals are unavailable. New automatic queue entries for the affected content are paused.', 'ai-for-seo' ) . '</div>';
+	}
+	$html .= '</div>';
+
+	return $html;
+}
+
+
+/**
+ * Explain a completed analysis held by the automatic refresh interval.
+ *
+ * @param array $pause Verified pause timestamps.
+ * @param bool  $can_refresh Whether the viewer can use the manual refresh action.
+ * @return string Escaped notice markup, or an empty string outside the pause.
+ */
+function ai4seo_get_dashboard_analysis_refresh_notice( array $pause, bool $can_refresh ): string {
+	if ( ! $pause ) {
+		return '';
+	}
+	$message = $pause['last_analysis'] ? sprintf(
+		/* translators: %s: Date and time of the last analysis in the website timezone. */
+		esc_html__( 'Last full analysis: %s.', 'ai-for-seo' ),
+		esc_html( ai4seo_format_unix_timestamp( $pause['last_analysis'], 'auto', 'auto', ' ', wp_timezone_string() ) )
+	) : esc_html__( 'Last analysis time unavailable.', 'ai-for-seo' );
+	$message .= ' ' . ( $pause['next_refresh'] ? sprintf(
+		/* translators: %s: Expected automatic refresh date and time in the website timezone. */
+		esc_html__( 'Next automatic refresh expected: %s.', 'ai-for-seo' ),
+		'<strong>' . esc_html( ai4seo_format_unix_timestamp( $pause['next_refresh'], 'auto', 'auto', ' ', wp_timezone_string() ) ) . '</strong>'
+	) : sprintf(
+		/* translators: %s: Date and time when the automatic refresh pause ends. */
+		esc_html__( 'Refresh paused until %s; next run time unavailable.', 'ai-for-seo' ),
+		'<strong>' . esc_html( ai4seo_format_unix_timestamp( $pause['resumes_at'], 'auto', 'auto', ' ', wp_timezone_string() ) ) . '</strong>'
+	) );
+	$message .= ' ' . sprintf(
+		$can_refresh
+			/* translators: %s: Refresh statistics button label. */
+			? esc_html__( 'Update now with %s.', 'ai-for-seo' )
+			/* translators: %s: Refresh statistics button label. */
+			: esc_html__( 'An administrator can update now with %s.', 'ai-for-seo' ),
+		'<strong>' . esc_html__( 'Refresh statistics', 'ai-for-seo' ) . '</strong>'
+	);
+	return '<div class="ai4seo-dashboard-analysis-refresh-notice" role="status"><p>' . $message . '</p></div>';
+}
+
+
+/**
  * Outputs one dashboard half-donut chart with its heading and completion summary.
  *
  * @param string $headline Chart heading HTML.
@@ -1294,6 +1442,7 @@ function ai4seo_get_seo_coverage_chart_values(
  * @param string $posts_table_analysis_state Current posts-table analysis state.
  * @param string $post_type Post type represented by the chart.
  * @param string $review_missing_fields_url Optional URL for reviewing incomplete items.
+ * @param string $unavailable_status Optional status text instead of unconfirmed chart values.
  * @return void
  */
 function ai4seo_echo_half_donut_chart_with_headline_and_percentage(
@@ -1303,10 +1452,12 @@ function ai4seo_echo_half_donut_chart_with_headline_and_percentage(
 	$num_total,
 	$posts_table_analysis_state,
 	$post_type,
-	$review_missing_fields_url = ''
+	$review_missing_fields_url = '',
+	$unavailable_status = ''
 ) {
+	$is_unavailable = '' !== $unavailable_status;
 	// Derive the displayed percentage from the same totals used to render the chart segments.
-	$ai4seo_percentage_complete = round( $num_complete / $num_total * 100 );
+	$ai4seo_percentage_complete = ! $is_unavailable && $num_total > 0 ? round( $num_complete / $num_total * 100 ) : 0;
 	$ai4seo_chart_heading_id    = 'ai4seo-dashboard-coverage-heading-' . sanitize_key( $post_type );
 	$ai4seo_progress_busy_value = 'completed' === $posts_table_analysis_state ? 'false' : 'true';
 	$ai4seo_progress_value_text = sprintf(
@@ -1332,37 +1483,89 @@ function ai4seo_echo_half_donut_chart_with_headline_and_percentage(
 	}
 
 	// Keep the chart, completion text, and optional multilingual context inside one per-post-type container.
-	echo "<div class='ai4seo-chart-container'>";
+	echo "<div class='ai4seo-chart-container" . ( $is_unavailable ? ' ai4seo-chart-unavailable' : '' ) . "'>";
 		echo "<h2 id='" . esc_attr( $ai4seo_chart_heading_id ) . "' class='ai4seo-dashboard-section-heading'>";
 			ai4seo_echo_wp_kses( $headline );
 		echo '</h2>';
 
-		echo "<div class='ai4seo-half-donut-chart-container' role='progressbar'";
+		echo "<div class='ai4seo-half-donut-chart-container'>";
+			// Keep interactive count details outside the progressbar's presentational descendants.
+			echo "<div role='" . ( $is_unavailable ? 'status' : 'progressbar' ) . "'";
 			echo " aria-labelledby='" . esc_attr( $ai4seo_chart_heading_id ) . "'";
+	if ( ! $is_unavailable ) {
 			echo " aria-valuemin='0' aria-valuemax='100'";
 			echo " aria-valuenow='" . esc_attr( $ai4seo_percentage_complete ) . "'";
 			echo " aria-valuetext='" . esc_attr( $ai4seo_progress_value_text ) . "'";
 			echo " aria-busy='" . esc_attr( $ai4seo_progress_busy_value ) . "'";
+	}
 			echo '>';
-			ai4seo_echo_half_donut_chart( $chart_values );
+			// A neutral decorative arc has no coverage value and never enters the shared totals.
+			ai4seo_echo_half_donut_chart( $is_unavailable ? array( 'unavailable' => array( 'value' => 1 ) ) : $chart_values );
 
 			echo "<div class='ai4seo-half-donut-chart-percentage " . esc_attr( $ai4seo_percentage_color_class ) . "'>";
-				echo esc_html( ai4seo_format_number_i18n( $ai4seo_percentage_complete ) ) . '%';
+				echo $is_unavailable ? '—' : esc_html( ai4seo_format_number_i18n( $ai4seo_percentage_complete ) ) . '%';
 			echo '</div>';
+	if ( ! $is_unavailable ) {
+			echo '</div>';
+	}
 
 			echo "<div class='ai4seo-half-donut-chart-complete-count " . esc_attr( $ai4seo_percentage_color_class ) . "'>";
+	if ( $is_unavailable ) {
+				echo esc_html( $unavailable_status );
+	} elseif ( 'completed' !== $posts_table_analysis_state ) {
+				printf(
+					/* translators: %s: Number of items with complete SEO fields so far. */
+					esc_html__( '%s complete', 'ai-for-seo' ),
+					esc_html( ai4seo_format_number_i18n( $num_complete ) )
+				);
+	} else {
+				$complete_count_text = sprintf(
+					/* translators: 1: Number of complete items. 2: Total number of items. */
+					__( '%1$s/%2$s complete', 'ai-for-seo' ),
+					ai4seo_format_compact_count_i18n( $num_complete ),
+					ai4seo_format_compact_count_i18n( $num_total )
+				);
+				$num_missing         = max( 0, $num_total - $num_complete );
+				$content_type_plural = ai4seo_get_post_type_translation( $post_type, true );
+				$content_type_single = ai4seo_get_post_type_translation( $post_type );
+		if ( 0 === strpos( $post_type, 'taxonomy-' ) ) {
+			$taxonomy            = get_taxonomy( substr( $post_type, 9 ) );
+			$content_type_plural = html_entity_decode( trim( wp_strip_all_tags( $headline ) ), ENT_QUOTES, 'UTF-8' );
+			$content_type_single = $taxonomy ? $taxonomy->labels->singular_name : $content_type_plural;
+		}
+				$exact_count_text = sprintf(
+					/* translators: 1: Exact complete count. 2: Exact total count. 3: Content type, singular when total is one. */
+					__( '%1$s of %2$s %3$s complete', 'ai-for-seo' ),
+					ai4seo_format_number_i18n( $num_complete ),
+					ai4seo_format_number_i18n( $num_total ),
+					1 === (int) $num_total ? $content_type_single : $content_type_plural
+				);
+				$missing_count_text = sprintf(
+					/* translators: 1: Exact incomplete count. 2: Content type, singular when the count is one. */
+					_n( '%1$s %2$s still has missing SEO fields.', '%1$s %2$s still have missing SEO fields.', $num_missing, 'ai-for-seo' ),
+					ai4seo_format_number_i18n( $num_missing ),
+					1 === (int) $num_missing ? $content_type_single : $content_type_plural
+				);
+				$count_tooltip_html  = '<strong>' . esc_html( $exact_count_text ) . '</strong><br>' . esc_html( $missing_count_text ) . '<br><br>';
+				$count_tooltip_html .= esc_html__( '“Complete” means all enabled SEO fields are filled in. Only items included by your Settings are counted.', 'ai-for-seo' );
 				ai4seo_echo_wp_kses(
-					sprintf(
-						/* translators: 1: Number of complete items. 2: Total number of items. */
-						esc_html__( '%1$s/%2$s complete', 'ai-for-seo' ),
-						esc_html( ai4seo_format_number_i18n( $num_complete ) ),
-						'completed' !== $posts_table_analysis_state ? ai4seo_get_svg_tag( 'gear', '', 'ai4seo-spinning-icon ai4seo-gray-icon' ) : esc_html( ai4seo_format_number_i18n( $num_total ) )
+					ai4seo_get_tooltip_tag(
+						esc_html( $complete_count_text ),
+						$count_tooltip_html,
+						array(
+							'holder_css_class'   => 'ai4seo-chart-count-tooltip',
+							'trigger_aria_label' => $exact_count_text,
+						)
 					)
 				);
+	}
 			echo '</div>';
+	if ( $is_unavailable ) {
+			echo '</div>';
+	}
 
 	// Explain WPML's language-expanded media total through the same keyboard-accessible tooltip used elsewhere.
-	if ( ai4seo_is_plugin_or_theme_active( AI4SEO_THIRD_PARTY_PLUGIN_WPML ) && in_array( $post_type, array( 'attachment', 'media' ), true ) ) {
+	if ( ! $is_unavailable && ai4seo_is_plugin_or_theme_active( AI4SEO_THIRD_PARTY_PLUGIN_WPML ) && in_array( $post_type, array( 'attachment', 'media' ), true ) ) {
 		$ai4seo_chart_tooltip_trigger_html = sprintf(
 			/* translators: %s: Total number of media items. */
 			esc_html__( 'Why %1$s?', 'ai-for-seo' ),
@@ -1384,7 +1587,7 @@ function ai4seo_echo_half_donut_chart_with_headline_and_percentage(
 		echo '</div>';
 
 	// Keep navigation outside the progressbar so its link remains keyboard and screen-reader accessible.
-	if ( $review_missing_fields_url ) {
+	if ( ! $is_unavailable && $review_missing_fields_url ) {
 		$review_missing_fields_label = sprintf(
 			/* translators: %s: plural content type name, such as Pages or Media. */
 			__( 'Review missing fields for %s', 'ai-for-seo' ),
@@ -1773,6 +1976,22 @@ function ai4seo_get_icon_button_tag(
 
 
 /**
+ * Append a button variant class while preserving existing class text.
+ *
+ * @param string $css_class Existing CSS classes.
+ * @param string $button_css_class Button variant class to append.
+ * @return string Combined CSS classes.
+ */
+function ai4seo_append_button_css_class( string $css_class, string $button_css_class ): string {
+	if ( empty( $css_class ) ) {
+		return $button_css_class;
+	}
+
+	return $css_class . ' ' . $button_css_class;
+}
+
+
+/**
  * Return a compact icon button.
  *
  * @param string $icon Icon identifier.
@@ -1783,11 +2002,7 @@ function ai4seo_get_icon_button_tag(
  */
 function ai4seo_get_small_icon_button_tag( string $icon = '', string $text = '', string $css_class = '', string $onclick = '' ): string {
 	// default values.
-	if ( empty( $css_class ) ) {
-		$css_class = 'ai4seo-small-button';
-	} else {
-		$css_class .= ' ai4seo-small-button';
-	}
+	$css_class = ai4seo_append_button_css_class( $css_class, 'ai4seo-small-button' );
 
 	return ai4seo_get_icon_button_tag( $icon, $text, $css_class, $onclick );
 }
@@ -1808,11 +2023,7 @@ function ai4seo_get_abort_button_tag( string $icon = '', string $text = '', stri
 		$text = __( 'Abort', 'ai-for-seo' );
 	}
 
-	if ( empty( $css_class ) ) {
-		$css_class = 'ai4seo-abort-button';
-	} else {
-		$css_class .= ' ai4seo-abort-button';
-	}
+	$css_class = ai4seo_append_button_css_class( $css_class, 'ai4seo-abort-button' );
 
 	return ai4seo_get_icon_button_tag( $icon, $text, $css_class, $onclick );
 }
@@ -1832,11 +2043,7 @@ function ai4seo_get_modal_close_button_tag( string $text = '', string $css_class
 		$text = __( 'Close', 'ai-for-seo' );
 	}
 
-	if ( empty( $css_class ) ) {
-		$css_class = 'ai4seo-abort-button';
-	} else {
-		$css_class .= ' ai4seo-abort-button';
-	}
+	$css_class = ai4seo_append_button_css_class( $css_class, 'ai4seo-abort-button' );
 
 	if ( empty( $onclick ) ) {
 		$onclick = 'ai4seo_close_modal_by_child(this);';
@@ -1862,11 +2069,7 @@ function ai4seo_get_submit_button_tag( string $text = '', string $css_class = ''
 		$text = __( 'Submit', 'ai-for-seo' );
 	}
 
-	if ( empty( $css_class ) ) {
-		$css_class = 'ai4seo-submit-button';
-	} else {
-		$css_class .= ' ai4seo-submit-button';
-	}
+	$css_class = ai4seo_append_button_css_class( $css_class, 'ai4seo-submit-button' );
 
 	return ai4seo_get_button_tag( $text, $css_class, $onclick );
 }
@@ -1942,11 +2145,7 @@ function ai4seo_get_modal_footer_tag( array $button_tags, string $css_class = ''
  */
 function ai4seo_get_small_a_tag_icon_button_tag( string $a_href, string $a_css_class = '', string $a_target = '_self', string $button_icon = '', string $button_text = '', string $button_css_class = '', string $button_onclick = '' ): string {
 	// default values.
-	if ( empty( $button_css_class ) ) {
-		$button_css_class = 'ai4seo-small-button';
-	} else {
-		$button_css_class .= ' ai4seo-small-button';
-	}
+	$button_css_class = ai4seo_append_button_css_class( $button_css_class, 'ai4seo-small-button' );
 
 	return ai4seo_get_a_tag_icon_button_tag( $a_href, $a_css_class, $a_target, $button_icon, $button_text, $button_css_class, $button_onclick );
 }
@@ -1983,7 +2182,7 @@ function ai4seo_get_generation_language_select_options_html( $selected = 'auto' 
  */
 function ai4seo_get_translated_generation_language_options(): array {
 	// Array of language codes and their corresponding names.
-	$languages = array(
+	return array(
 		'albanian'             => esc_html__( 'Albanian', 'ai-for-seo' ),
 		'arabic'               => esc_html__( 'Arabic', 'ai-for-seo' ),
 		'bulgarian'            => esc_html__( 'Bulgarian', 'ai-for-seo' ),
@@ -2030,8 +2229,6 @@ function ai4seo_get_translated_generation_language_options(): array {
 		'ukrainian'            => esc_html__( 'Ukrainian', 'ai-for-seo' ),
 		'vietnamese'           => esc_html__( 'Vietnamese', 'ai-for-seo' ),
 	);
-
-	return $languages;
 }
 
 
@@ -2570,7 +2767,7 @@ function ai4seo_get_prompt_slider_setting_stages( string $setting_name ): array 
 function ai4seo_get_prompt_slider_setting_description( string $setting_name ): string {
 	// Length settings share the required experimental prefix while retaining field-specific guidance.
 	if ( ai4seo_is_generation_length_slider_setting( $setting_name ) ) {
-		$description_prefix = esc_html__( 'Experimental. Option 2 follows most search engines’ best practices and ensures titles and descriptions fit the designated output areas in search results or link previews.', 'ai-for-seo' );
+		$description_prefix = esc_html__( 'Experimental. Option 2 provides a suggested length target. The final display in search results or link previews may differ.', 'ai-for-seo' );
 
 		switch ( $setting_name ) {
 			case AI4SEO_SETTING_METADATA_META_TITLE_GENERATION_LENGTH:

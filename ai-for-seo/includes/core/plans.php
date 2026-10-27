@@ -190,11 +190,7 @@ function ai4seo_get_plan_badge( $plan, bool $force_upgrade = false ): string {
 		$output .= esc_html( $badge_label );
 
 	// Close the element type selected above without duplicating the badge body.
-	if ( ! $is_interactive_upgrade ) {
-		$output .= '</span>';
-	} else {
-		$output .= '</button>';
-	}
+	$output .= $is_interactive_upgrade ? '</button>' : '</span>';
 
 	return $output;
 }

@@ -3,7 +3,7 @@
  * Plugin Name: SOOZ - AI for SEO
  * Plugin URI: https://sooz.ai
  * Description: One-Click SEO solution. SOOZ - AI for SEO helps your website to rank higher in Web Search results.
- * Version: 2.6.0
+ * Version: 2.6.1
  * Author: spacecodes
  * Author URI: https://spa.ce.codes
  * Text Domain: ai-for-seo
@@ -41,6 +41,9 @@ require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/rights.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/plans.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/helpers.php';
 
+// Shared generation-field access loads before every registry consumer.
+require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/generation-fields.php';
+
 // Generic image mechanics load before content and attachment consumers.
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/image_helper.php';
 
@@ -49,6 +52,14 @@ require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/database.php';
 
 // WordPress option primitives depend on generic helpers and must load before option-using modules.
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/wordpress-options.php';
+require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/post-state-storage.php';
+require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/post-state-analysis.php';
+require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/post-state-queries.php';
+require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/post-state-lists.php';
+require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/title-order.php';
+require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/post-state-migration.php';
+require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/class-ai4seo-post-state-reader.php';
+require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/post-state-export.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/update-state.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/semaphores.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/posts.php';
@@ -79,6 +90,7 @@ require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/frontend-injections.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/post-meta.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/post-inspection.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/settings.php';
+require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/generation-length.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/settings-state.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/ajax.php';
 require_once AI4SEO_PLUGIN_DIR_PATH . 'includes/core/bulk-generation.php';

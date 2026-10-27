@@ -433,7 +433,11 @@ function ai4seo_filter_editable_post_ids( array $post_ids ): array {
 		array_filter(
 			$post_ids,
 			function ( int $post_id ): bool {
-				return ai4seo_can_edit_post( $post_id );
+				// The plugin role gate above is shared by this bounded packet. Rechecking it
+				// for every identity exhausts the request guard on large sorted inventories.
+				return ai4seo_is_taxonomy_proxy( $post_id )
+					? ai4seo_can_edit_taxonomy_proxy( $post_id )
+					: current_user_can( 'edit_post', $post_id );
 			}
 		)
 	);

@@ -139,6 +139,7 @@ function ai4seo_get_metadata_editor_preview_context( int $post_id, array $metada
 		'keywordsMinimumItems'    => AI4SEO_METADATA_KEYWORDS_RECOMMENDED_MIN_ITEMS,
 		'keywordsMaximumItems'    => AI4SEO_METADATA_KEYWORDS_RECOMMENDED_MAX_ITEMS,
 		'values'                  => $preview_values,
+		'productPrice'            => ai4seo_get_metadata_output_placeholder_replacements( $post_id )['PRODUCT_PRICE'] ?? '',
 		'activeFields'            => array_values( array_map( 'sanitize_key', $active_fields ) ),
 		'fallbackPreferences'     => $fallback_preferences,
 		'fallbackSources'         => $fallback_sources,
@@ -418,11 +419,13 @@ function ai4seo_has_legacy_active_metadata_rows( ?bool &$read_succeeded = null )
  * @return array
  */
 function ai4seo_prepare_active_metadata_values( array $active_metadata_values, bool $active_meta_tags_only = false ): array {
+	$metadata_field_descriptors = ai4seo_get_generation_field_descriptors( 'metadata' );
+
 	if ( ! defined( 'AI4SEO_METADATA_DETAILS' ) ) {
 		return array();
 	}
 
-	$recognized_metadata_identifiers = array_keys( AI4SEO_METADATA_DETAILS );
+	$recognized_metadata_identifiers = array_keys( $metadata_field_descriptors );
 
 	if ( $active_meta_tags_only ) {
 		$active_meta_tags = ai4seo_get_active_meta_tags();
@@ -1083,6 +1086,8 @@ function ai4seo_save_active_metadata_to_postmeta(
 	array $only_if_missing_metadata_identifiers = array(),
 	array $recovery_context = array()
 ): bool {
+	$metadata_field_descriptors = ai4seo_get_generation_field_descriptors( 'metadata' );
+
 	global $wpdb;
 
 	$operation_details = array(
@@ -1104,7 +1109,7 @@ function ai4seo_save_active_metadata_to_postmeta(
 	}
 
 	$active_metadata                 = ai4seo_prepare_active_metadata_values( $active_metadata, false );
-	$recognized_metadata_identifiers = array_keys( AI4SEO_METADATA_DETAILS );
+	$recognized_metadata_identifiers = array_keys( $metadata_field_descriptors );
 	$normalize_metadata_identifiers  = static function ( array $metadata_identifiers ) use ( $recognized_metadata_identifiers ): array {
 		$normalized_metadata_identifiers = array();
 
@@ -1513,6 +1518,8 @@ function ai4seo_read_legacy_active_metadata_migration_v235_candidate_post_ids( i
  * @return array
  */
 function ai4seo_read_legacy_active_metadata_by_post_ids( array $post_ids, ?bool &$read_succeeded = null, ?array &$analysis_issues = null, ?array &$source_rows = null ): array {
+	$metadata_field_descriptors = ai4seo_get_generation_field_descriptors( 'metadata' );
+
 	global $wpdb;
 
 	$read_succeeded = false;
@@ -1615,7 +1622,7 @@ function ai4seo_read_legacy_active_metadata_by_post_ids( array $post_ids, ?bool 
 				continue;
 			}
 
-			if ( ! isset( AI4SEO_METADATA_DETAILS[ $this_metadata_identifier ] ) ) {
+			if ( ! isset( $metadata_field_descriptors[ $this_metadata_identifier ] ) ) {
 				continue;
 			}
 
@@ -2616,88 +2623,23 @@ function ai4seo_decode_squirrly_seo_values( $stored_value, ?bool &$decoding_fail
  * @return array<string,array<int,bool>> Candidate hashes mapped to their expected post IDs.
  */
 function ai4seo_read_squirrly_url_hash_candidates_by_post_ids( array $post_ids, ?bool &$read_succeeded = null ): array {
-	global $wpdb;
-
-	$read_succeeded      = false;
-	$requested_id_lookup = array_fill_keys( $post_ids, true );
-
-	if ( ! $requested_id_lookup ) {
-		$read_succeeded = true;
+	$post_types_by_post_id = ai4seo_read_post_types_by_post_ids( $post_ids, $read_succeeded );
+	if ( ! $read_succeeded ) {
 		return array();
 	}
 
-	$post_types_by_post_id = array();
-
-	foreach ( array_chunk( array_keys( $requested_id_lookup ), ai4seo_get_database_chunk_size() ) as $this_post_id_chunk ) {
-		$post_snapshot_query = ai4seo_prepare_database_query(
-			'SELECT ID, post_type FROM {{posts_table}} WHERE ID IN ({{post_ids}})',
-			array(
-				'posts_table' => ai4seo_database_identifier_binding( 'table.posts' ),
-				'post_ids'    => ai4seo_database_list_binding( '%d', array_values( $this_post_id_chunk ) ),
-			)
-		);
-
-		if ( false === $post_snapshot_query ) {
-			return array();
-		}
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler prepares this primary-key-bounded authoritative post-type snapshot; independently mutable provider hashes must be derived from current rows.
-		$post_rows = $wpdb->get_results( $post_snapshot_query, ARRAY_A );
-
-		if ( $wpdb->last_error || ! is_array( $post_rows ) ) {
-			ai4seo_debug_message( 984321682, 'Database error: ' . $wpdb->last_error, true );
-			return array();
-		}
-
-		foreach ( $post_rows as $post_row ) {
-			if ( ! is_array( $post_row )
-				|| 2 !== count( $post_row )
-				|| ! array_key_exists( 'ID', $post_row )
-				|| ! array_key_exists( 'post_type', $post_row )
-			) {
-				return array();
-			}
-
-			$post_id   = ai4seo_normalize_database_id( $post_row['ID'] );
-			$post_type = $post_row['post_type'];
-
-			if ( false === $post_id
-				|| ! isset( $requested_id_lookup[ $post_id ] )
-				|| isset( $post_types_by_post_id[ $post_id ] )
-				|| ! is_string( $post_type )
-				|| '' === $post_type
-				|| sanitize_key( $post_type ) !== $post_type
-			) {
-				return array();
-			}
-
-			$post_types_by_post_id[ $post_id ] = $post_type;
-		}
-	}
-
 	$url_hash_candidates = array();
-
 	foreach ( $post_types_by_post_id as $post_id => $post_type ) {
-		$this_post_hashes = array_unique(
-			array(
-				md5( (string) $post_id ),
-				md5( $post_type . (string) $post_id ),
-			)
-		);
-
-		foreach ( $this_post_hashes as $this_post_hash ) {
-			$url_hash_candidates[ $this_post_hash ][ $post_id ] = true;
-		}
+		$url_hash_candidates[ md5( (string) $post_id ) ][ $post_id ]     = true;
+		$url_hash_candidates[ md5( $post_type . $post_id ) ][ $post_id ] = true;
 	}
-
-	// A candidate collision leaves SQL identity ambiguous even if one serialized row currently appears authoritative.
+	// A candidate collision must remain ambiguous even when one stored row appears authoritative.
 	foreach ( $url_hash_candidates as $expected_post_ids ) {
 		if ( 1 !== count( $expected_post_ids ) ) {
+			$read_succeeded = false;
 			return array();
 		}
 	}
-
-	$read_succeeded = true;
 	return $url_hash_candidates;
 }
 
@@ -3026,7 +2968,9 @@ function ai4seo_read_all_in_one_seo_metadata_by_post_ids( array $post_ids, ?bool
  * @return int the number of metadata fields
  */
 function ai4seo_get_num_metadata_fields(): int {
-	return defined( 'AI4SEO_METADATA_DETAILS' ) ? count( AI4SEO_METADATA_DETAILS ) : 0;
+	$metadata_field_descriptors = ai4seo_get_generation_field_descriptors( 'metadata' );
+
+	return defined( 'AI4SEO_METADATA_DETAILS' ) ? count( $metadata_field_descriptors ) : 0;
 }
 
 
@@ -3065,6 +3009,8 @@ function ai4seo_read_available_metadata( int $post_id, bool $consider_third_part
  * @return array the post meta coverage by post ids
  */
 function ai4seo_read_available_metadata_by_post_ids( array $post_ids, bool $consider_third_party_seo_plugin_metadata = true, ?bool &$read_succeeded = null, ?array &$storage_views = null, bool $is_multi_post_read = false, ?array &$analysis_issues = null ): array {
+	$metadata_field_descriptors = ai4seo_get_generation_field_descriptors( 'metadata' );
+
 	$read_succeeded = false;
 
 	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
@@ -3104,7 +3050,7 @@ function ai4seo_read_available_metadata_by_post_ids( array $post_ids, bool $cons
 	foreach ( $post_ids as $this_key => $this_post_id ) {
 		$this_posts_got_missing_metadata = false;
 
-		foreach ( AI4SEO_METADATA_DETAILS as $this_metadata_identifier => $this_metadata_details ) {
+		foreach ( $metadata_field_descriptors as $this_metadata_identifier => $this_metadata_details ) {
 			$available_metadata[ $this_post_id ][ $this_metadata_identifier ] =
 				isset( $storage_views[ $this_post_id ]['conflicts'][ $this_metadata_identifier ] )
 				|| 'unreadable' === ( $storage_views[ $this_post_id ]['classification'] ?? '' )
@@ -3129,11 +3075,22 @@ function ai4seo_read_available_metadata_by_post_ids( array $post_ids, bool $cons
 		return $available_metadata;
 	}
 
-	// all posts are filled with our own metadata? return the metadata here.
+	// Skip type lookups entirely when there are no providers to consult.
+	$active_third_party_seo_plugin_details = ai4seo_get_active_third_party_seo_plugin_details();
+	if ( ! $post_ids || ! $active_third_party_seo_plugin_details ) {
+		$read_succeeded = true;
+		return $available_metadata;
+	}
+	$post_types_read = false;
+	$post_types      = ai4seo_read_post_types_by_post_ids( $post_ids, $post_types_read );
+	if ( ! $post_types_read ) {
+		return array();
+	}
+	// Taxonomy proxies use their own metadata storage, never post-oriented provider tables.
 	$post_ids = array_filter(
 		$post_ids,
-		static function ( $id ): bool {
-			return ! ai4seo_is_taxonomy_proxy( (int) $id );
+		static function ( $id ) use ( $post_types ): bool {
+			return AI4SEO_TAXONOMY_PROXY_POST_TYPE !== ( $post_types[ $id ] ?? '' );
 		}
 	);
 	if ( count( $post_ids ) === 0 ) {
@@ -3144,8 +3101,6 @@ function ai4seo_read_available_metadata_by_post_ids( array $post_ids, bool $cons
 	// Fill remaining gaps from active third-party SEO plugins.
 
 	// 2. check third party seo plugins
-	$active_third_party_seo_plugin_details = ai4seo_get_active_third_party_seo_plugin_details();
-
 	foreach ( $active_third_party_seo_plugin_details as $this_third_party_seo_plugin_identifier => $this_third_party_seo_plugin_details ) {
 		$provider_issues                                 = null !== $analysis_issues ? array() : null;
 		$this_provider_read_succeeded                    = false;
@@ -3172,7 +3127,7 @@ function ai4seo_read_available_metadata_by_post_ids( array $post_ids, bool $cons
 		foreach ( $post_ids as $this_key => $this_post_id ) {
 			$this_posts_got_missing_metadata = false;
 
-			foreach ( AI4SEO_METADATA_DETAILS as $this_metadata_identifier => $this_metadata_details ) {
+			foreach ( $metadata_field_descriptors as $this_metadata_identifier => $this_metadata_details ) {
 				// A provider cannot resolve conflicting active alternatives or make them fully covered.
 				if ( ai4seo_is_posts_table_analysis_field_unknown( $analysis_issues, $this_post_id, $this_metadata_identifier ) || isset( $storage_views[ $this_post_id ]['conflicts'][ $this_metadata_identifier ] ) || 'unreadable' === ( $storage_views[ $this_post_id ]['classification'] ?? '' ) ) {
 					$this_posts_got_missing_metadata = true;
@@ -3305,6 +3260,8 @@ function ai4seo_read_num_available_metadata_by_post_ids( array $post_ids, ?bool 
  * @return array Metadata field counts keyed by the original requested post IDs.
  */
 function ai4seo_read_metadata_coverage_chunk( array $post_ids, array $coverage_settings, bool $is_multi_post_read, ?bool &$read_succeeded = null, ?array &$field_states = null, ?array &$analysis_issues = null ): array {
+	$metadata_field_descriptors = ai4seo_get_generation_field_descriptors( 'metadata' );
+
 	$read_succeeded = false;
 	if ( null !== $field_states ) {
 		$field_states = array();
@@ -3344,7 +3301,7 @@ function ai4seo_read_metadata_coverage_chunk( array $post_ids, array $coverage_s
 		}
 		$num_available_metadata_by_post_ids[ $post_id ] = 0;
 
-		foreach ( AI4SEO_METADATA_DETAILS as $this_metadata_identifier => $this_metadata_details ) {
+		foreach ( $metadata_field_descriptors as $this_metadata_identifier => $this_metadata_details ) {
 			if ( ! in_array( $this_metadata_identifier, $active_meta_tags, true ) ) {
 				continue;
 			}
@@ -3813,6 +3770,9 @@ function ai4seo_refresh_one_posts_metadata_coverage_status(
 	$post = null,
 	bool $clear_failed_generation_status = false
 ): bool {
+	if ( ai4seo_is_post_state_storage_paused() ) {
+		return ai4seo_mutate_analysis_reconciliation( array( $post_id ), true );
+	}
 	if ( $post_id <= 0 ) {
 		return false;
 	}
@@ -3841,49 +3801,6 @@ function ai4seo_refresh_one_posts_metadata_coverage_status(
 		$coverage_transition['additions'],
 		$coverage_transition['removals']
 	);
-}
-
-
-/**
- * Function to check if this post is a valid content post to be considered by our plugin
- *
- * @param int          $post_id The post id to check.
- * @param WP_Post|null $post The post value.
- * @return bool Whether the post is a valid content post
- */
-function ai4seo_is_post_a_valid_content_post( int $post_id, ?WP_Post $post = null ): bool {
-	if ( ai4seo_is_taxonomy_proxy( $post_id ) ) {
-		$archive = ai4seo_get_taxonomy_proxy_editor_context( $post_id );
-		return ! is_wp_error( $archive ) && $archive['available'];
-	}
-	if ( ! is_numeric( $post_id ) ) {
-		return false;
-	}
-
-	// read post.
-	if ( null === $post ) {
-		$post = get_post( $post_id );
-	}
-
-	// check if the post could be read.
-	if ( ! $post || is_wp_error( $post ) || ! isset( $post->post_type ) ) {
-		return false;
-	}
-
-	// supported post types.
-	$supported_post_types = ai4seo_get_supported_post_types();
-
-	// check if the post is supported.
-	if ( ! in_array( $post->post_type, $supported_post_types, true ) ) {
-		return false;
-	}
-
-	// check post status.
-	if ( ! in_array( $post->post_status, array( 'publish', 'future', 'private', 'pending' ), true ) ) {
-		return false;
-	}
-
-	return true;
 }
 
 
@@ -4699,6 +4616,8 @@ function ai4seo_get_editor_field_third_party_source_details(
  * @return array
  */
 function ai4seo_read_metadata_editor_source_details( int $post_id, array $active_metadata ): array {
+	$metadata_field_descriptors = ai4seo_get_generation_field_descriptors( 'metadata' );
+
 	// Metadata source labels are derived only for the SOOZ editor modal and leave active metadata resolution unchanged.
 	$post_id = absint( $post_id );
 
@@ -4713,7 +4632,7 @@ function ai4seo_read_metadata_editor_source_details( int $post_id, array $active
 	$source_details                = array();
 
 	// SOOZ-generated values are checked before third-party values to handle plugin-sync copies correctly.
-	foreach ( AI4SEO_METADATA_DETAILS as $this_metadata_identifier => $this_metadata_details ) {
+	foreach ( $metadata_field_descriptors as $this_metadata_identifier => $this_metadata_details ) {
 		$this_active_value                = ai4seo_normalize_editor_input_value( $active_metadata[ $this_metadata_identifier ] ?? '' );
 		$this_generated_value             = ai4seo_normalize_editor_input_value( $generated_data[ $this_metadata_identifier ] ?? '' );
 		$this_has_generated_value         = array_key_exists( $this_metadata_identifier, $generated_data ) && '' !== $this_generated_value;
@@ -4775,6 +4694,8 @@ function ai4seo_read_metadata_editor_source_details( int $post_id, array $active
  * @return array
  */
 function ai4seo_read_attachment_attributes_editor_source_details( int $attachment_post_id, array $active_attachment_attributes ): array {
+	$attachment_field_descriptors = ai4seo_get_generation_field_descriptors( 'attachment_attributes' );
+
 	// Media attributes do not have third-party SEO sources, so only SOOZ generated-data snapshots are considered.
 	$attachment_post_id = absint( $attachment_post_id );
 
@@ -4788,7 +4709,7 @@ function ai4seo_read_attachment_attributes_editor_source_details( int $attachmen
 	$source_details         = array();
 
 	// Compare against the active attachment attributes shown in the modal to detect user edits.
-	foreach ( AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS as $this_attachment_attribute_identifier => $this_attachment_attribute_details ) {
+	foreach ( $attachment_field_descriptors as $this_attachment_attribute_identifier => $this_attachment_attribute_details ) {
 		$this_active_value        = ai4seo_normalize_editor_input_value( $active_attachment_attributes[ $this_attachment_attribute_identifier ] ?? '' );
 		$this_generated_value     = ai4seo_normalize_editor_input_value( $generated_data[ $this_attachment_attribute_identifier ] ?? '' );
 		$this_has_generated_value = array_key_exists( $this_attachment_attribute_identifier, $generated_data ) && '' !== $this_generated_value;
@@ -5046,29 +4967,6 @@ function ai4seo_save_post_content_summary_to_postmeta( int $post_id, string $pos
 
 
 /**
- * Returns the configured maximum length for the given editor field identifier.
- *
- * @param string $identifier The metadata or attachment identifier to evaluate.
- * @return int
- */
-function ai4seo_get_max_editor_input_length( string $identifier ): int {
-	if ( ! defined( 'AI4SEO_MAX_EDITOR_INPUT_LENGTHS' ) ) {
-		return 512;
-	}
-
-	$identifier   = strtolower( $identifier );
-	$max_lengths  = AI4SEO_MAX_EDITOR_INPUT_LENGTHS;
-	$fallback_max = (int) ( $max_lengths['fallback'] ?? 512 );
-
-	if ( isset( $max_lengths[ $identifier ] ) ) {
-		return (int) $max_lengths[ $identifier ];
-	}
-
-	return $fallback_max;
-}
-
-
-/**
  * Normalizes editor input values so they can be validated and trimmed consistently.
  *
  * @param mixed $value The value to normalize.
@@ -5131,14 +5029,12 @@ function ai4seo_sanitize_editor_field_value( $value ): string {
 function ai4seo_get_generated_output_contract( string $context ): array {
 	$context = sanitize_key( $context );
 
-	// Reuse established declarations so API identifiers cannot drift from editor and storage paths.
-	if ( 'metadata' === $context ) {
-		$field_details = defined( 'AI4SEO_METADATA_DETAILS' ) ? AI4SEO_METADATA_DETAILS : array();
-	} elseif ( 'attachment_attributes' === $context ) {
-		$field_details = defined( 'AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS' ) ? AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS : array();
-	} else {
+	if ( ! in_array( $context, array( 'metadata', 'attachment_attributes' ), true ) ) {
 		return array();
 	}
+
+	// Reuse established declarations so API identifiers cannot drift from editor and storage paths.
+	$field_details = ai4seo_get_generation_field_descriptors( $context );
 
 	// Combine effective soft targets with canonical hard caps; only the hard caps can alter a saved value.
 	$fixed_quality_windows = AI4SEO_GENERATED_OUTPUT_QUALITY_WINDOWS[ $context ] ?? array();
@@ -5546,6 +5442,8 @@ function ai4seo_update_active_metadata(
 	?array &$operation_details = null,
 	array $recovery_context = array()
 ): bool {
+	$metadata_field_descriptors = ai4seo_get_generation_field_descriptors( 'metadata' );
+
 	if ( ai4seo_is_taxonomy_proxy( $post_id ) ) {
 		$operation_details = array(
 			'commit_state'               => 'not_committed',
@@ -5638,7 +5536,7 @@ function ai4seo_update_active_metadata(
 	$should_save_own_metadata = $did_merge_legacy_active_metadata;
 
 	// Process only registered metadata so API aliases, field limits, and integration mappings remain centralized.
-	foreach ( AI4SEO_METADATA_DETAILS as $this_metadata_identifier => $this_metadata_details ) {
+	foreach ( $metadata_field_descriptors as $this_metadata_identifier => $this_metadata_details ) {
 		$this_api_identifier = $this_metadata_details['api-identifier'];
 
 		if ( isset( $metadata_updates[ $this_metadata_identifier ] ) ) {
@@ -7639,6 +7537,8 @@ function ai4seo_calculate_metadata_credits_cost_per_post( $only_this_meta_tags =
  * @return array Metadata identifiers mapped to credit costs.
  */
 function ai4seo_get_metadata_price_table( $only_this_meta_tags = null ): array {
+	$metadata_field_descriptors = ai4seo_get_generation_field_descriptors( 'metadata' );
+
 	// Keep a non-empty caller filter restrictive even when all submitted identifiers normalize away.
 	$active_meta_tags                = ai4seo_normalize_metadata_identifier_list( ai4seo_get_active_meta_tags() );
 	$restrict_to_requested_meta_tags = is_array( $only_this_meta_tags ) && ! empty( $only_this_meta_tags );
@@ -7658,12 +7558,12 @@ function ai4seo_get_metadata_price_table( $only_this_meta_tags = null ): array {
 			continue;
 		}
 
-		if ( ! defined( 'AI4SEO_METADATA_DETAILS' ) || ! is_array( AI4SEO_METADATA_DETAILS ) ) {
+		if ( ! defined( 'AI4SEO_METADATA_DETAILS' ) ) {
 			$price_table[ $this_active_meta_tag ] = 1; // fallback to 1 credit per meta tag.
 			continue;
 		}
 
-		$price_table[ $this_active_meta_tag ] = AI4SEO_METADATA_DETAILS[ $this_active_meta_tag ]['flat-credits-cost'] ?? 1;
+		$price_table[ $this_active_meta_tag ] = $metadata_field_descriptors[ $this_active_meta_tag ]['flat-credits-cost'] ?? 1;
 	}
 
 	return $price_table;
@@ -7677,13 +7577,15 @@ function ai4seo_get_metadata_price_table( $only_this_meta_tags = null ): array {
  * @return array Active metadata field display names.
  */
 function ai4seo_get_active_meta_tags_names( $active_meta_tags = null ): array {
+	$metadata_field_descriptors = ai4seo_get_generation_field_descriptors( 'metadata' );
+
 	if ( null === $active_meta_tags ) {
 		$active_meta_tags = ai4seo_get_active_meta_tags();
 	}
 
 	$active_meta_tags_names = array();
 
-	foreach ( AI4SEO_METADATA_DETAILS as $ai4seo_this_metadata_identifier => $ai4seo_this_metadata_details ) {
+	foreach ( $metadata_field_descriptors as $ai4seo_this_metadata_identifier => $ai4seo_this_metadata_details ) {
 		if ( in_array( $ai4seo_this_metadata_identifier, $active_meta_tags, true ) && isset( $ai4seo_this_metadata_details['name'] ) ) {
 			$active_meta_tags_names[] = $ai4seo_this_metadata_details['name'];
 		}

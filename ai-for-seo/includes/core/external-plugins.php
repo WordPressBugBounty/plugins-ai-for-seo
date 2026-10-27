@@ -650,11 +650,13 @@ function ai4seo_purge_taxonomy_archive_cache( array $urls, ?array &$diagnostics 
  * @return void
  */
 function ai4seo_refresh_taxonomy_metadata_output_cache( int $post_id, array $before, array &$details ): void {
+	$metadata_field_descriptors = ai4seo_get_generation_field_descriptors( 'metadata' );
+
 	$after = ai4seo_read_metadata_output_state( $post_id );
 	if ( ! $before['read_succeeded'] || ! $after['read_succeeded'] ) {
 		return;
 	}
-	foreach ( AI4SEO_METADATA_DETAILS as $field => $definition ) {
+	foreach ( $metadata_field_descriptors as $field => $definition ) {
 		if ( empty( $definition['output-tag-type'] ) || in_array( $field, $after['unknown'], true ) ) {
 			continue;
 		}

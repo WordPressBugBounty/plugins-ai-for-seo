@@ -47,6 +47,9 @@ function ai4seo_schedule_cron_jobs() {
 	if ( ! ai4seo_is_active_metadata_migration_v235_completed() ) {
 		ai4seo_schedule_active_metadata_migration_v235_cron_job();
 	}
+	if ( ! wp_next_scheduled( AI4SEO_TITLE_ORDER_CRON_HOOK ) ) {
+		ai4seo_schedule_background_job_checked( AI4SEO_TITLE_ORDER_CRON_HOOK, 10, 'five_minutes' );
+	}
 }
 
 
@@ -64,6 +67,7 @@ function ai4seo_un_schedule_cron_jobs() {
 	wp_clear_scheduled_hook( AI4SEO_BULK_GENERATION_CRON_JOB_NAME );
 	wp_clear_scheduled_hook( AI4SEO_ANALYSE_PLUGIN_PERFORMANCE_CRON_JOB_NAME );
 	wp_clear_scheduled_hook( AI4SEO_GENERATION_STATUS_SUMMARY_REBUILD_CRON_JOB_NAME );
+	wp_clear_scheduled_hook( AI4SEO_TITLE_ORDER_CRON_HOOK );
 	ai4seo_unschedule_taxonomy_proxy_sync();
 	ai4seo_unschedule_active_metadata_migration_v235_cron_job();
 }
@@ -612,6 +616,59 @@ function ai4seo_schedule_background_job_checked( string $job, int $delay = 1, st
 }
 
 /**
+ * Describe scheduling without confusing a due event with a failed server trigger.
+ *
+ * @param int  $next_run Next WordPress event timestamp, or zero when absent.
+ * @param bool $external_cron Whether traffic-triggered WordPress cron is disabled.
+ * @return array Presentation only; no events or execution state are changed.
+ */
+function ai4seo_get_background_schedule_presentation( int $next_run, bool $external_cron ): array {
+	$result = array(
+		'needs_attention' => false,
+		'label'           => __( 'Waiting for the next run', 'ai-for-seo' ),
+		'message'         => __( 'The next run is scheduled. This page will refresh automatically.', 'ai-for-seo' ),
+	);
+	if ( ! $next_run ) {
+		$result['needs_attention'] = true;
+		$result['label']           = __( 'No run scheduled', 'ai-for-seo' );
+		$result['message']         = __( 'No scheduled execution could be found. Use Run sooner to request one, or check the cron configuration.', 'ai-for-seo' );
+		return $result;
+	}
+	$now = time();
+	if ( $next_run > $now ) {
+		return $result;
+	}
+
+	/**
+	 * Supply a verified external server interval in seconds, or zero when unknown.
+	 * This is not the WordPress event recurrence and never changes scheduling.
+	 *
+	 * @param int $interval External cron interval; no site-independent default is assumed.
+	 */
+	$interval = apply_filters( 'ai4seo_external_cron_interval_seconds', 0 );
+	$interval = is_int( $interval ) && $interval > 0 ? $interval : 0;
+	$external = $external_cron || $interval > 0;
+	// Allow two known server intervals plus jitter. An unknown external cadence has no inferred deadline.
+	$threshold                 = $external ? ( $interval ? 2.0 * $interval + MINUTE_IN_SECONDS : null ) : 5 * MINUTE_IN_SECONDS;
+	$delayed                   = null !== $threshold && $now - $next_run > $threshold;
+	$result['needs_attention'] = $delayed;
+	$result['label']           = $delayed ? __( 'Scheduled execution is delayed', 'ai-for-seo' ) : $result['label'];
+	$result['message']         = $delayed
+		? __( 'The scheduled run has not started within the expected time. Please check the server\'s scheduled-task configuration.', 'ai-for-seo' )
+		: __( 'The next run will start when your server next checks scheduled tasks.', 'ai-for-seo' );
+	$result['message']        .= ' ' . ( $now - $next_run < MINUTE_IN_SECONDS ? __( 'The scheduled run is due now.', 'ai-for-seo' ) : sprintf(
+		/* translators: %s: elapsed time since the scheduled task became due. */
+		__( 'The scheduled run has been due for %s.', 'ai-for-seo' ),
+		human_time_diff( $next_run, $now )
+	) );
+	if ( $external && ! $interval ) {
+		$result['message'] .= ' ' . __( 'If this exceeds your server\'s usual interval, check its scheduled-task configuration.', 'ai-for-seo' );
+	}
+	$result['message'] .= ' ' . __( 'This page will refresh automatically.', 'ai-for-seo' );
+	return $result;
+}
+
+/**
  * Describe the same background state in Dashboard and Help.
  *
  * @param string $job Cron hook.
@@ -639,14 +696,8 @@ function ai4seo_get_background_job_readiness( string $job ): array {
 		$state['needs_attention'] = true;
 		$state['label']           = __( 'Last run needs attention', 'ai-for-seo' );
 		$state['message']         = __( 'The last run reported an error or a processing restriction. Review the account, queue diagnostics and Latest Activity before retrying.', 'ai-for-seo' );
-	} elseif ( ! $state['next_run'] ) {
-		$state['needs_attention'] = true;
-		$state['label']           = __( 'No run scheduled', 'ai-for-seo' );
-		$state['message']         = __( 'No scheduled execution could be found. Use Run sooner to request one, or check the cron configuration.', 'ai-for-seo' );
-	} elseif ( $state['next_run'] < time() - 5 * MINUTE_IN_SECONDS ) {
-		$state['needs_attention'] = true;
-		$state['label']           = __( 'Scheduled execution is overdue', 'ai-for-seo' );
-		$state['message']         = __( 'WordPress has not started the scheduled execution. Please check the cron configuration.', 'ai-for-seo' );
+	} elseif ( ! $state['next_run'] || $state['next_run'] <= time() ) {
+		$state = array_merge( $state, ai4seo_get_background_schedule_presentation( (int) $state['next_run'], ai4seo_is_wordpress_cron_disabled() ) );
 	} elseif ( 'finished' === $state['status'] ) {
 		$state['label'] = __( 'Last run completed', 'ai-for-seo' );
 	} elseif ( 'bulk-generation-disabled' === $state['status'] ) {
@@ -978,6 +1029,12 @@ function ai4seo_schedule_disabled_bulk_generation_queue_reconciliation_recovery(
  * @return bool True only after settings, queue transitions, and fence release were verified.
  */
 function ai4seo_reconcile_disabled_bulk_generation_queue_entries( ?array &$enabled_post_types = null, ?array $contexts = null ): bool {
+	if ( ai4seo_uses_post_state_tables() ) {
+		return ai4seo_reconcile_indexed_disabled_queue( $enabled_post_types, $contexts );
+	}
+	if ( ai4seo_is_post_state_storage_paused() ) {
+		return false;
+	}
 	global $wpdb;
 	$contexts = null === $contexts ? ai4seo_get_bulk_generation_queue_contexts() : $contexts;
 	if ( ! $contexts || array_diff( $contexts, ai4seo_get_bulk_generation_queue_contexts() ) ) {
@@ -1348,7 +1405,7 @@ function ai4seo_reconcile_disabled_bulk_generation_queue_entries( ?array &$enabl
 
 				if (
 					! isset( $queue_options['processing'] )
-					|| ! ai4seo_read_processing_claim_leases_under_lock( $queue_options['processing'], $existing_leases )
+					|| ! ai4seo_read_processing_claim_leases_under_lock( $queue_options['processing'], $existing_leases, array_keys( $membership_snapshots ) )
 				) {
 					$operation_succeeded = false;
 					break;
@@ -1594,7 +1651,7 @@ function ai4seo_renew_bulk_generation_processing_claim( string $context, int $po
 	try {
 		$leases = array();
 
-		if ( ai4seo_read_processing_claim_leases_under_lock( $queue_options['processing'], $leases ) ) {
+		if ( ai4seo_read_processing_claim_leases_under_lock( $queue_options['processing'], $leases, array( $post_id ) ) ) {
 			$current_lease = $leases[ $post_id ] ?? null;
 
 			if (
@@ -1603,7 +1660,7 @@ function ai4seo_renew_bulk_generation_processing_claim( string $context, int $po
 				&& empty( $current_lease['rollback_requested'] )
 				&& ! array_key_exists( 'terminal_force_overwrite', $current_lease )
 			) {
-				$processing_snapshot = ai4seo_get_raw_option_snapshot( $queue_options['processing'] );
+				$processing_snapshot = ai4seo_read_post_state_candidate_snapshot( $queue_options['processing'], array( $post_id ) );
 
 				if ( null !== $processing_snapshot && ai4seo_renew_post_id_option_transition_semaphore() ) {
 					$processing_lookup = array_fill_keys(
@@ -1701,7 +1758,7 @@ function ai4seo_guard_queued_bulk_generation_processing_claim_eligibility(
 	try {
 		$leases = array();
 
-		if ( ai4seo_read_processing_claim_leases_under_lock( $queue_options['processing'], $leases ) ) {
+		if ( ai4seo_read_processing_claim_leases_under_lock( $queue_options['processing'], $leases, array( $post_id ) ) ) {
 			$current_lease = $leases[ $post_id ] ?? null;
 
 			if (
@@ -1711,7 +1768,7 @@ function ai4seo_guard_queued_bulk_generation_processing_claim_eligibility(
 				&& empty( $current_lease['ambiguous_spend'] )
 				&& ! array_key_exists( 'terminal_force_overwrite', $current_lease )
 			) {
-				$processing_snapshot = ai4seo_get_raw_option_snapshot( $queue_options['processing'] );
+				$processing_snapshot = ai4seo_read_post_state_candidate_snapshot( $queue_options['processing'], array( $post_id ) );
 
 				if ( null !== $processing_snapshot && ai4seo_renew_post_id_option_transition_semaphore() ) {
 					$processing_lookup = array_fill_keys(
@@ -1919,9 +1976,9 @@ function ai4seo_persist_bulk_generation_processing_claim_queue_intent_snapshot(
 	try {
 		$leases = array();
 
-		if ( ai4seo_read_processing_claim_leases_under_lock( $queue_options['processing'], $leases ) ) {
+		if ( ai4seo_read_processing_claim_leases_under_lock( $queue_options['processing'], $leases, array( $post_id ) ) ) {
 			$current_lease       = $leases[ $post_id ] ?? null;
-			$processing_snapshot = ai4seo_get_raw_option_snapshot( $queue_options['processing'] );
+			$processing_snapshot = ai4seo_read_post_state_candidate_snapshot( $queue_options['processing'], array( $post_id ) );
 			$processing_lookup   = null === $processing_snapshot
 				? array()
 				: array_fill_keys(
@@ -1973,9 +2030,9 @@ function ai4seo_persist_bulk_generation_processing_claim_queue_intent_snapshot(
 				if ( $intent_persisted ) {
 					$verified_leases = array();
 
-					if ( ai4seo_read_processing_claim_leases_under_lock( $queue_options['processing'], $verified_leases ) ) {
+					if ( ai4seo_read_processing_claim_leases_under_lock( $queue_options['processing'], $verified_leases, array( $post_id ) ) ) {
 						$verified_lease               = $verified_leases[ $post_id ] ?? null;
-						$verified_processing_snapshot = ai4seo_get_raw_option_snapshot( $queue_options['processing'] );
+						$verified_processing_snapshot = ai4seo_read_post_state_candidate_snapshot( $queue_options['processing'], array( $post_id ) );
 						$verified_processing_lookup   = null === $verified_processing_snapshot
 							? array()
 							: array_fill_keys(
@@ -2092,7 +2149,7 @@ function ai4seo_release_bulk_generation_processing_claim(
 	try {
 		$leases = array();
 
-		if ( ai4seo_read_processing_claim_leases_under_lock( $queue_options['processing'], $leases ) ) {
+		if ( ai4seo_read_processing_claim_leases_under_lock( $queue_options['processing'], $leases, array( $post_id ) ) ) {
 			$current_lease       = $leases[ $post_id ] ?? null;
 			$has_ambiguous_spend = false;
 
@@ -2119,7 +2176,7 @@ function ai4seo_release_bulk_generation_processing_claim(
 
 			if ( is_array( $current_lease ) ) {
 				$has_ambiguous_spend = ! empty( $current_lease['ambiguous_spend'] );
-				$processing_snapshot = ai4seo_get_raw_option_snapshot( $queue_options['processing'] );
+				$processing_snapshot = ai4seo_read_post_state_candidate_snapshot( $queue_options['processing'], array( $post_id ) );
 				$processing_lookup   = null === $processing_snapshot
 					? array()
 					: array_fill_keys(
@@ -2382,7 +2439,7 @@ function ai4seo_verify_processing_claim_terminal_destinations_under_lock( array 
 			return false;
 		}
 
-		$destination_snapshot = ai4seo_get_raw_option_snapshot( $destination_option_name );
+		$destination_snapshot = ai4seo_read_post_state_candidate_snapshot( $destination_option_name, array( $post_id ) );
 
 		if ( null === $destination_snapshot ) {
 			return false;
@@ -2501,7 +2558,7 @@ function ai4seo_recover_registered_bulk_generation_processing_claim( array $clai
 	try {
 		$leases = array();
 
-		if ( ! ai4seo_read_processing_claim_leases_under_lock( $queue_options['processing'], $leases ) ) {
+		if ( ! ai4seo_read_processing_claim_leases_under_lock( $queue_options['processing'], $leases, array( $post_id ) ) ) {
 			$operation_succeeded = false;
 		} else {
 			$current_lease = $leases[ $post_id ] ?? null;
@@ -2511,7 +2568,7 @@ function ai4seo_recover_registered_bulk_generation_processing_claim( array $clai
 				$ownership_transferred = true;
 				$operation_succeeded   = true;
 			} else {
-				$processing_snapshot = ai4seo_get_raw_option_snapshot( $queue_options['processing'] );
+				$processing_snapshot = ai4seo_read_post_state_candidate_snapshot( $queue_options['processing'], array( $post_id ) );
 
 				if ( null === $processing_snapshot || ! ai4seo_renew_post_id_option_transition_semaphore() ) {
 					$operation_succeeded = false;
@@ -2729,14 +2786,19 @@ function ai4seo_recover_stale_bulk_generation_processing_claims( array $contexts
 				break;
 			}
 
-			$processing_snapshot = ai4seo_get_raw_option_snapshot( $queue_options['processing'] );
-			$force_snapshot      = ai4seo_get_raw_option_snapshot( $queue_options['force_overwrite'] );
+			$repair_candidates = ai4seo_uses_post_state_tables() ? ai4seo_read_post_state_recovery_ids( $queue_options['processing'], $repair_limit + 1 ) : null;
+			if ( ai4seo_uses_post_state_tables() && null === $repair_candidates ) {
+				$operation_succeeded = false;
+				break;
+			}
+			$processing_snapshot = ai4seo_read_post_state_candidate_snapshot( $queue_options['processing'], $repair_candidates ?? array() );
+			$force_snapshot      = ai4seo_read_post_state_candidate_snapshot( $queue_options['force_overwrite'], $repair_candidates ?? array() );
 			$leases              = array();
 
 			if (
 				null === $processing_snapshot
 				|| null === $force_snapshot
-				|| ! ai4seo_read_processing_claim_leases_under_lock( $queue_options['processing'], $leases )
+				|| ! ai4seo_read_processing_claim_leases_under_lock( $queue_options['processing'], $leases, $repair_candidates )
 			) {
 				$operation_succeeded = false;
 				break;
@@ -3373,6 +3435,8 @@ function ai4seo_attempt_metadata_generation(
 	array &$attempt,
 	array $excluded_post_ids
 ): bool {
+	$metadata_field_descriptors = ai4seo_get_generation_field_descriptors( 'metadata' );
+
 	// Clear the output before any early return so callers never observe a prior invocation's state.
 	$terminal_billing_error = false;
 
@@ -3446,7 +3510,11 @@ function ai4seo_attempt_metadata_generation(
 		$post_id = $only_this_post_id;
 	} else {
 		$auto_queue_entries = ai4seo_should_auto_queue_bulk_generation_entries();
-		$pending_post_ids   = ai4seo_get_post_ids_from_option( AI4SEO_PENDING_METADATA_POST_IDS_OPTION_NAME );
+		$pending_post_ids   = ai4seo_read_post_state_queue_ids( AI4SEO_PENDING_METADATA_POST_IDS_OPTION_NAME );
+		if ( null === $pending_post_ids ) {
+			$attempt['status'] = 'system_error';
+			return false;
+		}
 
 		if ( $auto_queue_entries && ! $pending_post_ids ) {
 			// try to search for posts with missing metadata.
@@ -3463,7 +3531,11 @@ function ai4seo_attempt_metadata_generation(
 				return false;
 			}
 
-			$pending_post_ids = ai4seo_get_post_ids_from_option( AI4SEO_PENDING_METADATA_POST_IDS_OPTION_NAME );
+			$pending_post_ids = ai4seo_read_post_state_queue_ids( AI4SEO_PENDING_METADATA_POST_IDS_OPTION_NAME );
+			if ( null === $pending_post_ids ) {
+				$attempt['status'] = 'system_error';
+				return false;
+			}
 
 			// Existing manual queue entries should still be processed when automatic excavation finds nothing new.
 			if ( ! $got_new_pending_posts && ! $pending_post_ids ) {
@@ -3486,7 +3558,11 @@ function ai4seo_attempt_metadata_generation(
 		}
 
 		if ( ! isset( $pending_post_ids ) ) {
-			$pending_post_ids = ai4seo_get_post_ids_from_option( AI4SEO_PENDING_METADATA_POST_IDS_OPTION_NAME );
+			$pending_post_ids = ai4seo_read_post_state_queue_ids( AI4SEO_PENDING_METADATA_POST_IDS_OPTION_NAME );
+			if ( null === $pending_post_ids ) {
+				$attempt['status'] = 'system_error';
+				return false;
+			}
 		}
 
 		if ( ! $pending_post_ids ) {
@@ -3926,7 +4002,7 @@ function ai4seo_attempt_metadata_generation(
 	// Reuse the exact required post-row title so placeholder expansion cannot collapse a failed reread.
 	$post_title_for_placeholders = sanitize_text_field( $content_analysis['post_title'] ?? '' );
 
-	foreach ( AI4SEO_METADATA_DETAILS as $this_metadata_identifier => $this_metadata_details ) {
+	foreach ( $metadata_field_descriptors as $this_metadata_identifier => $this_metadata_details ) {
 		$this_to_generate = in_array( $this_metadata_identifier, $generate_this_fields, true );
 		$this_old_value   = $old_available_metadata[ $this_metadata_identifier ] ?? '';
 		$this_prefix      = $metadata_prefixes[ $this_metadata_identifier ] ?? '';
@@ -4341,6 +4417,8 @@ function ai4seo_attempt_attachment_attributes_generation(
 	array &$attempt,
 	array $excluded_post_ids
 ): bool {
+	$attachment_field_descriptors = ai4seo_get_generation_field_descriptors( 'attachment_attributes' );
+
 	// Clear the output before any early return so callers never observe a prior invocation's state.
 	$terminal_billing_error = false;
 
@@ -4413,7 +4491,11 @@ function ai4seo_attempt_attachment_attributes_generation(
 		$attachment_post_id = $only_this_attachment_post_id;
 	} else {
 		$auto_queue_entries          = ai4seo_should_auto_queue_bulk_generation_entries();
-		$pending_attachment_post_ids = ai4seo_get_post_ids_from_option( AI4SEO_PENDING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME );
+		$pending_attachment_post_ids = ai4seo_read_post_state_queue_ids( AI4SEO_PENDING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME );
+		if ( null === $pending_attachment_post_ids ) {
+			$attempt['status'] = 'system_error';
+			return false;
+		}
 
 		if ( $auto_queue_entries && ! $pending_attachment_post_ids ) {
 			// try to search for attachment posts with missing attributes.
@@ -4430,7 +4512,11 @@ function ai4seo_attempt_attachment_attributes_generation(
 				return false;
 			}
 
-			$pending_attachment_post_ids = ai4seo_get_post_ids_from_option( AI4SEO_PENDING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME );
+			$pending_attachment_post_ids = ai4seo_read_post_state_queue_ids( AI4SEO_PENDING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME );
+			if ( null === $pending_attachment_post_ids ) {
+				$attempt['status'] = 'system_error';
+				return false;
+			}
 
 			// Existing manual queue entries should still be processed when automatic excavation finds nothing new.
 			if ( ! $got_new_pending_attachment_post_ids && ! $pending_attachment_post_ids ) {
@@ -4455,7 +4541,11 @@ function ai4seo_attempt_attachment_attributes_generation(
 		}
 
 		if ( ! isset( $pending_attachment_post_ids ) ) {
-			$pending_attachment_post_ids = ai4seo_get_post_ids_from_option( AI4SEO_PENDING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME );
+			$pending_attachment_post_ids = ai4seo_read_post_state_queue_ids( AI4SEO_PENDING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME );
+			if ( null === $pending_attachment_post_ids ) {
+				$attempt['status'] = 'system_error';
+				return false;
+			}
 		}
 
 		if ( ! $pending_attachment_post_ids ) {
@@ -4792,7 +4882,7 @@ function ai4seo_attempt_attachment_attributes_generation(
 	$attachment_attributes_suffixes      = ai4seo_get_setting( AI4SEO_SETTING_ATTACHMENT_ATTRIBUTES_SUFFIXES );
 	$attachment_placeholder_replacements = ai4seo_get_attachment_placeholder_replacements( $attachment_post_id );
 
-	foreach ( AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS as $this_attachment_attribute_identifier => $this_attachment_attribute_details ) {
+	foreach ( $attachment_field_descriptors as $this_attachment_attribute_identifier => $this_attachment_attribute_details ) {
 		$this_to_generate = in_array( $this_attachment_attribute_identifier, $generate_this_fields, true );
 		$this_old_value   = $old_available_attachment_attributes[ $this_attachment_attribute_identifier ] ?? '';
 		$this_prefix      = $attachment_attributes_prefixes[ $this_attachment_attribute_identifier ] ?? '';
@@ -5208,11 +5298,11 @@ function ai4seo_apply_bulk_generation_result_transition(
 			try {
 				$leases = array();
 
-				if ( ! ai4seo_read_processing_claim_leases_under_lock( $queue_options['processing'], $leases ) ) {
+				if ( ! ai4seo_read_processing_claim_leases_under_lock( $queue_options['processing'], $leases, array( $post_id ) ) ) {
 					$transition_succeeded = false;
 				} else {
 					$current_lease       = $leases[ $post_id ] ?? null;
-					$processing_snapshot = ai4seo_get_raw_option_snapshot( $queue_options['processing'] );
+					$processing_snapshot = ai4seo_read_post_state_candidate_snapshot( $queue_options['processing'], array( $post_id ) );
 
 					if (
 						! is_array( $current_lease )
@@ -5411,7 +5501,7 @@ function ai4seo_clear_queue_membership_rollback_leases_under_lock(
 	foreach ( $rollback_tokens as $post_id => $rollback_token ) {
 		$leases = array();
 
-		if ( ! ai4seo_read_processing_claim_leases_under_lock( $queue_options['processing'], $leases ) ) {
+		if ( ! ai4seo_read_processing_claim_leases_under_lock( $queue_options['processing'], $leases, array( $post_id ) ) ) {
 			return false;
 		}
 
@@ -5468,6 +5558,9 @@ function ai4seo_add_bounded_auto_queue_post_ids_preserving_force_overwrite(
 	int $maximum_pending_post_ids,
 	?array $selection_policy = null
 ): ?array {
+	if ( ai4seo_uses_post_state_tables() ) {
+		return ai4seo_admit_indexed_auto_queue_candidates( $post_ids, $context, $maximum_pending_post_ids, $selection_policy );
+	}
 	$selection_policy = $selection_policy ?? ai4seo_read_auto_queue_policy_snapshot( $context );
 	if ( 'ready' !== $selection_policy['status'] ) {
 		return null;

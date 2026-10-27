@@ -35,6 +35,8 @@ function ai4seo_editor_field_state( string $value, bool $known = true, bool $wri
  * @return array Values, quality and the existing metadata recovery view.
  */
 function ai4seo_read_editor_state( int $post_id, string $context ): array {
+	$metadata_field_descriptors = ai4seo_get_generation_field_descriptors( 'metadata' );
+
 	$state = array(
 		'fields'         => array(),
 		'values'         => array(),
@@ -49,7 +51,7 @@ function ai4seo_read_editor_state( int $post_id, string $context ): array {
 		$view             = $views[ $post_id ] ?? ai4seo_read_active_metadata_resolved_view( $post_id );
 		$state['storage'] = $view;
 		$unreadable       = 'unreadable' === $view['classification'];
-		foreach ( array_keys( AI4SEO_METADATA_DETAILS ) as $field ) {
+		foreach ( array_keys( $metadata_field_descriptors ) as $field ) {
 			$known = $state['read_succeeded'] && ! ai4seo_is_posts_table_analysis_field_unknown( $issues, $post_id, $field );
 			$value = $values[ $post_id ][ $field ] ?? '';
 			if ( $unreadable ) {
@@ -195,7 +197,7 @@ function ai4seo_get_editor_read_attributes( array $state ): string {
  * @return string HTML and the client quality contract.
  */
 function ai4seo_get_editor_read_state_tag( array $state, string $context, array $active_fields ): string {
-	$details = 'metadata' === $context ? AI4SEO_METADATA_DETAILS : AI4SEO_ATTACHMENT_ATTRIBUTES_DETAILS;
+	$details = ai4seo_get_generation_field_descriptors( 'metadata' === $context ? 'metadata' : 'attachment_attributes' );
 	$client  = array(
 		'fields'       => array(),
 		'instructions' => array_diff_key( $state['instructions'], array( 'value' => true ) ),
@@ -261,11 +263,16 @@ function ai4seo_classify_editor_save_fields( array $state, array $updates, array
 function ai4seo_get_editor_reservation_notice( string $context ): string {
 	$options = ai4seo_get_bulk_generation_queue_options_by_context( $context );
 	foreach ( array( 'pending', 'processing', 'force_overwrite' ) as $key ) {
-		if ( isset( $options[ $key ] ) && ! ai4seo_inspect_analysis_post_id_option( $options[ $key ] )['complete'] ) {
+		if ( isset( $options[ $key ] ) && ! ai4seo_inspect_post_state_candidates( $options[ $key ], array() )['complete'] ) {
 			return __( 'Texts could not be reserved because queue data is unreadable. Your drafts are retained. Use Help → Inspect post for diagnosis; waiting alone may not resolve this.', 'ai-for-seo' );
 		}
 	}
-	$snapshot = ai4seo_get_raw_option_snapshot( ai4seo_get_processing_claim_lease_option_name( $options['processing'] ) );
+	$snapshot = ai4seo_uses_post_state_tables()
+		? array(
+			'exists' => true,
+			'value'  => ai4seo_read_post_state_work( AI4SEO_POST_STATE_BUCKETS[ $options['processing'] ] ),
+		)
+		: ai4seo_get_raw_option_snapshot( ai4seo_get_processing_claim_lease_option_name( $options['processing'] ) );
 	$leases   = array();
 	if ( null === $snapshot || ( $snapshot['exists'] && ( ! ai4seo_validate_processing_claim_leases( $snapshot['value'], $leases ) || ! ai4seo_validate_processing_claim_lease_context( $options['processing'], $leases ) ) ) ) {
 		return __( 'Generation ownership data could not be verified. Texts were not overwritten and your drafts are retained. Use Help → Inspect post for diagnosis.', 'ai-for-seo' );

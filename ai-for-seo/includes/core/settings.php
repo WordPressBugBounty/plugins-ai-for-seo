@@ -79,23 +79,26 @@ function ai4seo_get_exportable_settings(): array {
 /**
  * Retrieve value of a setting
  *
- * @param string $setting_name The name of the setting.
+ * @param string    $setting_name The name of the setting.
+ * @param bool|null $read_succeeded Receives false when initialization or its recursion guard fails.
  */
-function ai4seo_get_setting( string $setting_name ) {
+function ai4seo_get_setting( string $setting_name, ?bool &$read_succeeded = null ) {
 	global $ai4seo_settings;
 	global $ai4seo_are_settings_initialized;
 
-	if ( ai4seo_prevent_loops( __FUNCTION__, 5, 99999 ) ) {
-		ai4seo_debug_message( 739593453, 'Prevented loop', true );
-		return '';
-	}
-
+	$read_succeeded = false;
 	if ( ! ai4seo_prepare_settings_request_cache_for_current_site() ) {
 		ai4seo_debug_message( 7122825, 'Settings site identity is unavailable.', true );
 		return '';
 	}
 
 	if ( ! $ai4seo_are_settings_initialized ) {
+		// Only initialization can recurse. Reading an initialized, site-scoped
+		// value must not exhaust a request budget and turn configured lists empty.
+		if ( ai4seo_prevent_loops( __FUNCTION__, 5, 99999 ) ) {
+			ai4seo_debug_message( 739593453, 'Prevented loop', true );
+			return '';
+		}
 		ai4seo_init_settings();
 	}
 
@@ -111,6 +114,9 @@ function ai4seo_get_setting( string $setting_name ) {
 	}
 
 	// Check if the $setting_name-parameter exists in settings-array.
+	$loaded_state   = $GLOBALS['ai4seo_settings_loaded_states'][ ai4seo_get_site_options_request_cache_scope() ] ?? null;
+	$read_succeeded = ( array_key_exists( $setting_name, $ai4seo_settings ) || array_key_exists( $setting_name, AI4SEO_DEFAULT_SETTINGS ) )
+		&& ( null === $loaded_state || ( ! empty( $loaded_state['readable'] ) && ! isset( $loaded_state['issues'][ $setting_name ] ) ) );
 	if ( ! isset( $ai4seo_settings[ $setting_name ] ) ) {
 		return AI4SEO_DEFAULT_SETTINGS[ $setting_name ] ?? '';
 	}
@@ -415,203 +421,6 @@ function ai4seo_normalize_prompt_slider_setting_value( string $setting_name, $se
 	}
 
 	return $setting_value;
-}
-
-
-/**
- * Return whether a staged setting controls one generated field's target length.
- *
- * @param string $setting_name Setting name.
- * @return bool True when generation-length details exist.
- */
-function ai4seo_is_generation_length_slider_setting( string $setting_name ): bool {
-	return isset( AI4SEO_GENERATION_LENGTH_SETTING_DETAILS[ $setting_name ] );
-}
-
-
-/**
- * Return the declarative generation-length details for one setting.
- *
- * @param string $setting_name Setting name.
- * @return array<string, mixed>
- */
-function ai4seo_get_generation_length_setting_details( string $setting_name ): array {
-	// Centralize registry access so callers share the same safe fallback for unknown settings.
-	$setting_details = AI4SEO_GENERATION_LENGTH_SETTING_DETAILS[ $setting_name ] ?? array();
-
-	return is_array( $setting_details ) ? $setting_details : array();
-}
-
-
-/**
- * Return the minimum subscription plan for one generation-length stage.
- *
- * @param mixed $setting_value Stage value.
- * @return string Normalized plan identifier, or an empty string for a free stage.
- */
-function ai4seo_get_generation_length_stage_minimum_plan( $setting_value ): string {
-	// Canonical string keys keep this lookup aligned with saved radio values and API stages.
-	$setting_value = is_string( $setting_value ) || is_int( $setting_value )
-		? (string) $setting_value
-		: '';
-
-	return AI4SEO_GENERATION_LENGTH_STAGE_MINIMUM_PLANS[ $setting_value ] ?? '';
-}
-
-
-/**
- * Determine whether the synchronized subscription can use a paid length stage.
- *
- * @param string $required_plan Minimum required plan.
- * @return bool True for a non-expired subscription at or above the required plan.
- */
-function ai4seo_user_has_active_generation_length_subscription( string $required_plan = 's' ): bool {
-	global $ai4seo_user_has_active_generation_length_subscription;
-
-	// Unknown and free requirements cannot unlock subscription-only generation stages.
-	$required_plan = ai4seo_normalize_plan_identifier( $required_plan );
-
-	if ( '' === $required_plan || 'free' === $required_plan ) {
-		return false;
-	}
-
-	// Unverified facts cannot reuse an earlier paid entitlement from this request.
-	$account = ai4seo_get_account_readiness();
-	if ( ! $account['plan_ready'] ) {
-		return false;
-	}
-
-	// Read the synchronized subscription directly because general plan helpers intentionally do not inspect expiry.
-	$subscription        = $account['subscription'];
-	$subscription_plan   = is_array( $subscription ) ? ai4seo_normalize_plan_identifier( $subscription['plan'] ?? 'free' ) : 'free';
-	$subscription_end    = is_array( $subscription ) ? ( $subscription['subscription_end'] ?? '' ) : '';
-	$subscription_expiry = is_numeric( $subscription_end ) ? (int) $subscription_end : strtotime( (string) $subscription_end );
-
-	// Resolve every plan at once so later Basic and Pro checks do not repeat environmental reads or date parsing.
-	$available_plan_identifiers = array_keys( ai4seo_get_available_plans() );
-	$subscription_plan_index    = array_search( $subscription_plan, $available_plan_identifiers, true );
-	$is_subscription_active     = false !== $subscription_expiry && $subscription_expiry > time();
-
-	foreach ( $available_plan_identifiers as $plan_index => $plan_identifier ) {
-		$ai4seo_user_has_active_generation_length_subscription[ $plan_identifier ] = 'free' !== $plan_identifier
-			&& $is_subscription_active
-			&& false !== $subscription_plan_index
-			&& $subscription_plan_index >= $plan_index;
-	}
-
-	return (bool) ( $ai4seo_user_has_active_generation_length_subscription[ $required_plan ] ?? false );
-}
-
-
-/**
- * Determine whether the current account may use a generation-length stage.
- *
- * Options one through three are available to every account. Option four requires Basic and
- * Option five requires Pro.
- *
- * @param string $setting_name Setting name.
- * @param mixed  $setting_value Stage value.
- * @return bool True when the stage may be used.
- */
-function ai4seo_user_can_use_generation_length_stage( string $setting_name, $setting_value ): bool {
-	// Entitlement applies only to fields registered in the generation-length registry.
-	if ( ! ai4seo_is_generation_length_slider_setting( $setting_name ) ) {
-		return false;
-	}
-
-	// Reuse structural slider validation so entitlement cannot make malformed stages valid.
-	if ( ! ai4seo_validate_prompt_slider_setting_value( $setting_name, $setting_value ) ) {
-		return false;
-	}
-
-	$setting_value = (string) $setting_value;
-
-	// Stages without a registry requirement remain available regardless of subscription state.
-	$minimum_plan = ai4seo_get_generation_length_stage_minimum_plan( $setting_value );
-
-	if ( '' === $minimum_plan ) {
-		return true;
-	}
-
-	// Paid stages require both a non-expired subscription and their configured minimum tier.
-	return ai4seo_user_has_active_generation_length_subscription( $minimum_plan );
-}
-
-
-/**
- * Resolve the generation-length stage currently allowed to affect generation.
- *
- * The stored value is intentionally left unchanged across subscription expiry. Invalid values and
- * unavailable paid stages use Option 2 so missing settings and older clients preserve prior behavior.
- *
- * @param string $setting_name Setting name.
- * @param mixed  $setting_value Optional raw value. The saved setting is read when omitted.
- * @return string Effective stage value.
- */
-function ai4seo_get_effective_generation_length_stage( string $setting_name, $setting_value = null ): string {
-	// Unknown settings cannot participate in generation contracts and use the legacy-equivalent fallback.
-	if ( ! ai4seo_is_generation_length_slider_setting( $setting_name ) ) {
-		return '2';
-	}
-
-	// Omitted values come from persistent settings; explicit values support rendering and request tests.
-	if ( func_num_args() < 2 ) {
-		$setting_value = ai4seo_get_setting( $setting_name );
-	}
-
-	// Missing or malformed stored/imported values preserve older-client behavior through Option 2.
-	if ( ! ai4seo_validate_prompt_slider_setting_value( $setting_name, $setting_value ) ) {
-		return '2';
-	}
-
-	$setting_value = (string) $setting_value;
-
-	// Preserve the saved value separately while applying Option 2 to stages the current account cannot use.
-	if ( ! ai4seo_user_can_use_generation_length_stage( $setting_name, $setting_value ) ) {
-		return '2';
-	}
-
-	return $setting_value;
-}
-
-
-/**
- * Resolve the effective quality window for a generated field.
- *
- * @param string $context Generation context.
- * @param string $field_identifier Plugin field identifier.
- * @return array<string, int>
- */
-function ai4seo_get_generation_length_quality_window( string $context, string $field_identifier ): array {
-	// Normalize both lookup dimensions because editor and API identifiers use different separators.
-	$context          = sanitize_key( $context );
-	$field_identifier = sanitize_key( $field_identifier );
-
-	// Resolve the setting that owns this field without maintaining a second reverse-lookup registry.
-	foreach ( AI4SEO_GENERATION_LENGTH_SETTING_DETAILS as $setting_name => $setting_details ) {
-		if ( ! is_array( $setting_details )
-			|| ( $setting_details['context'] ?? '' ) !== $context
-			|| ( $setting_details['field-identifier'] ?? '' ) !== $field_identifier ) {
-			continue;
-		}
-
-		// Couple diagnostics to the same entitlement-aware stage transmitted to RobHub.
-		$effective_stage = ai4seo_get_effective_generation_length_stage( $setting_name );
-		$stages          = is_array( $setting_details['stages'] ?? null ) ? $setting_details['stages'] : array();
-		$quality_window  = $stages[ $effective_stage ] ?? $stages['2'] ?? array();
-
-		return is_array( $quality_window ) ? $quality_window : array();
-	}
-
-	$fixed_quality_window = AI4SEO_GENERATED_OUTPUT_QUALITY_WINDOWS[ $context ][ $field_identifier ] ?? array();
-
-	// Fields without a configurable stage still use their declared natural-quality window.
-	if ( ! is_array( $fixed_quality_window )
-		|| ! isset( $fixed_quality_window['min-length'], $fixed_quality_window['max-length'] ) ) {
-		return array();
-	}
-
-	return $fixed_quality_window;
 }
 
 

@@ -1202,6 +1202,10 @@ function ai4seo_remove_bulk_generation_pending_queue_snapshot_memberships( array
 		return true;
 	};
 	$removed = null;
+	if ( ai4seo_uses_post_state_tables() ) {
+		$removed = array();
+		return ai4seo_clear_indexed_pending_pairs( $primary_to_paired_option_names, $removed, $guard, false );
+	}
 	if ( ! ai4seo_clear_primary_post_id_option_pairs( $primary_to_paired_option_names, $removed, $guard ) ) {
 		ai4seo_debug_message( 641476228, 'Could not safely remove bulk generation queue snapshot memberships.', true );
 		return false;
@@ -1293,8 +1297,8 @@ function ai4seo_is_bulk_generation_queue_entry_force_overwrite( int $post_id, st
 		return false;
 	}
 
-	$pending_post_ids         = ai4seo_get_post_ids_from_option( $queue_options['pending'] );
-	$force_overwrite_post_ids = ai4seo_get_post_ids_from_option( $queue_options['force_overwrite'] );
+	$pending_post_ids         = ai4seo_get_post_ids_from_option( $queue_options['pending'], array( $post_id ) );
+	$force_overwrite_post_ids = ai4seo_get_post_ids_from_option( $queue_options['force_overwrite'], array( $post_id ) );
 
 	return in_array( $post_id, $pending_post_ids, true )
 		&& in_array( $post_id, $force_overwrite_post_ids, true );
@@ -1316,6 +1320,8 @@ function ai4seo_get_bulk_generation_queue_action_result_defaults( string $action
 		'changed'                        => 0,
 		'not_applicable'                 => 0,
 		'skipped'                        => max( 0, absint( $selected_entries ) ),
+		'svg_unavailable'                => 0,
+		'svg_unavailable_message'        => '',
 		'generated_data_deleted'         => 0,
 		'active_metadata_deleted'        => 0,
 		'related_source_entries_scanned' => 0,
@@ -1384,6 +1390,11 @@ function ai4seo_get_bulk_generation_context_readiness( string $context ): array 
 		'pending_count'   => null,
 		'owned_post_ids'  => array(),
 	);
+	if ( ai4seo_is_post_state_storage_paused() ) {
+		$result['status']          = 'context_blocked';
+		$result['blocked_sources'] = array( 'status_storage_migration' );
+		return $result;
+	}
 	if ( ! ai4seo_is_plugin_update_context_ready( $context, true ) ) {
 		$result['status']            = 'context_blocked';
 		$result['blocked_sources'][] = 'update_settings';
@@ -1396,6 +1407,18 @@ function ai4seo_get_bulk_generation_context_readiness( string $context ): array 
 	if ( ! ai4seo_are_bulk_generation_fields_usable( $context, null, $settings_read_succeeded ) ) {
 		$result['status']            = $settings_read_succeeded ? 'context_blocked' : 'system_error';
 		$result['blocked_sources'][] = 'active_fields';
+	}
+	if ( ai4seo_uses_post_state_tables() ) {
+		$totals = ai4seo_read_post_state_totals( 1 );
+		$leases = ai4seo_read_post_state_work( AI4SEO_POST_STATE_BUCKETS[ $options['processing'] ] );
+		if ( null === $totals || null === $leases ) {
+			$result['status']            = 'system_error';
+			$result['blocked_sources'][] = 'status_storage';
+		} else {
+			$result['pending_count']  = array_sum( $totals[ $options['pending'] ] ?? array() );
+			$result['owned_post_ids'] = array_keys( $leases );
+		}
+		return $result;
 	}
 	foreach ( array( 'pending', 'force_overwrite', 'processing', 'failed', 'hidden', 'auto_queue_disallowed' ) as $key ) {
 		$inspection = ai4seo_inspect_analysis_post_id_option( $options[ $key ] );
@@ -1467,11 +1490,24 @@ function ai4seo_get_bulk_generation_queue_warnings( ?array &$presentation = null
 	$presentation = array(
 		'needs_attention' => false,
 		'label'           => __( 'Automatic selection is in progress', 'ai-for-seo' ),
+		'item_events'     => array(),
+		'operational'     => array(),
+		'continuation'    => array(),
 	);
 	foreach ( ai4seo_get_bulk_generation_queue_contexts() as $context ) {
 		$readiness = ai4seo_get_bulk_generation_context_readiness( $context );
 		if ( 'ready' !== $readiness['status'] ) {
-			$presentation['needs_attention'] = true;
+			if ( array( 'status_storage_migration' ) === $readiness['blocked_sources'] ) {
+				$analysis = $analysis ?? ai4seo_get_posts_table_analysis_status();
+				if ( ! empty( $analysis['preparing'] ) ) {
+					$presentation['operational'][ $context ] = false;
+					$presentation['label']                   = __( 'Preparing analysis', 'ai-for-seo' );
+					$warnings[ $context ]                    = __( 'SEO Autopilot is waiting for update preparation to finish. Existing jobs are retained.', 'ai-for-seo' );
+					continue;
+				}
+			}
+			$presentation['operational'][ $context ] = true;
+			$presentation['needs_attention']         = true;
 			if ( in_array( 'active_fields', $readiness['blocked_sources'], true ) ) {
 				$warnings[ $context ] = __( 'Processing is paused because the active field selection cannot be verified. Existing jobs are retained. Please review the active fields in Settings.', 'ai-for-seo' );
 				continue;
@@ -1493,6 +1529,16 @@ function ai4seo_get_bulk_generation_queue_warnings( ?array &$presentation = null
 			$analysis  = $analysis ?? ai4seo_get_posts_table_analysis_status();
 			$selection = ai4seo_get_auto_queue_selection_status( $context, null, $analysis );
 			if ( ! empty( $selection['message'] ) ) {
+				if ( 'data_blocked' === $selection['status'] || ( $selection['blocked_post_ids'] && in_array( $selection['status'], array( 'ready', 'queued', 'empty', 'queue_full' ), true ) ) ) {
+					$presentation['item_events'][ $context ] = array(
+						'token'   => hash( 'sha256', wp_json_encode( array( $context, $selection['checked_at'], $selection['blocked_post_ids'] ) ) ),
+						'message' => $selection['message'],
+					);
+				} elseif ( in_array( $selection['status'], array( 'deferred', 'policy_changed' ), true ) ) {
+					$presentation['continuation'][ $context ] = $selection['status'];
+				} else {
+					$presentation['operational'][ $context ] = $selection['needs_attention'];
+				}
 				$warnings[ $context ]            = $selection['message'];
 				$presentation['needs_attention'] = $presentation['needs_attention'] || $selection['needs_attention'];
 				if ( 'analysis_pending' === $selection['status'] ) {
@@ -1504,6 +1550,127 @@ function ai4seo_get_bulk_generation_queue_warnings( ?array &$presentation = null
 		}
 	}
 	return $warnings;
+}
+
+/**
+ * Separate the current execution from item problems reported by earlier work.
+ *
+ * @param array $job Inspected background job.
+ * @return array Dashboard-only background presentation; persisted worker state is unchanged.
+ */
+function ai4seo_get_autopilot_dashboard_presentation( array $job ): array {
+	// Preserve unreadable, stale, disabled and actively processing states.
+	if ( ! $job['readable'] || $job['issues'] || ! AI4SEO_CRON_JOBS_ENABLED || $job['active']
+		|| ( in_array( $job['status'], array( 'initiating', 'processing' ), true ) && 'recent' !== $job['time_quality'] ) ) {
+		return $job;
+	}
+
+	if ( ! $job['next_run'] ) {
+		$job = array_merge( $job, ai4seo_get_background_schedule_presentation( 0, ai4seo_is_wordpress_cron_disabled() ) );
+	} elseif ( in_array( $job['status'], array( 'finished-with-error', 'low-credits-balance' ), true ) ) {
+		// A scheduler wait cannot clear a reported execution failure or account restriction.
+		return $job;
+	} elseif ( $job['next_run'] <= time() ) {
+		$job = array_merge( $job, ai4seo_get_background_schedule_presentation( (int) $job['next_run'], ai4seo_is_wordpress_cron_disabled() ) );
+		if ( ! $job['needs_attention'] ) {
+			$job['message'] = __( 'SEO Autopilot is active.', 'ai-for-seo' ) . ' ' . $job['message'];
+		}
+	} elseif ( in_array( $job['status'], array( 'data-blocked', 'finished', 'idle', 'scheduled' ), true ) ) {
+		$job['needs_attention'] = false;
+		$job['label']           = __( 'Waiting for the next run', 'ai-for-seo' );
+		$job['message']         = __( 'SEO Autopilot is active and waiting for its next scheduled execution.', 'ai-for-seo' );
+	}
+	return $job;
+}
+
+/**
+ * Collect current item events without turning their acknowledgement into a queue mutation.
+ *
+ * @param array $queue Structured queue warning presentation.
+ * @param array $job Inspected background job.
+ * @return array All event tokens, unacknowledged tokens, messages and signed dismissal snapshot.
+ */
+function ai4seo_get_autopilot_item_notice( array $queue, array $job ): array {
+	global $wpdb;
+	$events = array();
+	foreach ( $queue['item_events'] ?? array() as $event ) {
+		$events[ $event['token'] ] = $event['message'];
+	}
+	if ( 'data-blocked' === $job['status'] && ! $events && empty( $queue['operational'] ) ) {
+		$events[ hash( 'sha256', 'data-blocked:' . $job['updated_at'] ) ] = __( 'Some items could not be processed during the last run.', 'ai-for-seo' );
+	}
+	$activity = ai4seo_get_option( AI4SEO_LATEST_ACTIVITY_OPTION_NAME, array() );
+	$seen     = array();
+	foreach ( ai4seo_filter_latest_activity_entries_for_current_user( is_array( $activity ) ? $activity : array() ) as $entry ) {
+		$action = $entry['action'] ?? '';
+		if ( ! in_array( $action, array( 'metadata-bulk-generated', 'attachment-attributes-bulk-generated', 'metadata-manually-generated', 'attachment-attributes-manually-generated' ), true ) ) {
+			continue;
+		}
+		if ( false !== strpos( $action, '-manually-generated' ) && 'success' !== ( $entry['status'] ?? '' ) ) {
+			continue;
+		}
+		// A later success, including a manual repair, supersedes the old failure in that domain.
+		$key = ( $entry['post_id'] ?? 0 ) . ':' . ( 0 === strpos( $action, 'metadata-' ) ? 'metadata' : 'media' );
+		if ( isset( $seen[ $key ] ) ) {
+			continue;
+		}
+		$seen[ $key ] = true;
+		$token        = ai4seo_get_activity_error_token( $entry );
+		if ( $token && empty( $entry['warning_resolved'] ) ) {
+			$events[ $token ] = __( 'Some items could not be processed. Review Recent Activity for details.', 'ai-for-seo' );
+		}
+	}
+	$dismissed = get_user_meta( get_current_user_id(), $wpdb->get_blog_prefix() . AI4SEO_AUTOPILOT_ITEM_DISMISSALS_USER_OPTION, true );
+	$visible   = array_diff_key( $events, array_flip( is_array( $dismissed ) ? $dismissed : array() ) );
+	$tokens    = array_keys( $visible );
+	return array(
+		'all_tokens' => array_keys( $events ),
+		'tokens'     => $tokens,
+		'messages'   => array_values( array_unique( $visible ) ),
+		'signature'  => wp_hash( get_current_user_id() . ':' . get_current_blog_id() . ':' . wp_json_encode( $tokens ) ),
+	);
+}
+
+/**
+ * Acknowledge only the signed events actually displayed to this user on this site.
+ *
+ * @param array  $tokens Displayed event identities.
+ * @param string $signature User/site-bound snapshot signature.
+ * @return bool Whether the acknowledgement was persisted or the events have expired.
+ */
+function ai4seo_dismiss_autopilot_item_events( array $tokens, string $signature ): bool {
+	global $wpdb;
+	$user_id = get_current_user_id();
+	if ( ! $user_id || ! $tokens || count( $tokens ) > AI4SEO_MAX_LATEST_ACTIVITY_LOGS + 3 ) {
+		return false;
+	}
+	foreach ( $tokens as $token ) {
+		if ( ! is_string( $token ) || ! preg_match( '/^[a-f0-9]{64}$/D', $token ) ) {
+			return false;
+		}
+	}
+	if ( ! hash_equals( wp_hash( $user_id . ':' . get_current_blog_id() . ':' . wp_json_encode( $tokens ) ), $signature ) ) {
+		return false;
+	}
+	$key = $wpdb->get_blog_prefix() . AI4SEO_AUTOPILOT_ITEM_DISMISSALS_USER_OPTION;
+	for ( $attempt = 0; $attempt < 5; ++$attempt ) {
+		$previous = get_user_meta( $user_id, $key, true );
+		// Refresh event membership after reading the acknowledgement that the conditional write will protect.
+		ai4seo_invalidate_option_cache( AI4SEO_LATEST_ACTIVITY_OPTION_NAME );
+		$queue = null;
+		ai4seo_get_bulk_generation_queue_warnings( $queue );
+		$current = ai4seo_get_autopilot_item_notice( $queue, ai4seo_get_background_job_readiness( AI4SEO_BULK_GENERATION_CRON_JOB_NAME ) );
+		$next    = array_values( array_intersect( array_unique( array_merge( is_array( $previous ) ? $previous : array(), $tokens ) ), $current['all_tokens'] ) );
+		if ( ! $next || $previous === $next ) {
+			return true;
+		}
+		$saved = '' === $previous ? add_user_meta( $user_id, $key, $next, true ) : update_user_meta( $user_id, $key, $next, $previous );
+		if ( $saved ) {
+			return true;
+		}
+		wp_cache_delete( $user_id, 'user_meta' );
+	}
+	return false;
 }
 
 /**
@@ -1663,6 +1830,7 @@ function ai4seo_get_auto_queue_selection_status( string $context, ?array $policy
 		'message'          => '',
 		'blocked_post_ids' => array(),
 		'needs_attention'  => false,
+		'checked_at'       => 0,
 	);
 	if ( 'ready' === $result['status'] ) {
 		$analysis_status = $analysis_status ?? ai4seo_get_posts_table_analysis_status();
@@ -1674,7 +1842,7 @@ function ai4seo_get_auto_queue_selection_status( string $context, ?array $policy
 		} else {
 			// Completed analysis alone cannot prove that its derived candidate list still exists and is readable.
 			$options    = ai4seo_get_bulk_generation_queue_options_by_context( $context );
-			$snapshot   = ai4seo_get_raw_option_snapshot( $options['missing'] );
+			$snapshot   = ai4seo_read_post_state_candidate_snapshot( $options['missing'], array() );
 			$inspection = null === $snapshot ? null : ai4seo_inspect_analysis_post_id_option( $options['missing'], $snapshot );
 			if ( null === $inspection || ! $inspection['read_succeeded'] ) {
 				$result['status'] = 'system_error';
@@ -1690,6 +1858,7 @@ function ai4seo_get_auto_queue_selection_status( string $context, ?array $policy
 			// A verified current analysis supersedes an old wait without rewriting the selection checkpoint.
 			$result['status']           = 'analysis_pending' === $previous['status'] ? 'ready' : $previous['status'];
 			$result['blocked_post_ids'] = $previous['blocked_post_ids'];
+			$result['checked_at']       = $previous['checked_at'];
 		}
 	}
 	$label    = AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA === $context ? __( 'Metadata', 'ai-for-seo' ) : __( 'Media', 'ai-for-seo' );
@@ -1699,7 +1868,7 @@ function ai4seo_get_auto_queue_selection_status( string $context, ?array $policy
 		'system_error'     => __( 'Automatic selection could not read its required data. It will retry on a later scheduled run; this is not an empty selection.', 'ai-for-seo' ),
 		'policy_changed'   => __( 'Automatic selection was deferred because its settings changed. The next scheduled run will use the current filters.', 'ai-for-seo' ),
 		'deferred'         => __( 'Automatic selection is checking further candidates in bounded batches. No filter values are being changed.', 'ai-for-seo' ),
-		'data_blocked'     => __( 'Some automatic candidates could not be evaluated. Their data is unchanged; other candidates are checked independently.', 'ai-for-seo' ),
+		'data_blocked'     => __( 'Some items could not be evaluated. Their data is unchanged; other items are checked independently.', 'ai-for-seo' ),
 		'context_blocked'  => __( 'Automatic selection is paused because required queue data cannot be verified. Existing jobs are retained.', 'ai-for-seo' ),
 	);
 	if ( 'analysis_pending' === $result['status'] ) {
@@ -1781,6 +1950,9 @@ function ai4seo_select_auto_queue_candidates( string $context, array $blocked_po
  * @return array Selection result and resumable offset.
  */
 function ai4seo_find_auto_queue_candidates( string $context, array $policy, array $blocked_post_ids ): array {
+	if ( ai4seo_uses_post_state_tables() ) {
+		return ai4seo_find_indexed_auto_queue_candidates( $context, $policy, $blocked_post_ids );
+	}
 	global $wpdb;
 	// Preparation and sorting consume the same budget as candidate classification.
 	$started = microtime( true );
@@ -2107,6 +2279,12 @@ function ai4seo_classify_auto_queue_candidates( array $post_ids, string $context
  * @return array Response with nullable count and explicit completeness.
  */
 function ai4seo_build_bulk_action_response( array $result ): array {
+	if ( ai4seo_uses_post_state_tables() ) {
+		$totals                         = ai4seo_read_post_state_totals( 1 );
+		$result['queue_count_complete'] = null !== $totals;
+		$result['queue_count']          = null === $totals ? null : array_sum( $totals[ AI4SEO_PENDING_METADATA_POST_IDS_OPTION_NAME ] ?? array() ) + array_sum( $totals[ AI4SEO_PENDING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME ] ?? array() );
+		return $result;
+	}
 	$count    = 0;
 	$complete = true;
 	foreach ( ai4seo_get_bulk_generation_queue_contexts() as $context ) {
@@ -2282,6 +2460,12 @@ function ai4seo_process_bulk_custom_instructions_action( array $post_ids, string
  * @return array Result counts.
  */
 function ai4seo_process_related_attachment_bulk_generation_queue_action( string $action, array $source_post_ids, ?bool &$queue_transition_failed = null ): array {
+	if ( ai4seo_is_post_state_storage_paused() ) {
+		$queue_transition_failed = true;
+		$result                  = ai4seo_get_bulk_generation_queue_action_result_defaults( $action, count( $source_post_ids ) );
+		$result['error_message'] = __( 'SOOZ is updating its status storage. Queue actions will be available again when this finishes.', 'ai-for-seo' );
+		return $result;
+	}
 	$action                  = sanitize_key( $action );
 	$source_post_ids         = array_values( array_unique( array_filter( array_map( 'absint', $source_post_ids ) ) ) );
 	$queue_transition_failed = false;
@@ -2298,7 +2482,7 @@ function ai4seo_process_related_attachment_bulk_generation_queue_action( string 
 		return $result;
 	}
 	foreach ( ai4seo_get_bulk_action_required_status_sources( $action, AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES ) as $option_name ) {
-		$inspection = ai4seo_inspect_analysis_post_id_option( $option_name );
+		$inspection = ai4seo_inspect_post_state_candidates( $option_name, array() );
 		if ( ! $inspection['read_succeeded'] || ! $inspection['complete'] ) {
 			$queue_transition_failed = true;
 			return $result;
@@ -2438,12 +2622,15 @@ function ai4seo_process_related_attachment_bulk_generation_queue_action( string 
 		AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES
 	);
 	if ( ! $is_related_attachment_remove_queue_action ) {
-		$valid_related_attachment_post_ids = ai4seo_filter_generation_enabled_attachment_ids( $valid_related_attachment_post_ids );
+		$valid_related_attachment_post_ids = ai4seo_filter_generation_enabled_attachment_ids( $valid_related_attachment_post_ids, $result['svg_unavailable'] );
+		if ( $result['svg_unavailable'] ) {
+			$result['svg_unavailable_message'] = ai4seo_get_svg_unavailability_message( $result['svg_unavailable'] );
+		}
 	}
 
 	// Pending and Force mode are shared by all related-image queue mutations.
-	$pending_attachment_post_ids          = array_values( ai4seo_get_post_ids_from_option( $attachment_queue_options['pending'] ) );
-	$force_overwrite_attachment_post_ids  = array_values( ai4seo_get_post_ids_from_option( $attachment_queue_options['force_overwrite'] ) );
+	$pending_attachment_post_ids          = array_values( ai4seo_get_post_ids_from_option( $attachment_queue_options['pending'], $valid_related_attachment_post_ids ) );
+	$force_overwrite_attachment_post_ids  = array_values( ai4seo_get_post_ids_from_option( $attachment_queue_options['force_overwrite'], $valid_related_attachment_post_ids ) );
 	$changed_attachment_post_ids          = array();
 	$transition_additions                 = array();
 	$transition_removals                  = array();
@@ -2453,11 +2640,11 @@ function ai4seo_process_related_attachment_bulk_generation_queue_action( string 
 	switch ( $action ) {
 		case AI4SEO_BULK_GENERATION_QUEUE_ACTION_ADD_RELATED_ATTACHMENTS_TO_QUEUE:
 			// Soft mode needs applicability queues to match Add to queue (safe) for attachment attributes.
-			$missing_attachment_post_ids               = array_values( ai4seo_get_post_ids_from_option( $attachment_queue_options['missing'] ) );
-			$processing_attachment_post_ids            = array_values( ai4seo_get_post_ids_from_option( $attachment_queue_options['processing'] ) );
-			$failed_attachment_post_ids                = array_values( ai4seo_get_post_ids_from_option( $attachment_queue_options['failed'] ) );
-			$hidden_attachment_post_ids                = array_values( ai4seo_get_post_ids_from_option( $attachment_queue_options['hidden'] ) );
-			$auto_queue_disallowed_attachment_post_ids = array_values( ai4seo_get_post_ids_from_option( $attachment_queue_options['auto_queue_disallowed'] ) );
+			$missing_attachment_post_ids               = array_values( ai4seo_get_post_ids_from_option( $attachment_queue_options['missing'], $valid_related_attachment_post_ids ) );
+			$processing_attachment_post_ids            = array_values( ai4seo_get_post_ids_from_option( $attachment_queue_options['processing'], $valid_related_attachment_post_ids ) );
+			$failed_attachment_post_ids                = array_values( ai4seo_get_post_ids_from_option( $attachment_queue_options['failed'], $valid_related_attachment_post_ids ) );
+			$hidden_attachment_post_ids                = array_values( ai4seo_get_post_ids_from_option( $attachment_queue_options['hidden'], $valid_related_attachment_post_ids ) );
+			$auto_queue_disallowed_attachment_post_ids = array_values( ai4seo_get_post_ids_from_option( $attachment_queue_options['auto_queue_disallowed'], $valid_related_attachment_post_ids ) );
 			$applicable_attachment_post_ids            = array_values(
 				array_unique(
 					array_merge(
@@ -2494,9 +2681,9 @@ function ai4seo_process_related_attachment_bulk_generation_queue_action( string 
 
 		case AI4SEO_BULK_GENERATION_QUEUE_ACTION_ADD_RELATED_ATTACHMENTS_TO_QUEUE_FORCE_OVERWRITE:
 			// Force mode ignores saved values but still respects active processing and hidden media.
-			$processing_attachment_post_ids            = array_values( ai4seo_get_post_ids_from_option( $attachment_queue_options['processing'] ) );
-			$failed_attachment_post_ids                = array_values( ai4seo_get_post_ids_from_option( $attachment_queue_options['failed'] ) );
-			$hidden_attachment_post_ids                = array_values( ai4seo_get_post_ids_from_option( $attachment_queue_options['hidden'] ) );
+			$processing_attachment_post_ids            = array_values( ai4seo_get_post_ids_from_option( $attachment_queue_options['processing'], $valid_related_attachment_post_ids ) );
+			$failed_attachment_post_ids                = array_values( ai4seo_get_post_ids_from_option( $attachment_queue_options['failed'], $valid_related_attachment_post_ids ) );
+			$hidden_attachment_post_ids                = array_values( ai4seo_get_post_ids_from_option( $attachment_queue_options['hidden'], $valid_related_attachment_post_ids ) );
 			$candidate_attachment_post_ids             = array_values(
 				array_diff(
 					$valid_related_attachment_post_ids,
@@ -2612,6 +2799,12 @@ function ai4seo_process_related_attachment_bulk_generation_queue_action( string 
  * @return array Result counts.
  */
 function ai4seo_process_bulk_generation_queue_action( string $action, array $post_ids, string $context, ?bool &$queue_transition_failed = null ): array {
+	if ( ai4seo_is_post_state_storage_paused() ) {
+		$queue_transition_failed = true;
+		$result                  = ai4seo_get_bulk_generation_queue_action_result_defaults( $action, count( $post_ids ) );
+		$result['error_message'] = __( 'SOOZ is updating its status storage. Queue actions will be available again when this finishes.', 'ai-for-seo' );
+		return $result;
+	}
 	$action           = sanitize_key( $action );
 	$context          = sanitize_key( $context );
 	$post_ids         = array_values( array_unique( array_filter( array_map( 'absint', $post_ids ) ) ) );
@@ -2644,6 +2837,21 @@ function ai4seo_process_bulk_generation_queue_action( string $action, array $pos
 	if ( ! ai4seo_is_bulk_generation_queue_action( $action ) || ! ai4seo_is_bulk_generation_queue_context( $context ) ) {
 		$result['queue_count'] = ai4seo_get_bulk_generation_queue_count();
 		return $result;
+	}
+
+	// Refresh SVG availability before media additions acquire queue locks.
+	if ( ( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES === $context || ai4seo_is_related_attachment_bulk_generation_queue_action( $action ) )
+		&& in_array(
+			$action,
+			array(
+				AI4SEO_BULK_GENERATION_QUEUE_ACTION_ADD_TO_QUEUE,
+				AI4SEO_BULK_GENERATION_QUEUE_ACTION_ADD_TO_QUEUE_FORCE_OVERWRITE,
+				AI4SEO_BULK_GENERATION_QUEUE_ACTION_ADD_RELATED_ATTACHMENTS_TO_QUEUE,
+				AI4SEO_BULK_GENERATION_QUEUE_ACTION_ADD_RELATED_ATTACHMENTS_TO_QUEUE_FORCE_OVERWRITE,
+			),
+			true
+		) ) {
+		ai4seo_maybe_refresh_svg_capability();
 	}
 
 	// Related-image actions originate from metadata tables but mutate attachment queue state in a dedicated processor.
@@ -2702,7 +2910,7 @@ function ai4seo_process_bulk_generation_queue_action( string $action, array $pos
 		$valid_post_ids = array_values( $valid_post_ids );
 	}
 	foreach ( $required_complete_options as $option_name ) {
-		$inspection = ai4seo_inspect_analysis_post_id_option( $option_name );
+		$inspection = ai4seo_inspect_post_state_candidates( $option_name, $valid_post_ids );
 		if ( ! $inspection['complete'] || ! $inspection['read_succeeded'] ) {
 			$queue_transition_failed = true;
 			return $result;
@@ -2710,13 +2918,16 @@ function ai4seo_process_bulk_generation_queue_action( string $action, array $pos
 	}
 	if ( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES === $context
 		&& in_array( $action, array( AI4SEO_BULK_GENERATION_QUEUE_ACTION_ADD_TO_QUEUE, AI4SEO_BULK_GENERATION_QUEUE_ACTION_ADD_TO_QUEUE_FORCE_OVERWRITE ), true ) ) {
-		$valid_post_ids = ai4seo_filter_generation_enabled_attachment_ids( $valid_post_ids );
+		$valid_post_ids = ai4seo_filter_generation_enabled_attachment_ids( $valid_post_ids, $result['svg_unavailable'] );
+		if ( $result['svg_unavailable'] ) {
+			$result['svg_unavailable_message'] = ai4seo_get_svg_unavailability_message( $result['svg_unavailable'] );
+		}
 	}
-	$pending_post_ids               = ai4seo_get_post_ids_from_option( $queue_options['pending'] );
-	$processing_post_ids            = ai4seo_get_post_ids_from_option( $queue_options['processing'] );
-	$force_overwrite_post_ids       = ai4seo_get_post_ids_from_option( $queue_options['force_overwrite'] );
-	$hidden_post_ids                = ai4seo_get_post_ids_from_option( $queue_options['hidden'] );
-	$auto_queue_disallowed_post_ids = ai4seo_get_post_ids_from_option( $queue_options['auto_queue_disallowed'] );
+	$pending_post_ids               = ai4seo_get_post_ids_from_option( $queue_options['pending'], $valid_post_ids );
+	$processing_post_ids            = ai4seo_get_post_ids_from_option( $queue_options['processing'], $valid_post_ids );
+	$force_overwrite_post_ids       = ai4seo_get_post_ids_from_option( $queue_options['force_overwrite'], $valid_post_ids );
+	$hidden_post_ids                = ai4seo_get_post_ids_from_option( $queue_options['hidden'], $valid_post_ids );
+	$auto_queue_disallowed_post_ids = ai4seo_get_post_ids_from_option( $queue_options['auto_queue_disallowed'], $valid_post_ids );
 
 	switch ( $action ) {
 		case AI4SEO_BULK_GENERATION_QUEUE_ACTION_ADD_TO_QUEUE:
@@ -2741,7 +2952,7 @@ function ai4seo_process_bulk_generation_queue_action( string $action, array $pos
 
 		case AI4SEO_BULK_GENERATION_QUEUE_ACTION_ADD_TO_QUEUE_FORCE_OVERWRITE:
 			// Retry incomplete Failed cleanup even when Pending and Force were already saved.
-			$failed_post_ids = ai4seo_get_post_ids_from_option( $queue_options['failed'] );
+			$failed_post_ids = ai4seo_get_post_ids_from_option( $queue_options['failed'], $valid_post_ids );
 
 			// Force-overwrite can promote already Pending entries, but must not touch Processing entries.
 			$candidate_post_ids = array_values( array_diff( $valid_post_ids, $processing_post_ids, $hidden_post_ids ) );
@@ -3044,20 +3255,20 @@ function ai4seo_get_applicable_bulk_generation_queue_post_ids( array $post_ids, 
 	switch ( $context ) {
 		case AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA:
 			$applicable_post_ids = array_merge(
-				ai4seo_get_post_ids_from_option( AI4SEO_MISSING_METADATA_POST_IDS_OPTION_NAME ),
-				ai4seo_get_post_ids_from_option( AI4SEO_FAILED_METADATA_POST_IDS_OPTION_NAME ),
-				ai4seo_get_post_ids_from_option( AI4SEO_AUTO_QUEUE_DISALLOWED_METADATA_POST_IDS_OPTION_NAME )
+				ai4seo_get_post_ids_from_option( AI4SEO_MISSING_METADATA_POST_IDS_OPTION_NAME, $post_ids ),
+				ai4seo_get_post_ids_from_option( AI4SEO_FAILED_METADATA_POST_IDS_OPTION_NAME, $post_ids ),
+				ai4seo_get_post_ids_from_option( AI4SEO_AUTO_QUEUE_DISALLOWED_METADATA_POST_IDS_OPTION_NAME, $post_ids )
 			);
-			$hidden_post_ids     = ai4seo_get_post_ids_from_option( AI4SEO_HIDDEN_METADATA_POST_IDS_OPTION_NAME );
+			$hidden_post_ids     = ai4seo_get_post_ids_from_option( AI4SEO_HIDDEN_METADATA_POST_IDS_OPTION_NAME, $post_ids );
 			break;
 
 		case AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES:
 			$applicable_post_ids = array_merge(
-				ai4seo_get_post_ids_from_option( AI4SEO_MISSING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME ),
-				ai4seo_get_post_ids_from_option( AI4SEO_FAILED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME ),
-				ai4seo_get_post_ids_from_option( AI4SEO_AUTO_QUEUE_DISALLOWED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME )
+				ai4seo_get_post_ids_from_option( AI4SEO_MISSING_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME, $post_ids ),
+				ai4seo_get_post_ids_from_option( AI4SEO_FAILED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME, $post_ids ),
+				ai4seo_get_post_ids_from_option( AI4SEO_AUTO_QUEUE_DISALLOWED_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME, $post_ids )
 			);
-			$hidden_post_ids     = ai4seo_get_post_ids_from_option( AI4SEO_HIDDEN_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME );
+			$hidden_post_ids     = ai4seo_get_post_ids_from_option( AI4SEO_HIDDEN_ATTACHMENT_ATTRIBUTES_POST_IDS_OPTION_NAME, $post_ids );
 			break;
 
 		default:
@@ -3101,6 +3312,10 @@ function ai4seo_get_bulk_generation_entry_count_by_status( string $status ): int
 	}
 
 	// Counts and fallback reads require one exact active options-table scope.
+	if ( ai4seo_uses_post_state_tables() ) {
+		$totals = ai4seo_read_post_state_totals( 1 );
+		return null === $totals ? 0 : array_sum( array_map( 'array_sum', array_intersect_key( $totals, array_fill_keys( $option_names, true ) ) ) );
+	}
 	if ( ! is_object( $wpdb ) || ! isset( $wpdb->options ) || ! ai4seo_is_valid_database_identifier( $wpdb->options ) ) {
 		return 0;
 	}
