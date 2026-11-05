@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 // Centralize plugin identity and asset-cache declarations consumed throughout bootstrap.
-const AI4SEO_PLUGIN_VERSION_NUMBER              = '2.6.1';
+const AI4SEO_PLUGIN_VERSION_NUMBER              = '2.6.2';
 const AI4SEO_PLUGIN_NAME                        = 'SOOZ - AI for SEO';
 const AI4SEO_SHORT_PLUGIN_NAME                  = 'SOOZ';
 const AI4SEO_PLUGIN_DESCRIPTION                 = 'One-Click SEO solution. SOOZ - AI for SEO helps your website to rank higher in Web Search results.';
@@ -91,6 +91,9 @@ const AI4SEO_POST_META_GENERATED_DATA_META_KEY       = 'ai4seo_generated_data';
 const AI4SEO_POST_META_ACTIVE_METADATA_META_KEY      = 'ai4seo_active_metadata';
 const AI4SEO_POST_META_POST_CONTENT_SUMMARY_META_KEY = 'ai4seo_content_summary';
 const AI4SEO_POST_META_RELATED_POST_ID_META_KEY      = 'ai4seo_related_post_id';
+const AI4SEO_POST_META_ATTACHMENT_CONTEXT_POLICY     = 'ai4seo_attachment_context_policy';
+const AI4SEO_ATTACHMENT_CONTEXT_MAX_CANDIDATES       = 20;
+const AI4SEO_ATTACHMENT_CONTEXT_MAX_BYTES            = 4194304;
 
 // Keep recovery readers, classifiers, and writers within the same per-post storage bounds.
 const AI4SEO_ACTIVE_METADATA_MAX_ROWS      = 100;
@@ -132,6 +135,9 @@ const AI4SEO_TAXONOMY_PROXY_SOURCE_META_KEY             = '_ai4seo_taxonomy_sour
 const AI4SEO_TAXONOMY_PROXY_NAME_META_KEY               = '_ai4seo_taxonomy_name';
 const AI4SEO_TAXONOMY_PROXY_AVAILABILITY_META_KEY       = '_ai4seo_taxonomy_availability';
 const AI4SEO_TAXONOMY_PROXY_SYNC_OPTION_NAME            = 'ai4seo_taxonomy_proxy_sync_v1';
+const AI4SEO_ANALYSIS_ISSUE_OPTION_PREFIX               = 'ai4seo_analysis_issue_v1_';
+const AI4SEO_ANALYSIS_ISSUE_MIGRATION_OPTION            = 'ai4seo_analysis_issue_inventory_v1';
+const AI4SEO_ANALYSIS_ISSUE_PAGE_SIZE                   = 50;
 const AI4SEO_TAXONOMY_PROXY_SYNC_CRON_HOOK              = 'ai4seo_taxonomy_proxy_sync';
 const AI4SEO_TAXONOMY_PROXY_CONTINUATION_CRON_HOOK      = 'ai4seo_taxonomy_proxy_sync_continue';
 const AI4SEO_TAXONOMY_PROXY_SYNC_BATCH_SIZE             = 200;
@@ -280,6 +286,22 @@ const AI4SEO_METADATA_KEYWORDS_RECOMMENDED_MAX_ITEMS = 10;
  */
 function ai4seo_get_change_log(): array {
 	return array(
+		array(
+			'date'      => '2026-11-05',
+			'version'   => '2.6.2',
+			'important' => false,
+			'updates'   => array(
+				'Added a choice of verified source posts for image generation, with automatic context checks and clear feedback when a source is unavailable.',
+				'Added detailed lists of entries affected by SEO analysis problems, while allowing unaffected content to continue processing.',
+				'Made analysis preparation, pauses, background updates, and provisional statistics easier to distinguish.',
+				'Improved filtering and sorting of large content libraries, including clearer messages when a list cannot be loaded.',
+				'Fixed retrying all failed generations so the affected entries can be processed again.',
+				'Enabled metadata editing for the first draft of supported public content types.',
+				'Improved reconnection for eligible free accounts after connection errors.',
+				'Clarified image-generation settings and the preview of unsaved Keywords changes.',
+				'Bug Fixes & Maintenance: Fixed 2 minor bugs and addressed 1 security issue.',
+			),
+		),
 		array(
 			'date'      => '2026-10-27',
 			'version'   => '2.6.1',
@@ -2655,6 +2677,7 @@ function ai4seo_get_remote_notification_allowed_html_tags_and_attributes(): arra
 function ai4seo_get_allowed_html_tags_and_attributes(): array {
 	static $ai4seo_allowed_html_tags_and_attributes = array(
 		'div'      => array(
+			'data-page'                                  => array(),
 			'data-offer-surface'                         => array(),
 			'data-offer-id'                              => array(),
 			'data-notification-index'                    => array(),
@@ -2840,6 +2863,7 @@ function ai4seo_get_allowed_html_tags_and_attributes(): array {
 			'fill'        => array(),
 		),
 		'button'   => array(
+			'data-page'                       => array(),
 			'data-offer-setting'              => array(),
 			'data-preferences'                => array(),
 			'data-signature'                  => array(),
@@ -3121,6 +3145,7 @@ const AI4SEO_ALLOWED_AJAX_FUNCTIONS = array(
 	'ai4seo_show_attachment_attributes_editor',
 	'ai4seo_show_related_attachments',
 	'ai4seo_check_attachment_usage_context',
+	'ai4seo_save_attachment_context_policy',
 	'ai4seo_generate_metadata',
 	'ai4seo_generate_attachment_attributes',
 	'ai4seo_reject_tos',
@@ -3130,6 +3155,7 @@ const AI4SEO_ALLOWED_AJAX_FUNCTIONS = array(
 	'ai4seo_dismiss_recent_activity_error',
 	'ai4seo_dismiss_autopilot_item_notice',
 	'ai4seo_get_dashboard_html',
+	'ai4seo_get_analysis_issues_html',
 	'ai4seo_reset_plugin_data',
 	'ai4seo_clear_debug_message_log',
 	'ai4seo_stop_bulk_generation',
@@ -3160,6 +3186,7 @@ const AI4SEO_ALLOWED_AJAX_FUNCTIONS = array(
 
 // AJAX actions that change or expose site-wide account, configuration, or operational state.
 const AI4SEO_ADMINISTRATIVE_AJAX_FUNCTIONS = array(
+	'ai4seo_get_analysis_issues_html',
 	'ai4seo_show_get_more_credits_modal',
 	'ai4seo_reject_tos',
 	'ai4seo_accept_tos',

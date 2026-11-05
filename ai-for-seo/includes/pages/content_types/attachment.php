@@ -565,7 +565,7 @@ ai4seo_echo_wp_kses( $ai4seo_content_type_filter_controls_html );
 ai4seo_echo_wp_kses( ai4seo_get_account_quality_notice() );
 
 if ( ! $ai4seo_filter_context['view_available'] ) {
-	echo '<p>' . esc_html__( 'This view is unavailable because its data could not be verified. Choose another available filter or reload after correcting the data.', 'ai-for-seo' ) . '</p>';
+	echo '<p>' . esc_html( ai4seo_get_content_type_list_unavailable_message( $ai4seo_filter_context ) ) . '</p>';
 	return;
 }
 ai4seo_echo_wp_kses( ai4seo_get_content_type_selection_notice( $ai4seo_current_attachment_post_ids, array_keys( $ai4seo_attachment_attributes_coverage_summary ), $ai4seo_list_status_snapshot ) );

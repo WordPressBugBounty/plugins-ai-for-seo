@@ -3126,6 +3126,7 @@ function ai4seo_init_html_elements(scope = null) {
 		return;
 	}
 	ai4seo_init_activation_controls();
+	ai4seo_init_analysis_issue_controls( resolved_scope );
 	ai4seo_init_license_change_controls();
 	if (ai4seo_has_asset_context( 'activation-offer' )) {
 		ai4seo_init_notifications();
@@ -10937,6 +10938,9 @@ function ai4seo_confirm_bulk_generation_queue_action_if_needed(bulk_generation_q
  */
 function ai4seo_get_bulk_generation_queue_action_confirmation_message(bulk_generation_queue_action, context = '') {
 	switch (bulk_generation_queue_action) {
+		case 'ai4seo_bulk_generation_add_related_attachments_to_queue':
+		case 'ai4seo_bulk_generation_add_related_attachments_to_queue_force_overwrite':
+			return wp.i18n.__( 'For images without a fixed context, a single verified source post will be saved as their context. Multiple verified source posts will be saved as ambiguous and generated without post context. Existing fixed choices remain unchanged. Continue?', 'ai-for-seo' );
 		case 'ai4seo_bulk_generation_remove_generated_data':
 			if (context === 'attachment_attributes') {
 				return wp.i18n.__( 'Saved data may still be stored in the media library.\n\nThis action marks the selected media files as not generated, so SEO Autopilot can auto queue them again if applicable.\n\nContinue?', 'ai-for-seo' );
@@ -11011,6 +11015,7 @@ function ai4seo_submit_bulk_generation_queue_action_form(bulk_generation_queue_a
 		context: context,
 		active_status_filter: active_status_filter,
 		post_ids: post_ids,
+		source_post_id: ai4seo_get_related_attachments_modal_post_id( $checkbox_scope ),
         }
     )
 		.then(
@@ -11493,7 +11498,8 @@ function ai4seo_handle_bulk_generation_queue_action_success(response, bulk_gener
         )
     );
 
-	const message = message_parts.join( ' ' );
+	message_parts.push( ai4seo_get_context_queue_feedback( response ) );
+	const message = message_parts.join( ' ' ).trim();
 
 	if (changed_entries > 0) {
 		ai4seo_show_success_toast( message );
@@ -11594,7 +11600,8 @@ function ai4seo_handle_bulk_generation_related_attachments_action_success(respon
         );
 	}
 
-	const message = message_parts.join( ' ' );
+	message_parts.push( ai4seo_get_context_queue_feedback( response ) );
+	const message = message_parts.join( ' ' ).trim();
 
 	if (related_images_changed > 0) {
 		ai4seo_show_success_toast( message );
@@ -12395,9 +12402,15 @@ function ai4seo_show_tooltip($tooltip, event) {
 		const natural_tooltip_height = $tooltip.outerHeight();
 		const available_space_above = Math.max( 0, tooltip_anchor_rectangle.top - tooltip_gap - viewport_padding );
 		const available_space_below = Math.max( 0, viewport_height - tooltip_anchor_rectangle.bottom - tooltip_gap - viewport_padding );
-		const show_below = available_space_below >= natural_tooltip_height || available_space_below > available_space_above;
+		// Keep dashboard count details above the count so the review action below stays accessible.
+		const prefer_above = $tooltip_holder.hasClass( 'ai4seo-chart-count-tooltip' );
+		const show_below = prefer_above
+			? available_space_above < Math.min( 96, natural_tooltip_height ) && available_space_below > available_space_above
+			: available_space_below >= natural_tooltip_height || available_space_below > available_space_above;
 		// Allow the overlay to cross the trigger line when needed; scroll only if it exceeds the viewport itself.
-		const available_vertical_space = Math.max( 96, viewport_height - (viewport_padding * 2) );
+		const available_vertical_space = prefer_above && !show_below
+			? available_space_above
+			: Math.max( 96, viewport_height - (viewport_padding * 2) );
 
 		$tooltip
 			.css( 'max-height', available_vertical_space + 'px' )
@@ -13626,6 +13639,9 @@ function ai4seo_generate_with_ai($generate_button, ajax_action, generate_data_fo
 	}
 
 	ajax_data.ai4seo_generation_fields = Object.keys( generate_data_for_input_instructions );
+	if (ajax_action === 'ai4seo_generate_attachment_attributes') {
+		ajax_data.source_post_id = ai4seo_get_related_attachments_modal_post_id( ai4seo_get_related_attachments_modal_content_$() );
+	}
 
 	// collect affected generate buttons and old input values.
 	const affected_generate_buttons = ai4seo_collect_generate_data_for_inputs_generate_buttons( generate_data_for_input_instructions, $closest_container );
@@ -13737,6 +13753,11 @@ function ai4seo_generate_with_ai($generate_button, ajax_action, generate_data_fo
 			// debug response.
 			ai4seo_console_debug( response );
 			response.generated_data = response.generated_data || {};
+			if (response.attachment_context) {
+				const $context_status = $closest_container.find( '.ai4seo-attachment-usage-context-status' );
+				$context_status.removeData( 'ai4seo-usage-context-initialized' );
+				ai4seo_init_attachment_usage_context_statuses( $closest_container );
+			}
 			ai4seo_remove_resolved_activity_warnings( response );
 			// check for response.generated_data.
 			if (!response.generated_data || typeof response.generated_data !== 'object') {
@@ -16386,15 +16407,18 @@ function ai4seo_refresh_dashboard_statistics($button) {
 
 	return (pending_refresh ? pending_refresh.then( refresh_request ) : refresh_request())
 		.then(
-			() => {
-				// The next dashboard load shows filter guidance only after analysis has succeeded.
+			(response) => {
+				if (response && response.analysis_status === 'deferred') {
+					ai4seo_show_info_toast( wp.i18n.__( 'An analysis is already running. The statistics will update automatically.', 'ai-for-seo' ) );
+					return false;
+				}
 				ai4seo_show_success_toast( wp.i18n.__( 'Reloading page...', 'ai-for-seo' ) );
 
 				// Keep the request pending so its controls remain locked throughout the navigation delay.
 				return new Promise( resolve => setTimeout( resolve, 1000 ) );
 			}
 		)
-		.then( () => ai4seo_safe_page_load( 'dashboard', {'ai4seo-statistics-refreshed': '1'} ) )
+		.then( reload => reload === false ? null : ai4seo_safe_page_load( 'dashboard', {'ai4seo-statistics-refreshed': '1'} ) )
 		.catch(
 			(error) => {
 				// Keep the failed refresh visible and let its rejected AJAX promise continue through cleanup.
@@ -16416,6 +16440,43 @@ function ai4seo_refresh_dashboard_statistics($button) {
 }
 
 // =========================================================================================== \\
+
+function ai4seo_init_analysis_issue_controls(scope) {
+	jQuery( scope ).find( '.ai4seo-analysis-issues-page' ).off( 'click.ai4seo-issues' ).on( 'click.ai4seo-issues', function () {
+		ai4seo_load_analysis_issues_page( jQuery( this ) );
+	} );
+}
+
+function ai4seo_load_analysis_issues_page($button) {
+	if (!ai4seo_exists_$( $button )) {
+		return;
+	}
+	$button = ai4seo_normalize_$( $button );
+	const $list = $button.closest( '.ai4seo-analysis-issues' );
+	if ($list.attr( 'aria-busy' ) === 'true') {
+		return;
+	}
+	$list.attr( 'aria-busy', 'true' );
+	const $buttons = $list.find( 'button' ).prop( 'disabled', true );
+	ai4seo_add_loading_html_to_element( $button );
+	ai4seo_lock_and_disable_lockable_input_fields();
+	return ai4seo_perform_ajax_call( 'ai4seo_get_analysis_issues_html', {page: Number( $button.attr( 'data-page' ) )} )
+		.then( html => {
+			if (typeof html !== 'string' || !$list[0].isConnected) {
+				return;
+			}
+			const $replacement = jQuery( html );
+			$list.replaceWith( $replacement );
+			ai4seo_init_analysis_issue_controls( $replacement );
+		} )
+		.catch( () => ai4seo_show_generic_error_toast( 44129006 ) )
+		.finally( () => {
+			$list.removeAttr( 'aria-busy' );
+			$buttons.prop( 'disabled', false );
+			ai4seo_remove_loading_html_from_element( $button );
+			ai4seo_unlock_and_enable_lockable_input_fields();
+		} );
+}
 
 function ai4seo_refresh_robhub_account($potential_button, options = {}) {
 	$potential_button = ai4seo_normalize_$( $potential_button );
@@ -20589,7 +20650,7 @@ function ai4seo_init_attachment_usage_context_statuses(scope = null) {
 
 		ai4seo_perform_ajax_call(
 			'ai4seo_check_attachment_usage_context',
-			{attachment_post_id: attachment_post_id},
+			{attachment_post_id: attachment_post_id, source_post_id: ai4seo_get_related_attachments_modal_post_id( ai4seo_get_related_attachments_modal_content_$() )},
 			true,
 			{},
 			false,
@@ -20671,6 +20732,77 @@ function ai4seo_render_attachment_usage_context_status($usage_context_status, re
 	ai4seo_reveal_attachment_usage_context_result( $usage_context_status );
 	ai4seo_init_tooltips( $usage_context_status );
 	ai4seo_init_attachment_usage_context_fix_tooltips( $usage_context_status );
+	ai4seo_render_attachment_context_controls( $usage_context_status, response );
+}
+
+/** Build queue feedback from saved, ambiguous, and failed image context choices. */
+function ai4seo_get_context_queue_feedback(response) {
+	const parts = [];
+	if (response.context_choices_saved > 0) {
+		parts.push( wp.i18n.sprintf( wp.i18n.__( '%d image context choices saved or retained.', 'ai-for-seo' ), response.context_choices_saved ) );
+	}
+	if (response.context_ambiguous > 0) {
+		parts.push( wp.i18n.sprintf( wp.i18n.__( '%d images will be generated without post context because their source is ambiguous or unverified.', 'ai-for-seo' ), response.context_ambiguous ) );
+	}
+	if (response.context_choices_failed > 0) {
+		parts.push( wp.i18n.sprintf( wp.i18n.__( '%d images were not queued because their context choice could not be saved.', 'ai-for-seo' ), response.context_choices_failed ) );
+	}
+	return parts.join( ' ' );
+}
+
+/** Render explicit choices without mutating a policy while the editor opens. */
+function ai4seo_render_attachment_context_controls($status, response) {
+	$status.find( '.ai4seo-context-controls' ).remove();
+	if (!response.context_mode) {
+		return;
+	}
+	const $controls = jQuery( '<div class="ai4seo-context-controls"></div>' );
+	if (response.will_bind_source) {
+		$controls.append( jQuery( '<p></p>' ).text( wp.i18n.sprintf(
+			wp.i18n.__( 'Starting generation will set %s as the image context for future generations.', 'ai-for-seo' ), response.source_post_title
+		) ) );
+	} else if (response.context_mode === 'fixed' && response.source_post_id && response.source_post_id !== response.post_id) {
+		$controls.append( jQuery( '<p></p>' ).text( wp.i18n.__( 'The existing fixed post remains the context. Choose another post explicitly to change it.', 'ai-for-seo' ) ) );
+	}
+	const choices = Array.isArray( response.context_candidates ) ? response.context_candidates : [];
+	if (choices.length) {
+		const select_id = 'ai4seo-context-post-' + $status.attr( 'data-attachment-post-id' );
+		$controls.append( jQuery( '<label></label>' ).attr( 'for', select_id ).text( wp.i18n.__( 'Verified context post:', 'ai-for-seo' ) ) );
+		const $select = jQuery( '<select class="ai4seo-lockable-input-field"></select>' ).attr( 'id', select_id );
+		choices.forEach( choice => $select.append( jQuery( '<option></option>' ).val( choice.post_id ).text( choice.post_title || '#' + choice.post_id ) ) );
+		$select.val( response.source_post_id || response.post_id || choices[0].post_id );
+		const $save = jQuery( '<button type="button" class="button ai4seo-context-save"></button>' ).text( wp.i18n.__( 'Set context post', 'ai-for-seo' ) );
+		$save.on( 'click', () => ai4seo_save_attachment_context_policy( $status, $save, 'fixed', Number( $select.val() ) ) );
+		$controls.append( $select, ' ', $save );
+	}
+	if (response.context_mode !== 'automatic') {
+		const $automatic = jQuery( '<button type="button" class="button ai4seo-context-automatic"></button>' ).text( wp.i18n.__( 'Switch to automatic discovery', 'ai-for-seo' ) );
+		$automatic.on( 'click', () => ai4seo_save_attachment_context_policy( $status, $automatic, 'automatic', 0 ) );
+		$controls.append( ' ', $automatic );
+	}
+	$status.find( '.ai4seo-attachment-usage-context-result' ).append( $controls );
+}
+
+/** Save a conscious source choice; this endpoint never generates or spends credits. */
+function ai4seo_save_attachment_context_policy($status, $button, mode, post_id) {
+	const $inputs = $status.find( 'button, select' );
+	$inputs.prop( 'disabled', true );
+	ai4seo_add_loading_html_to_element( $button );
+	ai4seo_lock_and_disable_lockable_input_fields();
+	return ai4seo_perform_ajax_call( 'ai4seo_save_attachment_context_policy', {
+		attachment_post_id: Number( $status.attr( 'data-attachment-post-id' ) ),
+		mode: mode,
+		post_id: post_id,
+		source_post_id: ai4seo_get_related_attachments_modal_post_id( ai4seo_get_related_attachments_modal_content_$() ),
+	} ).then( response => ai4seo_render_attachment_usage_context_status( $status, response ) )
+		.catch( () => {
+			// The shared AJAX handler displays the error; finally still releases the controls.
+		} )
+		.finally( () => {
+			ai4seo_remove_loading_html_from_element( $button );
+			ai4seo_unlock_and_enable_lockable_input_fields();
+			$inputs.prop( 'disabled', false );
+		} );
 }
 
 // =========================================================================================== \\
@@ -20948,6 +21080,28 @@ function ai4seo_open_attachment_context_image_overlay(image_trigger) {
 
 function ai4seo_get_attachment_usage_context_status_message_element(response, is_usage_context_available, post_id) {
 	const $message = jQuery( '<span></span>' );
+	if (response.context_mode === 'invalid') {
+		return $message.text( wp.i18n.__( 'The saved context decision could not be read safely. Choose a context again before starting generation.', 'ai-for-seo' ) );
+	}
+	if (response.context_mode === 'fixed' && !is_usage_context_available) {
+		const reasons = {
+			unavailable: wp.i18n.__( 'The fixed post is no longer available.', 'ai-for-seo' ),
+			forbidden: wp.i18n.__( 'You do not have access to the fixed post.', 'ai-for-seo' ),
+			not_found: wp.i18n.__( 'The image could not be verified in the fixed post.', 'ai-for-seo' ),
+		};
+		return $message.text( (reasons[response.context_reason] || wp.i18n.__( 'Verification of the fixed post could not be completed.', 'ai-for-seo' ))
+			+ ' ' + wp.i18n.__( 'Generation will continue without post context; the fixed choice is retained.', 'ai-for-seo' ) );
+	}
+	if (response.context_reason === 'ambiguous') {
+		return $message.text( wp.i18n.__( 'No unambiguous post context. Generation will continue without post context. Choose a verified post to resolve this.', 'ai-for-seo' ) );
+	}
+	if (['incomplete', 'read_failed', 'budget_exhausted'].includes( response.context_reason )) {
+		return $message.text( wp.i18n.__( 'Context verification could not be completed. Generation will continue without post context.', 'ai-for-seo' ) );
+	}
+	if (response.context_mode) {
+		$message.append( jQuery( '<strong></strong>' ).text( response.context_mode === 'fixed'
+			? wp.i18n.__( 'Fixed context: ', 'ai-for-seo' ) : wp.i18n.__( 'Automatic discovery: ', 'ai-for-seo' ) ) );
+	}
 
 	if (is_usage_context_available) {
 		let post_title = ai4seo_decode_html_entities( String( response.post_title || '' ).trim() ).trim();
@@ -27412,7 +27566,8 @@ function ai4seo_fetch_and_update_dashboard() {
 		ajax_response_start_time = performance.now();
 	}
 
-	ai4seo_dashboard_refresh_promise = ai4seo_perform_ajax_call( 'ai4seo_get_dashboard_html', {}, false ) // auto_check_response = false.
+	const issue_page = Number( jQuery( '.ai4seo-dashboard-refresh-root .ai4seo-analysis-issues' ).first().attr( 'data-page' ) ) || 1;
+	ai4seo_dashboard_refresh_promise = ai4seo_perform_ajax_call( 'ai4seo_get_dashboard_html', {analysis_issues_page: issue_page}, false ) // auto_check_response = false.
 		.then(
             response => {
 			if (ai4seo_dashboard_debug_metrics) {
@@ -27424,11 +27579,16 @@ function ai4seo_fetch_and_update_dashboard() {
 			if (this_request.cancelled) {
 				return; // Discard response.
 			}
+			const $current_issues = jQuery( '.ai4seo-dashboard-refresh-root .ai4seo-analysis-issues' ).first();
+			if ($current_issues.attr( 'aria-busy' ) === 'true' || (Number( $current_issues.attr( 'data-page' ) ) || 1) !== issue_page) {
+				return; // A page selection made during this request owns the current disclosure.
+			}
 
 			if (!response || typeof response !== 'string') {
 				throw new Error( 'Invalid dashboard response' );
 			}
 			const ai4seo_changes_made = ai4seo_update_dashboard_content( response );
+			ai4seo_init_analysis_issue_controls( document );
 			if (ai4seo_changes_made === null) {
 				throw new Error( 'Incomplete dashboard response' );
 			}

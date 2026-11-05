@@ -14,6 +14,38 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 /**
+ * Determines whether a registered post type can use the metadata editor.
+ *
+ * Editor availability follows registry and settings state without requiring an existing published
+ * or future post, which keeps the first draft of a public post type inside the same save contract.
+ *
+ * @param string $post_type Post type identifier.
+ * @return bool Whether the metadata editor is enabled for the post type.
+ */
+function ai4seo_is_metadata_editor_enabled_for_post_type( string $post_type ): bool {
+	if ( '' === $post_type || sanitize_key( $post_type ) !== $post_type ) {
+		return false;
+	}
+
+	$publicly_accessible_post_types = ai4seo_get_publicly_accessible_post_types();
+
+	if ( ! isset( $publicly_accessible_post_types[ $post_type ] ) || ! ai4seo_get_active_meta_tags() ) {
+		return false;
+	}
+
+	$disabled_post_types = ai4seo_get_setting( AI4SEO_SETTING_DISABLED_POST_TYPES );
+
+	if ( ! is_array( $disabled_post_types ) ) {
+		$disabled_post_types = array();
+	} else {
+		$disabled_post_types = ai4seo_deep_sanitize( $disabled_post_types, 'sanitize_key' );
+	}
+
+	return ! in_array( $post_type, $disabled_post_types, true );
+}
+
+
+/**
  * Resolve metadata affixes exactly as frontend output presents them for one post.
  *
  * @param int   $post_id Current post ID.
@@ -623,7 +655,7 @@ function ai4seo_read_active_metadata_by_post_ids( array $post_ids, bool $active_
 			$view                           = ai4seo_classify_active_metadata_rows( $this_post_id, $rows );
 			$storage_views[ $this_post_id ] = $view;
 			if ( 'unreadable' === $view['classification'] ) {
-				if ( ! $is_multi_post_read ) {
+				if ( ! $is_multi_post_read && null === $analysis_issues ) {
 					return array();
 				}
 				$active_metadata_by_post_ids[ $this_post_id ] = array();
@@ -2569,24 +2601,6 @@ function ai4seo_read_slim_seo_metadata_by_post_ids( array $post_ids, ?bool &$rea
 
 
 /**
- * Returns the shared mapping between SOOZ identifiers and Squirrly's serialized SEO keys.
- *
- * @return array<string, string> Squirrly keys indexed by SOOZ metadata identifier.
- */
-function ai4seo_get_squirrly_seo_metadata_identifier_mapping(): array {
-	// Keep custom-table reads and writes on the same serialized Squirrly keys.
-	return array(
-		'meta-title'           => 'title',
-		'meta-description'     => 'description',
-		'keywords'             => 'keywords',
-		'facebook-title'       => 'og_title',
-		'facebook-description' => 'og_description',
-		'twitter-title'        => 'tw_title',
-		'twitter-description'  => 'tw_description',
-	);
-}
-
-/**
  * Decode Squirrly's version-dependent serialized SEO collection without allowing objects.
  *
  * @param mixed     $stored_value    Raw value read from Squirrly's custom table.
@@ -3841,6 +3855,42 @@ function ai4seo_remove_all_post_ids_by_post_type_and_generation_status( string $
 	$post_type                     = sanitize_text_field( $post_type );
 	$generation_status_option_name = sanitize_key( $generation_status_option_name );
 
+	if ( ai4seo_uses_post_state_tables() ) {
+		// Read and clear the authoritative memberships under one fence; failed reads roll back the retry.
+		return ai4seo_post_state_transaction(
+			static function ( array $state ) use ( $post_type, $generation_status_option_name ): bool {
+				if ( 'active' !== ( $state['phase'] ?? '' ) || '' === $post_type ) {
+					return false;
+				}
+				$after = 0;
+				do {
+					$page = ai4seo_read_post_state_page( $generation_status_option_name, $after, 1000, 1, $post_type );
+					if ( null === $page ) {
+						return false;
+					}
+					$ids   = array_map( 'intval', array_column( $page, 'post_id' ) );
+					$read  = false;
+					$types = ai4seo_read_post_types_by_post_ids( $ids, $read );
+					if ( ! $read ) {
+						return false;
+					}
+					$ids = array_keys( $types, $post_type, true );
+					if ( $ids ) {
+						$changed = false;
+						if ( ! ai4seo_apply_post_state_delta_under_lock( array(), array( $generation_status_option_name => $ids ), 1, $state, $changed )
+							|| ! ai4seo_post_state_enqueue_under_lock( $ids, true ) ) {
+							return false;
+						}
+					}
+					foreach ( $page as $row ) {
+						$after = (int) $row['membership_id'];
+					}
+				} while ( $page );
+				return true;
+			}
+		);
+	}
+
 	// The public convenience reader collapses database failures to an empty collection; this destructive path must not.
 	$generation_status_snapshot = ai4seo_get_raw_option_snapshot( $generation_status_option_name );
 
@@ -4929,40 +4979,6 @@ function ai4seo_update_post_meta( int $post_id, string $meta_key, $meta_value, $
 		$prev_value,
 		$previous_meta_values
 	);
-}
-
-
-/**
- * Function to read the post content summary for a given post
- *
- * @param int $post_id the post id.
- * @return string
- */
-function ai4seo_read_post_content_summary_from_post_meta( int $post_id ): string {
-	// reading in post meta, looking for the meta_key AI4SEO_POST_META_POST_CONTENT_SUMMARY_META_KEY.
-	$post_content_summary = get_post_meta( $post_id, AI4SEO_POST_META_POST_CONTENT_SUMMARY_META_KEY, true );
-
-	if ( ! $post_content_summary ) {
-		return '';
-	}
-
-	return sanitize_text_field( $post_content_summary );
-}
-
-
-/**
- * Function to save the post content summary for a given post
- *
- * @param int    $post_id the post id.
- * @param string $post_content_summary the content summary.
- * @return bool
- */
-function ai4seo_save_post_content_summary_to_postmeta( int $post_id, string $post_content_summary ): bool {
-	// sanitize the post content.
-	$post_content_summary = sanitize_text_field( $post_content_summary );
-
-	// save the data.
-	return ai4seo_update_post_meta( $post_id, AI4SEO_POST_META_POST_CONTENT_SUMMARY_META_KEY, $post_content_summary );
 }
 
 
@@ -7496,11 +7512,8 @@ function ai4seo_normalize_metadata_identifier_list( array $metadata_identifiers 
  * @return array The active meta tags
  */
 function ai4seo_get_active_meta_tags(): array {
-	if ( ai4seo_prevent_loops( __FUNCTION__, 1, 99999 ) ) {
-		ai4seo_debug_message( 798608158, 'Prevented loop', true );
-		return array();
-	}
-
+	// Reading initialized settings is not recursion. Large inventories legitimately
+	// call this getter more than 100,000 times; initialization guards its own loops.
 	$active_meta_tags = ai4seo_get_setting( AI4SEO_SETTING_ACTIVE_META_TAGS );
 
 	if ( ! is_array( $active_meta_tags ) ) {

@@ -1297,8 +1297,7 @@ function ai4seo_check_for_robhub_account_sync(): void {
 	$credits_balance = ai4seo_robhub_api()->get_credits_balance();
 
 	if ( $is_payg_enabled && $credits_balance < 100 ) {
-		$current_timestamp                         = time();
-		$did_trigger_payg_waiting_for_payment_sync = false;
+		$current_timestamp = time();
 
 		// Track the first timestamp when this low-credits + PAYG state started.
 		$payg_low_credits_first_occurrence_time = (int) ai4seo_read_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_LOW_CREDITS_FIRST_OCCURRENCE_TIME );
@@ -1316,13 +1315,8 @@ function ai4seo_check_for_robhub_account_sync(): void {
 			if ( ! $payg_low_credits_last_sync_time || $payg_low_credits_last_sync_time <= $current_timestamp - ( 5 * MINUTE_IN_SECONDS ) ) {
 				ai4seo_update_environmental_variable( AI4SEO_ENVIRONMENTAL_VARIABLE_PAYG_LOW_CREDITS_LAST_SYNC_TIME, $current_timestamp );
 				ai4seo_sync_robhub_account( 'payg_waiting_for_payment' );
-				$did_trigger_payg_waiting_for_payment_sync = true;
+				return;
 			}
-		}
-
-		// Return only when this branch actually triggered the PAYG waiting-for-payment sync.
-		if ( $did_trigger_payg_waiting_for_payment_sync ) {
-			return;
 		}
 	} else {
 		// Reset tracking once the low-credits + PAYG condition is no longer active.

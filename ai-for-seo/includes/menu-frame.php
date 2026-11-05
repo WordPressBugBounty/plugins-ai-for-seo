@@ -88,6 +88,8 @@ if ( $ai4seo_is_dashboard_open || ! ai4seo_get_setting( AI4SEO_SETTING_SHOW_MENU
 // maybe perform a performance analysis, do it here as we rely on a fully loaded WP environment.
 if ( $ai4seo_is_dashboard_open && $ai4seo_can_administer_plugin ) {
 	ai4seo_check_for_performance_analysis();
+	// Refresh the notice after this request's analysis attempt, just as the AJAX refresh does.
+	ai4seo_check_for_unfinished_posts_table_analysis_notification( true );
 }
 
 // ___________________________________________________________________________________________ \\
@@ -339,8 +341,9 @@ if ( $ai4seo_can_use_plugin_content ) {
 	// ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 	echo "<div class='ai4seo-content-wrapper'>";
-if ( 'help' !== $ai4seo_active_plugin_page && $ai4seo_can_administer_plugin ) {
-	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Shared renderer escapes all update diagnostics.
+if ( ! in_array( $ai4seo_active_plugin_page, array( '', 'dashboard', 'help' ), true ) && $ai4seo_can_administer_plugin ) {
+	// Other pages do not refresh stored notifications; read current diagnostics independently of optional notices.
+	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- The shared renderer escapes all update diagnostics.
 	echo ai4seo_get_plugin_update_notice_html();
 }
 

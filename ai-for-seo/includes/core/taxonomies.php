@@ -278,6 +278,9 @@ function ai4seo_is_valid_taxonomy_proxy_sync_progress( $progress ): bool {
 			return false;
 		}
 	}
+	if ( isset( $progress['issue_cursor'] ) && ( ! is_int( $progress['issue_cursor'] ) || $progress['issue_cursor'] < 0 ) ) {
+		return false;
+	}
 	if ( isset( $progress['pending_delete'] ) ) {
 		$pending = $progress['pending_delete'];
 		if ( 'proxies' !== $progress['phase'] || ! is_array( $pending ) || ! isset( $pending['post_id'], $pending['source']['term_taxonomy_id'] )
@@ -556,12 +559,18 @@ function ai4seo_is_taxonomy_proxy( int $post_id ): bool {
  */
 function ai4seo_get_taxonomy_proxy_editor_context( int $post_id ) {
 	$post = ai4seo_get_taxonomy_proxy_by_id( $post_id );
-	if ( is_wp_error( $post ) || ! $post || empty( $post['source'] ) ) {
+	if ( is_wp_error( $post ) ) {
+		return $post;
+	}
+	if ( ! $post || empty( $post['source'] ) ) {
 		return new WP_Error( 'taxonomy_context_unavailable', __( 'This taxonomy entry could not be read safely. Refresh the inventory and try again.', 'ai-for-seo' ) );
 	}
 	$source = $post['source'];
 	$state  = ai4seo_get_taxonomy_proxy_source_state( $source['term_taxonomy_id'], $source['taxonomy'] );
-	if ( is_wp_error( $state ) || 'deleted' === $state['state']
+	if ( is_wp_error( $state ) ) {
+		return $state;
+	}
+	if ( 'deleted' === $state['state']
 		|| ( isset( $state['source'] ) && $state['source']['term_id'] !== $source['term_id'] ) ) {
 		return new WP_Error( 'taxonomy_context_unavailable', __( 'This taxonomy entry is unavailable or has changed. Reopen it after the inventory has synchronized.', 'ai-for-seo' ) );
 	}
@@ -952,6 +961,7 @@ function ai4seo_upsert_taxonomy_proxy( array $state ) {
 		return new WP_Error( 'taxonomy_source_invalid' );
 	}
 	$source = $state['source'];
+	$state  = array_replace( $state, ai4seo_prepare_taxonomy_proxy_post_fields( $state ) );
 	$post   = ai4seo_read_taxonomy_proxy( $source['term_taxonomy_id'] );
 	if ( is_wp_error( $post ) ) {
 		return $post;
@@ -987,13 +997,77 @@ function ai4seo_upsert_taxonomy_proxy( array $state ) {
 		}
 		if ( ! $post || (int) $post['ID'] !== $id || $post['post_title'] !== $state['post_title']
 			|| $post['post_content'] !== $state['post_content'] || 'publish' !== $post['post_status'] ) {
-			return new WP_Error( 'taxonomy_post_write_unconfirmed' );
+			return new WP_Error( 'taxonomy_post_write_unconfirmed', '', array( 'post_id' => $id ) );
 		}
 		// Carry the confirmed TITLE change into the source write's single old/new URL purge.
 		$post['output_changed'] = $output_changed;
 	}
 	$result = ai4seo_store_taxonomy_proxy_source( $post, $source );
 	return is_wp_error( $result ) ? $result : (int) $post['ID'];
+}
+
+
+/**
+ * Canonicalize only internal fields, independently of the current user's KSES role.
+ *
+ * @param array $state Raw source fields. The taxonomy source is never rewritten.
+ * @return array Expected unslashed post fields.
+ */
+function ai4seo_prepare_taxonomy_proxy_post_fields( array $state ): array {
+	return array(
+		'post_title'   => wp_kses( $state['post_title'], 'title_save_pre' ),
+		'post_content' => wp_kses_post( $state['post_content'] ),
+	);
+}
+
+/**
+ * Recheck a bounded page of term-only diagnostics, including sources no longer present in the inventory.
+ *
+ * @param array $progress Existing inventory checkpoint; old versions have no issue cursor.
+ * @return bool Whether every observed absence was confirmed and recorded.
+ */
+function ai4seo_recheck_term_analysis_issues( array &$progress ): bool {
+	global $wpdb;
+	$prefix = AI4SEO_ANALYSIS_ISSUE_OPTION_PREFIX . 'term_taxonomy_';
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Bounded sparse diagnostics traverse the existing option-name index.
+	$names = $wpdb->get_col( $wpdb->prepare( "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s AND option_name > %s ORDER BY option_name LIMIT 50", $wpdb->esc_like( $prefix ) . '%', $prefix . sprintf( '%020d', $progress['issue_cursor'] ?? 0 ) ) );
+	if ( $wpdb->last_error || ! is_array( $names ) ) {
+		return false;
+	}
+	if ( ! $names ) {
+		$progress['issue_cursor'] = 0;
+		return true;
+	}
+	$snapshots = ai4seo_get_raw_option_snapshots( $names );
+	if ( null === $snapshots ) {
+		return false;
+	}
+	foreach ( $names as $name ) {
+		$snapshot = $snapshots[ $name ];
+		if ( ! $snapshot['exists'] ) {
+			continue;
+		}
+		if ( ! ai4seo_is_valid_analysis_issue( $snapshot['value'], $name ) ) {
+			return false;
+		}
+		$id    = $snapshot['value']['id'];
+		$state = ai4seo_get_taxonomy_proxy_source_state( $id );
+		if ( is_wp_error( $state ) ) {
+			if ( 'isolated' !== ai4seo_classify_analysis_failure( $state, $id ) ) {
+				return false;
+			}
+		} elseif ( 'deleted' === $state['state'] ) {
+			$confirmed = ai4seo_get_taxonomy_proxy_source_state( $id );
+			if ( is_wp_error( $confirmed ) || ( 'deleted' === $confirmed['state'] && ! ai4seo_resolve_analysis_issue( $snapshot, 'taxonomy_sync' ) ) ) {
+				return false;
+			}
+		}
+		$progress['issue_cursor'] = $id;
+	}
+	if ( count( $names ) < 50 ) {
+		$progress['issue_cursor'] = 0;
+	}
+	return true;
 }
 
 

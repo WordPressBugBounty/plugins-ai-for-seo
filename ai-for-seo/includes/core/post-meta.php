@@ -14,6 +14,37 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 /**
+ * Read the sanitized content summary stored for a post.
+ *
+ * @param int $post_id Post ID.
+ * @return string Sanitized summary, or an empty string when absent.
+ */
+function ai4seo_read_post_content_summary_from_post_meta( int $post_id ): string {
+	$post_content_summary = get_post_meta( $post_id, AI4SEO_POST_META_POST_CONTENT_SUMMARY_META_KEY, true );
+
+	if ( ! $post_content_summary ) {
+		return '';
+	}
+
+	return sanitize_text_field( $post_content_summary );
+}
+
+
+/**
+ * Save a sanitized post content summary through the shared metadata writer.
+ *
+ * @param int    $post_id Post ID.
+ * @param string $post_content_summary Content summary.
+ * @return bool
+ */
+function ai4seo_save_post_content_summary_to_postmeta( int $post_id, string $post_content_summary ): bool {
+	$post_content_summary = sanitize_text_field( $post_content_summary );
+
+	return ai4seo_update_post_meta( $post_id, AI4SEO_POST_META_POST_CONTENT_SUMMARY_META_KEY, $post_content_summary );
+}
+
+
+/**
  * Normalizes a postmeta value for comparisons against WordPress read-back values.
  *
  * @param mixed $meta_value Metadata value.

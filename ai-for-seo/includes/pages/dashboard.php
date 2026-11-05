@@ -258,6 +258,19 @@ if ( $ai4seo_notifications ) {
 	}
 }
 
+if ( $ai4seo_can_administer_plugin && ! isset( $ai4seo_notifications['unfinished-posts-table-analysis'] ) ) {
+	// Required update problems remain visible when optional notifications are hidden or unavailable.
+	$ai4seo_update_presentation = ai4seo_get_analysis_update_presentation();
+	if ( $ai4seo_update_presentation['warning'] ) {
+		// A stable notification identity lets the normal refresh update and remove this read-only fallback.
+		echo '<div class="notice ai4seo-notice ai4seo-notification notice-warning" data-notification-index="plugin-update-status">';
+		ai4seo_echo_wp_kses( ai4seo_get_sooz_logo_image_tag( 'sooz-oo' ) );
+		echo '<p><strong>' . esc_html__( 'Some update steps are still pending', 'ai-for-seo' ) . '</strong></p>';
+		ai4seo_echo_wp_kses( ai4seo_get_plugin_update_notice_html( true, $ai4seo_update_presentation ) );
+		echo '</div>';
+	}
+}
+
 echo '</div>';
 
 // Preserve the dashboard class because its styles and the incremental card diff both target this container.
@@ -309,13 +322,17 @@ if ( $ai4seo_all_supported_post_types || $ai4seo_dashboard_taxonomies || $ai4seo
 
 	// Keep diagnostics available when the banner is absent, without repeating a visible notification.
 	if ( 'completed' !== $ai4seo_posts_table_analysis_state || $ai4seo_posts_table_analysis_status['warning'] || ! empty( $ai4seo_posts_table_analysis_status['background'] ) ) {
-		if ( ! isset( $ai4seo_notifications['unfinished-posts-table-analysis'] ) ) {
+		if ( ! isset( $ai4seo_notifications['unfinished-posts-table-analysis'] ) || (
+			! empty( $ai4seo_posts_table_analysis_status['background'] )
+			&& 'incomplete' === $ai4seo_posts_table_analysis_status['status']
+			&& empty( $ai4seo_posts_table_analysis_status['readiness']['blocked_options'] )
+		) ) {
 			echo '<div class="ai4seo-dashboard-analysis-status">';
 			ai4seo_echo_wp_kses( ai4seo_get_posts_table_analysis_notice_message( $ai4seo_posts_table_analysis_status ) );
 			echo '</div>';
 		}
 		if ( 'completed' !== $ai4seo_posts_table_analysis_state ) {
-			echo '<div class="ai4seo-dashboard-analysis-preliminary">' . esc_html__( 'Preliminary results', 'ai-for-seo' ) . '</div>';
+			ai4seo_echo_wp_kses( ai4seo_get_dashboard_preliminary_results_notice( $ai4seo_posts_table_analysis_status ) );
 		}
 
 		// Fast refresh is useful only while another bounded analysis attempt can make progress.
@@ -738,7 +755,8 @@ if ( $ai4seo_can_administer_plugin ) {
 	// ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯ \\
 
 	$ai4seo_is_waiting_for_cron_trigger = ! $ai4seo_background_job['active'] && $ai4seo_background_job['next_run'] && $ai4seo_background_job['next_run'] <= time();
-	$ai4seo_additional_sub_status_text  = '<br>';
+	$ai4seo_additional_sub_status_text  = '<div class="ai4seo-bulk-generation-status-subtext">';
+	$ai4seo_show_execute_sooner_button  = false;
 
 	// Add the last cron job call in a readable format.
 if ( $ai4seo_last_bulk_generation_update_time ) {
@@ -771,10 +789,8 @@ if ( null === $ai4seo_next_cron_job_call_diff ) {
 	// Emphasize the existing automatic refresh behavior because the manual refresh fallback is no longer shown.
 	$ai4seo_additional_sub_status_text .= ' <strong>' . esc_html__( 'This page will refresh automatically.', 'ai-for-seo' ) . '</strong>';
 
-	// Show the option to trigger the next cron run sooner when it is not imminent.
-if ( $ai4seo_can_administer_plugin && ( null === $ai4seo_next_cron_job_call_diff || $ai4seo_next_cron_job_call_diff >= 70 ) ) {
-	$ai4seo_additional_sub_status_text .= ' ' . $ai4seo_execute_sooner_button;
-}
+	$ai4seo_additional_sub_status_text .= '</div>';
+	$ai4seo_can_execute_sooner          = $ai4seo_can_administer_plugin && ( null === $ai4seo_next_cron_job_call_diff || $ai4seo_next_cron_job_call_diff >= 70 );
 
 	// CARD.
 	echo "<div class='card ai4seo-card ai4seo-centered-card ai4seo-dashboard-card-min-height'>";
@@ -799,7 +815,7 @@ if ( ! $ai4seo_account_readiness['credits_ready'] ) {
 	echo "<img src='" . esc_url( ai4seo_get_sooz_logo_url( '256x256' ) ) . "' alt='' class='ai4seo-bulk-generation-status-active-logo ai4seo-bulk-generation-status-opaque-logo'>";
 	ai4seo_echo_wp_kses( ai4seo_get_background_job_status_html( $ai4seo_background_job ) );
 	if ( ! $ai4seo_is_waiting_for_cron_trigger ) {
-		ai4seo_echo_wp_kses( $ai4seo_execute_sooner_button );
+		$ai4seo_show_execute_sooner_button = $ai4seo_can_administer_plugin;
 	}
 } elseif ( $ai4seo_bulk_queue_warnings && ! $ai4seo_background_job['active'] ) {
 	echo "<img src='" . esc_url( ai4seo_get_sooz_logo_url( '256x256' ) ) . "' alt='' class='ai4seo-bulk-generation-status-active-logo ai4seo-bulk-generation-status-opaque-logo'>";
@@ -808,6 +824,7 @@ if ( ! $ai4seo_account_readiness['credits_ready'] ) {
 	echo '<div class="ai4seo-bulk-generation-status-text">' . esc_html( $ai4seo_queue_label ) . '</div>';
 	echo '<div class="ai4seo-bulk-generation-status-subtext">' . esc_html( implode( ' ', array_unique( $ai4seo_bulk_queue_warnings ) ) ) . '</div>';
 	ai4seo_echo_wp_kses( $ai4seo_additional_sub_status_text );
+	$ai4seo_show_execute_sooner_button = $ai4seo_can_execute_sooner;
 } elseif ( $ai4seo_analysis_has_queue_restrictions && ! $ai4seo_background_job['active'] ) {
 	echo "<img src='" . esc_url( ai4seo_get_sooz_logo_url( '256x256' ) ) . "' alt='' class='ai4seo-bulk-generation-status-active-logo ai4seo-bulk-generation-status-opaque-logo'>";
 	echo '<div class="ai4seo-bulk-generation-status-text">' . esc_html__( 'Automatic queue entries restricted', 'ai-for-seo' ) . '</div>';
@@ -868,6 +885,7 @@ if ( ! $ai4seo_account_readiness['credits_ready'] ) {
 	ai4seo_echo_wp_kses( ai4seo_get_background_job_status_html( $ai4seo_background_job ) );
 	if ( ! $ai4seo_is_waiting_for_cron_trigger ) {
 		ai4seo_echo_wp_kses( $ai4seo_additional_sub_status_text );
+		$ai4seo_show_execute_sooner_button = $ai4seo_can_execute_sooner;
 	}
 } else {
 	echo "<div class='ai4seo-bulk-generation-status-animated-logo-container'>";
@@ -888,7 +906,7 @@ if ( ! $ai4seo_account_readiness['credits_ready'] ) {
 
 	// Item diagnostics supplement the live execution state and never replace its schedule or animation.
 if ( $ai4seo_bulk_queue_warnings && ( $ai4seo_background_job['active'] || $ai4seo_background_job['needs_attention'] ) ) {
-		echo '<p class="ai4seo-autopilot-operational-notice">' . esc_html( implode( ' ', array_unique( $ai4seo_bulk_queue_warnings ) ) ) . '</p>';
+		echo '<div class="ai4seo-bulk-generation-status-subtext ai4seo-autopilot-operational-notice">' . esc_html( implode( ' ', array_unique( $ai4seo_bulk_queue_warnings ) ) ) . '</div>';
 }
 if ( $ai4seo_autopilot_item_notice['tokens'] ) {
 		echo '<div class="ai4seo-autopilot-item-notice ai4seo-review-notice" data-ai4seo-item-tokens="' . esc_attr( wp_json_encode( $ai4seo_autopilot_item_notice['tokens'] ) ) . '" data-ai4seo-item-signature="' . esc_attr( $ai4seo_autopilot_item_notice['signature'] ) . '">';
@@ -897,6 +915,12 @@ if ( $ai4seo_autopilot_item_notice['tokens'] ) {
 		ai4seo_echo_wp_kses( ai4seo_get_a_tag_icon_button_tag( '#ai4seo-recent-activity', '', '', 'list', esc_html__( 'View Recent Activity', 'ai-for-seo' ), 'ai4seo-small-button' ) );
 		ai4seo_echo_wp_kses( ai4seo_get_small_icon_button_tag( 'xmark', esc_html__( 'Dismiss', 'ai-for-seo' ), '', 'ai4seo_dismiss_autopilot_item_notice(this);' ) );
 		echo '</div>';
+}
+
+if ( $ai4seo_show_execute_sooner_button ) {
+	echo '<div class="ai4seo-bulk-generation-status-action">';
+	ai4seo_echo_wp_kses( $ai4seo_execute_sooner_button );
+	echo '</div>';
 }
 
 			echo '</div>';

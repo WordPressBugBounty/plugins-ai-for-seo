@@ -14,6 +14,24 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 /**
+ * Returns the shared mapping between SOOZ identifiers and Squirrly's serialized SEO keys.
+ *
+ * @return array<string, string> Squirrly keys indexed by SOOZ metadata identifier.
+ */
+function ai4seo_get_squirrly_seo_metadata_identifier_mapping(): array {
+	// Keep custom-table reads and writes on the same serialized Squirrly keys.
+	return array(
+		'meta-title'           => 'title',
+		'meta-description'     => 'description',
+		'keywords'             => 'keywords',
+		'facebook-title'       => 'og_title',
+		'facebook-description' => 'og_description',
+		'twitter-title'        => 'tw_title',
+		'twitter-description'  => 'tw_description',
+	);
+}
+
+/**
  * Collects all the currently supported and active third party SEO plugins
  *
  * @return array The supported and currently active third party SEO plugins
@@ -3105,6 +3123,27 @@ function ai4seo_finalize_third_party_seo_metadata_sync(): void {
 
 
 /**
+ * Normalizes a resolved provider value while retaining its caller-owned fallback.
+ *
+ * @param mixed  $resolved_value The provider's replacement result.
+ * @param string $fallback The original value to retain when replacement is not a string.
+ * @param string $metadata_identifier The SOOZ metadata field whose length cap applies.
+ * @return string The normalized result, or the unchanged fallback.
+ */
+function ai4seo_finish_resolved_metadata( $resolved_value, string $fallback, string $metadata_identifier ): string {
+	if ( ! is_string( $resolved_value ) ) {
+		return $fallback;
+	}
+
+	// Apply the field cap only after a provider successfully returns a string.
+	$resolved_value = ai4seo_normalize_editor_input_value( $resolved_value );
+	$max_length     = ai4seo_get_max_editor_input_length( $metadata_identifier );
+
+	return ai4seo_trim_string_to_length( $resolved_value, $max_length );
+}
+
+
+/**
  * Resolves Yoast template variables in metadata that SOOZ is about to render on the frontend.
  *
  * @param string $metadata_value The raw metadata value.
@@ -3145,15 +3184,7 @@ function ai4seo_resolve_yoast_metadata_variables( string $metadata_value, int $p
 		return $metadata_value;
 	}
 
-	if ( ! is_string( $resolved_value ) ) {
-		return $metadata_value;
-	}
-
-	// Apply the active metadata field cap after dynamic variables expand in the current request.
-	$resolved_value = ai4seo_normalize_editor_input_value( $resolved_value );
-	$max_length     = ai4seo_get_max_editor_input_length( $metadata_identifier );
-
-	return ai4seo_trim_string_to_length( $resolved_value, $max_length );
+	return ai4seo_finish_resolved_metadata( $resolved_value, $metadata_value, $metadata_identifier );
 }
 
 
@@ -3212,15 +3243,7 @@ function ai4seo_resolve_seopress_metadata_variables( string $metadata_value, int
 		return $metadata_value;
 	}
 
-	if ( ! is_string( $resolved_value ) ) {
-		return $metadata_value;
-	}
-
-	// Apply the active metadata field cap after dynamic variables expand in the current request.
-	$resolved_value = ai4seo_normalize_editor_input_value( $resolved_value );
-	$max_length     = ai4seo_get_max_editor_input_length( $metadata_identifier );
-
-	return ai4seo_trim_string_to_length( $resolved_value, $max_length );
+	return ai4seo_finish_resolved_metadata( $resolved_value, $metadata_value, $metadata_identifier );
 }
 
 
@@ -3372,15 +3395,7 @@ function ai4seo_resolve_rank_math_metadata_variables( string $metadata_value, in
 		return $original_metadata_value;
 	}
 
-	if ( ! is_string( $resolved_value ) ) {
-		return $original_metadata_value;
-	}
-
-	// Apply the active metadata field cap after dynamic variables expand in the current request.
-	$resolved_value = ai4seo_normalize_editor_input_value( $resolved_value );
-	$max_length     = ai4seo_get_max_editor_input_length( $metadata_identifier );
-
-	return ai4seo_trim_string_to_length( $resolved_value, $max_length );
+	return ai4seo_finish_resolved_metadata( $resolved_value, $original_metadata_value, $metadata_identifier );
 }
 
 

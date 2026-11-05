@@ -732,6 +732,10 @@ function ai4seo_capture_post_state_metadata_change( $meta_id, int $post_id, stri
 	unset( $meta_id, $value );
 	$state = ai4seo_read_post_state_storage_status();
 	if ( ! $state || 'legacy' === $state['phase'] ) {
+		$issues = ai4seo_read_analysis_issue_snapshots( array( $post_id ) );
+		if ( ! empty( $issues[ $post_id ]['exists'] ) ) {
+			ai4seo_capture_post_state_reconciliation( $post_id );
+		}
 		return;
 	}
 	if ( 'active' !== $state['phase'] || in_array( $key, array( AI4SEO_POST_META_GENERATED_DATA_META_KEY, AI4SEO_POST_META_ACTIVE_METADATA_META_KEY, '_wp_attachment_image_alt', '_wp_attachment_metadata' ), true ) ) {
@@ -750,6 +754,11 @@ function ai4seo_capture_post_state_post_change( int $post_id ): void {
 	$state = ai4seo_read_post_state_storage_status();
 	if ( $state && 'legacy' !== $state['phase'] ) {
 		ai4seo_capture_post_state_reconciliation( $post_id );
+	} else {
+		$issues = ai4seo_read_analysis_issue_snapshots( array( $post_id ) );
+		if ( ! empty( $issues[ $post_id ]['exists'] ) ) {
+			ai4seo_capture_post_state_reconciliation( $post_id );
+		}
 	}
 }
 
@@ -1142,16 +1151,20 @@ function ai4seo_cleanup_post_state_generations(): bool {
 /**
  * Reconcile current metadata and status without loading another post's state.
  *
- * @param array $batch Previously claimed reconciliation tokens.
- * @param int   $kind Ordinary work or the retained background replay journal.
+ * @param array       $batch Previously claimed reconciliation tokens.
+ * @param int         $kind Ordinary work or the retained background replay journal.
+ * @param string|null $outcome Receives contention separately from a storage failure.
  * @return bool
  */
-function ai4seo_reconcile_indexed_analysis_batch( array $batch, int $kind = 1 ): bool {
+function ai4seo_reconcile_indexed_analysis_batch( array $batch, int $kind = 1, ?string &$outcome = null ): bool {
+	$outcome = 'failed';
 	if ( ! ai4seo_is_database_advisory_lock_owned_by_current_connection( ai4seo_get_posts_table_analysis_database_lock_name() ) ) {
 		return false;
 	}
 	$taxonomy_lock = ai4seo_get_taxonomy_proxy_sync_lock_name();
-	if ( ! ai4seo_acquire_database_advisory_lock( $taxonomy_lock ) ) {
+	$lock_reason   = null;
+	if ( ! ai4seo_acquire_database_advisory_lock( $taxonomy_lock, $lock_reason ) ) {
+		$outcome = 'busy' === $lock_reason ? 'deferred' : 'failed';
 		return false;
 	}
 	try {
@@ -1172,11 +1185,18 @@ function ai4seo_reconcile_indexed_analysis_batch( array $batch, int $kind = 1 ):
 				if ( ! $batch ) {
 					return true;
 				}
+				$issue_snapshots = ai4seo_read_analysis_issue_snapshots( array_keys( $batch ) );
+				if ( null === $issue_snapshots ) {
+					return false;
+				}
 				$rows = ai4seo_post_state_query( 'SELECT ID,post_type,post_author,post_status,post_mime_type,post_date,post_date_gmt,post_modified,post_modified_gmt FROM {{posts}} WHERE ID IN ({{ids}})', array( 'ids' => array_keys( $batch ) ), true );
 				if ( null === $rows ) {
 					return false;
 				}
-				$rows            = array_column( $rows, null, 'ID' );
+				$rows = ai4seo_index_analysis_rows( $rows, array_keys( $batch ) );
+				if ( null === $rows ) {
+					return false;
+				}
 				$source_adds     = array();
 				$source_removes  = array();
 				$summary_adds    = array();
@@ -1187,16 +1207,19 @@ function ai4seo_reconcile_indexed_analysis_batch( array $batch, int $kind = 1 ):
 					return false;
 				}
 				foreach ( $batch as $id => $entry ) {
-					$isolated = false;
+					$isolated       = false;
+					$all_issues     = array();
+					$checked_fields = array();
 					foreach ( ai4seo_get_bulk_generation_queue_contexts() as $context ) {
 						$eligible   = false;
 						$issues     = array();
-						$transition = ai4seo_build_analysis_reconciliation_coverage( (int) $id, $rows[ $id ] ?? null, $context, $eligible, $issues );
+						$transition = ai4seo_build_analysis_reconciliation_coverage( (int) $id, $rows[ $id ] ?? null, $context, $eligible, $issues, $checked_fields );
 						if ( null === $transition ) {
 							return false;
 						}
-						$isolated = $isolated || (bool) $issues;
-						$type     = $rows[ $id ]['post_type'] ?? '';
+						$isolated   = $isolated || (bool) $issues;
+						$all_issues = ai4seo_merge_posts_table_analysis_issues( $all_issues, $issues );
+						$type       = $rows[ $id ]['post_type'] ?? '';
 						foreach ( $transition['additions'] as $option => $ids ) {
 							$source_adds[ $option ][ $id ]  = $type;
 							$summary_adds[ $option ][ $id ] = $type;
@@ -1213,6 +1236,12 @@ function ai4seo_reconcile_indexed_analysis_batch( array $batch, int $kind = 1 ):
 						}
 					}
 					if ( $isolated ) {
+						if ( ! ai4seo_store_analysis_issue_batch( $all_issues ) ) {
+							return false;
+						}
+						if ( ! ai4seo_resolve_analysis_issue( $issue_snapshots[ $id ], 'analysis', $checked_fields ) ) {
+							return false;
+						}
 						// Retain the token for repair; exclude uncertain coverage without touching live queues or metadata.
 						foreach ( array_keys( $source_adds ) as $option ) {
 							unset( $source_adds[ $option ][ $id ] );
@@ -1247,6 +1276,11 @@ function ai4seo_reconcile_indexed_analysis_batch( array $batch, int $kind = 1 ):
 				foreach ( $targets as $target ) {
 					if ( ! ai4seo_apply_post_state_delta_under_lock( $source_adds, $source_removes, 1, $target, $changed )
 						|| ! ai4seo_apply_post_state_delta_under_lock( $summary_adds, $summary_removes, 2, $target, $changed ) ) {
+						return false;
+					}
+				}
+				foreach ( $completed as $id => $entry ) {
+					if ( ! ai4seo_resolve_analysis_issue( $issue_snapshots[ $id ], 'analysis' ) ) {
 						return false;
 					}
 				}

@@ -1698,6 +1698,18 @@ function ai4seo_echo_notice_from_notification( string $notification_index, array
 	$message                         = $notification['message'];
 	$discount_image_tag              = '';
 
+	// Shared persisted HTML may belong to another viewer; rebuild analysis details at the output boundary.
+	if ( 'unfinished-posts-table-analysis' === $notification_index ) {
+		$current_analysis = ai4seo_get_analysis_notification( ai4seo_get_posts_table_analysis_status(), ai4seo_get_analysis_update_presentation() );
+		if ( ! $current_analysis ) {
+			return;
+		}
+		$notification = array_replace( $notification, $current_analysis );
+		$message      = $notification['message'];
+		// Only the freshly generated local message is trusted; the shared stored payload is never displayed.
+		$is_trusted_local_message = true;
+	}
+
 	// Every unsigned, forged, legacy, or remote message receives the narrow policy before either render branch.
 	if ( ! $is_trusted_local_message ) {
 		$message = ai4seo_sanitize_remote_notification_message( $message );
@@ -1813,35 +1825,11 @@ function ai4seo_echo_notice_from_notification( string $notification_index, array
  * @return string Filtered notification message HTML.
  */
 function ai4seo_filter_notification_message( string $message, string $notification_index, array $notification ): string {
-	// replace placeholders in the message.
-	if ( strstr( $message, '{{EXPIRE_COUNTDOWN}}' ) && isset( $notification['expire_at'] ) && is_numeric( $notification['expire_at'] ) && $notification['expire_at'] > time() ) {
-		$message_expires_in          = $notification['expire_at'] - time();
-		$countdown_trigger_attribute = ai4seo_can_administer_plugin() ? " data-trigger='ai4seo_refresh_robhub_account'" : '';
-		$expire_in_countdown         = "<span class='ai4seo-countdown' data-time-left='" . esc_attr( $message_expires_in ) . "'" . $countdown_trigger_attribute . '>' . esc_html( ai4seo_format_seconds_to_hhmmss_or_days_hhmmss( $message_expires_in ) ) . '</span>';
-		$message                     = str_replace( '{{EXPIRE_COUNTDOWN}}', $expire_in_countdown, $message );
-	}
+	$message = ai4seo_replace_notification_expiry_countdown( $message, $notification );
 
-	// add avatar and greetings if the notification has 'show_avatar' set to true.
+	// Add avatar and greetings only when requested by the notification.
 	if ( ! empty( $notification['show_avatar'] ) ) {
-		$avatar           = "<div class='ai4seo-developer-avatar-wrapper'><img src='" . esc_attr( ai4seo_get_assets_images_url( 'andre-erbis-at-space-codes.webp' ) ) . "'></div>";
-		$users_first_name = ai4seo_is_function_usable( 'get_current_user_id' ) && get_current_user_id() ? get_user_meta( get_current_user_id(), 'first_name', true ) : '';
-
-		if ( $users_first_name ) {
-			/* translators: %s: User first name. */
-			$greetings = '<strong>' . sprintf( esc_html__( 'Hi %s', 'ai-for-seo' ), esc_html( $users_first_name ) ) . ',</strong>';
-		} else {
-			$greetings = '<strong>' . esc_html__( 'Hi', 'ai-for-seo' ) . ',</strong>';
-		}
-
-		$greetings .= '<br><br>';
-		$greetings .= sprintf(
-			/* translators: %s: plugin name */
-			esc_html__( 'This is Andre from the %s team. Thanks for joining our SEO community of 2,400+ happy users – we appreciate having you on board!', 'ai-for-seo' ),
-			esc_html( AI4SEO_PLUGIN_NAME )
-		);
-		$greetings .= '<br><br>';
-
-		$message = $avatar . $greetings . $message;
+		$message = ai4seo_get_notification_avatar_greeting_prefix() . $message;
 	}
 
 	// add voucher_code if the notification has 'voucher_code' set.
@@ -1854,6 +1842,54 @@ function ai4seo_filter_notification_message( string $message, string $notificati
 
 	// Filter the message through the 'ai4seo_notification_message' filter.
 	return apply_filters( 'ai4seo_notification_message', $message, $notification_index, $notification );
+}
+
+
+/**
+ * Replace expiry countdown placeholders in a notification message.
+ *
+ * @param string $message Notification message HTML.
+ * @param array  $notification Notification configuration.
+ * @return string Notification message HTML with eligible countdowns replaced.
+ */
+function ai4seo_replace_notification_expiry_countdown( string $message, array $notification ): string {
+	// Replace countdown placeholders only while the notification is active.
+	if ( strstr( $message, '{{EXPIRE_COUNTDOWN}}' ) && isset( $notification['expire_at'] ) && is_numeric( $notification['expire_at'] ) && $notification['expire_at'] > time() ) {
+		$message_expires_in          = $notification['expire_at'] - time();
+		$countdown_trigger_attribute = ai4seo_can_administer_plugin() ? " data-trigger='ai4seo_refresh_robhub_account'" : '';
+		$expire_in_countdown         = "<span class='ai4seo-countdown' data-time-left='" . esc_attr( $message_expires_in ) . "'" . $countdown_trigger_attribute . '>' . esc_html( ai4seo_format_seconds_to_hhmmss_or_days_hhmmss( $message_expires_in ) ) . '</span>';
+		$message                     = str_replace( '{{EXPIRE_COUNTDOWN}}', $expire_in_countdown, $message );
+	}
+
+	return $message;
+}
+
+
+/**
+ * Render the avatar and greeting prefix after the caller has checked visibility.
+ *
+ * @return string Avatar and greeting HTML prepended to the notification message.
+ */
+function ai4seo_get_notification_avatar_greeting_prefix(): string {
+	$avatar           = "<div class='ai4seo-developer-avatar-wrapper'><img src='" . esc_attr( ai4seo_get_assets_images_url( 'andre-erbis-at-space-codes.webp' ) ) . "'></div>";
+	$users_first_name = ai4seo_is_function_usable( 'get_current_user_id' ) && get_current_user_id() ? get_user_meta( get_current_user_id(), 'first_name', true ) : '';
+
+	if ( $users_first_name ) {
+		/* translators: %s: User first name. */
+		$greetings = '<strong>' . sprintf( esc_html__( 'Hi %s', 'ai-for-seo' ), esc_html( $users_first_name ) ) . ',</strong>';
+	} else {
+		$greetings = '<strong>' . esc_html__( 'Hi', 'ai-for-seo' ) . ',</strong>';
+	}
+
+	$greetings .= '<br><br>';
+	$greetings .= sprintf(
+		/* translators: %s: plugin name */
+		esc_html__( 'This is Andre from the %s team. Thanks for joining our SEO community of 2,400+ happy users – we appreciate having you on board!', 'ai-for-seo' ),
+		esc_html( AI4SEO_PLUGIN_NAME )
+	);
+	$greetings .= '<br><br>';
+
+	return $avatar . $greetings;
 }
 
 
@@ -2022,20 +2058,34 @@ function ai4seo_get_notification_buttons( string $notification_index, array $not
 
 	// dismiss / not now button.
 	if ( $show_dismiss_button || $show_not_now_button ) {
-		// The welcome changes presentation only; the shared dismissal class keeps its existing action.
-		$dismiss_button_class  = AI4SEO_WELCOME_NOTIFICATION_INDEX === $notification_index ? 'ai4seo-primary-button' : 'ai4seo-abort-button';
-		$notification_buttons .= '<button type="button" class="ai4seo-button ' . esc_attr( $dismiss_button_class ) . ' ai4seo-notification-dismiss-button" data-notification-index="' . esc_attr( $notification_index ) . '" title="' . esc_attr__( 'Dismiss this notification', 'ai-for-seo' ) . '">';
-		if ( $show_not_now_button ) {
-			$notification_buttons .= esc_html__( 'Not now', 'ai-for-seo' );
-		} elseif ( AI4SEO_WELCOME_NOTIFICATION_INDEX === $notification_index ) {
-			$notification_buttons .= esc_html__( 'Got it!', 'ai-for-seo' );
-		} else {
-			$notification_buttons .= esc_html__( 'Dismiss', 'ai-for-seo' );
-		}
-		$notification_buttons .= '</button>';
+		$notification_buttons .= ai4seo_get_notification_dismiss_button_tag( $notification_index, $show_not_now_button );
 	}
 
 	return $notification_buttons;
+}
+
+
+/**
+ * Render the dismissal action after the caller has checked its visibility.
+ *
+ * @param string $notification_index Notification identifier.
+ * @param bool   $show_not_now_button Whether to prefer the deferred-dismissal label.
+ * @return string Escaped dismissal button markup.
+ */
+function ai4seo_get_notification_dismiss_button_tag( string $notification_index, bool $show_not_now_button ): string {
+	// The welcome changes presentation only; the shared dismissal class keeps its existing action.
+	$dismiss_button_class = AI4SEO_WELCOME_NOTIFICATION_INDEX === $notification_index ? 'ai4seo-primary-button' : 'ai4seo-abort-button';
+	$button               = '<button type="button" class="ai4seo-button ' . esc_attr( $dismiss_button_class ) . ' ai4seo-notification-dismiss-button" data-notification-index="' . esc_attr( $notification_index ) . '" title="' . esc_attr__( 'Dismiss this notification', 'ai-for-seo' ) . '">';
+	if ( $show_not_now_button ) {
+		$button .= esc_html__( 'Not now', 'ai-for-seo' );
+	} elseif ( AI4SEO_WELCOME_NOTIFICATION_INDEX === $notification_index ) {
+		$button .= esc_html__( 'Got it!', 'ai-for-seo' );
+	} else {
+		$button .= esc_html__( 'Dismiss', 'ai-for-seo' );
+	}
+	$button .= '</button>';
+
+	return $button;
 }
 
 
@@ -2399,6 +2449,16 @@ function ai4seo_get_num_unread_notification(): int {
 
 
 /**
+ * Calculate the auto-dismiss deadline captured before notification mutation retries.
+ *
+ * @return int The auto-dismiss Unix timestamp.
+ */
+function ai4seo_get_notification_auto_dismiss_time(): int {
+	return time() + ( AI4SEO_NOTIFICATION_AUTO_DISMISS_DAYS * DAY_IN_SECONDS );
+}
+
+
+/**
  * Function to mark all notifications as read
  *
  * @return bool True if all notifications were marked as read, false otherwise
@@ -2417,7 +2477,7 @@ function ai4seo_mark_all_displayable_notifications_as_read(): bool {
 	}
 
 	$displayable_notification_indexes = array_keys( $displayable_notifications );
-	$auto_dismiss_time                = time() + ( AI4SEO_NOTIFICATION_AUTO_DISMISS_DAYS * DAY_IN_SECONDS );
+	$auto_dismiss_time                = ai4seo_get_notification_auto_dismiss_time();
 
 	// Apply read state only to the captured visible identities from each fresh authoritative retry snapshot.
 	return ai4seo_commit_notification_mutation(
@@ -2464,7 +2524,7 @@ function ai4seo_mark_notification_as_read( string $notification_index ): bool {
 		return false;
 	}
 
-	$auto_dismiss_time = time() + ( AI4SEO_NOTIFICATION_AUTO_DISMISS_DAYS * DAY_IN_SECONDS );
+	$auto_dismiss_time = ai4seo_get_notification_auto_dismiss_time();
 
 	// Derive read state from each fresh snapshot so concurrent notification fields remain intact.
 	return ai4seo_commit_notification_mutation(
@@ -2819,11 +2879,10 @@ function ai4seo_check_for_unfinished_posts_table_analysis_notification( $force =
 		return;
 	}
 
-	// Use the same authoritative status as the dashboard and troubleshooting result.
 	$notification_index = 'unfinished-posts-table-analysis';
-	$analysis           = ai4seo_get_posts_table_analysis_status();
+	$notification       = ai4seo_get_analysis_notification( ai4seo_get_posts_table_analysis_status(), ai4seo_get_analysis_update_presentation() );
 
-	if ( 'completed' === $analysis['status'] || ( ! empty( $analysis['background'] ) && 'incomplete' === $analysis['status'] && empty( $analysis['readiness']['blocked_options'] ) ) ) {
+	if ( ! $notification ) {
 		ai4seo_remove_routine_notification( $notification_index );
 		return;
 	}
@@ -2833,24 +2892,59 @@ function ai4seo_check_for_unfinished_posts_table_analysis_notification( $force =
 		return;
 	}
 
-	$message = ai4seo_get_posts_table_analysis_notice_message( $analysis );
+	ai4seo_push_routine_notification( $notification_index, $notification['message'], $force, $notification );
+}
 
+
+/**
+ * Determine the severity of an analysis notification.
+ *
+ * @param array $analysis Current analysis state.
+ * @param array $update Update presentation details.
+ * @return string Notice severity class.
+ */
+function ai4seo_get_analysis_notification_notice_type( array $analysis, array $update ): string {
 	// Keep intentional pauses distinct from failures while retaining the existing permanent notice.
-	$notice_type = 'failed' === $analysis['status'] ? 'notice-error' : 'notice-info';
-
-	if ( 'deferred' === $analysis['status'] && empty( $analysis['preparing'] ) ) {
+	if ( 'failed' === $analysis['status'] ) {
+		$notice_type = 'notice-error';
+	} elseif ( $update['warning'] || ( 'deferred' === $analysis['status'] && empty( $analysis['preparing'] ) ) ) {
 		$notice_type = 'notice-warning';
+	} else {
+		$notice_type = 'notice-info';
 	}
 
-	ai4seo_push_routine_notification(
-		$notification_index,
-		$message,
-		$force,
-		array(
-			'notice_type'                     => $notice_type,
-			'is_permanent'                    => true,
-			'ignore_during_dashboard_refresh' => false,
-		)
+	return $notice_type;
+}
+
+
+/**
+ * Build one notification for preparation, analysis and unresolved update problems.
+ *
+ * @param array $analysis Authoritative analysis snapshot.
+ * @param array $update Resolved update presentation.
+ * @return array Notification fields, or empty after completion and during routine background work.
+ */
+function ai4seo_get_analysis_notification( array $analysis, array $update ): array {
+	$update_details             = ai4seo_get_plugin_update_notice_html( true, $update );
+	$analysis['update_details'] = $update_details;
+	$analysis['update_warning'] = $update['warning'];
+
+	if ( '' === $update_details && (
+		'completed' === $analysis['status']
+		|| ( ! empty( $analysis['background'] ) && 'incomplete' === $analysis['status'] && empty( $analysis['readiness']['blocked_options'] ) )
+	) ) {
+		return array();
+	}
+
+	$message = ai4seo_get_posts_table_analysis_notice_message( $analysis );
+
+	$notice_type = ai4seo_get_analysis_notification_notice_type( $analysis, $update );
+
+	return array(
+		'message'                         => $message,
+		'notice_type'                     => $notice_type,
+		'is_permanent'                    => true,
+		'ignore_during_dashboard_refresh' => false,
 	);
 }
 
@@ -3703,6 +3797,25 @@ function ai4seo_check_for_inefficient_cron_jobs_notification( $force = false ) {
 
 
 /**
+ * Format an ordered list of translated content type labels for a notification.
+ *
+ * @param array $labels Sequential translated content type labels.
+ * @return string Unescaped label list; the caller escapes the final output.
+ */
+function ai4seo_format_notification_content_type_labels( array $labels ): string {
+	if ( ! $labels ) {
+		return '';
+	}
+
+	if ( count( $labels ) > 1 ) {
+		return implode( ', ', array_slice( $labels, 0, -1 ) ) . ' ' . __( 'and', 'ai-for-seo' ) . ' ' . end( $labels );
+	}
+
+	return $labels[0];
+}
+
+
+/**
  * Function to eventually push a notification about SEO Autopilot being finished
  *
  * @param bool $force The force value.
@@ -3734,8 +3847,7 @@ function ai4seo_check_for_finished_seo_autopilot_notification( $force = false ) 
 		return;
 	}
 
-	$finished_seo_autopilot_post_types_message = '';
-	$translated_post_types                     = array();
+	$translated_post_types = array();
 
 	foreach ( $active_bulk_generation_post_types as $this_post_type ) {
 		if ( AI4SEO_TAXONOMY_PROXY_POST_TYPE === $this_post_type ) {
@@ -3761,15 +3873,7 @@ function ai4seo_check_for_finished_seo_autopilot_notification( $force = false ) 
 		$translated_post_types[] = ai4seo_get_post_type_translation( $this_post_type, true );
 	}
 
-	// build $post_types_to_mention_string by separating with commas and the last one with "and"
-	// only, when we already have generated posts.
-	if ( $translated_post_types ) {
-		if ( count( $translated_post_types ) > 1 ) {
-			$finished_seo_autopilot_post_types_message = implode( ', ', array_slice( $translated_post_types, 0, -1 ) ) . ' ' . __( 'and', 'ai-for-seo' ) . ' ' . end( $translated_post_types );
-		} else {
-			$finished_seo_autopilot_post_types_message = $translated_post_types[0];
-		}
-	}
+	$finished_seo_autopilot_post_types_message = ai4seo_format_notification_content_type_labels( $translated_post_types );
 
 	// no need to check if we still have any missing posts left.
 	$we_got_any_missing_posts = ai4seo_notification_post_types_have_missing_posts( $active_bulk_generation_post_types );

@@ -4,7 +4,7 @@ Contributors: spacecodes
 Donate link: https://spa.ce.codes
 Requires at least: 6.6
 Tested up to: 7.1
-Stable tag: 2.6.1
+Stable tag: 2.6.2
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -165,6 +165,9 @@ Custom instructions can guide wording, tone, terminology, emphasis, calls to act
 = Can I choose which image attributes *SOOZ - AI for SEO* generates, such as alt text, title, caption, or description? =
 Yes. *SOOZ - AI for SEO* lets you decide which media attributes, such as alt text, image title, caption, and description, should be generated. Configure them in the Active Media Attributes section of the settings to match your image SEO and accessibility needs.
 
+= Why is alt text or image attribute generation more accurate for some images? =
+Open the Media Attributes Editor and check Context detection. Automatic discovery uses verified image usage and nearby text. If several posts use the image, select a verified source and choose Set context post. The saved choice also applies to SEO Autopilot. Use Switch to automatic discovery to reset it. If the selected post is deleted or no longer provides usable context, generation continues without post context and the editor explains why.
+
 = How are Credits used for metadata, meta tags, alt text, and media attributes in *SOOZ - AI for SEO*? =
 Credits are used when *SOOZ - AI for SEO* generates SEO data for posts, pages, products, media files, or other supported content. The amount of Credits required depends on the selected active meta tags, SEO fields, and media attributes, such as alt text, title, caption, or description.
 
@@ -223,6 +226,17 @@ It depends on how the generated data is stored and used. If *SOOZ - AI for SEO* 
 We welcome feature requests, editor integration ideas, page builder compatibility requests, and SEO workflow feedback. Please email [support@sooz.ai](mailto:support@sooz.ai) with your suggestions.
 
 == Changelog ==
+
+= 2.6.2 =
+* Added a choice of verified source posts for image generation, with automatic context checks and clear feedback when a source is unavailable.
+* Added detailed lists of entries affected by SEO analysis problems, while allowing unaffected content to continue processing.
+* Made analysis preparation, pauses, background updates, and provisional statistics easier to distinguish.
+* Improved filtering and sorting of large content libraries, including clearer messages when a list cannot be loaded.
+* Fixed retrying all failed generations so the affected entries can be processed again.
+* Enabled metadata editing for the first draft of supported public content types.
+* Improved reconnection for eligible free accounts after connection errors.
+* Clarified image-generation settings and the preview of unsaved Keywords changes.
+* Bug Fixes & Maintenance: Fixed 2 minor bugs and addressed 1 security issue.
 
 = 2.6.1 =
 * Improved handling of large content libraries in filtered lists, title sorting, and SEO Autopilot.

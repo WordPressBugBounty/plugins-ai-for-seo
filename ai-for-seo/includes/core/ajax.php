@@ -981,16 +981,26 @@ function ai4seo_apply_bulk_generation_queue_action() {
 		return;
 	}
 
+	$source_post_id = absint( $_POST['source_post_id'] ?? 0 );
+	if ( $source_post_id && ! ai4seo_can_edit_post( $source_post_id ) ) {
+		ai4seo_send_ajax_error( esc_html__( 'You are not allowed to edit the selected context post.', 'ai-for-seo' ), 301026102 );
+		return;
+	}
 	$queue_transition_failed = false;
 	$result                  = ai4seo_process_bulk_generation_queue_action(
 		$bulk_generation_queue_action,
 		$post_ids,
 		$context,
-		$queue_transition_failed
+		$queue_transition_failed,
+		$source_post_id
 	);
 
 	if ( $queue_transition_failed ) {
-		ai4seo_send_ajax_error( esc_html( $result['error_message'] ?? __( 'The selected bulk action could not be applied.', 'ai-for-seo' ) ), 2208062601 );
+		$message = $result['error_message'] ?? __( 'The selected bulk action could not be applied.', 'ai-for-seo' );
+		if ( ! empty( $result['context_choices_saved'] ) ) {
+			$message .= ' ' . __( 'Saved image context choices remain in place, even though queueing failed.', 'ai-for-seo' );
+		}
+		ai4seo_send_ajax_error( esc_html( $message ), 2208062601 );
 		return;
 	}
 
@@ -1317,7 +1327,8 @@ function ai4seo_refresh_dashboard_statistics() {
 	}
 
 	// The browser may display refreshed statistics only after a complete successful analysis.
-	if ( ! ai4seo_analyze_plugin_performance( false, true, false, false, 'manual' ) ) {
+	$outcome = null;
+	if ( ! ai4seo_analyze_plugin_performance( false, true, false, false, 'manual', $outcome ) && 'deferred' !== $outcome ) {
 		ai4seo_send_ajax_error(
 			esc_html__( 'Statistics could not be refreshed. Please try again.', 'ai-for-seo' ),
 			44129003
@@ -1325,8 +1336,8 @@ function ai4seo_refresh_dashboard_statistics() {
 		return;
 	}
 
-	// Acknowledge completion so the browser can reload with its one-time filter notice.
-	ai4seo_send_ajax_success();
+	// Contention is ongoing work; the dashboard continues polling the confirmed state.
+	ai4seo_send_ajax_success( array( 'analysis_status' => $outcome ) );
 }
 
 
@@ -1417,9 +1428,6 @@ function ai4seo_disable_payg() {
 
 	if ( false === $sent_pay_as_you_go_settings_response ) {
 		ai4seo_send_ajax_error( esc_html__( 'Could not send pay-as-you-go settings to RobHub', 'ai-for-seo' ), 421217325 );
-		wp_die();
-	} elseif ( is_string( $sent_pay_as_you_go_settings_response ) ) {
-		ai4seo_send_ajax_error( $sent_pay_as_you_go_settings_response, 431217325 );
 		wp_die();
 	}
 
@@ -4338,69 +4346,91 @@ function ai4seo_check_attachment_usage_context() {
 	if ( ! ai4seo_singleton( __FUNCTION__ ) ) {
 		return;
 	}
-
-	// Recheck the global AJAX nonce before handling this protected admin request.
 	if ( wp_verify_nonce( $GLOBALS['ai4seo_ajax_nonce'] ?? '', AI4SEO_GLOBAL_NONCE_IDENTIFIER ) === false ) {
 		ai4seo_send_ajax_error( esc_html__( 'Nonce verification failed. Please refresh the page and try again.', 'ai-for-seo' ), 16032600 );
 		return;
 	}
-
-	$attachment_post_id = absint( $_REQUEST['attachment_post_id'] ?? 0 );
-
-	if ( $attachment_post_id <= 0 ) {
-		ai4seo_send_ajax_error( esc_html__( 'Media post id is invalid.', 'ai-for-seo' ), 16032601 );
-		return;
-	}
-
-	// Usage lookup exposes surrounding post context, so require access to the requested media object first.
-	if ( ! ai4seo_can_edit_post( $attachment_post_id ) ) {
+	$attachment_id = absint( wp_unslash( $_REQUEST['attachment_post_id'] ?? 0 ) );
+	if ( ! ai4seo_is_wordpress_attachment_post( $attachment_id ) || ! ai4seo_can_edit_post( $attachment_id ) ) {
 		ai4seo_send_ajax_error( esc_html__( 'You are not allowed to edit this media entry.', 'ai-for-seo' ), 16032603 );
 		return;
 	}
+	ai4seo_send_ajax_success( ai4seo_get_attachment_context_status_response( $attachment_id, absint( wp_unslash( $_REQUEST['source_post_id'] ?? 0 ) ) ) );
+}
 
-	$attachment_post = get_post( $attachment_post_id );
-
-	if ( ! $attachment_post || 'attachment' !== $attachment_post->post_type ) {
-		ai4seo_send_ajax_error( esc_html__( 'Media post not found.', 'ai-for-seo' ), 16032602 );
+/**
+ * Save an explicit context choice without triggering generation.
+ *
+ * @return void
+ */
+function ai4seo_save_attachment_context_policy() {
+	if ( ! ai4seo_singleton( __FUNCTION__ ) ) {
 		return;
 	}
-
-	$deep_context_search_site_support_status = ai4seo_get_deep_context_search_site_support_status();
-	$is_deep_context_search_supported        = (bool) ( $deep_context_search_site_support_status['is_supported'] ?? false );
-	$is_deep_context_search_enabled          = (bool) ai4seo_get_setting( AI4SEO_SETTING_DEEP_CONTEXT_SEARCH_FOR_IMAGES );
-
-	// Resolve only an editable usage post so the context link cannot expose an unauthorized entry.
-	$usage_post_id    = ai4seo_get_first_attachment_using_post_id( $attachment_post_id, true );
-	$usage_post_title = '';
-	$usage_post_url   = '';
-	$usage_edit_url   = '';
-
-	if ( $usage_post_id > 0 && ai4seo_is_attachment_context_post_eligible( $usage_post_id ) ) {
-		$usage_post_title = get_the_title( $usage_post_id );
-		$usage_post_url   = ai4seo_get_attachment_context_frontend_post_url( $usage_post_id );
-		if ( ! $usage_post_url ) {
-			$usage_edit_url = get_edit_post_link( $usage_post_id, 'raw' );
-		}
-
-		if ( ! $usage_post_title ) {
-			$usage_post_title = __( 'Untitled', 'ai-for-seo' );
-		}
-	} else {
-		$usage_post_id = 0;
+	if ( wp_verify_nonce( $GLOBALS['ai4seo_ajax_nonce'] ?? '', AI4SEO_GLOBAL_NONCE_IDENTIFIER ) === false ) {
+		ai4seo_send_ajax_error( esc_html__( 'Nonce verification failed. Please refresh the page and try again.', 'ai-for-seo' ), 30102603 );
+		return;
 	}
+	$attachment_id = absint( wp_unslash( $_REQUEST['attachment_post_id'] ?? 0 ) );
+	$post_id       = absint( wp_unslash( $_REQUEST['post_id'] ?? 0 ) );
+	$mode          = sanitize_key( wp_unslash( $_REQUEST['mode'] ?? '' ) );
+	if ( ! ai4seo_is_wordpress_attachment_post( $attachment_id ) || ! ai4seo_can_edit_post( $attachment_id )
+		|| ! in_array( $mode, array( 'fixed', 'automatic' ), true )
+		|| ( 'fixed' === $mode && ( ! $post_id || ! ai4seo_can_edit_post( $post_id ) ) ) ) {
+		ai4seo_send_ajax_error( esc_html__( 'This image context choice is not allowed.', 'ai-for-seo' ), 30102604 );
+		return;
+	}
+	if ( ! ai4seo_update_attachment_context_policy( $attachment_id, $mode, $post_id, true ) ) {
+		ai4seo_send_ajax_error( esc_html__( 'The context could not be saved or the image could not be verified in that post.', 'ai-for-seo' ), 30102605 );
+		return;
+	}
+	ai4seo_send_ajax_success( ai4seo_get_attachment_context_status_response( $attachment_id, absint( wp_unslash( $_REQUEST['source_post_id'] ?? 0 ) ) ) );
+}
 
-	// Prefer the frontend URL, with an authorized editor fallback for non-public context.
-	ai4seo_send_ajax_success(
-		array(
-			'usage_context_available'       => ( $usage_post_id > 0 ),
-			'post_id'                       => $usage_post_id,
-			'post_title'                    => trim( sanitize_text_field( $usage_post_title ) ),
-			'post_url'                      => esc_url_raw( $usage_post_url ),
-			'post_edit_url'                 => esc_url_raw( (string) $usage_edit_url ),
-			'deep_context_search_enabled'   => $is_deep_context_search_enabled,
-			'deep_context_search_supported' => $is_deep_context_search_supported,
-			'settings_url'                  => ai4seo_can_administer_plugin() ? ai4seo_get_subpage_url( 'settings' ) : '',
-		)
+/**
+ * Build access-filtered context status and source choices for the existing media editor.
+ *
+ * @param int $attachment_id Media ID.
+ * @param int $source_post_id Optional current Related Media source.
+ * @return array Additive AJAX response.
+ */
+function ai4seo_get_attachment_context_status_response( int $attachment_id, int $source_post_id = 0 ): array {
+	// Resolve and list choices from one request-local snapshot and one byte budget.
+	$state      = array();
+	$resolved   = ai4seo_resolve_attachment_usage_context( $attachment_id, true, $state );
+	$policy     = ai4seo_read_attachment_context_policy( $attachment_id );
+	$post_id    = $resolved['post_id'];
+	$thumbnail  = ai4seo_find_attachment_context_candidates( $attachment_id, 'thumbnail', $state );
+	$deep       = ai4seo_find_attachment_context_candidates( $attachment_id, 'deep', $state );
+	$candidates = array_unique( array_merge( array( $source_post_id, $policy['post_id'], $post_id, absint( get_post_field( 'post_parent', $attachment_id ) ) ), $thumbnail['post_ids'], $deep['post_ids'] ) );
+	$choices    = array();
+	foreach ( array_slice( array_filter( $candidates ), 0, AI4SEO_ATTACHMENT_CONTEXT_MAX_CANDIDATES ) as $candidate_id ) {
+		$check = ai4seo_verify_attachment_usage_in_post( $attachment_id, $candidate_id, true, $state );
+		if ( $check['verified'] ) {
+			$choices[] = array(
+				'post_id'    => $candidate_id,
+				'post_title' => sanitize_text_field( get_the_title( $candidate_id ) ),
+			);
+		}
+	}
+	$source_verified = in_array( $source_post_id, array_column( $choices, 'post_id' ), true );
+	$support         = ai4seo_get_deep_context_search_site_support_status();
+	return array(
+		'usage_context_available'       => '' !== $resolved['context'],
+		'post_id'                       => $post_id,
+		'post_title'                    => $post_id ? sanitize_text_field( get_the_title( $post_id ) ) : '',
+		'post_url'                      => $post_id ? esc_url_raw( ai4seo_get_attachment_context_frontend_post_url( $post_id ) ) : '',
+		'post_edit_url'                 => $post_id ? esc_url_raw( (string) get_edit_post_link( $post_id, 'raw' ) ) : '',
+		'context_mode'                  => $resolved['mode'],
+		'context_verified'              => $resolved['verified'],
+		'context_reason'                => $resolved['reason'],
+		'context_candidates'            => $choices,
+		'source_post_id'                => $source_verified ? $source_post_id : 0,
+		'source_post_title'             => $source_verified ? sanitize_text_field( get_the_title( $source_post_id ) ) : '',
+		'will_bind_source'              => $source_verified && in_array( $policy['mode'], array( 'automatic', 'ambiguous' ), true ),
+		'deep_context_search_enabled'   => (bool) ai4seo_get_setting( AI4SEO_SETTING_DEEP_CONTEXT_SEARCH_FOR_IMAGES ),
+		'deep_context_search_supported' => (bool) $support['is_supported'],
+		'settings_url'                  => ai4seo_can_administer_plugin() ? ai4seo_get_subpage_url( 'settings' ) : '',
 	);
 }
 
@@ -4411,6 +4441,23 @@ function ai4seo_check_attachment_usage_context() {
  *
  * @return void
  */
+function ai4seo_get_analysis_issues_html(): void {
+	if ( ! ai4seo_singleton( __FUNCTION__ ) || ! ai4seo_require_ajax_administration() ) {
+		return;
+	}
+	if ( false === wp_verify_nonce( $GLOBALS['ai4seo_ajax_nonce'] ?? '', AI4SEO_GLOBAL_NONCE_IDENTIFIER ) ) {
+		ai4seo_send_ajax_error( esc_html__( 'Please refresh the page and try again.', 'ai-for-seo' ), 44129004 );
+		return;
+	}
+	$page = filter_var( wp_unslash( $_POST['page'] ?? 1 ), FILTER_VALIDATE_INT, array( 'options' => array( 'min_range' => 1 ) ) );
+	if ( false === $page ) {
+		ai4seo_send_ajax_error( esc_html__( 'Invalid page.', 'ai-for-seo' ), 44129005 );
+		return;
+	}
+	ai4seo_send_ajax_success( ai4seo_render_analysis_issues_page( $page ) );
+}
+
+/** Render the current dashboard refresh root for authorized content users. */
 function ai4seo_get_dashboard_html() {
 	// Make sure that this function is only called once.
 	if ( ! ai4seo_singleton( __FUNCTION__ ) ) {
@@ -4424,6 +4471,8 @@ function ai4seo_get_dashboard_html() {
 	}
 
 	// Configured content roles may hydrate cached dashboard state but cannot trigger site-wide analysis.
+	$issues_page                            = filter_var( wp_unslash( $_POST['analysis_issues_page'] ?? 1 ), FILTER_VALIDATE_INT, array( 'options' => array( 'min_range' => 1 ) ) );
+	$GLOBALS['ai4seo_analysis_issues_page'] = false === $issues_page ? 1 : $issues_page;
 	if ( ai4seo_can_administer_plugin() ) {
 		ai4seo_check_for_performance_analysis();
 		ai4seo_check_for_unfinished_posts_table_analysis_notification( true );

@@ -1188,15 +1188,10 @@ foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_
 		$ai4seo_this_accordion_content = __( 'Image attributes such as alt text, image titles, captions, and descriptions help search engines understand your media and can improve image search visibility. Alt text also supports accessibility when images are shown to visitors who use assistive technologies.', 'ai-for-seo' );
 		ai4seo_echo_wp_kses( ai4seo_get_accordion_element( esc_html__( 'Why should I add alt text, image titles, captions, and descriptions?', 'ai-for-seo' ), $ai4seo_this_accordion_content, 4 ) );
 
-		$ai4seo_this_accordion_content = sprintf(
-			/* translators: %1$s plugin name, %2$s plugin name */
-			esc_html__( 'Generated alt text and image attributes are strongest when %1$s can understand where and how an image is used. %2$s checks common sources such as featured images, attached media, WooCommerce variation images, galleries, local image URLs, and media stored by page builders or custom fields. If an image still receives generic text, check whether it is actually used on a page or product, open the Related Media view for the related entry, and regenerate the image attributes after the context is available.', 'ai-for-seo' ),
-			esc_html( AI4SEO_PLUGIN_NAME ),
-			esc_html( AI4SEO_PLUGIN_NAME )
-		);
+		$ai4seo_this_accordion_content = esc_html__( 'Open the Media Attributes Editor and check Context detection. Automatic discovery uses verified image usage and nearby text. If several posts use the image, select a verified source and choose Set context post. The saved choice also applies to SEO Autopilot. Use Switch to automatic discovery to reset it. If the selected post is deleted or no longer provides usable context, generation continues without post context and the editor explains why.', 'ai-for-seo' );
 		ai4seo_echo_wp_kses( ai4seo_get_accordion_element( esc_html__( 'Why is alt text or image attribute generation more accurate for some images?', 'ai-for-seo' ), $ai4seo_this_accordion_content, 4 ) );
 
-		$ai4seo_this_accordion_content = __( 'Open Settings > Media Attributes and adjust the media attribute prompt sliders. Reduce "SEO Keyword Intensity" if alt text feels keyword-heavy or keyword-stuffed, reduce "File Name Influence" if filenames add unwanted product or brand terms, adjust "Recognizable Entity Inclusion" if names are included too often, and use "Surrounding / Page Context Influence" when the page or product context should matter more than the isolated image.', 'ai-for-seo' );
+		$ai4seo_this_accordion_content = __( 'Open Settings > Media Attributes and adjust the media attribute prompt sliders. Reduce "SEO Keyword Intensity" if alt text feels keyword-heavy or keyword-stuffed, reduce "File Name Influence" if filenames add unwanted product or brand terms, adjust "Include Recognizable Names" if names are included too often, and use "Surrounding / Page Context Influence" when the page or product context should matter more than the isolated image.', 'ai-for-seo' );
 		ai4seo_echo_wp_kses( ai4seo_get_accordion_element( esc_html__( 'How do I fix image attributes that sound generic, repetitive, or keyword-stuffed?', 'ai-for-seo' ), $ai4seo_this_accordion_content, 4 ) );
 
 		/* translators: %s: plugin name */

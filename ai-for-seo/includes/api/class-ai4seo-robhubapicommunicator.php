@@ -621,19 +621,21 @@ class Ai4Seo_RobHubApiCommunicator {
 	 */
 	private const ENVIRONMENTAL_VARIABLE_STORAGE_MAX_ATTEMPTS = 3;
 
-	public const ENVIRONMENTAL_VARIABLE_DEPRECATED_API_AUTH_DATA     = 'auth_data';
-	public const ENVIRONMENTAL_VARIABLE_API_USERNAME                 = 'api_username';
-	public const ENVIRONMENTAL_VARIABLE_API_PASSWORD                 = 'api_password';
-	public const ENVIRONMENTAL_VARIABLE_CREDITS_BALANCE              = 'credits_balance';
-	public const ENVIRONMENTAL_VARIABLE_NEXT_FREE_CREDITS_TIMESTAMP  = 'next_free_credits';
-	public const ENVIRONMENTAL_VARIABLE_SUBSCRIPTION                 = 'subscription';
-	public const ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC            = 'last_account_sync';
-	public const ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED            = 'is_account_synced';
-	public const ENVIRONMENTAL_VARIABLE_IS_AUTH_LOCKED               = 'is_auth_locked';
-	public const ENVIRONMENTAL_VARIABLE_GROUP                        = 'group';
-	public const ENVIRONMENTAL_VARIABLE_SVG_STATIC_V1                = 'svg_static_v1';
-	public const ENVIRONMENTAL_VARIABLE_SVG_STATUS                   = 'svg_static_v1_status';
-	public const ENVIRONMENTAL_VARIABLE_CREDENTIAL_CHANGES_SUPPORTED = 'credential_changes_supported';
+	public const ENVIRONMENTAL_VARIABLE_DEPRECATED_API_AUTH_DATA        = 'auth_data';
+	public const ENVIRONMENTAL_VARIABLE_API_USERNAME                    = 'api_username';
+	public const ENVIRONMENTAL_VARIABLE_API_PASSWORD                    = 'api_password';
+	public const ENVIRONMENTAL_VARIABLE_CREDITS_BALANCE                 = 'credits_balance';
+	public const ENVIRONMENTAL_VARIABLE_NEXT_FREE_CREDITS_TIMESTAMP     = 'next_free_credits';
+	public const ENVIRONMENTAL_VARIABLE_SUBSCRIPTION                    = 'subscription';
+	public const ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC               = 'last_account_sync';
+	public const ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED               = 'is_account_synced';
+	public const ENVIRONMENTAL_VARIABLE_IS_AUTH_LOCKED                  = 'is_auth_locked';
+	public const ENVIRONMENTAL_VARIABLE_GROUP                           = 'group';
+	public const ENVIRONMENTAL_VARIABLE_SVG_STATIC_V1                   = 'svg_static_v1';
+	public const ENVIRONMENTAL_VARIABLE_SVG_STATUS                      = 'svg_static_v1_status';
+	public const ENVIRONMENTAL_VARIABLE_CREDENTIAL_CHANGES_SUPPORTED    = 'credential_changes_supported';
+	public const ENVIRONMENTAL_VARIABLE_FREE_ACCOUNT_RECOVERY_TOKEN     = 'free_account_recovery_token';
+	public const ENVIRONMENTAL_VARIABLE_FREE_ACCOUNT_RECOVERY_ATTEMPTED = 'free_account_recovery_attempted';
 
 	public const DEFAULT_ENVIRONMENTAL_VARIABLES = array(
 		self::ENVIRONMENTAL_VARIABLE_DEPRECATED_API_AUTH_DATA => array(),
@@ -649,6 +651,8 @@ class Ai4Seo_RobHubApiCommunicator {
 		self::ENVIRONMENTAL_VARIABLE_SVG_STATIC_V1     => false,
 		self::ENVIRONMENTAL_VARIABLE_SVG_STATUS        => array(),
 		self::ENVIRONMENTAL_VARIABLE_CREDENTIAL_CHANGES_SUPPORTED => false,
+		self::ENVIRONMENTAL_VARIABLE_FREE_ACCOUNT_RECOVERY_TOKEN => '',
+		self::ENVIRONMENTAL_VARIABLE_FREE_ACCOUNT_RECOVERY_ATTEMPTED => false,
 	);
 	/**
 	 * In-memory environmental-variable values.
@@ -1089,6 +1093,9 @@ class Ai4Seo_RobHubApiCommunicator {
 		$attempt = 0;
 
 		$max_api_attempts_for_endpoint = $this->max_api_attempts;
+		if ( isset( $parameters['free_account_recovery_token'] ) ) {
+			$max_api_attempts_for_endpoint = 1;
+		}
 		if ( 'client/sync' === $endpoint && 'svg_capability_retry' === ( $parameters['reason'] ?? '' ) ) {
 			// Availability recovery is a short probe; a later request owns any retry.
 			$max_api_attempts_for_endpoint = 1;
@@ -1232,10 +1239,23 @@ class Ai4Seo_RobHubApiCommunicator {
 				true
 			);
 
-			// These auth errors mean the saved credentials should not auto-bootstrap a fresh free account.
-			// Instead, we lock further RobHub calls until the user manually enters valid credentials again.
+			// Signed free recovery may perform one sync, but must never replay the failed operation.
+			// All other terminal auth errors retain the established reconnect requirement.
 			if ( $is_invalidate_auth_data_error ) {
-				$this->invalidate_and_lock_auth_data();
+				$free_recovery_token = $this->read_environmental_variable( self::ENVIRONMENTAL_VARIABLE_FREE_ACCOUNT_RECOVERY_TOKEN );
+				if ( 351816823 === (int) $this_error_code && ! $this->is_syncing_account
+					&& '' !== $free_recovery_token
+					&& $this->validate_environmental_variable_value( self::ENVIRONMENTAL_VARIABLE_FREE_ACCOUNT_RECOVERY_TOKEN, $free_recovery_token )
+					&& $this->is_account_synced() && ! $this->read_environmental_variable( self::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION )
+					&& 'missing' === $this->inspect_api_password_rotation_recovery_intent()['state'] ) {
+					// Sync owns the lock and consumes the receipt durably before any recovery request.
+					$this->sync_account( 'free-account-recovery' );
+				} elseif ( isset( $parameters['free_account_recovery_token'] ) || $this->read_environmental_variable( self::ENVIRONMENTAL_VARIABLE_FREE_ACCOUNT_RECOVERY_ATTEMPTED ) ) {
+					// Preserve the proven pair if recovery is denied; explicit reconnect owns further changes.
+					$this->bulk_update_environmental_variables( array( self::ENVIRONMENTAL_VARIABLE_IS_AUTH_LOCKED => true ) );
+				} else {
+					$this->invalidate_and_lock_auth_data();
+				}
 			}
 
 			if ( ! $has_more_attempts || $is_non_retriable ) {
@@ -2328,6 +2348,8 @@ class Ai4Seo_RobHubApiCommunicator {
 				array(
 					self::ENVIRONMENTAL_VARIABLE_API_USERNAME => $api_username,
 					self::ENVIRONMENTAL_VARIABLE_API_PASSWORD => $api_password,
+					self::ENVIRONMENTAL_VARIABLE_FREE_ACCOUNT_RECOVERY_TOKEN => '',
+					self::ENVIRONMENTAL_VARIABLE_FREE_ACCOUNT_RECOVERY_ATTEMPTED => false,
 				)
 			);
 
@@ -4903,12 +4925,21 @@ class Ai4Seo_RobHubApiCommunicator {
 			return $this->respond_error( 'Credential rotation is awaiting secure reconciliation.', 27082721 );
 		}
 
+		$free_recovery_token = $this->take_free_account_recovery_token();
+		if ( null === $free_recovery_token ) {
+			return $this->respond_error( 'Could not persist the account recovery attempt locally.', 27082723 );
+		}
+		if ( '' !== $free_recovery_token ) {
+			$parameters['free_account_recovery_token'] = $free_recovery_token;
+		}
+
 		// Only a confirmed promotion permits a second sync. Never resubmit an ordinary operation
 		// that was already sent, or turn a transport error into permission to rotate credentials.
 		for ( $sync_pass = 0; $sync_pass < 2; ++$sync_pass ) {
 			// Change the reason so the confirmation pass cannot reuse the first request's checksum.
 			if ( 1 === $sync_pass ) {
 				$parameters['reason'] = 'rotation-confirmation';
+				unset( $parameters['free_account_recovery_token'] );
 			}
 
 			$api_response = self::call( 'client/sync', $parameters );
@@ -4971,6 +5002,45 @@ class Ai4Seo_RobHubApiCommunicator {
 		return $this->commit_synced_account_state( $api_response );
 	}
 
+
+	/**
+	 * Consume one server receipt before transport while account sync owns the rotation lock.
+	 *
+	 * @return string|null One receipt, an empty string when ineligible, or null after a failed storage write.
+	 */
+	private function take_free_account_recovery_token(): ?string {
+		if ( ! $this->is_syncing_account || $this->is_auth_data_locked()
+			|| 'missing' !== $this->inspect_pending_api_password_rotation()['state']
+			|| 'missing' !== $this->inspect_api_password_rotation_recovery_intent()['state'] ) {
+			return '';
+		}
+
+		$snapshot = ai4seo_get_raw_option_snapshot( $this->environmental_variables_option_name );
+		if ( ! is_array( $snapshot ) || ! $snapshot['exists'] || ! is_array( $snapshot['value'] ) ) {
+			return '';
+		}
+
+		$values = $snapshot['value'];
+		$token  = $values[ self::ENVIRONMENTAL_VARIABLE_FREE_ACCOUNT_RECOVERY_TOKEN ] ?? '';
+		if ( '' === $token || ! $this->validate_environmental_variable_value( self::ENVIRONMENTAL_VARIABLE_FREE_ACCOUNT_RECOVERY_TOKEN, $token )
+			|| true !== ( $values[ self::ENVIRONMENTAL_VARIABLE_IS_ACCOUNT_SYNCED ] ?? false )
+			|| ! empty( $values[ self::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION ] )
+			|| ( $values[ self::ENVIRONMENTAL_VARIABLE_API_USERNAME ] ?? '' ) !== $this->api_username
+			|| ( $values[ self::ENVIRONMENTAL_VARIABLE_API_PASSWORD ] ?? '' ) !== $this->api_password ) {
+			return '';
+		}
+
+		unset( $values[ self::ENVIRONMENTAL_VARIABLE_FREE_ACCOUNT_RECOVERY_TOKEN ] );
+		$values[ self::ENVIRONMENTAL_VARIABLE_FREE_ACCOUNT_RECOVERY_ATTEMPTED ] = true;
+		if ( true !== $this->compare_and_swap_environmental_variables_snapshot( $snapshot, $values ) ) {
+			return null;
+		}
+
+		$this->environmental_variables = $this->normalize_environmental_variables( $values );
+		return $token;
+	}
+
+
 	/**
 	 * Publish authenticated account facts together, without rewriting credentials or settings.
 	 *
@@ -4996,6 +5066,10 @@ class Ai4Seo_RobHubApiCommunicator {
 			}
 		}
 		$updates   = array(
+			self::ENVIRONMENTAL_VARIABLE_FREE_ACCOUNT_RECOVERY_ATTEMPTED => false,
+			self::ENVIRONMENTAL_VARIABLE_FREE_ACCOUNT_RECOVERY_TOKEN => 'free' === $data['plan']
+				&& $this->validate_environmental_variable_value( self::ENVIRONMENTAL_VARIABLE_FREE_ACCOUNT_RECOVERY_TOKEN, $data['free_account_recovery_token'] ?? null )
+				? $data['free_account_recovery_token'] : '',
 			self::ENVIRONMENTAL_VARIABLE_CREDITS_BALANCE   => $response['new-credits-balance'],
 			self::ENVIRONMENTAL_VARIABLE_SUBSCRIPTION      => $subscription,
 			self::ENVIRONMENTAL_VARIABLE_LAST_ACCOUNT_SYNC => time(),
@@ -5282,6 +5356,7 @@ class Ai4Seo_RobHubApiCommunicator {
 		return array_replace(
 			$environmental_variables,
 			array(
+				self::ENVIRONMENTAL_VARIABLE_FREE_ACCOUNT_RECOVERY_TOKEN => '',
 				self::ENVIRONMENTAL_VARIABLE_API_USERNAME => '',
 				self::ENVIRONMENTAL_VARIABLE_API_PASSWORD => '',
 				self::ENVIRONMENTAL_VARIABLE_IS_AUTH_LOCKED => true,
@@ -5301,6 +5376,7 @@ class Ai4Seo_RobHubApiCommunicator {
 	 */
 	private function update_invalidated_auth_data( ?bool $is_auth_locked = null, bool $reset_account_sync = false ): array {
 		$environmental_variable_updates = array(
+			self::ENVIRONMENTAL_VARIABLE_FREE_ACCOUNT_RECOVERY_TOKEN => '',
 			self::ENVIRONMENTAL_VARIABLE_API_USERNAME => '',
 			self::ENVIRONMENTAL_VARIABLE_API_PASSWORD => '',
 		);
@@ -6421,6 +6497,9 @@ class Ai4Seo_RobHubApiCommunicator {
 	 */
 	public function validate_environmental_variable_value( string $environmental_variable_name, $environmental_variable_value ): bool {
 		switch ( $environmental_variable_name ) {
+			case self::ENVIRONMENTAL_VARIABLE_FREE_ACCOUNT_RECOVERY_TOKEN:
+				return is_string( $environmental_variable_value ) && strlen( $environmental_variable_value ) <= 1024
+					&& ( '' === $environmental_variable_value || 1 === preg_match( '/\A[A-Za-z0-9_-]+\.[a-f0-9]{64}\z/D', $environmental_variable_value ) );
 			case self::ENVIRONMENTAL_VARIABLE_SVG_STATUS:
 				if ( array() === $environmental_variable_value ) {
 					return true;
@@ -6452,6 +6531,7 @@ class Ai4Seo_RobHubApiCommunicator {
 					&& in_array( $environmental_variable_value['reason'] ?? null, $reasons[ $environmental_variable_value['state'] ] ?? array(), true );
 			case self::ENVIRONMENTAL_VARIABLE_SVG_STATIC_V1:
 			case self::ENVIRONMENTAL_VARIABLE_CREDENTIAL_CHANGES_SUPPORTED:
+			case self::ENVIRONMENTAL_VARIABLE_FREE_ACCOUNT_RECOVERY_ATTEMPTED:
 				return is_bool( $environmental_variable_value );
 			case self::ENVIRONMENTAL_VARIABLE_API_USERNAME:
 				if ( ! is_string( $environmental_variable_value ) ) {

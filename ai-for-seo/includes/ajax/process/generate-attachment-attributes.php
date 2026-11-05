@@ -185,7 +185,24 @@ if ( $ai4seo_wpml_language ) {
 
 $ai4seo_robhub_api_call_parameters['trigger']         = 'manual';
 $ai4seo_robhub_api_call_parameters['website_context'] = ai4seo_get_website_context();
-$ai4seo_attachment_usage_context                      = ai4seo_get_attachment_post_related_context( $ai4seo_this_attachment_post_id, true );
+$ai4seo_source_post_id                                = absint( wp_unslash( $_REQUEST['source_post_id'] ?? 0 ) );
+if ( $ai4seo_source_post_id && ! ai4seo_can_edit_post( $ai4seo_source_post_id ) ) {
+	ai4seo_send_ajax_error( esc_html__( 'You are not allowed to use this context post.', 'ai-for-seo' ), 30102601 );
+	return;
+}
+$ai4seo_context_state       = array();
+$ai4seo_context_preparation = ai4seo_prepare_attachment_context_policy(
+	$ai4seo_this_attachment_post_id,
+	$ai4seo_source_post_id ? array( $ai4seo_source_post_id ) : array(),
+	$ai4seo_context_state
+);
+if ( ! $ai4seo_context_preparation['succeeded'] ) {
+	ai4seo_send_ajax_error( esc_html__( 'The image context choice could not be saved. No generation was started.', 'ai-for-seo' ), 30102602 );
+	return;
+}
+$ai4seo_attachment_context_result = ai4seo_resolve_attachment_usage_context( $ai4seo_this_attachment_post_id, true, $ai4seo_context_state );
+$ai4seo_attachment_usage_context  = $ai4seo_context_preparation['contextless']
+	? '' : $ai4seo_attachment_context_result['context'];
 
 if ( ! empty( $ai4seo_attachment_usage_context ) ) {
 	$ai4seo_robhub_api_call_parameters['attachment_usage_context'] = $ai4seo_attachment_usage_context;
@@ -237,10 +254,12 @@ $ai4seo_results = ai4seo_call_attachment_attributes_generation_api(
 );
 
 if ( ! ai4seo_robhub_api()->was_call_successful( $ai4seo_results ?? false ) ) {
+	$ai4seo_context_retained_message = in_array( $ai4seo_context_preparation['reason'], array( 'fixed', 'ambiguous' ), true )
+		? ' ' . __( 'The saved image context choice remains in place. Generation failed.', 'ai-for-seo' ) : '';
 	if ( isset( $ai4seo_results['message'] ) && $ai4seo_results['message'] && isset( $ai4seo_results['code'] ) && $ai4seo_results['code'] ) {
-		ai4seo_send_ajax_error( esc_html( $ai4seo_results['message'] ), $ai4seo_results['code'] );
+		ai4seo_send_ajax_error( esc_html( $ai4seo_results['message'] . $ai4seo_context_retained_message ), $ai4seo_results['code'] );
 	} else {
-		ai4seo_send_ajax_error( esc_html__( 'Could not execute API call.', 'ai-for-seo' ), 28127323 );
+		ai4seo_send_ajax_error( esc_html( __( 'Could not execute API call.', 'ai-for-seo' ) . $ai4seo_context_retained_message ), 28127323 );
 	}
 }
 
@@ -321,7 +340,13 @@ if ( $ai4seo_this_success ) {
 
 // === BUILD SUCCESS RESPONSE ========================================================================== \\
 
-$ai4seo_response = ai4seo_build_manual_generation_response( $ai4seo_new_attachment_attributes, $ai4seo_results, $ai4seo_this_success, $ai4seo_generated_at, $ai4seo_save_operation_details );
+$ai4seo_response                       = ai4seo_build_manual_generation_response( $ai4seo_new_attachment_attributes, $ai4seo_results, $ai4seo_this_success, $ai4seo_generated_at, $ai4seo_save_operation_details );
+$ai4seo_response['attachment_context'] = array(
+	'mode'    => $ai4seo_attachment_context_result['mode'],
+	'post_id' => $ai4seo_attachment_context_result['post_id'],
+	'reason'  => $ai4seo_context_preparation['contextless'] ? $ai4seo_context_preparation['reason'] : $ai4seo_attachment_context_result['reason'],
+	'used'    => '' !== $ai4seo_attachment_usage_context,
+);
 
 if ( $ai4seo_this_success && ! $ai4seo_unresolved_generation_fields && '' !== $ai4seo_activity_error_token
 	&& ai4seo_resolve_recent_activity_error( $ai4seo_this_attachment_post_id, 'attachment-attributes-bulk-generated', $ai4seo_activity_error_token ) ) {

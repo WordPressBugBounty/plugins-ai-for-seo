@@ -794,17 +794,11 @@ function ai4seo_get_title_attribute_value( int $attachment_id, string $setting_v
 			$value = ai4seo_read_frontend_attachment_alt( $attachment_id );
 			break;
 		case 'inject_caption':
-			$attachment = get_post( $attachment_id );
-
-			if ( $attachment ) {
-				$value = $attachment->post_excerpt;
-			}
-			break;
 		case 'inject_description':
 			$attachment = get_post( $attachment_id );
 
 			if ( $attachment ) {
-				$value = $attachment->post_content;
+				$value = 'inject_caption' === $setting_value ? $attachment->post_excerpt : $attachment->post_content;
 			}
 			break;
 	}

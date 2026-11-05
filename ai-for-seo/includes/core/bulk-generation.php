@@ -2153,6 +2153,14 @@ function ai4seo_classify_auto_queue_candidates( array $post_ids, string $context
 		$result['status'] = 'ready';
 		return $result;
 	}
+	$issues = ai4seo_read_analysis_issue_snapshots( $post_ids );
+	if ( null === $issues ) {
+		return $result;
+	}
+	$repair = ai4seo_uses_post_state_tables() ? null : ai4seo_read_analysis_reconciliation_snapshot();
+	if ( ! ai4seo_uses_post_state_tables() && null === $repair ) {
+		return $result;
+	}
 	$query = ai4seo_prepare_database_query(
 		'SELECT ID, post_author, post_type, post_status, post_mime_type, post_date_gmt, post_date, post_modified_gmt, post_modified FROM {{posts_table}} WHERE ID IN ({{post_ids}})',
 		array(
@@ -2184,6 +2192,10 @@ function ai4seo_classify_auto_queue_candidates( array $post_ids, string $context
 			return $result;
 		}
 		$seen[ $id ] = true;
+		if ( $issues[ $id ]['exists'] || isset( $repair['value'][ $id ] ) ) {
+			$result['blocked_post_ids'][] = $id;
+			continue;
+		}
 		if ( ! $is_media && AI4SEO_TAXONOMY_PROXY_POST_TYPE === $row['post_type'] ) {
 			$archive_ids[] = $id;
 			$archive       = ai4seo_get_taxonomy_generation_eligibility( $id, 'automatic', $settings );
@@ -2518,7 +2530,7 @@ function ai4seo_process_related_attachment_bulk_generation_queue_action( string 
 	$related_attachment_post_id_lookup             = array();
 	$related_attachment_post_ids_by_source_post_id = array();
 
-	// Scan source posts with the existing Related Media scanner and keep first-source fallback ownership for duplicates.
+	// Keep every selected source until verification has distinguished a fixed context from ambiguity.
 	foreach ( $valid_source_post_ids as $this_source_post_id ) {
 		$this_related_attachment_scan_result = ai4seo_get_related_attachment_scan_result( $this_source_post_id );
 		$this_related_attachment_post_ids    = array_values(
@@ -2541,12 +2553,8 @@ function ai4seo_process_related_attachment_bulk_generation_queue_action( string 
 			continue;
 		}
 
-		// First selected source post wins, matching the plan while avoiding repeated fallback rewrites.
+		// Deduplicate the queue target, but retain every source relationship.
 		foreach ( $this_related_attachment_post_ids as $this_related_attachment_post_id ) {
-			if ( isset( $related_attachment_post_id_lookup[ $this_related_attachment_post_id ] ) ) {
-				continue;
-			}
-
 			$related_attachment_post_id_lookup[ $this_related_attachment_post_id ] = $this_related_attachment_post_id;
 
 			if ( ! isset( $related_attachment_post_ids_by_source_post_id[ $this_source_post_id ] ) ) {
@@ -2589,21 +2597,6 @@ function ai4seo_process_related_attachment_bulk_generation_queue_action( string 
 		$result['skipped']                = $result['related_images_skipped'];
 		$result['queue_count']            = ai4seo_get_bulk_generation_queue_count();
 		return $result;
-	}
-
-	if ( ! $is_related_attachment_remove_queue_action ) {
-		// Add actions persist fallback values in the same grouped shape used by the single-entry Related Media flow.
-		foreach ( $related_attachment_post_ids_by_source_post_id as $this_source_post_id => $this_related_attachment_post_ids ) {
-			if ( ai4seo_update_attachment_related_post_id_for_attachment_post_ids( $this_related_attachment_post_ids, (int) $this_source_post_id ) ) {
-				continue;
-			}
-
-			ai4seo_debug_message(
-				4527052603,
-				'Could not update related post fallback values for related image bulk action source post ID ' . absint( $this_source_post_id ),
-				true
-			);
-		}
 	}
 
 	// Attachment queue state is read once so large bulk actions do not repeat option reads for each source post.
@@ -2738,6 +2731,9 @@ function ai4seo_process_related_attachment_bulk_generation_queue_action( string 
 			break;
 	}
 
+	if ( ! $is_related_attachment_remove_queue_action ) {
+		ai4seo_prepare_queued_attachment_contexts( $changed_attachment_post_ids, $related_attachment_post_ids_by_source_post_id, $transition_additions, $transition_removals, $result );
+	}
 	if ( $changed_attachment_post_ids && ( $transition_additions || $transition_removals ) ) {
 		$transition_did_change     = false;
 		$transition_succeeded      = false;
@@ -2790,15 +2786,63 @@ function ai4seo_process_related_attachment_bulk_generation_queue_action( string 
 
 
 /**
+ * Persist context decisions before queue admission and exclude failed media writes.
+ *
+ * @param array $media_ids Requested media, reduced to successful preparations.
+ * @param array $sources Source post IDs mapped to their media IDs.
+ * @param array $additions Queue additions.
+ * @param array $removals Queue removals.
+ * @param array $result Public preparation counters.
+ * @return void
+ */
+function ai4seo_prepare_queued_attachment_contexts( array &$media_ids, array $sources, array &$additions, array &$removals, array &$result ): void {
+	$result['context_choices_saved']  = 0;
+	$result['context_choices_failed'] = 0;
+	$result['context_ambiguous']      = 0;
+	$failed                           = array();
+	foreach ( $media_ids as $attachment_id ) {
+		$source_ids = array();
+		foreach ( $sources as $source_id => $source_media ) {
+			if ( in_array( $attachment_id, $source_media, true ) ) {
+				$source_ids[] = (int) $source_id;
+			}
+		}
+		$prepared = ai4seo_prepare_attachment_context_policy( $attachment_id, $source_ids );
+		if ( $prepared['succeeded'] && $prepared['contextless'] ) {
+			// Persist context-free intent until the worker runs; never displace a concurrent fixed choice.
+			$prepared['succeeded'] = ai4seo_update_attachment_context_policy( $attachment_id, 'ambiguous' );
+		}
+		if ( ! $prepared['succeeded'] ) {
+			$failed[] = $attachment_id;
+			++$result['context_choices_failed'];
+		} else {
+			++$result['context_choices_saved'];
+			$policy                       = ai4seo_read_attachment_context_policy( $attachment_id );
+			$result['context_ambiguous'] += 'ambiguous' === $policy['mode'] ? 1 : 0;
+		}
+	}
+	$media_ids = array_values( array_diff( $media_ids, $failed ) );
+	foreach ( $additions as &$ids ) {
+		$ids = array_values( array_diff( $ids, $failed ) );
+	}
+	unset( $ids );
+	foreach ( $removals as &$ids ) {
+		$ids = array_values( array_diff( $ids, $failed ) );
+	}
+	unset( $ids );
+}
+
+/**
  * Applies a bulk generation queue action to selected post IDs.
  *
  * @param string    $action Queue action.
  * @param array     $post_ids Selected post IDs.
  * @param string    $context Queue context.
  * @param bool|null $queue_transition_failed Receives whether a requested queue-state transition failed.
+ * @param int       $source_post_id Optional source of a related-media dialog selection.
  * @return array Result counts.
  */
-function ai4seo_process_bulk_generation_queue_action( string $action, array $post_ids, string $context, ?bool &$queue_transition_failed = null ): array {
+function ai4seo_process_bulk_generation_queue_action( string $action, array $post_ids, string $context, ?bool &$queue_transition_failed = null, int $source_post_id = 0 ): array {
 	if ( ai4seo_is_post_state_storage_paused() ) {
 		$queue_transition_failed = true;
 		$result                  = ai4seo_get_bulk_generation_queue_action_result_defaults( $action, count( $post_ids ) );
@@ -3129,6 +3173,9 @@ function ai4seo_process_bulk_generation_queue_action( string $action, array $pos
 		}
 	}
 
+	if ( $source_post_id && AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES === $context && $should_schedule_bulk_generation ) {
+		ai4seo_prepare_queued_attachment_contexts( $changed_post_ids, array( $source_post_id => $changed_post_ids ), $transition_additions, $transition_removals, $result );
+	}
 	if ( $changed_post_ids && ( $transition_additions || $transition_removals ) ) {
 		$transition_did_change = false;
 		$transition_succeeded  = false;

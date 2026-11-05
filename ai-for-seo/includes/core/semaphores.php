@@ -136,11 +136,13 @@ function ai4seo_is_valid_database_advisory_lock_name( string $lock_name ): bool 
  * MySQL and MariaDB limit named locks to 64 bytes. The lock is released
  * automatically if the owning database connection terminates.
  *
- * @param string $lock_name Database advisory-lock name.
+ * @param string      $lock_name Database advisory-lock name.
+ * @param string|null $reason Receives acquired, busy or failed.
  * @return bool True only when the active database connection acquired the lock.
  */
-function ai4seo_acquire_database_advisory_lock( string $lock_name ): bool {
+function ai4seo_acquire_database_advisory_lock( string $lock_name, ?string &$reason = null ): bool {
 	global $wpdb;
+	$reason = 'failed';
 
 	if ( ! ai4seo_is_valid_database_advisory_lock_name( $lock_name ) ) {
 		return false;
@@ -160,6 +162,9 @@ function ai4seo_acquire_database_advisory_lock( string $lock_name ): bool {
 
 	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The named-query compiler prepares the bounded lock name and zero wait; GET_LOCK reads connection state that cannot be cached.
 	$lock_result = $wpdb->get_var( $lock_query );
+	if ( ! $wpdb->last_error && in_array( (string) $lock_result, array( '0', '1' ), true ) ) {
+		$reason = '1' === (string) $lock_result ? 'acquired' : 'busy';
+	}
 
 	return ! $wpdb->last_error && '1' === (string) $lock_result;
 }
@@ -392,11 +397,7 @@ function ai4seo_release_semaphore( string $critical_section_name ): bool {
 		// We do not believe we hold this lock; do a safe attempt anyway.
 		$existing_lock = ai4seo_get_semaphore_option_snapshot( $option_key );
 
-		if ( is_array( $existing_lock ) && ! $existing_lock['exists'] ) {
-			return true;
-		}
-
-		return false; // Someone else holds it.
+		return is_array( $existing_lock ) && ! $existing_lock['exists'];
 	}
 
 	$released = ai4seo_release_semaphore_by_key_and_token( $option_key, $token );

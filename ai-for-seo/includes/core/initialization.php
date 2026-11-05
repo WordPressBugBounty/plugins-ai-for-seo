@@ -628,6 +628,7 @@ function ai4seo_check_and_handle_plugin_update( bool $force = false ) {
 		&& ( 'legacy' === ( $post_state_storage['phase'] ?? '' ) || ( 'ready' === ( $title_order_state['phase'] ?? '' )
 			&& ai4seo_title_order_signature() === $title_order_state['signature'] && $post_state_storage['generation'] === $title_order_state['source_generation'] ) )
 		&& 'completed' === ( $progress['steps']['initialization']['status'] ?? '' )
+		&& 'completed' === ( $progress['steps']['analysis_issue_inventory_v1']['status'] ?? '' )
 		&& ! array_filter(
 			$progress['steps'],
 			static function ( array $step ): bool {
@@ -896,6 +897,7 @@ function ai4seo_tidy_up( string $last_known_plugin_version = AI4SEO_PLUGIN_VERSI
 		$environment                 = ai4seo_get_raw_option_snapshot( AI4SEO_ENVIRONMENTAL_VARIABLES_OPTION_NAME );
 		$raw_environmental_variables = null !== $environment && is_array( $environment['value'] ) ? $environment['value'] : array();
 		$history_known               = in_array( $origin_status, array( 'known', 'fresh' ), true );
+		$results[]                   = ai4seo_run_plugin_update_step( 'analysis_issue_inventory_v1', 'ai4seo_initialize_analysis_issue_inventory', $force );
 		$results[]                   = ai4seo_run_plugin_update_step(
 			'history',
 			static function () use ( $history_known ) {

@@ -332,9 +332,12 @@ function ai4seo_resolve_uncached_indexed_content_type_list( array $args ): array
 	if ( null !== $title_page ) {
 		$result = $title_page;
 	} elseif ( $complex || 'id' !== $sort['orderby'] ) {
+		$failures = ai4seo_content_type_list_read_failures();
 		$resolved = ai4seo_read_post_state_list_runs( $args, $parts, $sort, $status, $per_page, $page );
 		if ( null === $resolved ) {
-			ai4seo_content_type_list_read_failures( true );
+			if ( ai4seo_content_type_list_read_failures() === $failures ) {
+				ai4seo_content_type_list_read_failures( true );
+			}
 			return $result;
 		}
 		$result = array_replace( $result, $resolved );
@@ -378,7 +381,12 @@ function ai4seo_resolve_uncached_indexed_content_type_list( array $args ): array
 }
 
 /**
- * Stream exact exceptional filters and natural sorting in bounded runs.
+ * Resolve exact exceptional filters without temporary files.
+ *
+ * ID and title order need one bounded traversal. Progress uses a fixed-size
+ * histogram and bounded packed identities, falling back to a second traversal
+ * above the memory budget; work does not grow with the page number.
+ * The block-count title reader remains the fast path for ordinary title pages.
  *
  * @param array  $args List arguments.
  * @param array  $parts SQL predicates.
@@ -386,104 +394,301 @@ function ai4seo_resolve_uncached_indexed_content_type_list( array $args ): array
  * @param string $status Selected filter.
  * @param int    $per_page Visible page size.
  * @param int    $page Requested page.
- * @return array|null
+ * @return array|null Exact page or a diagnosed read failure.
  */
 function ai4seo_read_post_state_list_runs( array $args, array $parts, array $sort, string $status, int $per_page, int $page ): ?array {
-	$context = $args['content_context'] ?? AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA;
-	$fields  = array();
-	foreach ( $parts['statuses'] as $key => $predicate ) {
-		$fields[] = '(' . $predicate . ') AS n_' . $key;
+	$counts_only      = ! empty( $args['_counts_only'] );
+	$sort_by_progress = ! $counts_only && 'seo_progress' === $sort['orderby'];
+	$title_state      = array();
+	if ( ! $counts_only && 'title' === $sort['orderby'] ) {
+		$title_state = ai4seo_read_post_state_list_title_checkpoint();
+		if ( null === $title_state ) {
+			return null;
+		}
 	}
-	$counts      = array_fill_keys( array_keys( $parts['statuses'] ), 0 );
-	$after       = 0;
-	$runs        = array();
-	$compare     = static function ( array $a, array $b ) use ( $sort ): int {
-		if ( 'id' === $sort['orderby'] ) {
-			return ( 'asc' === $sort['order'] ? 1 : -1 ) * ( $a['id'] <=> $b['id'] );
+	$version = $counts_only || 'id' === $sort['orderby'] ? array() : ai4seo_get_raw_option_snapshot( AI4SEO_CONTENT_TYPE_LIST_CACHE_VERSION_OPTION_NAME );
+	if ( null === $version ) {
+		ai4seo_content_type_list_read_failures( true );
+		return null;
+	}
+	$counts    = null;
+	$histogram = array();
+	$ranges    = array();
+	$selected  = array();
+	$tail      = array();
+	$offset    = ( $page - 1 ) * $per_page;
+	// Eight bytes per identity, capped at 8 MiB. Larger inventories retain the
+	// two-pass algorithm instead of growing an unbounded PHP identity array.
+	$packed       = PHP_INT_SIZE >= 8 ? array() : null;
+	$packed_bytes = 0;
+	$memory_limit = wp_convert_hr_to_bytes( ini_get( 'memory_limit' ) );
+	$packed_limit = $memory_limit > 0 ? min( 8 * 1024 * 1024, max( 0, intdiv( $memory_limit - memory_get_usage( true ) - 32 * 1024 * 1024, 2 ) ) ) : 8 * 1024 * 1024;
+	// Title/ID packets already have final order. Progress needs at most two scans.
+	for ( $pass = 0; $pass < ( $sort_by_progress ? 2 : 1 ); ++$pass ) {
+		$pass_counts    = array_fill_keys( array_keys( $parts['statuses'] ), 0 );
+		$pass_histogram = array();
+		$packets        = ai4seo_iterate_post_state_list_packets( $args, $parts, $sort, $status, $title_state );
+		foreach ( $packets as $packet ) {
+			foreach ( $packet['rows'] as $row ) {
+				foreach ( $pass_counts as $key => $count ) {
+					$pass_counts[ $key ] += (int) $row[ 'n_' . $key ];
+				}
+				if ( $counts_only || ! $row[ 'n_' . $status ] ) {
+					continue;
+				}
+				$id    = (int) $row['ID'];
+				$entry = array(
+					'id'    => $id,
+					'value' => $packet['values'][ $id ] ?? null,
+				);
+				if ( $sort_by_progress ) {
+					// Producers return 0..100 with at most two decimals; null sorts last.
+					$bucket                    = is_numeric( $entry['value'] ) ? (int) round( 100 * $entry['value'] ) : 10001;
+					$position                  = $pass_histogram[ $bucket ] ?? 0;
+					$pass_histogram[ $bucket ] = $position + 1;
+					if ( ! $pass && null !== $packed ) {
+						$packed_bytes += 8;
+						if ( $packed_bytes > $packed_limit ) {
+							$packed = null;
+						} else {
+							if ( ! isset( $packed[ $bucket ] ) ) {
+								$packed[ $bucket ] = '';
+							}
+							$packed[ $bucket ] .= pack( 'J', $id );
+						}
+					}
+					if ( $pass && isset( $ranges[ $bucket ] ) && $position >= $ranges[ $bucket ]['offset'] && $position < $ranges[ $bucket ]['end'] ) {
+						$selected[ $bucket ][] = $entry;
+					}
+					continue;
+				}
+				$position = $pass_counts[ $status ] - 1;
+				if ( $position >= $offset && $position < $offset + $per_page ) {
+					$selected[] = $entry;
+				}
+				// Retain only the last page to clamp requests beyond the filtered total.
+				$tail[] = $entry;
+				if ( count( $tail ) > $per_page ) {
+					array_shift( $tail );
+				}
+			}
 		}
-		if ( 'seo_progress' === $sort['orderby'] && is_numeric( $a['value'] ) !== is_numeric( $b['value'] ) ) {
-			return is_numeric( $a['value'] ) ? -1 : 1;
+		if ( ! $packets->getReturn() ) {
+			return null;
 		}
-		if ( 'title' === $sort['orderby'] ) {
-			return ai4seo_compare_content_type_title_entries( $a, $b, $sort['order'] );
-		}
-		$order = (float) $a['value'] <=> (float) $b['value'];
-		return $order ? ( 'asc' === $sort['order'] ? 1 : -1 ) * $order : ( $b['id'] <=> $a['id'] );
-	};
-	$counts_only = ! empty( $args['_counts_only'] );
-	$top_limit   = ! $counts_only && 'title' === $sort['orderby'] && $page <= intdiv( 1000, $per_page ) ? $page * $per_page : 0;
-	$top_bytes   = 0;
-	$top         = $top_limit ? new class( $compare ) extends SplHeap {
-		/**
-		 * Exact existing ordering; the worst retained entry is the root.
-		 *
-		 * @var callable
-		 */
-		private $order;
-		/**
-		 * Retain the original comparator.
-		 *
-		 * @param callable $order Comparator.
-		 */
-		public function __construct( callable $order ) {
-			$this->order = $order;
-		}
-		/**
-		 * Order the worst candidate first.
-		 *
-		 * @param mixed $a Entry.
-		 * @param mixed $b Entry.
-		 * @return int
-		 */
-		protected function compare( $a, $b ): int {
-			return call_user_func( $this->order, $a, $b );
-		}
-	} : null;
-	try {
-		do {
-			// Keep keyset traversal on the primary key; type/status indexes can re-sort the remaining inventory per packet.
-			$rows = ai4seo_post_state_query(
-				'SELECT p.ID,OCTET_LENGTH(p.post_content)+OCTET_LENGTH(p.post_excerpt)+OCTET_LENGTH(p.post_content_filtered)+OCTET_LENGTH(p.post_title)+OCTET_LENGTH(p.to_ping)+OCTET_LENGTH(p.pinged)+4096 AS row_bytes,' . implode( ',', $fields ) . ' FROM {{posts}} p FORCE INDEX (PRIMARY) WHERE ' . $parts['where'] . ' AND p.ID>{{after}} ORDER BY p.ID LIMIT {{limit}}',
-				$parts['values'] + array(
-					'after' => $after,
-					'limit' => ai4seo_post_state_batch_size(),
-				),
-				true
-			);
-			if ( null === $rows ) {
+		if ( ! $counts_only && 'id' !== $sort['orderby'] ) {
+			$current_version = ai4seo_get_raw_option_snapshot( AI4SEO_CONTENT_TYPE_LIST_CACHE_VERSION_OPTION_NAME );
+			if ( null === $current_version || $current_version !== $version ) {
+				ai4seo_content_type_list_read_failures( true, null === $current_version ? 'read' : 'changed' );
 				return null;
 			}
-			$titles = ai4seo_prime_post_state_list_packet( $rows );
-			if ( null === $titles ) {
-				return null;
+		}
+		// Compare identical integer counts independently of bucket insertion order.
+		$expected_hist = $histogram;
+		ksort( $expected_hist, SORT_NUMERIC );
+		ksort( $pass_histogram, SORT_NUMERIC );
+		if ( null !== $counts && ( $counts !== $pass_counts || $expected_hist !== $pass_histogram ) ) {
+			ai4seo_content_type_list_read_failures( true, 'changed' );
+			return null;
+		}
+		$counts = $pass_counts;
+		$pages  = max( 1, (int) ceil( $counts[ $status ] / $per_page ) );
+		$page   = min( $page, $pages );
+		$offset = ( $page - 1 ) * $per_page;
+		if ( ! $sort_by_progress ) {
+			if ( ! $counts_only && ! $selected && $counts[ $status ] ) {
+				$selected = array_slice( $tail, -( $counts[ $status ] - $offset ) );
 			}
-			$ids = array_map( 'intval', array_column( $rows, 'ID' ) );
-			if ( ! $ids ) {
+			break;
+		}
+		if ( ! $pass ) {
+			$histogram = $pass_histogram;
+			$ranges    = ai4seo_get_post_state_list_progress_ranges( $histogram, $sort['order'], $offset, $per_page );
+			if ( ! $ranges ) {
 				break;
 			}
-			$after    = end( $ids );
-			$eligible = ai4seo_filter_editable_post_ids( $ids );
+			if ( null !== $packed ) {
+				foreach ( $ranges as $bucket => $range ) {
+					for ( $position = $range['offset']; $position < $range['end']; ++$position ) {
+						$selected[] = array(
+							'id'    => unpack( 'J', substr( $packed[ $bucket ], $position * 8, 8 ) )[1],
+							'value' => 10001 === $bucket ? null : $bucket / 100,
+						);
+					}
+				}
+				break;
+			}
+		} else {
+			$ordered = array();
+			foreach ( $ranges as $bucket => $range ) {
+				$ordered = array_merge( $ordered, $selected[ $bucket ] ?? array() );
+			}
+			$selected = $ordered;
+		}
+	}
+	return array(
+		'post_ids'       => array_column( $selected, 'id' ),
+		'status_counts'  => $counts,
+		'total_items'    => $counts[ $status ],
+		'total_pages'    => $pages,
+		'current_page'   => $page,
+		'sort_value_map' => array_column( $selected, 'value', 'id' ),
+	);
+}
+
+/**
+ * Locate one page within progress buckets, retaining unknown values last.
+ *
+ * Bucket keys are hundredths of a percent; 10001 represents unknown progress.
+ * Both packed identities and the second traversal consume these ordered ranges.
+ *
+ * @param array  $histogram Entry counts by progress bucket.
+ * @param string $order Normalized sort direction.
+ * @param int    $offset Zero-based page offset within the filtered inventory.
+ * @param int    $per_page Visible page size.
+ * @return array Ordered bucket ranges with inclusive offsets and exclusive ends.
+ */
+function ai4seo_get_post_state_list_progress_ranges( array $histogram, string $order, int $offset, int $per_page ): array {
+	$unknown_count = $histogram[10001] ?? 0;
+	unset( $histogram[10001] );
+	if ( 'asc' === $order ) {
+		ksort( $histogram, SORT_NUMERIC );
+	} else {
+		krsort( $histogram, SORT_NUMERIC );
+	}
+	if ( $unknown_count ) {
+		$histogram[10001] = $unknown_count;
+	}
+
+	$ranges = array();
+	$before = 0;
+	foreach ( $histogram as $bucket => $count ) {
+		$from = max( 0, $offset - $before );
+		$to   = min( $count, $offset + $per_page - $before );
+		if ( $from < $to ) {
+			$ranges[ $bucket ] = array(
+				'offset' => $from,
+				'end'    => $to,
+			);
+		}
+		$before += $count;
+	}
+	return $ranges;
+}
+
+/**
+ * Require a current, fully reconciled title index without building it in a request.
+ *
+ * @return array|null Ready checkpoint, or a diagnosed read/preparation failure.
+ */
+function ai4seo_read_post_state_list_title_checkpoint(): ?array {
+	$state   = ai4seo_read_title_order_state();
+	$storage = ai4seo_read_post_state_storage_status();
+	$pending = ai4seo_post_state_query( 'SELECT post_id FROM {{work}} WHERE kind={{kind}} LIMIT 1', array( 'kind' => AI4SEO_TITLE_ORDER_WORK_KIND ), true );
+	if ( null === $state || null === $storage || null === $pending ) {
+		ai4seo_content_type_list_read_failures( true );
+		return null;
+	}
+	if ( 'ready' !== ( $state['phase'] ?? '' ) || ( $storage['generation'] ?? 0 ) !== $state['source_generation'] || ai4seo_title_order_signature() !== $state['signature'] || $pending ) {
+		ai4seo_content_type_list_read_failures( true, 'title_index' );
+		return null;
+	}
+	return $state;
+}
+
+/**
+ * Yield bounded, permission-filtered packets with the existing sort values.
+ *
+ * @param array  $args List arguments.
+ * @param array  $parts SQL predicates.
+ * @param array  $sort Normalized order.
+ * @param string $status Selected status.
+ * @param array  $title_state Ready title checkpoint, empty for ID traversal.
+ * @return Generator Packets; returns false after a diagnosed failure.
+ */
+function ai4seo_iterate_post_state_list_packets( array $args, array $parts, array $sort, string $status, array $title_state = array() ): Generator {
+	$context  = $args['content_context'] ?? AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_METADATA;
+	$failures = ai4seo_content_type_list_read_failures();
+	// SQL-only filters do not alter the existing certified capability profile.
+	$permission_args = $args;
+	foreach ( array( 'filter_text', 'author_not_in', 'post_mime_types', 'scoped_post_ids', 'new_or_existing_filter' ) as $key ) {
+		unset( $permission_args[ $key ] );
+	}
+	$uniform_permissions = null !== ai4seo_resolve_title_order_profile( $permission_args );
+	$row_bytes           = $uniform_permissions
+		? ( 'title' === $sort['orderby'] ? 'OCTET_LENGTH(p.post_title)+4096' : '4096' )
+		: 'OCTET_LENGTH(p.post_content)+OCTET_LENGTH(p.post_excerpt)+OCTET_LENGTH(p.post_content_filtered)+OCTET_LENGTH(p.post_title)+OCTET_LENGTH(p.to_ping)+OCTET_LENGTH(p.pinged)+4096';
+	$descending          = 'seo_progress' === $sort['orderby'] || ( 'id' === $sort['orderby'] && 'desc' === $sort['order'] );
+	$after               = null;
+	do {
+		$values = $parts['values'] + array( 'limit' => ai4seo_post_state_batch_size() );
+		$where  = $parts['where'];
+		$from   = '{{posts}} p FORCE INDEX (PRIMARY)';
+		$order  = 'p.ID ' . ( $descending ? 'DESC' : 'ASC' );
+		$cursor = '';
+		if ( $title_state ) {
+			// The page index seeks past earlier blocks, including on very deep pages.
+			// The explicit run_id lower bound also avoids tuple-range optimizer regressions.
+			$from    = '{{title_rows}} t FORCE INDEX (page) STRAIGHT_JOIN {{posts}} p ON p.ID=t.post_id';
+			$where  .= ' AND t.generation={{title_generation}} AND t.direction={{title_direction}} AND t.level={{title_level}} AND t.run_id>={{title_block}} AND (t.run_id>{{title_block}} OR t.position>{{title_position}})';
+			$values += array(
+				'title_generation' => $title_state['generation'],
+				'title_direction'  => 'asc' === $sort['order'] ? 1 : 2,
+				'title_level'      => $title_state['level'],
+				'title_block'      => $after['run_id'] ?? 0,
+				'title_position'   => $after['position'] ?? 0,
+			);
+			$order   = 't.run_id,t.position';
+			$cursor  = 't.run_id,t.position,';
+		} elseif ( null !== $after ) {
+			$where          .= $descending ? ' AND p.ID<{{after}}' : ' AND p.ID>{{after}}';
+			$values['after'] = $after;
+		}
+		$rows = ai4seo_post_state_query(
+			'SELECT ' . $cursor . 'p.ID,p.post_date_gmt,' . $row_bytes . ' AS row_bytes FROM ' . $from . ' WHERE ' . $where . ' ORDER BY ' . $order . ' LIMIT {{limit}}',
+			$values,
+			true
+		);
+		if ( null === $rows ) {
+			ai4seo_content_type_list_read_failures( true );
+			return false;
+		}
+		$titles = $uniform_permissions && 'title' !== $sort['orderby'] ? array() : ai4seo_prime_post_state_list_packet( $rows, $uniform_permissions );
+		if ( null === $titles ) {
+			return false;
+		}
+		$ids = array_map( 'intval', array_column( $rows, 'ID' ) );
+		if ( ! $ids ) {
+			break;
+		}
+		$after = $title_state ? end( $rows ) : end( $ids );
+		try {
+			if ( ! ai4seo_read_post_state_list_packet_statuses( $rows, $parts, $args ) ) {
+				return false;
+			}
+			$eligible = $uniform_permissions ? $ids : ai4seo_filter_editable_post_ids( $ids );
 			$eligible = ai4seo_filter_post_ids_by_disabled_taxonomy_terms( $eligible, $args['disabled_taxonomy_terms'] ?? array() );
 			$eligible = ai4seo_filter_post_ids_by_language( $eligible, $args['filter_language'] ?? '' );
 			$eligible = ai4seo_filter_post_ids_by_disabled_wpml_languages( $eligible, $args['disabled_wpml_language_codes'] ?? array() );
 			$lookup   = array_fill_keys( $eligible, true );
+			$rows     = array_values(
+				array_filter(
+					$rows,
+					static function ( array $row ) use ( $lookup ): bool {
+						return isset( $lookup[ (int) $row['ID'] ] );
+					}
+				)
+			);
 			$selected = array();
 			foreach ( $rows as $row ) {
-				$id = (int) $row['ID'];
-				if ( ! isset( $lookup[ $id ] ) ) {
-					continue;
-				}
-				foreach ( $counts as $key => $count ) {
-					$counts[ $key ] += (int) $row[ 'n_' . $key ];
-				}
-				if ( ! $counts_only && $row[ 'n_' . $status ] ) {
-					$selected[] = $id;
+				if ( empty( $args['_counts_only'] ) && $row[ 'n_' . $status ] ) {
+					$selected[] = (int) $row['ID'];
 				}
 			}
 			$values = array();
-			if ( 'title' === $sort['orderby'] ) {
+			if ( $selected && 'title' === $sort['orderby'] ) {
 				$values = $titles;
-			} elseif ( 'seo_progress' === $sort['orderby'] ) {
+			} elseif ( $selected && 'seo_progress' === $sort['orderby'] ) {
 				$read   = false;
 				$issues = array();
 				if ( AI4SEO_BULK_GENERATION_QUEUE_CONTEXT_ATTACHMENT_ATTRIBUTES === $context ) {
@@ -494,223 +699,91 @@ function ai4seo_read_post_state_list_runs( array $args, array $parts, array $sor
 						$values[ $id ] = $read && isset( $summary[ $id ] ) ? ( $total ? min( 100, round( $summary[ $id ] / $total * 100, 2 ) ) : 100 ) : null;
 					}
 				} else {
-					$field_states = array();
+					$field_states = null;
 					$values       = ai4seo_read_percentage_of_available_metadata_by_post_ids( $selected, 0, $read, $field_states, $issues );
 				}
-			}
-			$run = array();
-			foreach ( $selected as $id ) {
-				$run[] = array(
-					'id'    => $id,
-					'value' => $values[ $id ] ?? null,
-				);
-			}
-			if ( $run && null !== $top ) {
-				$run_bytes = array_sum(
-					array_map(
-						static function ( array $entry ): int {
-							return strlen( (string) $entry['value'] ) + 512;
-						},
-						$run
-					)
-				);
-				if ( $top_bytes + $run_bytes > 8 * 1024 * 1024 ) {
-					// The earlier retained prefix contains every prior candidate that can
-					// still reach this page. Spill it and all later packets when titles are long.
-					$run = array_merge( iterator_to_array( $top, false ), $run );
-					$top = null;
-				} else {
-					ai4seo_select_post_state_top_k( $top, $run, $top_limit, $compare, $top_bytes );
-					$run = array();
+				if ( ! $read ) {
+					ai4seo_content_type_list_read_failures( true );
+					return false;
 				}
 			}
-			if ( $run ) {
-				usort( $run, $compare );
-				// Auto-deleted private files avoid retaining all sort keys or identities in PHP.
-				$stream = tmpfile();
-				if ( false === $stream ) {
-					return null;
-				}
-				$runs[] = $stream;
-				foreach ( $run as $entry ) {
-					$line = wp_json_encode( $entry ) . "\n";
-					// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- Private auto-deleted merge runs need stream access, not FTP filesystem credentials.
-					if ( strlen( $line ) !== fwrite( $stream, $line ) ) {
-						return null;
-					}
-				}
-				rewind( $stream );
-				array_pop( $runs );
-				// Binary merge levels bound open files to O(log packets), even on very large sites.
-				$level = 0;
-				while ( isset( $runs[ $level ] ) ) {
-					$merged = ai4seo_merge_post_state_sort_runs( $runs[ $level ], $stream, $compare );
-					// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Close the consumed private run.
-					fclose( $stream );
-					if ( false === $merged ) {
-						return null;
-					}
-					// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Close the consumed private run.
-					fclose( $runs[ $level ] );
-					unset( $runs[ $level ] );
-					$stream = $merged;
-					++$level;
-				}
-				$runs[ $level ] = $stream;
+			if ( ai4seo_content_type_list_read_failures() !== $failures ) {
+				return false;
 			}
+			yield array(
+				'rows'   => $rows,
+				'values' => $values,
+			);
+		} finally {
 			foreach ( $ids as $id ) {
 				wp_cache_delete( $id, 'posts' );
 				wp_cache_delete( $id, 'post_meta' );
 			}
-			do_action( 'ai4seo_post_state_checkpoint', 'after_list_packet' );
-		} while ( $rows );
-		$pages = max( 1, (int) ceil( $counts[ $status ] / $per_page ) );
-		$page  = min( $page, $pages );
-		if ( $counts_only || null !== $top ) {
-			$selected = null === $top ? array() : iterator_to_array( $top, false );
-			usort( $selected, $compare );
-			$selected = array_slice( $selected, ( $page - 1 ) * $per_page, $per_page );
-			return array(
-				'post_ids'       => array_column( $selected, 'id' ),
-				'status_counts'  => $counts,
-				'total_items'    => $counts[ $status ],
-				'total_pages'    => $pages,
-				'current_page'   => $page,
-				'sort_value_map' => array_column( $selected, 'value', 'id' ),
-			);
 		}
-		$heap = new class( $compare ) extends SplHeap {
-			/**
-			 * Original list ordering, reversed below so the best run head is extracted first.
-			 *
-			 * @var callable Ordering shared with the existing natural-sort contract.
-			 */
-			private $order;
-			/**
-			 * Retain the comparator shared by all sorted runs.
-			 *
-			 * @param callable $order Comparator.
-			 */
-			public function __construct( callable $order ) {
-				$this->order = $order;
-			}
-			/**
-			 * Reverse the max-heap order to merge the earliest entry from each run.
-			 *
-			 * @param mixed $a Head.
-			 * @param mixed $b Head.
-			 * @return int.
-			 */
-			protected function compare( $a, $b ): int {
-				return -call_user_func( $this->order, $a, $b );
-			}
-		};
-		foreach ( $runs as $index => $stream ) {
-			$entry        = json_decode( fgets( $stream ), true );
-			$entry['run'] = $index;
-			$heap->insert( $entry );
-		}
-		$ids    = array();
-		$values = array();
-		$skip   = ( $page - 1 ) * $per_page;
-		for ( $position = 0; $position < $skip + $per_page; ++$position ) {
-			if ( $heap->isEmpty() ) {
-				break;
-			}
-			$entry = $heap->extract();
-			if ( $position >= $skip ) {
-				$ids[]                  = $entry['id'];
-				$values[ $entry['id'] ] = $entry['value'];
-			}
-			$line = fgets( $runs[ $entry['run'] ] );
-			if ( false !== $line ) {
-				$next        = json_decode( $line, true );
-				$next['run'] = $entry['run'];
-				$heap->insert( $next );
-			}
-		}
-		return array(
-			'post_ids'       => $ids,
-			'status_counts'  => $counts,
-			'total_items'    => $counts[ $status ],
-			'total_pages'    => $pages,
-			'current_page'   => $page,
-			'sort_value_map' => $values,
-		);
-	} finally {
-		foreach ( $runs as $stream ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Close the private temporary stream in every exit path.
-			fclose( $stream );
-		}
-	}
-}
-
-
-/**
- * Merge two sorted private streams while retaining only their heads in memory.
- *
- * @param resource $left First run.
- * @param resource $right Second run.
- * @param callable $compare Existing list comparator.
- * @return resource|false Merged auto-deleted stream or a read/write failure.
- */
-function ai4seo_merge_post_state_sort_runs( $left, $right, callable $compare ) {
-	$output = tmpfile();
-	if ( false === $output ) {
-		return false;
-	}
-	$lines = array( fgets( $left ), fgets( $right ) );
-	while ( false !== $lines[0] || false !== $lines[1] ) {
-		$heads = array_map(
-			static function ( $line ) {
-				return false === $line ? null : json_decode( $line, true );
-			},
-			$lines
-		);
-		if ( ( false !== $lines[0] && ! is_array( $heads[0] ) ) || ( false !== $lines[1] && ! is_array( $heads[1] ) ) ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Failed private merge must be removed.
-			fclose( $output );
+		do_action( 'ai4seo_post_state_checkpoint', 'after_list_packet' );
+	} while ( true );
+	if ( $title_state ) {
+		$current = ai4seo_read_post_state_list_title_checkpoint();
+		if ( null === $current ) {
 			return false;
 		}
-		$pick = null === $heads[0] ? 1 : ( null === $heads[1] || $compare( $heads[0], $heads[1] ) <= 0 ? 0 : 1 );
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- Private sorted runs require native stream access.
-		if ( strlen( $lines[ $pick ] ) !== fwrite( $output, $lines[ $pick ] ) ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Failed private merge must be removed.
-			fclose( $output );
+		if ( $current !== $title_state ) {
+			ai4seo_content_type_list_read_failures( true, 'changed' );
 			return false;
 		}
-		$lines[ $pick ] = fgets( 0 === $pick ? $left : $right );
 	}
-	if ( ! feof( $left ) || ! feof( $right ) ) {
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Failed private merge must be removed.
-		fclose( $output );
-		return false;
-	}
-	rewind( $output );
-	return $output;
+	return true;
 }
 
 /**
- * Retain only the requested prefix in the exact existing natural order.
+ * Read all status memberships once per packet rather than probing each status
+ * repeatedly for every candidate. Only the active source generations are read.
  *
- * @param SplHeap  $heap Worst retained entry first.
- * @param array    $entries Bounded candidate packet.
- * @param int      $limit Maximum retained entries.
- * @param callable $compare Existing comparator.
- * @param int      $bytes Retained title and entry budget, updated by reference.
- * @return void
+ * @param array $rows Candidate rows, enriched in place.
+ * @param array $parts Authoritative status predicate bindings.
+ * @param array $args List arguments including the automatic-queue date filter.
+ * @return bool Whether every membership was read successfully.
  */
-function ai4seo_select_post_state_top_k( SplHeap $heap, array $entries, int $limit, callable $compare, int &$bytes ): void {
-	foreach ( $entries as $entry ) {
-		if ( $heap->count() < $limit ) {
-			$heap->insert( $entry );
-			$bytes += strlen( (string) $entry['value'] ) + 512;
-		} elseif ( $compare( $entry, $heap->top() ) < 0 ) {
-			$removed = $heap->extract();
-			$bytes  += strlen( (string) $entry['value'] ) - strlen( (string) $removed['value'] );
-			$heap->insert( $entry );
+function ai4seo_read_post_state_list_packet_statuses( array &$rows, array $parts, array $args ): bool {
+	$statuses_by_key = array();
+	$conditions      = array();
+	foreach ( $parts['statuses'] as $status => $predicate ) {
+		if ( isset( $parts['values'][ 'b_' . $status ] ) ) {
+			$statuses_by_key[ $parts['values'][ 'g_' . $status ] . ':' . $parts['values'][ 'b_' . $status ] ] = $status;
+			$conditions[] = '(generation={{g_' . $status . '}} AND bucket={{b_' . $status . '}})';
 		}
 	}
+	$memberships = ai4seo_post_state_query(
+		'SELECT post_id,generation,bucket FROM {{memberships}} FORCE INDEX (post_lookup) WHERE post_id IN ({{ids}}) AND area=1 AND (' . implode( ' OR ', $conditions ) . ')',
+		$parts['values'] + array( 'ids' => array_map( 'intval', array_column( $rows, 'ID' ) ) ),
+		true
+	);
+	if ( null === $memberships ) {
+		ai4seo_content_type_list_read_failures( true );
+		return false;
+	}
+	$memberships_by_id = array();
+	foreach ( $memberships as $membership ) {
+		$key = $membership['generation'] . ':' . $membership['bucket'];
+		if ( isset( $statuses_by_key[ $key ] ) ) {
+			$memberships_by_id[ (int) $membership['post_id'] ][ $statuses_by_key[ $key ] ] = true;
+		}
+	}
+	$date    = ai4seo_get_bulk_generation_date_filter_state( $args['new_or_existing_filter'] ?? 'both', $args['new_or_existing_filter_reference_timestamp'] ?? 0 );
+	$waiting = ! empty( $args['is_bulk_generation_activated'] ) && ! empty( $args['should_auto_queue_bulk_generation_entries'] ) && ! empty( $args['has_enough_credits'] ) && $date['is_valid'];
+	foreach ( $rows as &$row ) {
+		$membership = $memberships_by_id[ (int) $row['ID'] ] ?? array();
+		$hidden     = ! empty( $membership['hidden'] );
+		foreach ( $parts['statuses'] as $status => $predicate ) {
+			$row[ 'n_' . $status ] = (int) ( ! empty( $membership[ $status ] ) && ( 'hidden' === $status || ! $hidden ) );
+		}
+		$row['n_all']              = (int) ! $hidden;
+		$row['n_unverified']       = 0;
+		$date_matches              = 'both' === $date['filter'] || ( 'new' === $date['filter'] ? $row['post_date_gmt'] > $date['post_date_gmt'] : $row['post_date_gmt'] <= $date['post_date_gmt'] );
+		$row['n_waiting_to_queue'] = (int) ( $waiting && $date_matches && ! $hidden && ! empty( $membership['missing'] ) && empty( $membership['queued'] ) && empty( $membership['processing'] ) && empty( $membership['failed'] ) && empty( $membership['auto_queue_disallowed'] ) );
+	}
+	unset( $row );
+	return true;
 }
 
 /**
@@ -720,9 +793,10 @@ function ai4seo_select_post_state_top_k( SplHeap $heap, array $entries, int $lim
  * A single larger object is processed alone, subject to the request memory limit.
  *
  * @param array $rows Candidate rows, trimmed by reference.
+ * @param bool  $titles_only Certified permissions only need raw sort titles.
  * @return array|null Raw titles, or null after a read failure.
  */
-function ai4seo_prime_post_state_list_packet( array &$rows ): ?array {
+function ai4seo_prime_post_state_list_packet( array &$rows, bool $titles_only = false ): ?array {
 	$bytes = 0;
 	$count = 0;
 	foreach ( $rows as $row ) {
@@ -738,16 +812,20 @@ function ai4seo_prime_post_state_list_packet( array &$rows ): ?array {
 	}
 	$limit = wp_convert_hr_to_bytes( ini_get( 'memory_limit' ) );
 	if ( $limit > 0 && memory_get_usage( true ) + 3 * $bytes + 8 * 1024 * 1024 > $limit ) {
+		ai4seo_content_type_list_read_failures( true, 'memory' );
 		return null;
 	}
-	$posts = ai4seo_post_state_query( 'SELECT * FROM {{posts}} WHERE ID IN ({{ids}})', array( 'ids' => array_map( 'intval', array_column( $rows, 'ID' ) ) ), true );
+	$posts = ai4seo_post_state_query( 'SELECT ' . ( $titles_only ? 'ID,post_title' : '*' ) . ' FROM {{posts}} WHERE ID IN ({{ids}})', array( 'ids' => array_map( 'intval', array_column( $rows, 'ID' ) ) ), true );
 	if ( null === $posts ) {
+		ai4seo_content_type_list_read_failures( true );
 		return null;
 	}
 	$titles = array();
 	foreach ( $posts as $post ) {
 		$titles[ (int) $post['ID'] ] = (string) $post['post_title'];
-		wp_cache_add( (int) $post['ID'], sanitize_post( (object) $post, 'raw' ), 'posts' );
+		if ( ! $titles_only ) {
+			wp_cache_add( (int) $post['ID'], sanitize_post( (object) $post, 'raw' ), 'posts' );
+		}
 	}
 	return $titles;
 }

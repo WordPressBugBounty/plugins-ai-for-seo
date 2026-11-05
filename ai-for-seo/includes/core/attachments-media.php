@@ -3913,35 +3913,41 @@ function ai4seo_normalize_generation_image_url( string $url, string $base_url ):
  * @param int                   $attachment_id Attachment identity.
  * @param string                $attachment_url Exact attachment URL.
  * @param string                $page_url Source page URL.
+ * @param array                 $known_urls Optional shared exact URL identities.
  * @return bool Whether this image is the requested attachment.
  */
 function ai4seo_generation_image_matches(
 	WP_HTML_Tag_Processor $processor,
 	int $attachment_id,
 	string $attachment_url,
-	string $page_url
+	string $page_url,
+	array $known_urls = array()
 ): bool {
-	if ( 0 < $attachment_id && $processor->has_class( 'wp-image-' . $attachment_id ) ) {
-		return true;
+	$known_urls = $known_urls ? $known_urls : ai4seo_get_attachment_context_image_urls( $attachment_id, $attachment_url );
+	$ids        = array();
+
+	if ( preg_match_all( '/(?:^|\\s)wp-image-([0-9]+)(?=\\s|$)/', (string) $processor->get_attribute( 'class' ), $matches ) ) {
+		$ids = array_map( 'absint', $matches[1] );
 	}
 
-	if ( '' === $attachment_url ) {
-		return false;
+	foreach ( array( 'data-id', 'data-attachment-id', 'data-media-id' ) as $attribute ) {
+		$value = $processor->get_attribute( $attribute );
+
+		if ( is_string( $value ) && ctype_digit( $value ) && (int) $value > 0 ) {
+			$ids[] = (int) $value;
+		}
 	}
 
-	$base_url = '' !== $page_url ? $page_url : $attachment_url;
-	$expected = ai4seo_normalize_generation_image_url( $attachment_url, $base_url );
-
-	if ( '' === $expected ) {
+	if ( array_diff( $ids, array( $attachment_id ) ) ) {
 		return false;
 	}
 
 	$sources = array();
 
-	foreach ( array( 'src', 'data-src', 'data-lazy-src', 'data-original' ) as $attribute ) {
+	foreach ( array( 'src', 'data-src', 'data-lazy-src', 'data-original', 'data-full-image', 'data-light-image' ) as $attribute ) {
 		$value = $processor->get_attribute( $attribute );
 
-		if ( is_string( $value ) ) {
+		if ( is_string( $value ) && '' !== $value ) {
 			$sources[] = $value;
 		}
 	}
@@ -3954,24 +3960,47 @@ function ai4seo_generation_image_matches(
 		}
 	}
 
+	$matched            = in_array( $attachment_id, $ids, true );
+	$normalized_sources = array();
+
 	foreach ( $sources as $source ) {
-		if ( '' !== trim( $source ) && ai4seo_normalize_generation_image_url( $source, $base_url ) === $expected ) {
-			return true;
+		$url                        = ai4seo_normalize_generation_image_url( $source, $page_url ? $page_url : $attachment_url );
+		$normalized_sources[ $url ] = true;
+
+		if ( isset( $known_urls[ $url ] ) ) {
+			$matched = true;
 		}
 	}
 
-	return false;
+	if ( ! $matched ) {
+		return false;
+	}
+
+	foreach ( array_diff_key( $normalized_sources, $known_urls ) as $url => $unused ) {
+		// Keep the cap on contradiction checks: entirely known source lists need no lookup.
+		if ( count( $normalized_sources ) > 50 ) {
+			return false;
+		}
+
+		$other_id = attachment_url_to_postid( $url );
+
+		if ( $other_id > 0 && $other_id !== $attachment_id ) {
+			return false;
+		}
+	}
+
+	return true;
 }
 
 
 /**
- * Return a bounded visible excerpt around the first real matching image.
+ * Return bounded visible text from a matching image's own single-image container.
  *
  * @param string $html Intact normalized source markup.
  * @param int    $attachment_id Requested attachment identity.
  * @param string $attachment_url Exact attachment URL.
  * @param string $page_url Base URL for relative image sources.
- * @return string Surrounding context, or empty when no real occurrence is found.
+ * @return string Isolated context, or empty when no eligible container supplies text.
  */
 function ai4seo_get_attachment_surrounding_visible_text(
 	string $html,
@@ -3979,19 +4008,8 @@ function ai4seo_get_attachment_surrounding_visible_text(
 	string $attachment_url,
 	string $page_url = ''
 ): string {
-	$position = null;
-	$text     = ai4seo_extract_generation_visible_text( $html, $attachment_id, $attachment_url, $page_url, $position );
-
-	if ( null === $position ) {
-		return '';
-	}
-
-	$before = ai4seo_mb_substr( $text, max( 0, $position - 1000 ), min( 1000, $position ) );
-	$after  = ai4seo_mb_substr( $text, $position, 1100 );
-	$before = ai4seo_truncate_sentence( ai4seo_remove_double_sentences( trim( $before ) ), 900, 1000 );
-	$after  = ai4seo_truncate_sentence( ai4seo_remove_double_sentences( trim( $after ) ), 1000, 1100 );
-
-	return trim( $before . ' #IMAGE IS USED HERE# ' . $after );
+	$evidence = ai4seo_get_attachment_html_evidence( $html, $attachment_id, $attachment_url, $page_url );
+	return $evidence['text'];
 }
 
 
@@ -4000,59 +4018,12 @@ function ai4seo_get_attachment_surrounding_visible_text(
  *
  * @param int  $attachment_post_id    The attachment post ID.
  * @param bool $require_editable_post Whether the current plugin user must be able to edit the context post.
- * @return string the post-related context for the attachment, including condensed content and surrounding content
- * of the first occurrence of the attachment in the content, separated by " | ".
- * Returns an empty string if no related post or content is found.
+ * @return string Verified image text and, when permitted by the relation, source identity;
+ *                empty when the selected policy supplies no usable context.
  */
 function ai4seo_get_attachment_post_related_context( int $attachment_post_id, bool $require_editable_post = false ): string {
-	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
-		ai4seo_debug_message( 630085028, 'Prevented loop', true );
-		return '';
-	}
-
-	$attachment_post_id = absint( $attachment_post_id );
-
-	if ( $attachment_post_id <= 0 ) {
-		ai4seo_debug_message( 630085031, 'Invalid attachment post ID', true );
-		return '';
-	}
-
-	$attachment_url = ai4seo_get_attachment_url( $attachment_post_id );
-
-	// try to find a post where the attachment is used (e.g. as featured image or in the content).
-	$post_id = ai4seo_get_first_attachment_using_post_id( $attachment_post_id, $require_editable_post );
-
-	if ( $post_id <= 0 ) {
-		return '';
-	}
-
-	$post = get_post( $post_id );
-
-	if ( ! $post ) {
-		ai4seo_debug_message( 630085029, 'Could not read post for attachment context' );
-		return '';
-	}
-
-	// POST CONTENT.
-	$post_related_context = ai4seo_get_condensed_post_content_from_database( $post_id );
-
-	// ADD POST CONTEXT.
-	ai4seo_add_post_context( $post_id, $post_related_context, false );
-
-	// Locate whole image nodes before taking windows from cleaned text.
-	$combined_post_content                      = ai4seo_get_combined_post_content( $post_id, '', true );
-	$post_content_around_first_image_occurrence = ai4seo_get_attachment_surrounding_visible_text(
-		(string) $combined_post_content,
-		$attachment_post_id,
-		(string) $attachment_url,
-		(string) get_permalink( $post_id )
-	);
-
-	if ( $post_content_around_first_image_occurrence ) {
-		$post_related_context .= " Image surrounding content: '[...] " . $post_content_around_first_image_occurrence . " [...]'";
-	}
-
-	return $post_related_context;
+	$result = ai4seo_resolve_attachment_usage_context( $attachment_post_id, $require_editable_post );
+	return $result['context'];
 }
 
 // =========================================================================================== \
@@ -4837,6 +4808,21 @@ function ai4seo_extract_related_attachment_post_ids_from_value( $value, string $
 
 	// Preserve nested array keys as context because keys often tell us whether numeric values are media references.
 	if ( is_array( $value ) ) {
+		if ( ! empty( $related_attachment_scan_state['verified_attachment_id'] ) && ai4seo_is_verified_attachment_reference_key( $context_key ) && isset( $value['id'] ) ) {
+			$target_id = $related_attachment_scan_state['verified_attachment_id'];
+			if ( ! in_array( $target_id, ai4seo_normalize_verified_attachment_ids( $value['id'] ), true ) ) {
+				return array();
+			}
+			if ( ! empty( $value['url'] ) && is_string( $value['url'] ) ) {
+				$url = ai4seo_normalize_generation_image_url( $value['url'], $related_attachment_scan_state['page_url'] ?? '' );
+				if ( ! isset( $related_attachment_scan_state['verified_attachment_urls'][ $url ] ) ) {
+					$other_id = attachment_url_to_postid( $url );
+					if ( $other_id && $other_id !== $target_id ) {
+						return array();
+					}
+				}
+			}
+		}
 		foreach ( $value as $this_key => $this_value ) {
 			$this_context_key = ai4seo_get_related_attachment_nested_context_key( $context_key, $this_key );
 
@@ -4856,6 +4842,10 @@ function ai4seo_extract_related_attachment_post_ids_from_value( $value, string $
 
 	// Numeric values are only treated as IDs when the surrounding key is known to describe media.
 	if ( is_numeric( $value ) && ai4seo_is_attachment_like_reference_key( $context_key ) ) {
+		if ( ! empty( $related_attachment_scan_state['verified_attachment_id'] )
+			&& ( ! ai4seo_is_verified_attachment_reference_key( $context_key ) || ( ! is_int( $value ) && ( ! is_string( $value ) || ! ctype_digit( $value ) ) ) ) ) {
+			return array();
+		}
 		return array( absint( $value ) );
 	}
 
@@ -4949,6 +4939,40 @@ function ai4seo_extract_related_attachment_post_ids_from_string( string $content
 	}
 
 	$related_attachment_post_ids = array();
+
+	if ( ! empty( $related_attachment_scan_state['verified_attachment_id'] ) ) {
+		// Verification reuses this parser but accepts only typed values and native galleries.
+		if ( 'post_content' === $context_key ) {
+			if ( false !== strpos( $content, '[gallery' ) && preg_match_all( '/' . get_shortcode_regex( array( 'gallery' ) ) . '/s', $content, $galleries, PREG_SET_ORDER ) ) {
+				foreach ( $galleries as $gallery ) {
+					if ( '[' === $gallery[1] && ']' === $gallery[6] ) {
+						continue;
+					}
+					$attributes = shortcode_parse_atts( $gallery[3] );
+					if ( is_array( $attributes ) ) {
+						$related_attachment_post_ids = array_merge(
+							$related_attachment_post_ids,
+							ai4seo_get_verified_gallery_attachment_ids(
+								$attributes,
+								$related_attachment_scan_state['verified_attachment_id'],
+								$related_attachment_scan_state['source_post_id'] ?? 0
+							)
+						);
+					}
+				}
+			}
+			return ai4seo_normalize_related_attachment_post_ids( $related_attachment_post_ids );
+		}
+		if ( ! ai4seo_is_verified_attachment_reference_key( $context_key ) ) {
+			return array();
+		}
+		if ( preg_match( '/^[0-9,\s]+$/', $content ) ) {
+			return wp_parse_id_list( $content );
+		}
+		$url = ai4seo_normalize_generation_image_url( $content, $related_attachment_scan_state['page_url'] ?? '' );
+		return isset( $related_attachment_scan_state['verified_attachment_urls'][ $url ] )
+			? array( $related_attachment_scan_state['verified_attachment_id'] ) : array();
+	}
 
 	// Match common WordPress and builder patterns while intentionally ignoring ambiguous bare "id" keys.
 	$id_patterns = array(
@@ -5063,6 +5087,73 @@ function ai4seo_extract_related_attachment_post_ids_from_image_urls( string $con
 }
 
 // =========================================================================================== \
+
+/**
+ * Read declared gallery IDs or verify the target against a native parent-based gallery.
+ *
+ * Parent galleries inspect only the target attachment, never enumerate every sibling
+ * or execute shortcodes. Selection precedence and parent visibility follow gallery_shortcode().
+ *
+ * @param array $attributes Parsed native gallery attributes.
+ * @param int   $attachment_id Target media ID.
+ * @param int   $source_post_id Post containing the shortcode.
+ * @return array Declared IDs, or the verified target ID for a parent-based gallery.
+ */
+function ai4seo_get_verified_gallery_attachment_ids( array $attributes, int $attachment_id, int $source_post_id ): array {
+	if ( ! empty( $attributes['ids'] ) ) {
+		return ai4seo_normalize_verified_attachment_ids( $attributes['ids'] );
+	}
+	if ( ! empty( $attributes['include'] ) ) {
+		return ai4seo_normalize_verified_attachment_ids( $attributes['include'] );
+	}
+
+	$gallery_post_id = (int) ( $attributes['id'] ?? $source_post_id );
+	$attachment      = get_post( $attachment_id );
+	if ( $gallery_post_id <= 0 || ! $attachment || 'attachment' !== $attachment->post_type
+		|| 'inherit' !== $attachment->post_status || 0 !== strpos( $attachment->post_mime_type, 'image/' )
+		|| $gallery_post_id !== (int) $attachment->post_parent
+		|| in_array( $attachment_id, wp_parse_id_list( $attributes['exclude'] ?? '' ), true ) ) {
+		return array();
+	}
+
+	$gallery_post = get_post( $gallery_post_id );
+	if ( ! $gallery_post
+		|| ( ! is_post_publicly_viewable( $gallery_post ) && ! current_user_can( 'read_post', $gallery_post_id ) )
+		|| post_password_required( $gallery_post ) ) {
+		return array();
+	}
+
+	return array( $attachment_id );
+}
+
+/**
+ * Validate media ID lists without converting partial numbers or floats to identities.
+ *
+ * @param mixed $value A scalar ID or explicit ID list.
+ * @return array Exact positive IDs.
+ */
+function ai4seo_normalize_verified_attachment_ids( $value ): array {
+	if ( is_string( $value ) && preg_match( '/^[0-9,\s]+$/', $value ) ) {
+		$value = preg_split( '/[,\s]+/', trim( $value ) );
+	}
+	$ids = array();
+	foreach ( (array) $value as $id ) {
+		if ( ( is_int( $id ) || ( is_string( $id ) && ctype_digit( $id ) ) ) && (int) $id > 0 ) {
+			$ids[] = (int) $id;
+		}
+	}
+	return array_values( array_unique( $ids ) );
+}
+
+/**
+ * Recognize defined media fields, excluding arbitrary IDs and image dimensions.
+ *
+ * @param string $context_key Nested builder field path.
+ * @return bool Whether the terminal field represents media.
+ */
+function ai4seo_is_verified_attachment_reference_key( string $context_key ): bool {
+	return 1 === preg_match( '/(?:^|\.)(?:_thumbnail_id|_product_image_gallery|attachment_id|attachment_ids|image_id|image_ids|media_id|media_ids|image|images|gallery|background_image|thumbnail|photo|picture|poster)(?:\.(?:id|ids|url))?$/i', $context_key );
+}
 
 /**
  * Checks whether a key usually stores attachment references.
@@ -5190,13 +5281,16 @@ function ai4seo_maybe_disable_deep_context_search_for_large_site(): bool {
  * Returns an empty result when the current database cannot enforce a statement timeout,
  * because these deep-context queries are optional and must not block cron execution.
  *
- * @param string $select_sql A fully prepared SELECT query.
- * @param int    $timeout_seconds The maximum database execution time in seconds.
- * @param string $debug_context Short context for debug logs.
+ * @param string    $select_sql A fully prepared SELECT query.
+ * @param int       $timeout_seconds The maximum database execution time in seconds.
+ * @param string    $debug_context Short context for debug logs.
+ * @param bool|null $query_succeeded Receives whether the optional query actually completed.
+ * @param bool      $record_timeout Whether to preserve the legacy timeout-disable side effect.
  * @return array
  */
-function ai4seo_get_col_with_optional_statement_timeout( string $select_sql, int $timeout_seconds = AI4SEO_DEEP_CONTEXT_SEARCH_QUERY_TIMEOUT_SECONDS, string $debug_context = '' ): array {
+function ai4seo_get_col_with_optional_statement_timeout( string $select_sql, int $timeout_seconds = AI4SEO_DEEP_CONTEXT_SEARCH_QUERY_TIMEOUT_SECONDS, string $debug_context = '', ?bool &$query_succeeded = null, bool $record_timeout = true ): array {
 	global $wpdb;
+	$query_succeeded = false;
 
 	$select_sql = trim( $select_sql );
 
@@ -5242,7 +5336,7 @@ function ai4seo_get_col_with_optional_statement_timeout( string $select_sql, int
 		$wpdb->last_error = $previous_last_error;
 		ai4seo_debug_message( 630085038, 'Optional timed query failed or timed out. ' . $debug_context . ' Error: ' . $query_error, true );
 
-		if ( ai4seo_is_database_statement_timeout_error( $query_error, $query_error_code ) ) {
+		if ( $record_timeout && ai4seo_is_database_statement_timeout_error( $query_error, $query_error_code ) ) {
 			ai4seo_handle_deep_context_search_statement_timeout();
 		}
 
@@ -5255,6 +5349,7 @@ function ai4seo_get_col_with_optional_statement_timeout( string $select_sql, int
 		return array();
 	}
 
+	$query_succeeded = true;
 	return $query_results;
 }
 
@@ -5283,242 +5378,609 @@ function ai4seo_handle_deep_context_search_statement_timeout(): void {
 // =========================================================================================== \
 
 /**
- * Returns the first matching post ID where an attachment is used.
+ * Return the verified source selected by the attachment's current context policy.
  *
- * Preferred lookup order:
- * 1) parent_id relation
- * 2) Featured image relation (_thumbnail_id)
- * 3) Deep search (optional): post_content + postmeta references
- * 4) Related Media modal fallback (ai4seo_related_post_id)
+ * Fixed choices are reverified without falling back to another post. Automatic
+ * discovery checks the parent, then unique featured-image and optional deep-search
+ * matches. Legacy Related Media values are discovery hints only.
  *
  * @param int  $attachment_post_id    The attachment post ID.
  * @param bool $require_editable_post Whether the current plugin user must be able to edit the context post.
- * @return int first matching post id or 0 if not found
+ * @return int Verified source post ID, or zero when no source can be selected safely.
  */
 function ai4seo_get_first_attachment_using_post_id( int $attachment_post_id, bool $require_editable_post = false ): int {
-	$attachment_post_id = absint( $attachment_post_id );
+	$result = ai4seo_resolve_attachment_usage_context( $attachment_post_id, $require_editable_post );
+	return $result['post_id'];
+}
 
-	if ( ai4seo_prevent_loops( __FUNCTION__ ) ) {
-		ai4seo_debug_message( 605028311, 'Prevented loop', true );
-		// If recursion protection blocks fresh discovery, the stored modal result is still safe to read.
-		return ai4seo_get_attachment_related_post_id( $attachment_post_id, $require_editable_post );
-	}
-
-	if ( $attachment_post_id <= 0 ) {
-		return 0;
-	}
-
-	$attachment_post = get_post( $attachment_post_id );
-
-	if ( ! $attachment_post ) {
-		return 0;
-	}
-
-	if ( 'attachment' !== $attachment_post->post_type ) {
-		return 0;
-	}
-
-	// try parent post relation first.
-	$parent_post_id = absint( $attachment_post->post_parent ?? 0 );
-
-	if ( ai4seo_is_attachment_context_post_eligible( $parent_post_id )
-		&& ( ! $require_editable_post || ai4seo_can_edit_post( $parent_post_id ) ) ) {
-		return $parent_post_id;
-	}
-
-	// look for thumbnail relations next.
+/**
+ * Read the explicit media context decision without promoting legacy discovery hints.
+ *
+ * @param int $attachment_post_id Media ID.
+ * @return array Validated policy, including a read-success flag.
+ */
+function ai4seo_read_attachment_context_policy( int $attachment_post_id ): array {
 	global $wpdb;
-
-	$thumbnail_post_ids_query = ai4seo_prepare_database_query(
-		"SELECT post_id
-		FROM {{postmeta_table}}
-		WHERE meta_key = '_thumbnail_id'
-		AND meta_value = {{attachment_post_id}}
-		ORDER BY post_id ASC
-		LIMIT 25",
-		array(
-			'postmeta_table'     => ai4seo_database_identifier_binding( 'table.postmeta' ),
-			'attachment_post_id' => ai4seo_database_scalar_binding( '%d', $attachment_post_id ),
-		)
+	$policy = array(
+		'mode'           => 'automatic',
+		'post_id'        => 0,
+		'read_succeeded' => true,
 	);
-
-	$thumbnail_post_ids = array();
-
-	if ( false === $thumbnail_post_ids_query ) {
-		ai4seo_debug_message( 630085040, 'Could not prepare the featured-image relationship query.', true );
-	} else {
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The typed query compiler prepared the bounded current relationship lookup; external thumbnail mutations have no plugin-owned cache boundary.
-		$thumbnail_post_ids = $wpdb->get_col( $thumbnail_post_ids_query );
+	// Read authoritative rows so a concurrent first binding cannot be hidden by the metadata cache.
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Context ownership requires current persisted rows.
+	$rows = $wpdb->get_col( $wpdb->prepare( "SELECT meta_value FROM {$wpdb->postmeta} WHERE post_id = %d AND meta_key = %s LIMIT 2", $attachment_post_id, AI4SEO_POST_META_ATTACHMENT_CONTEXT_POLICY ) );
+	if ( $wpdb->last_error || ! is_array( $rows ) || count( $rows ) > 1 ) {
+		return array(
+			'mode'           => 'invalid',
+			'post_id'        => 0,
+			'read_succeeded' => false,
+		);
 	}
+	if ( ! $rows ) {
+		return $policy;
+	}
+	$value = json_decode( $rows[0], true );
+	if ( ! is_array( $value ) || ! isset( $value['mode'], $value['post_id'] )
+		|| ! is_int( $value['post_id'] )
+		|| ! ( ( 'fixed' === $value['mode'] && $value['post_id'] > 0 ) || ( 'ambiguous' === $value['mode'] && 0 === $value['post_id'] ) ) ) {
+		return array(
+			'mode'           => 'invalid',
+			'post_id'        => 0,
+			'read_succeeded' => false,
+		);
+	}
+	return array(
+		'mode'           => $value['mode'],
+		'post_id'        => $value['post_id'],
+		'read_succeeded' => true,
+	);
+}
 
-	if ( ! empty( $thumbnail_post_ids ) && is_array( $thumbnail_post_ids ) ) {
-		$thumbnail_post_id = ai4seo_get_first_eligible_attachment_context_post_id( $thumbnail_post_ids, $require_editable_post );
-
-		if ( $thumbnail_post_id > 0 ) {
-			return $thumbnail_post_id;
+/**
+ * Persist a context choice under the existing per-resource database lock mechanism.
+ *
+ * @param int        $attachment_post_id Media ID.
+ * @param string     $mode Fixed, ambiguous, or automatic.
+ * @param int        $post_id Source post for fixed choices.
+ * @param bool       $replace Whether an explicit user action may replace an existing choice.
+ * @param array|null $state Shared source snapshot for this generation action.
+ * @return bool Whether the requested operation or preservation of an existing fixed choice succeeded.
+ */
+function ai4seo_update_attachment_context_policy( int $attachment_post_id, string $mode, int $post_id = 0, bool $replace = false, ?array &$state = null ): bool {
+	global $wpdb;
+	if ( ! ai4seo_is_wordpress_attachment_post( $attachment_post_id ) || ! in_array( $mode, array( 'fixed', 'ambiguous', 'automatic' ), true ) ) {
+		return false;
+	}
+	$lock_name = 'ai4seo_context_' . md5( $wpdb->postmeta . ':' . $attachment_post_id );
+	if ( ! ai4seo_acquire_database_advisory_lock( $lock_name ) ) {
+		return false;
+	}
+	try {
+		$current = ai4seo_read_attachment_context_policy( $attachment_post_id );
+		if ( ! $replace && 'fixed' === $current['mode'] ) {
+			return true;
 		}
-	}
-
-	// From here we only continue if deep context search for images is enabled, otherwise use the modal fallback.
-	if ( ! ai4seo_get_setting( AI4SEO_SETTING_DEEP_CONTEXT_SEARCH_FOR_IMAGES ) ) {
-		return ai4seo_get_attachment_related_post_id( $attachment_post_id, $require_editable_post );
-	}
-
-	if ( ! ai4seo_is_deep_context_search_supported_for_current_site() ) {
-		ai4seo_disable_deep_context_search_for_images();
-		return ai4seo_get_attachment_related_post_id( $attachment_post_id, $require_editable_post );
-	}
-
-	// deep search: look for the attachment post id or url in the content of posts and postmeta
-	// (e.g. for page builders that store the content in postmeta or for attachments.
-	$attachment_post_id_string = (string) $attachment_post_id;
-
-	$attachment_like_parts = array(
-		'%' . $wpdb->esc_like( 'wp-image-' . $attachment_post_id ) . '%',
-		'%' . $wpdb->esc_like( 'attachment_' . $attachment_post_id ) . '%',
-
-		'%' . $wpdb->esc_like( 'id:' . $attachment_post_id ) . '%',
-		'%' . $wpdb->esc_like( '"id":' . $attachment_post_id ) . '%',
-		'%' . $wpdb->esc_like( '"id":"' . $attachment_post_id . '"' ) . '%',
-
-		'%' . $wpdb->esc_like( 'id=' . $attachment_post_id ) . '%',
-		'%' . $wpdb->esc_like( '"id"=' . $attachment_post_id ) . '%',
-		'%' . $wpdb->esc_like( '"id"="' . $attachment_post_id . '"' ) . '%',
-
-		// ids="123, 234, 345" (and variants): match as a distinct list item, not inside another number.
-		'%' . $wpdb->esc_like( 'ids="' . $attachment_post_id_string . ',' ) . '%',   // start: ids="234,.
-		'%' . $wpdb->esc_like( 'ids="' . $attachment_post_id_string . ' ,' ) . '%',  // start (space): ids="234 ,.
-
-		'%' . $wpdb->esc_like( 'ids="' ) . '%' . $wpdb->esc_like( ',' . $attachment_post_id_string . ',' ) . '%',    // middle: ids="...,234,...".
-		'%' . $wpdb->esc_like( 'ids="' ) . '%' . $wpdb->esc_like( ', ' . $attachment_post_id_string . ',' ) . '%',   // middle with space after comma.
-
-		'%' . $wpdb->esc_like( 'ids="' ) . '%' . $wpdb->esc_like( ',' . $attachment_post_id_string . '"' ) . '%',     // end: ids="...,234".
-		'%' . $wpdb->esc_like( 'ids="' ) . '%' . $wpdb->esc_like( ', ' . $attachment_post_id_string . '"' ) . '%',    // end with space.
-
-		// Same for single quotes: ids='123, 234, 345'.
-		'%' . $wpdb->esc_like( "ids='" . $attachment_post_id_string . ',' ) . '%',
-		'%' . $wpdb->esc_like( "ids='" . $attachment_post_id_string . ' ,' ) . '%',
-
-		'%' . $wpdb->esc_like( "ids='" ) . '%' . $wpdb->esc_like( ',' . $attachment_post_id_string . ',' ) . '%',
-		'%' . $wpdb->esc_like( "ids='" ) . '%' . $wpdb->esc_like( ', ' . $attachment_post_id_string . ',' ) . '%',
-
-		'%' . $wpdb->esc_like( "ids='" ) . '%' . $wpdb->esc_like( ',' . $attachment_post_id_string . "'" ) . '%',
-		'%' . $wpdb->esc_like( "ids='" ) . '%' . $wpdb->esc_like( ', ' . $attachment_post_id_string . "'" ) . '%',
-
-		// JSON-encoded gallery ID lists.
-		'%' . $wpdb->esc_like( '"ids":"' . $attachment_post_id_string . ',' ) . '%',
-
-		'%' . $wpdb->esc_like( '"ids":"' ) . '%' . $wpdb->esc_like( ',' . $attachment_post_id_string . ',' ) . '%',
-		'%' . $wpdb->esc_like( '"ids":"' ) . '%' . $wpdb->esc_like( ', ' . $attachment_post_id_string . ',' ) . '%',
-
-		'%' . $wpdb->esc_like( '"ids":"' . $attachment_post_id_string . '"' ) . '%',
-		'%' . $wpdb->esc_like( '"ids":"' ) . '%' . $wpdb->esc_like( ',' . $attachment_post_id_string . '"' ) . '%',
-		'%' . $wpdb->esc_like( '"ids":"' ) . '%' . $wpdb->esc_like( ', ' . $attachment_post_id_string . '"' ) . '%',
-
-		// Common builder attributes.
-		'%' . $wpdb->esc_like( 'data-id="' . $attachment_post_id_string . '"' ) . '%',
-		'%' . $wpdb->esc_like( "data-id='" . $attachment_post_id_string . "'" ) . '%',
-
-		'%' . $wpdb->esc_like( 'data-ids="' . $attachment_post_id_string . '"' ) . '%',
-		'%' . $wpdb->esc_like( "data-ids='" . $attachment_post_id_string . "'" ) . '%',
-	);
-
-	$attachment_url = ai4seo_get_attachment_url( $attachment_post_id );
-
-	if ( $attachment_url ) {
-		$attachment_like_parts[] = '%' . $wpdb->esc_like( $attachment_url ) . '%';
-
-		// Try to match common WordPress variants like "-300x300" and "-scaled".
-		$path_parts = wp_parse_url( $attachment_url );
-
-		$attachment_path = $path_parts['path'] ?? '';
-		$attachment_base = wp_basename( $attachment_path );
-
-		$dot_position = strrpos( $attachment_base, '.' );
-
-		if ( false !== $dot_position ) {
-			$filename  = substr( $attachment_base, 0, $dot_position );
-			$extension = substr( $attachment_base, $dot_position + 1 );
-
-			// Matches: my-image-300x300.jpg.
-			$attachment_like_parts[] = '%' . $wpdb->esc_like( $filename . '-' ) . '%x%' . $wpdb->esc_like( '.' . $extension ) . '%';
-
-			// Matches: my-image-scaled.jpg.
-			$attachment_like_parts[] = '%' . $wpdb->esc_like( $filename . '-scaled.' . $extension ) . '%';
-
-			// Matches: my-image-rotated.jpg (sometimes created by WP when editing).
-			$attachment_like_parts[] = '%' . $wpdb->esc_like( $filename . '-rotated.' . $extension ) . '%';
-
-			// Matches: my-image.
-			if ( ai4seo_mb_strlen( $filename ) >= 8 ) {
-				$attachment_like_parts[] = '%' . $wpdb->esc_like( $filename ) . '%';
+		if ( ! $current['read_succeeded'] && ! $replace ) {
+			return false;
+		}
+		if ( 'fixed' === $mode ) {
+			$verification = ai4seo_verify_attachment_usage_in_post( $attachment_post_id, $post_id, true, $state );
+			if ( ! $verification['verified'] ) {
+				return false;
 			}
 		}
+		if ( 'automatic' === $mode ) {
+			delete_post_meta( $attachment_post_id, AI4SEO_POST_META_ATTACHMENT_CONTEXT_POLICY );
+		} else {
+			$value = wp_json_encode(
+				array(
+					'mode'    => $mode,
+					'post_id' => 'fixed' === $mode ? $post_id : 0,
+				)
+			);
+			update_post_meta( $attachment_post_id, AI4SEO_POST_META_ATTACHMENT_CONTEXT_POLICY, wp_slash( $value ) );
+		}
+		$stored = ai4seo_read_attachment_context_policy( $attachment_post_id );
+		return $stored['read_succeeded'] && $stored['mode'] === $mode && ( 'fixed' === $mode ? $post_id : 0 ) === $stored['post_id'];
+	} finally {
+		ai4seo_release_database_advisory_lock( $lock_name );
 	}
+}
 
-	$content_like_clause_parts = array_fill( 0, count( $attachment_like_parts ), 'post_content LIKE %s' );
-
-	// Safe: content LIKE fragments are generated placeholders only; attachment patterns are prepared below.
-    // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-	$content_post_ids = ai4seo_get_col_with_optional_statement_timeout(
-		$wpdb->prepare(
-			"SELECT ID
-         FROM {$wpdb->posts}
-         WHERE (" . implode( ' OR ', $content_like_clause_parts ) . ")
-            AND post_type != 'revision'
-            AND post_status NOT IN ('auto-draft')
-            AND ID != %d
-         ORDER BY ID DESC
-         LIMIT 20",
-			...array_merge( $attachment_like_parts, array( $attachment_post_id ) )
-		),
-		AI4SEO_DEEP_CONTEXT_SEARCH_QUERY_TIMEOUT_SECONDS,
-		'Attachment content deep context search for media post ID: ' . $attachment_post_id
-	);
-    // phpcs:enable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-
-	if ( ! empty( $content_post_ids ) && is_array( $content_post_ids ) ) {
-		$content_post_id = ai4seo_get_first_eligible_attachment_context_post_id( $content_post_ids, $require_editable_post );
-
-		if ( $content_post_id > 0 ) {
-			return $content_post_id;
+/**
+ * Build exact known URL identities, including WordPress-generated image variants.
+ *
+ * @param int    $attachment_id Media ID.
+ * @param string $attachment_url Optional already resolved URL.
+ * @return array Exact normalized URL set.
+ */
+function ai4seo_get_attachment_context_image_urls( int $attachment_id, string $attachment_url = '' ): array {
+	$attachment_url = $attachment_url ? $attachment_url : (string) ai4seo_get_attachment_url( $attachment_id );
+	$urls           = array_filter( array( $attachment_url ) );
+	$metadata       = wp_get_attachment_metadata( $attachment_id );
+	if ( is_array( $metadata ) && ! empty( $metadata['file'] ) ) {
+		$uploads = wp_upload_dir();
+		$base    = trailingslashit( $uploads['baseurl'] ) . $metadata['file'];
+		$urls[]  = $base;
+		$dir     = trailingslashit( dirname( $base ) );
+		foreach ( (array) ( $metadata['sizes'] ?? array() ) as $size ) {
+			if ( ! empty( $size['file'] ) ) {
+				$urls[] = $dir . $size['file'];
+			}
+		}
+		if ( ! empty( $metadata['original_image'] ) ) {
+			$urls[] = $dir . $metadata['original_image'];
 		}
 	}
-
-	if ( ! ai4seo_get_setting( AI4SEO_SETTING_DEEP_CONTEXT_SEARCH_FOR_IMAGES ) ) {
-		// The content search may disable deep search after a timeout, so fall back before scanning postmeta.
-		return ai4seo_get_attachment_related_post_id( $attachment_post_id, $require_editable_post );
-	}
-
-	// if not found in content, look in postmeta.
-	$postmeta_like_clause_parts = array_fill( 0, count( $attachment_like_parts ), 'meta_value LIKE %s' );
-
-	// Safe: postmeta LIKE fragments are generated placeholders only; attachment patterns are prepared below.
-    // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-	$postmeta_post_ids = ai4seo_get_col_with_optional_statement_timeout(
-		$wpdb->prepare(
-			"SELECT post_id
-         FROM {$wpdb->postmeta}
-         WHERE (" . implode( ' OR ', $postmeta_like_clause_parts ) . ')
-            AND post_id != %d
-         ORDER BY post_id DESC
-         LIMIT 100',
-			...array_merge( $attachment_like_parts, array( $attachment_post_id ) )
-		),
-		AI4SEO_DEEP_CONTEXT_SEARCH_QUERY_TIMEOUT_SECONDS,
-		'Attachment postmeta deep context search for media post ID: ' . $attachment_post_id
-	);
-    // phpcs:enable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-
-	if ( ! empty( $postmeta_post_ids ) && is_array( $postmeta_post_ids ) ) {
-		$postmeta_post_id = ai4seo_get_first_eligible_attachment_context_post_id( $postmeta_post_ids, $require_editable_post );
-
-		if ( $postmeta_post_id > 0 ) {
-			return $postmeta_post_id;
+	$normalized = array();
+	foreach ( $urls as $url ) {
+		$url = ai4seo_normalize_generation_image_url( $url, $attachment_url );
+		if ( '' !== $url ) {
+			$normalized[ $url ] = true;
 		}
 	}
+	return $normalized;
+}
 
-	return ai4seo_get_attachment_related_post_id( $attachment_post_id, $require_editable_post );
+/**
+ * Inspect real image tokens and retain text only from their own single-image container.
+ *
+ * @param string $html Saved markup.
+ * @param int    $attachment_id Media ID.
+ * @param string $attachment_url Media URL.
+ * @param string $page_url Relative URL base.
+ * @param array  $known_urls Optional shared image identity.
+ * @param int    $source_post_id Source for native galleries without an explicit parent.
+ * @return array Image evidence and isolated visible text.
+ */
+function ai4seo_get_attachment_html_evidence( string $html, int $attachment_id, string $attachment_url, string $page_url = '', array $known_urls = array(), int $source_post_id = 0 ): array {
+	$result     = array(
+		'verified'    => false,
+		'text'        => '',
+		'image_count' => 0,
+		'gallery_ids' => array(),
+	);
+	$processor  = new WP_HTML_Tag_Processor( $html );
+	$containers = array();
+	$hidden     = array();
+	$known_urls = $known_urls ? $known_urls : ai4seo_get_attachment_context_image_urls( $attachment_id, $attachment_url );
+	while ( $processor->next_token() ) {
+		$tag = $processor->get_tag();
+		if ( '#text' === $processor->get_token_type() && ! $hidden ) {
+			$shortcode_state       = array(
+				'verified_attachment_id' => $attachment_id,
+				'source_post_id'         => $source_post_id,
+			);
+			$result['gallery_ids'] = array_merge( $result['gallery_ids'], ai4seo_extract_related_attachment_post_ids_from_string( $processor->get_modifiable_text(), 'post_content', $shortcode_state ) );
+			foreach ( $containers as &$container ) {
+				if ( strlen( $container['text'] ) < 8192 ) {
+					$container['text'] .= ' ' . $processor->get_modifiable_text();
+				}
+			}
+			unset( $container );
+			continue;
+		}
+		if ( ! $tag ) {
+			continue;
+		}
+		// Raw-text elements already include their closing tag in this token.
+		if ( in_array( $tag, array( 'SCRIPT', 'STYLE' ), true ) ) {
+			continue;
+		}
+		// Match the visible-text parser's handling of an omitted HEAD closer.
+		if ( 'BODY' === $tag && ! $processor->is_tag_closer() && array( 'HEAD' ) === $hidden ) {
+			$hidden = array();
+		}
+		if ( in_array( $tag, array( 'HEAD', 'NOSCRIPT', 'TEMPLATE' ), true ) ) {
+			if ( $processor->is_tag_closer() ) {
+				if ( end( $hidden ) === $tag ) {
+					array_pop( $hidden );
+				}
+			} else {
+				$hidden[] = $tag;
+			}
+			continue;
+		}
+		if ( $hidden ) {
+			continue;
+		}
+		if ( in_array( $tag, array( 'FIGURE', 'LI' ), true ) ) {
+			if ( $processor->is_tag_closer() ) {
+				$container = array_pop( $containers );
+				if ( $container && $container['tag'] === $tag && $container['eligible']
+					&& 1 === $container['images'] && 1 === $container['matches'] && '' === $result['text'] ) {
+					$result['text'] = ai4seo_mb_substr( ai4seo_normalize_generation_visible_text( $container['text'] ), 0, 1000 );
+				}
+			} else {
+				$containers[] = array(
+					'tag'      => $tag,
+					'eligible' => 'FIGURE' === $tag || $processor->has_class( 'kadence-blocks-gallery-item' ),
+					'images'   => 0,
+					'matches'  => 0,
+					'text'     => '',
+				);
+			}
+		}
+		if ( 'IMG' === $tag && ! $processor->is_tag_closer() ) {
+			++$result['image_count'];
+			$matches            = ai4seo_generation_image_matches( $processor, $attachment_id, $attachment_url, $page_url, $known_urls );
+			$result['verified'] = $result['verified'] || $matches;
+			foreach ( $containers as &$container ) {
+				++$container['images'];
+				$container['matches'] += $matches ? 1 : 0;
+			}
+			unset( $container );
+		}
+	}
+	return $result;
+}
+
+/**
+ * Verify saved block attributes whose schema explicitly identifies image media.
+ *
+ * @param array       $blocks Parsed WordPress blocks.
+ * @param int         $attachment_id Media ID.
+ * @param int         $depth Bounded block nesting.
+ * @param string|null $image_text Caption belonging only to a verified gallery item.
+ * @return bool Whether an explicit media reference exists.
+ */
+function ai4seo_attachment_blocks_reference_image( array $blocks, int $attachment_id, int $depth = 0, ?string &$image_text = null ): bool {
+	if ( $depth > 8 ) {
+		return false;
+	}
+	foreach ( $blocks as $block ) {
+		$attributes = (array) ( $block['attrs'] ?? array() );
+		$name       = $block['blockName'] ?? '';
+		// Saved HTML is checked separately, including conflicting IDs on an image token.
+		if ( false === stripos( (string) ( $block['innerHTML'] ?? '' ), '<img' ) ) {
+			$ids = array();
+			if ( in_array( $name, array( 'core/image', 'core/cover', 'kadence/image' ), true ) ) {
+				$ids = ai4seo_normalize_verified_attachment_ids( $attributes['id'] ?? 0 );
+			} elseif ( 'core/media-text' === $name && 'image' === ( $attributes['mediaType'] ?? '' ) ) {
+				$ids = ai4seo_normalize_verified_attachment_ids( $attributes['mediaId'] ?? 0 );
+			} elseif ( in_array( $name, array( 'core/gallery', 'kadence/advancedgallery' ), true ) ) {
+				$ids                                     = empty( $attributes['images'] ) && empty( $attributes['imagesData'] ) ? ai4seo_normalize_verified_attachment_ids( $attributes['ids'] ?? array() ) : array();
+				$field_state                             = ai4seo_get_related_attachment_scan_state();
+				$field_state['verified_attachment_id']   = $attachment_id;
+				$field_state['verified_attachment_urls'] = ai4seo_get_attachment_context_image_urls( $attachment_id );
+
+				foreach ( array( 'images', 'imagesData' ) as $key ) {
+					foreach ( (array) ( $attributes[ $key ] ?? array() ) as $image ) {
+						if ( ! is_array( $image ) ) {
+							continue;
+						}
+
+						$image_ids = ai4seo_extract_related_attachment_post_ids_from_value( $image, 'image', 0, $field_state );
+						$ids       = array_merge( $ids, $image_ids );
+
+						if ( in_array( $attachment_id, $image_ids, true ) && ! $image_text && is_string( $image['caption'] ?? null ) ) {
+							$image_text = ai4seo_mb_substr( ai4seo_extract_generation_visible_text( $image['caption'] ), 0, 1000 );
+						}
+					}
+				}
+			}
+			if ( in_array( $attachment_id, $ids, true ) ) {
+				return true;
+			}
+		}
+		if ( ai4seo_attachment_blocks_reference_image( (array) ( $block['innerBlocks'] ?? array() ), $attachment_id, $depth + 1, $image_text ) ) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * Verify one saved source, sharing source reads and the automatic search budget.
+ *
+ * @param int        $attachment_id Media ID.
+ * @param int        $post_id Candidate source.
+ * @param bool       $require_editable_post Enforce current user's source access.
+ * @param array|null $state Shared per-resolution source cache and byte budget.
+ * @return array Verification status and bounded image text.
+ */
+function ai4seo_verify_attachment_usage_in_post( int $attachment_id, int $post_id, bool $require_editable_post = false, ?array &$state = null ): array {
+	global $wpdb;
+	$result = array(
+		'post_id'  => $post_id,
+		'verified' => false,
+		'complete' => true,
+		'reason'   => 'not_found',
+		'text'     => '',
+	);
+	if ( ! ai4seo_is_attachment_context_post_eligible( $post_id ) ) {
+		$result['reason'] = 'unavailable';
+		return $result;
+	}
+	if ( $require_editable_post && ! ai4seo_can_edit_post( $post_id ) ) {
+		$result['reason'] = 'forbidden';
+		return $result;
+	}
+	if ( null === $state ) {
+		$state = array();
+	}
+	$key = $attachment_id . ':' . $post_id;
+	if ( isset( $state['verified'][ $key ] ) ) {
+		return $state['verified'][ $key ];
+	}
+	$post = get_post( $post_id );
+	$body = (string) $post->post_content;
+	if ( strlen( $body ) > 2097152 ) {
+		$result['complete'] = false;
+		$result['reason']   = 'incomplete';
+		return $result;
+	}
+	$scan = ai4seo_get_empty_related_attachment_scan_result();
+	$meta = ai4seo_get_related_attachment_scannable_post_meta_rows( $post_id, $scan );
+	if ( $wpdb->last_error ) {
+		$result['complete'] = false;
+		$result['reason']   = 'read_failed';
+		return $result;
+	}
+	$bytes = strlen( $body );
+	foreach ( $meta as $row ) {
+		$bytes += strlen( $row['meta_value'] );
+	}
+	$remaining = $state['remaining_bytes'] ?? AI4SEO_ATTACHMENT_CONTEXT_MAX_BYTES;
+	if ( $bytes > $remaining ) {
+		$result['complete'] = false;
+		$result['reason']   = 'budget_exhausted';
+		return $result;
+	}
+	$state['remaining_bytes'] = $remaining - $bytes;
+	$state['urls']            = $state['urls'] ?? ai4seo_get_attachment_context_image_urls( $attachment_id );
+	$url                      = (string) ai4seo_get_attachment_url( $attachment_id );
+	$html                     = ai4seo_get_attachment_html_evidence( $body, $attachment_id, $url, (string) get_permalink( $post_id ), $state['urls'], $post_id );
+	$block_text               = '';
+	$result['verified']       = $html['verified'] || ai4seo_attachment_blocks_reference_image( parse_blocks( $body ), $attachment_id, 0, $block_text );
+	$result['text']           = $html['text'] ? $html['text'] : $block_text;
+	$result['complete']       = ! $scan['is_partial'];
+
+	$extraction_state                             = ai4seo_get_related_attachment_scan_state();
+	$extraction_state['verified_attachment_id']   = $attachment_id;
+	$extraction_state['verified_attachment_urls'] = $state['urls'];
+	$extraction_state['page_url']                 = (string) get_permalink( $post_id );
+	$result['verified']                           = $result['verified'] || in_array( $attachment_id, $html['gallery_ids'], true );
+
+	foreach ( $meta as $row ) {
+		// Only complete selected values can prove a reference; truncated prefixes are never evidence.
+		if ( $scan['is_partial'] ) {
+			continue;
+		}
+		$value = $row['meta_value'];
+		if ( '_thumbnail_id' === $row['meta_key'] ) {
+			$result['verified'] = $result['verified'] || ( ctype_digit( $value ) && $attachment_id === (int) $value );
+			continue;
+		}
+		// Reuse the sanitized builder decoder and media-key-aware extractor for structured data.
+		// HTML values go through the exact token matcher rather than the discovery regex.
+		if ( false !== stripos( $value, '<img' ) ) {
+			$evidence           = ai4seo_get_attachment_html_evidence( $value, $attachment_id, $url, (string) get_permalink( $post_id ), $state['urls'], $post_id );
+			$result['verified'] = $result['verified'] || $evidence['verified'];
+			if ( '' === $result['text'] ) {
+				$result['text'] = $evidence['text'];
+			}
+		}
+		// A builder value can contain both typed media fields and unrelated HTML widgets.
+		$ids                = ai4seo_extract_related_attachment_post_ids_from_value( $value, $row['meta_key'], 0, $extraction_state );
+		$result['verified'] = $result['verified'] || in_array( $attachment_id, $ids, true );
+	}
+	$result['complete']        = $result['complete'] && empty( $extraction_state['is_partial'] );
+	$result['reason']          = $result['verified'] ? 'verified' : ( $result['complete'] ? 'not_found' : 'incomplete' );
+	$state['verified'][ $key ] = $result;
+	return $result;
+}
+
+/**
+ * Find bounded discovery candidates; candidates are never usage proof.
+ *
+ * @param int        $attachment_id Media ID.
+ * @param string     $kind Thumbnail or deep.
+ * @param array|null $state Shared snapshot for this action only; retain incomplete results too.
+ * @return array Candidate IDs and completeness.
+ */
+function ai4seo_find_attachment_context_candidates( int $attachment_id, string $kind = 'deep', ?array &$state = null ): array {
+	global $wpdb;
+	$state     = $state ?? array();
+	$cache_key = $attachment_id . ':' . $kind;
+	if ( isset( $state['candidates'][ $cache_key ] ) ) {
+		return $state['candidates'][ $cache_key ];
+	}
+
+	$result = array(
+		'post_ids' => array(),
+		'complete' => true,
+	);
+	$limit  = AI4SEO_ATTACHMENT_CONTEXT_MAX_CANDIDATES + 1;
+	if ( 'thumbnail' === $kind ) {
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Current, bounded relation candidates must reflect external media edits.
+		$ids                = $wpdb->get_col( $wpdb->prepare( "SELECT DISTINCT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_thumbnail_id' AND meta_value = %s ORDER BY post_id LIMIT %d", (string) $attachment_id, $limit ) );
+		$result['complete'] = ! $wpdb->last_error;
+	} elseif ( ! ai4seo_get_setting( AI4SEO_SETTING_DEEP_CONTEXT_SEARCH_FOR_IMAGES ) ) {
+		$ids = array();
+	} elseif ( ! ai4seo_is_deep_context_search_supported_for_current_site() ) {
+		$ids                = array();
+		$result['complete'] = false;
+	} else {
+		// Broad discovery deliberately includes numeric candidates; exact parsing decides afterwards.
+		$id_like            = '%' . $wpdb->esc_like( (string) $attachment_id ) . '%';
+		$image_url          = (string) ai4seo_get_attachment_url( $attachment_id );
+		$url_like           = '%' . $wpdb->esc_like( $image_url ? $image_url : '__missing_image_url__' ) . '%';
+		$content_ok         = false;
+		$meta_ok            = false;
+		$content            = ai4seo_get_col_with_optional_statement_timeout(
+			$wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE ID != %d AND post_type NOT IN ('attachment','revision','nav_menu_item') AND post_status NOT IN ('trash','auto-draft') AND (post_content LIKE %s OR post_content LIKE %s) ORDER BY ID LIMIT %d", $attachment_id, $id_like, $url_like, $limit ),
+			AI4SEO_DEEP_CONTEXT_SEARCH_QUERY_TIMEOUT_SECONDS,
+			'Verified image context candidates',
+			$content_ok,
+			false
+		);
+		$meta               = ai4seo_get_col_with_optional_statement_timeout(
+			$wpdb->prepare( "SELECT DISTINCT post_id FROM {$wpdb->postmeta} WHERE post_id != %d AND (meta_value LIKE %s OR meta_value LIKE %s) ORDER BY post_id LIMIT %d", $attachment_id, $id_like, $url_like, $limit ),
+			AI4SEO_DEEP_CONTEXT_SEARCH_QUERY_TIMEOUT_SECONDS,
+			'Verified image context metadata candidates',
+			$meta_ok,
+			false
+		);
+		$legacy             = ai4seo_get_attachment_related_post_id( $attachment_id );
+		$ids                = array_merge( $legacy ? array( $legacy ) : array(), $content, $meta );
+		$result['complete'] = $content_ok && $meta_ok;
+	}
+	$ids                = array_values( array_unique( array_filter( array_map( 'absint', (array) $ids ) ) ) );
+	$result['complete'] = $result['complete'] && count( $ids ) < $limit;
+	$result['post_ids'] = array_slice( $ids, 0, AI4SEO_ATTACHMENT_CONTEXT_MAX_CANDIDATES );
+
+	$state['candidates'][ $cache_key ] = $result;
+	return $result;
+}
+
+/**
+ * Build only the allowed source identity and the isolated image text.
+ *
+ * @param array $verification Verified source.
+ * @param bool  $include_post_identity Whether the relation supports the post identity.
+ * @return string API-compatible context.
+ */
+function ai4seo_build_verified_attachment_context( array $verification, bool $include_post_identity ): string {
+	if ( empty( $verification['verified'] ) ) {
+		return '';
+	}
+	$text = '';
+	if ( $include_post_identity ) {
+		$post_id = $verification['post_id'];
+		$text    = "Sub Page Title: '" . sanitize_text_field( get_the_title( $post_id ) ) . "'. URL: '" . esc_url_raw( get_permalink( $post_id ) ) . "'. WordPress Post Type: '" . sanitize_key( get_post_type( $post_id ) ) . "'.";
+	}
+	if ( '' !== $verification['text'] ) {
+		$text .= " Image surrounding content: '" . $verification['text'] . "'.";
+	}
+	return trim( $text );
+}
+
+/**
+ * Resolve one image context without changing choices or silently replacing a fixed source.
+ *
+ * @param int        $attachment_id Media ID.
+ * @param bool       $require_editable_post Enforce source access for interactive callers.
+ * @param array|null $state Sources already verified during the same generation action.
+ * @return array Policy, source, verification status, and API context.
+ */
+function ai4seo_resolve_attachment_usage_context( int $attachment_id, bool $require_editable_post = false, ?array &$state = null ): array {
+	$policy = ai4seo_read_attachment_context_policy( $attachment_id );
+	$result = array(
+		'mode'     => $policy['mode'],
+		'post_id'  => 0,
+		'verified' => false,
+		'reason'   => 'not_found',
+		'context'  => '',
+	);
+	if ( ! ai4seo_is_wordpress_attachment_post( $attachment_id ) || ! $policy['read_succeeded'] ) {
+		$result['reason'] = 'read_failed';
+		return $result;
+	}
+	if ( 'ambiguous' === $policy['mode'] ) {
+		$result['reason'] = 'ambiguous';
+		return $result;
+	}
+	$state = $state ?? array();
+	if ( 'fixed' === $policy['mode'] ) {
+		$verification = ai4seo_verify_attachment_usage_in_post( $attachment_id, $policy['post_id'], $require_editable_post, $state );
+	} else {
+		$parent       = absint( get_post_field( 'post_parent', $attachment_id ) );
+		$verification = ai4seo_verify_attachment_usage_in_post( $attachment_id, $parent, $require_editable_post, $state );
+		if ( ! $verification['complete'] ) {
+			$result['reason'] = $verification['reason'];
+			return $result;
+		}
+		if ( ! $verification['verified'] ) {
+			foreach ( array( 'thumbnail', 'deep' ) as $kind ) {
+				$candidates = ai4seo_find_attachment_context_candidates( $attachment_id, $kind, $state );
+				$verified   = array();
+				$complete   = $candidates['complete'];
+				$visited    = $state['visited'] ?? ( $parent ? array( $parent => true ) : array() );
+				foreach ( $candidates['post_ids'] as $candidate_id ) {
+					if ( count( $visited ) >= AI4SEO_ATTACHMENT_CONTEXT_MAX_CANDIDATES && ! isset( $visited[ $candidate_id ] ) ) {
+						$complete = false;
+						break;
+					}
+					$visited[ $candidate_id ] = true;
+					$state['visited']         = $visited;
+					$check                    = ai4seo_verify_attachment_usage_in_post( $attachment_id, $candidate_id, $require_editable_post, $state );
+					$complete                 = $complete && $check['complete'];
+					if ( $check['verified'] ) {
+						$verified[] = $check;
+					}
+				}
+				if ( ! $complete || count( $verified ) > 1 ) {
+					$result['reason'] = $complete ? 'ambiguous' : 'incomplete';
+					return $result;
+				}
+				if ( 1 === count( $verified ) ) {
+					$verification      = $verified[0];
+					$result['context'] = ai4seo_build_verified_attachment_context( $verification, 'thumbnail' === $kind );
+					break;
+				}
+			}
+		} else {
+			$result['context'] = ai4seo_build_verified_attachment_context( $verification, true );
+		}
+	}
+	$result['reason']   = $verification['reason'];
+	$result['verified'] = $verification['verified'];
+	if ( $verification['verified'] ) {
+		$result['post_id'] = $verification['post_id'];
+		if ( 'fixed' === $policy['mode'] ) {
+			$result['context'] = ai4seo_build_verified_attachment_context( $verification, true );
+		}
+	}
+	return $result;
+}
+
+/**
+ * Bind a generation action's verified sources without overwriting an existing fixed choice.
+ *
+ * @param int        $attachment_id Media ID.
+ * @param array      $source_post_ids All selected source posts for this medium.
+ * @param array|null $state Reusable source snapshot within this generation action.
+ * @return array Preparation result; invalid sources permit context-free generation.
+ */
+function ai4seo_prepare_attachment_context_policy( int $attachment_id, array $source_post_ids, ?array &$state = null ): array {
+	$result = array(
+		'succeeded'   => true,
+		'reason'      => '',
+		'contextless' => false,
+	);
+	$policy = ai4seo_read_attachment_context_policy( $attachment_id );
+	if ( ! $policy['read_succeeded'] ) {
+		return array(
+			'succeeded'   => false,
+			'reason'      => 'read_failed',
+			'contextless' => true,
+		);
+	}
+	if ( 'fixed' === $policy['mode'] || ! $source_post_ids ) {
+		return $result;
+	}
+	$verified = array();
+	$state    = $state ?? array();
+	$complete = true;
+	foreach ( array_unique( array_map( 'absint', $source_post_ids ) ) as $source_id ) {
+		$check    = ai4seo_verify_attachment_usage_in_post( $attachment_id, $source_id, true, $state );
+		$complete = $complete && $check['complete'];
+		if ( $check['verified'] ) {
+			$verified[] = $source_id;
+		}
+	}
+	if ( ! $verified || ! $complete ) {
+		return array(
+			'succeeded'   => true,
+			'reason'      => 'not_found',
+			'contextless' => true,
+		);
+	}
+	$mode                = 1 === count( $verified ) ? 'fixed' : 'ambiguous';
+	$result['succeeded'] = ai4seo_update_attachment_context_policy( $attachment_id, $mode, 'fixed' === $mode ? $verified[0] : 0, false, $state );
+	$result['reason']    = $result['succeeded'] ? $mode : 'save_failed';
+	return $result;
 }
 
 

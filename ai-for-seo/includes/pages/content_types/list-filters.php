@@ -1085,9 +1085,12 @@ if ( ! function_exists( 'ai4seo_prepare_content_type_list_view' ) ) {
 		$read_succeeded                    = ai4seo_content_type_list_read_failures() === $read_failures;
 		$filter_context['view_available']  = $read_succeeded && ! empty( $snapshot['quality'][ $filter_status ] );
 		$filter_context['status_snapshot'] = $snapshot;
+		$filter_context['list_error']      = $read_succeeded ? '' : ai4seo_content_type_list_error();
 		$counts                            = ai4seo_apply_content_type_status_quality( $counts, $snapshot );
 		if ( ! $read_succeeded ) {
 			$counts = array_fill_keys( array_keys( $filter_context['status_options'] ), null );
+			// A failed list query does not invalidate an independently verified exclusion source.
+			$counts['unverified'] = ! empty( $snapshot['quality']['hidden'] ) ? 0 : null;
 		}
 		if ( ! $filter_context['view_available'] ) {
 			$page_ids = array();
@@ -1124,15 +1127,105 @@ if ( ! function_exists( 'ai4seo_content_type_list_read_failures' ) ) {
 	/**
 	 * Retain query failures even when subsequent successful queries clear wpdb::last_error.
 	 *
-	 * @param bool $record Whether a list query just failed.
+	 * @param bool   $record Whether a list query just failed.
+	 * @param string $reason Safe diagnostic category, never raw SQL or exception text.
 	 * @return int Request-local failure generation.
 	 */
-	function ai4seo_content_type_list_read_failures( bool $record = false ): int {
+	function ai4seo_content_type_list_read_failures( bool $record = false, string $reason = 'read' ): int {
 		static $failures = 0;
 		if ( $record ) {
 			++$failures;
+			ai4seo_content_type_list_error( $reason );
 		}
 		return $failures;
+	}
+}
+
+if ( ! function_exists( 'ai4seo_content_type_list_error' ) ) {
+	/**
+	 * Retain a safe explanation for the latest list failure in this request.
+	 *
+	 * @param string $reason Optional failure category to record.
+	 * @return string Localized explanation when reading; empty when recording.
+	 */
+	function ai4seo_content_type_list_error( string $reason = '' ): string {
+		static $latest = 'read';
+		if ( '' !== $reason ) {
+			$latest = $reason;
+			// Recording failures is a storage concern; translate only when rendering the view.
+			return '';
+		}
+		if ( 'memory' === $latest ) {
+			return __( 'The list could not be loaded because the server does not have enough PHP memory to process an entry safely. Narrow the search or ask your administrator to check the PHP memory limit.', 'ai-for-seo' );
+		}
+		if ( 'changed' === $latest ) {
+			return __( 'The entries changed while the list was being sorted. Reload this page to load the current results.', 'ai-for-seo' );
+		}
+		if ( 'title_index' === $latest ) {
+			return __( 'Title sorting is temporarily unavailable because its index is not up to date. Choose ID or SEO progress sorting, or retry after background indexing has finished.', 'ai-for-seo' );
+		}
+		return __( 'The list could not be loaded because a required data read failed. Reload this page. If the problem persists, ask your administrator to check the database connection and server error log.', 'ai-for-seo' );
+	}
+}
+
+if ( ! function_exists( 'ai4seo_get_content_type_list_unavailable_message' ) ) {
+	/**
+	 * Keep query failures separate from unverified status data on every list.
+	 *
+	 * @param array $filter_context Prepared view context.
+	 * @return string Localized, unescaped explanation.
+	 */
+	function ai4seo_get_content_type_list_unavailable_message( array $filter_context ): string {
+		return ! empty( $filter_context['list_error'] )
+			? $filter_context['list_error']
+			: __( 'This view is unavailable because its data could not be verified. Choose another available filter or reload after correcting the data.', 'ai-for-seo' );
+	}
+}
+
+if ( ! function_exists( 'ai4seo_get_content_type_list_quality_notice' ) ) {
+	/**
+	 * Explain list failures separately from unreliable status sources.
+	 *
+	 * @param array $filter_context Prepared view context.
+	 * @param array $status_counts Counts, with null for unavailable totals.
+	 * @return string Escaped notice markup.
+	 */
+	function ai4seo_get_content_type_list_quality_notice( array $filter_context, array $status_counts ): string {
+		if ( ! in_array( null, $status_counts, true ) ) {
+			return '';
+		}
+		$analysis       = ai4seo_get_posts_table_analysis_status();
+		$notice_title   = __( 'Some filter counts are unavailable', 'ai-for-seo' );
+		$notice_message = __( 'Some status data could not be read reliably. The affected filters cannot currently show reliable counts or results.', 'ai-for-seo' );
+
+		// Explain normal analysis progress without presenting paused or failed work as still running.
+		if ( ! empty( $filter_context['list_error'] ) ) {
+			$notice_title   = __( 'The list could not be loaded', 'ai-for-seo' );
+			$notice_message = $filter_context['list_error'];
+		} elseif ( ! empty( $analysis['preparing'] ) ) {
+			$notice_title   = __( 'Preparing analysis', 'ai-for-seo' );
+			$notice_message = __( 'An update is preparing your existing SEO status data. Some filter counts and results will become available after preparation and analysis finish. You can continue browsing your entries.', 'ai-for-seo' );
+		} elseif ( 'incomplete' === $analysis['status'] ) {
+			$notice_title   = __( 'SEO statistics are being updated', 'ai-for-seo' );
+			$notice_message = __( 'The analysis of your pages and media files is not finished yet. Some filter counts and results are temporarily unavailable until the analysis is complete. You can continue browsing your entries in the meantime.', 'ai-for-seo' );
+		} elseif ( 'deferred' === $analysis['status'] ) {
+			$notice_title   = __( 'Analysis is paused', 'ai-for-seo' );
+			$notice_message = __( 'Some filter counts and results are unavailable because the analysis is paused. They will become available once the analysis resumes and finishes.', 'ai-for-seo' );
+		} elseif ( 'failed' === $analysis['status'] ) {
+			$notice_title   = __( 'Analysis could not be completed', 'ai-for-seo' );
+			$notice_message = __( 'Some filter counts and results are unavailable because the analysis could not be completed. See the Dashboard for details.', 'ai-for-seo' );
+		}
+
+		$notice_class = ! empty( $filter_context['list_error'] ) ? 'notice-error' : 'notice-info';
+		$output       = '<div class="notice ' . esc_attr( $notice_class ) . ' inline ai4seo-notice ai4seo-content-list-quality" role="status">'
+			. ai4seo_get_sooz_logo_image_tag( 'sooz-oo' )
+			. '<p><strong>' . esc_html( $notice_title ) . '</strong></p><p>' . esc_html( $notice_message ) . '</p>';
+
+		if ( isset( $filter_context['status_snapshot']['quality']['hidden'] ) && ! $filter_context['status_snapshot']['quality']['hidden'] ) {
+			$output .= '<p>' . esc_html__( 'Exclusions could not be verified. Use Unverified exclusions to review entries; bulk selection is disabled in that view.', 'ai-for-seo' ) . '</p>';
+		}
+
+		return $output . '</div>';
 	}
 }
 
@@ -2965,37 +3058,8 @@ if ( ! function_exists( 'ai4seo_get_content_type_filter_controls_html' ) ) {
 			? __( 'Search by title, ID, or URL', 'ai-for-seo' )
 			: __( 'Search by title, ID, or URL/filename', 'ai-for-seo' );
 
-		$output = '<div class="ai4seo-filter-bar ai4seo-content-list-controls">';
-		if ( in_array( null, $status_counts, true ) ) {
-			$analysis       = ai4seo_get_posts_table_analysis_status();
-			$notice_title   = __( 'Some filter counts are unavailable', 'ai-for-seo' );
-			$notice_message = __( 'Some status data could not be read reliably. The affected filters cannot currently show reliable counts or results.', 'ai-for-seo' );
-
-			// Explain normal analysis progress without presenting paused or failed work as still running.
-			if ( ! empty( $analysis['preparing'] ) ) {
-				$notice_title   = __( 'Preparing analysis', 'ai-for-seo' );
-				$notice_message = __( 'An update is preparing your existing SEO status data. Some filter counts and results will become available after preparation and analysis finish. You can continue browsing your entries.', 'ai-for-seo' );
-			} elseif ( 'incomplete' === $analysis['status'] ) {
-				$notice_title   = __( 'SEO statistics are being updated', 'ai-for-seo' );
-				$notice_message = __( 'The analysis of your pages and media files is not finished yet. Some filter counts and results are temporarily unavailable until the analysis is complete. You can continue browsing your entries in the meantime.', 'ai-for-seo' );
-			} elseif ( 'deferred' === $analysis['status'] ) {
-				$notice_title   = __( 'Analysis is paused', 'ai-for-seo' );
-				$notice_message = __( 'Some filter counts and results are unavailable because the analysis is paused. They will become available once the analysis resumes and finishes.', 'ai-for-seo' );
-			} elseif ( 'failed' === $analysis['status'] ) {
-				$notice_title   = __( 'Analysis could not be completed', 'ai-for-seo' );
-				$notice_message = __( 'Some filter counts and results are unavailable because the analysis could not be completed. See the Dashboard for details.', 'ai-for-seo' );
-			}
-
-			$output .= '<div class="notice notice-info inline ai4seo-notice ai4seo-content-list-quality" role="status">'
-				. ai4seo_get_sooz_logo_image_tag( 'sooz-oo' )
-				. '<p><strong>' . esc_html( $notice_title ) . '</strong></p><p>' . esc_html( $notice_message ) . '</p>';
-
-			if ( array_key_exists( 'hidden', $status_counts ) && null === $status_counts['hidden'] ) {
-				$output .= '<p>' . esc_html__( 'Exclusions could not be verified. Use Unverified exclusions to review entries; bulk selection is disabled in that view.', 'ai-for-seo' ) . '</p>';
-			}
-
-			$output .= '</div>';
-		}
+		$output                  = '<div class="ai4seo-filter-bar ai4seo-content-list-controls">';
+		$output                 .= ai4seo_get_content_type_list_quality_notice( $filter_context, $status_counts );
 			$output             .= '<div class="ai4seo-content-list-controls__top">';
 				$output         .= '<div class="ai4seo-content-list-controls__views">';
 					$output     .= '<ul ' . $status_filter_attributes . '>' . $status_filter_items_html . '</ul>';

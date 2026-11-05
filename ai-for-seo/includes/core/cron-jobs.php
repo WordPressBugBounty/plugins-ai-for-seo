@@ -135,6 +135,7 @@ function ai4seo_taxonomy_proxy_sync_cron_job(): bool {
 				'version'        => 1,
 				'phase'          => 'source',
 				'cursor'         => 0,
+				'issue_cursor'   => $progress['issue_cursor'] ?? 0,
 				'source_upper'   => $upper,
 				'proxy_upper'    => 0,
 				'last_run'       => 0,
@@ -144,12 +145,24 @@ function ai4seo_taxonomy_proxy_sync_cron_job(): bool {
 			);
 		}
 		$processed = 0;
-		$error     = null;
-		if ( ! empty( $progress['pending_delete'] ) ) {
-			$result = ai4seo_delete_taxonomy_proxy( $progress['pending_delete']['post_id'], $progress, $snapshot );
+		$error     = ai4seo_recheck_term_analysis_issues( $progress ) ? null : new WP_Error( 'taxonomy_issue_read_failed' );
+		if ( null === $error && ! empty( $progress['pending_delete'] ) ) {
+			$pending = $progress['pending_delete'];
+			$issues  = ai4seo_read_analysis_issue_snapshots( array( $pending['post_id'] ) );
 			++$processed;
-			if ( is_wp_error( $result ) ) {
-				$error = $result;
+			if ( null === $issues ) {
+				$error = new WP_Error( 'taxonomy_issue_read_failed' );
+			} else {
+				$observed = $issues[ $pending['post_id'] ];
+				$result   = ai4seo_delete_taxonomy_proxy( $pending['post_id'], $progress, $snapshot );
+				if ( is_wp_error( $result ) ) {
+					$error = $result;
+				} elseif ( ( $observed['exists'] && ! ai4seo_enqueue_analysis_reconciliation( array( $pending['post_id'] ), true ) )
+					|| ! ai4seo_resolve_analysis_issue( $observed, 'taxonomy_sync' ) ) {
+					// The post may already be gone; keep its journal until diagnostic cleanup also commits.
+					$progress['pending_delete'] = $pending;
+					$error                      = new WP_Error( 'taxonomy_issue_write_failed' );
+				}
 			}
 		}
 		while ( null === $error && $processed < AI4SEO_TAXONOMY_PROXY_SYNC_BATCH_SIZE && microtime( true ) - $started < AI4SEO_TAXONOMY_PROXY_SYNC_TIME_LIMIT ) {
@@ -184,6 +197,49 @@ function ai4seo_taxonomy_proxy_sync_cron_job(): bool {
 					return false;
 				}
 				++$processed;
+				$source_issue_snapshot = null;
+				$entity                = 'source' === $progress['phase'] ? 'term_taxonomy' : 'post';
+				$issue_id              = (int) $row['id'];
+				if ( 'source' === $progress['phase'] ) {
+					$source_issues = ai4seo_read_analysis_issue_snapshots( array( $issue_id ), 'term_taxonomy' );
+					if ( null === $source_issues ) {
+						$error = new WP_Error( 'taxonomy_issue_read_failed' );
+						break 2;
+					}
+					$source_issue_snapshot = $source_issues[ $issue_id ];
+					$proxy                 = ai4seo_read_taxonomy_proxy( $issue_id );
+					if ( is_array( $proxy ) ) {
+						$entity   = 'post';
+						$issue_id = (int) $proxy['ID'];
+					} elseif ( is_wp_error( $proxy ) && 'isolated' !== ai4seo_classify_analysis_failure( $proxy, $issue_id ) ) {
+						$error = $proxy;
+						break 2;
+					}
+				}
+				$issue_snapshot = ai4seo_read_analysis_issue_snapshots( array( $issue_id ), $entity );
+				if ( null === $issue_snapshot ) {
+					$error = new WP_Error( 'taxonomy_issue_read_failed' );
+					break 2;
+				}
+				$observed = $issue_snapshot[ $issue_id ];
+				$retry_at = 0;
+				foreach ( $observed['value']['reasons'] ?? array() as $reason ) {
+					if ( 'taxonomy_sync' === $reason['stage'] ) {
+						$retry_at = max( $retry_at, $reason['next_retry'] );
+					}
+				}
+				if ( $retry_at > time() ) {
+					if ( 'post' === $entity ) {
+						$pending = ai4seo_uses_post_state_tables() ? ai4seo_read_post_state_work( 1, array( $issue_id ) ) : ai4seo_read_analysis_reconciliation_snapshot();
+						$work    = ai4seo_uses_post_state_tables() ? $pending : ( $pending['value'] ?? array() );
+						if ( null === $pending || ( ! isset( $work[ $issue_id ] ) && ! ai4seo_enqueue_analysis_reconciliation( array( $issue_id ), true ) ) ) {
+							$error = new WP_Error( 'taxonomy_issue_repair_not_queued' );
+							break 2;
+						}
+					}
+					$progress['cursor'] = (int) $row['id'];
+					continue;
+				}
 				if ( 'source' === $progress['phase'] ) {
 					$result = ai4seo_get_taxonomy_proxy_source_state( (int) $row['id'] );
 					if ( ! is_wp_error( $result ) && 'available' === $result['state'] ) {
@@ -193,7 +249,41 @@ function ai4seo_taxonomy_proxy_sync_cron_job(): bool {
 					$result = ai4seo_reconcile_taxonomy_proxy( (int) $row['id'], $progress, $snapshot );
 				}
 				if ( is_wp_error( $result ) ) {
-					$error = $result;
+					$confirmed_post_id = (int) ( $result->get_error_data()['post_id'] ?? 0 );
+					if ( $confirmed_post_id > 0 ) {
+						$entity   = 'post';
+						$issue_id = $confirmed_post_id;
+					}
+					if ( 'isolated' !== ai4seo_classify_analysis_failure( $result, (int) $row['id'] )
+						|| ! ai4seo_record_analysis_issue(
+							$entity,
+							$issue_id,
+							'taxonomy_sync',
+							array(
+								array(
+									'reason' => $result->get_error_code(),
+									'field'  => 'taxonomy',
+								),
+							),
+							'post' === $entity ? $issue_id : 0
+						) ) {
+						$error = $result;
+						break 2;
+					}
+					if ( 'post' === $entity && ! ai4seo_enqueue_analysis_reconciliation( array( $issue_id ), true ) ) {
+						$error = new WP_Error( 'taxonomy_issue_repair_not_queued' );
+						break 2;
+					}
+					if ( 'post' === $entity && null !== $source_issue_snapshot && ! ai4seo_resolve_analysis_issue( $source_issue_snapshot, 'taxonomy_sync' ) ) {
+						$error = new WP_Error( 'taxonomy_issue_write_failed' );
+						break 2;
+					}
+				} elseif ( ( ( $observed['exists'] || ! empty( $source_issue_snapshot['exists'] ) )
+						&& ( is_int( $result ) || 'post' === $entity )
+						&& ! ai4seo_enqueue_analysis_reconciliation( array( is_int( $result ) ? $result : $issue_id ), true ) )
+					|| ! ai4seo_resolve_analysis_issue( $observed, 'taxonomy_sync' )
+					|| ( null !== $source_issue_snapshot && ! ai4seo_resolve_analysis_issue( $source_issue_snapshot, 'taxonomy_sync' ) ) ) {
+					$error = new WP_Error( 'taxonomy_issue_write_failed' );
 					break 2;
 				}
 				// Only confirmed records advance; a killed process can safely replay this section.
@@ -4870,7 +4960,8 @@ function ai4seo_attempt_attachment_attributes_generation(
 	$robhub_api_call_parameters['trigger']         = 'automated';
 	$robhub_api_call_parameters['website_context'] = ai4seo_get_website_context();
 
-	$attachment_usage_context = ai4seo_get_attachment_post_related_context( $attachment_post_id );
+	$attachment_context_result = ai4seo_resolve_attachment_usage_context( $attachment_post_id );
+	$attachment_usage_context  = $attachment_context_result['context'];
 
 	if ( ! empty( $attachment_usage_context ) ) {
 		$robhub_api_call_parameters['attachment_usage_context'] = $attachment_usage_context;
@@ -5134,7 +5225,12 @@ function ai4seo_attempt_attachment_attributes_generation(
 		'success',
 		'attachment-attributes-bulk-generated',
 		(int) ( $results['credits-consumed'] ?? 0 ),
-		'',
+		'' === $attachment_usage_context
+			? sprintf(
+				/* translators: %s: Machine-readable context verification reason. */
+				__( 'Generated without post context (%s).', 'ai-for-seo' ),
+				$attachment_context_result['reason']
+			) : '',
 		array_keys( $new_attachment_attributes )
 	);
 

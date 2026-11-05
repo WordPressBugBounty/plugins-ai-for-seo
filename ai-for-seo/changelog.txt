@@ -1,4 +1,15 @@
 == Changelog ==
+= 2.6.2 =
+* Added a choice of verified source posts for image generation, with automatic context checks and clear feedback when a source is unavailable.
+* Added detailed lists of entries affected by SEO analysis problems, while allowing unaffected content to continue processing.
+* Made analysis preparation, pauses, background updates, and provisional statistics easier to distinguish.
+* Improved filtering and sorting of large content libraries, including clearer messages when a list cannot be loaded.
+* Fixed retrying all failed generations so the affected entries can be processed again.
+* Enabled metadata editing for the first draft of supported public content types.
+* Improved reconnection for eligible free accounts after connection errors.
+* Clarified image-generation settings and the preview of unsaved Keywords changes.
+* Bug Fixes & Maintenance: Fixed 2 minor bugs and addressed 1 security issue.
+
 = 2.6.1 =
 * Improved handling of large content libraries in filtered lists, title sorting, and SEO Autopilot.
 * Kept completed SEO statistics visible during background updates, with changes to content included before the new results appear.

@@ -816,12 +816,13 @@ function ai4seo_should_exclude_posts_if_any_disabled_taxonomy_term_matches(): bo
 /**
  * Processes relevant taxonomy assignments one bounded relationship-row page at a time.
  *
- * @param array    $post_ids Candidate post IDs normalized by the caller.
- * @param array    $taxonomy_names Relevant taxonomy names.
- * @param callable $assignment_chunk_processor Receives one bounded assignment-row result set.
+ * @param array      $post_ids Candidate post IDs normalized by the caller.
+ * @param array      $taxonomy_names Relevant taxonomy names.
+ * @param callable   $assignment_chunk_processor Receives one bounded assignment-row result set.
+ * @param array|null $issues Optional collector for attributable row errors; null keeps strict reads.
  * @return bool True after every chunk is processed, or false on preparation, execution, or row-validation failure.
  */
-function ai4seo_process_taxonomy_assignment_chunks_for_post_ids( array $post_ids, array $taxonomy_names, callable $assignment_chunk_processor ): bool {
+function ai4seo_process_taxonomy_assignment_chunks_for_post_ids( array $post_ids, array $taxonomy_names, callable $assignment_chunk_processor, ?array &$issues = null ): bool {
 	global $wpdb;
 
 	if ( ! $post_ids || ! $taxonomy_names ) {
@@ -923,26 +924,18 @@ function ai4seo_process_taxonomy_assignment_chunks_for_post_ids( array $post_ids
 			$next_term_taxonomy_cursor   = $term_taxonomy_id_cursor;
 
 			foreach ( $this_assignment_rows as $this_assignment_row ) {
-				if ( ! is_array( $this_assignment_row )
-					|| ! array_key_exists( 'object_id', $this_assignment_row )
-					|| ! array_key_exists( 'taxonomy', $this_assignment_row )
-					|| ! array_key_exists( 'term_id', $this_assignment_row )
-					|| ! array_key_exists( 'term_taxonomy_id', $this_assignment_row )
-					|| ! is_string( $this_assignment_row['taxonomy'] ) ) {
+				if ( ! is_array( $this_assignment_row ) ) {
 					return false;
 				}
 
 				$this_object_id        = ai4seo_normalize_database_id( $this_assignment_row['object_id'] ?? null );
 				$this_term_id          = ai4seo_normalize_database_id( $this_assignment_row['term_id'] ?? null );
 				$this_term_taxonomy_id = ai4seo_normalize_database_id( $this_assignment_row['term_taxonomy_id'] ?? null );
-				$this_taxonomy_name    = $this_assignment_row['taxonomy'];
+				$this_taxonomy_name    = $this_assignment_row['taxonomy'] ?? null;
 
 				if ( false === $this_object_id
-					|| false === $this_term_id
 					|| false === $this_term_taxonomy_id
-					|| ! isset( $this_post_id_lookup[ $this_object_id ] )
-					|| sanitize_key( $this_taxonomy_name ) !== $this_taxonomy_name
-					|| ! isset( $taxonomy_name_lookup[ $this_taxonomy_name ] ) ) {
+					|| ! isset( $this_post_id_lookup[ $this_object_id ] ) ) {
 					return false;
 				}
 
@@ -953,6 +946,15 @@ function ai4seo_process_taxonomy_assignment_chunks_for_post_ids( array $post_ids
 
 				$next_object_id_cursor     = $this_object_id;
 				$next_term_taxonomy_cursor = $this_term_taxonomy_id;
+				if ( false === $this_term_id || ! is_string( $this_taxonomy_name )
+					|| sanitize_key( $this_taxonomy_name ) !== $this_taxonomy_name
+					|| ! isset( $taxonomy_name_lookup[ $this_taxonomy_name ] ) ) {
+					if ( null === $issues ) {
+						return false;
+					}
+					ai4seo_add_posts_table_analysis_issue( $issues, $this_object_id, 'taxonomy', 'invalid_taxonomy_assignment' );
+					continue;
+				}
 
 				unset( $this_assignment_row['term_taxonomy_id'] );
 				$this_public_assignment_rows[] = $this_assignment_row;
@@ -1026,12 +1028,13 @@ function ai4seo_normalize_taxonomy_filter_post_ids( array $post_ids ): array {
 /**
  * Returns post IDs whose assigned taxonomy terms include at least one disabled term.
  *
- * @param array     $post_ids Candidate post IDs.
- * @param array     $disabled_taxonomy_terms Disabled terms grouped by taxonomy.
- * @param bool|null $read_succeeded Receives whether every taxonomy-assignment read succeeded.
+ * @param array      $post_ids Candidate post IDs.
+ * @param array      $disabled_taxonomy_terms Disabled terms grouped by taxonomy.
+ * @param bool|null  $read_succeeded Receives whether every taxonomy-assignment read succeeded.
+ * @param array|null $issues Optional collector for attributable row errors; null keeps strict reads.
  * @return array
  */
-function ai4seo_get_post_ids_with_any_disabled_taxonomy_terms( array $post_ids, array $disabled_taxonomy_terms, ?bool &$read_succeeded = null ): array {
+function ai4seo_get_post_ids_with_any_disabled_taxonomy_terms( array $post_ids, array $disabled_taxonomy_terms, ?bool &$read_succeeded = null, ?array &$issues = null ): array {
 	global $wpdb;
 
 	$read_succeeded = false;
@@ -1064,7 +1067,8 @@ function ai4seo_get_post_ids_with_any_disabled_taxonomy_terms( array $post_ids, 
 
 				$excluded_post_id_lookup[ $object_id ] = true;
 			}
-		}
+		},
+		$issues
 	);
 
 	if ( ! $read_succeeded ) {
@@ -1087,12 +1091,13 @@ function ai4seo_get_post_ids_with_any_disabled_taxonomy_terms( array $post_ids, 
  *
  * Posts without any assigned relevant taxonomy term are not returned.
  *
- * @param array     $post_ids Candidate post IDs.
- * @param array     $disabled_taxonomy_terms Disabled terms grouped by taxonomy.
- * @param bool|null $read_succeeded Receives whether every taxonomy-assignment read succeeded.
+ * @param array      $post_ids Candidate post IDs.
+ * @param array      $disabled_taxonomy_terms Disabled terms grouped by taxonomy.
+ * @param bool|null  $read_succeeded Receives whether every taxonomy-assignment read succeeded.
+ * @param array|null $issues Optional collector for attributable row errors; null keeps strict reads.
  * @return array
  */
-function ai4seo_get_post_ids_with_only_disabled_taxonomy_terms( array $post_ids, array $disabled_taxonomy_terms, ?bool &$read_succeeded = null ): array {
+function ai4seo_get_post_ids_with_only_disabled_taxonomy_terms( array $post_ids, array $disabled_taxonomy_terms, ?bool &$read_succeeded = null, ?array &$issues = null ): array {
 	global $wpdb;
 
 	$read_succeeded = false;
@@ -1130,7 +1135,8 @@ function ai4seo_get_post_ids_with_only_disabled_taxonomy_terms( array $post_ids,
 					$post_ids_with_enabled_terms[ $object_id ] = true;
 				}
 			}
-		}
+		},
+		$issues
 	);
 
 	if ( ! $read_succeeded ) {
@@ -1154,13 +1160,14 @@ function ai4seo_get_post_ids_with_only_disabled_taxonomy_terms( array $post_ids,
 /**
  * Returns all post IDs that should be excluded by the disabled-taxonomy-terms setting mode.
  *
- * @param array     $post_ids Candidate post IDs.
- * @param array     $disabled_taxonomy_terms Disabled terms grouped by taxonomy.
- * @param bool|null $exclude_on_any_disabled_taxonomy_term Optional. Defaults to the user setting.
- * @param bool|null $read_succeeded Receives whether every taxonomy-assignment read succeeded.
+ * @param array      $post_ids Candidate post IDs.
+ * @param array      $disabled_taxonomy_terms Disabled terms grouped by taxonomy.
+ * @param bool|null  $exclude_on_any_disabled_taxonomy_term Optional. Defaults to the user setting.
+ * @param bool|null  $read_succeeded Receives whether every taxonomy-assignment read succeeded.
+ * @param array|null $issues Optional collector for attributable row errors; null keeps strict reads.
  * @return array
  */
-function ai4seo_get_post_ids_excluded_by_disabled_taxonomy_terms( array $post_ids, array $disabled_taxonomy_terms, ?bool $exclude_on_any_disabled_taxonomy_term = null, ?bool &$read_succeeded = null ): array {
+function ai4seo_get_post_ids_excluded_by_disabled_taxonomy_terms( array $post_ids, array $disabled_taxonomy_terms, ?bool $exclude_on_any_disabled_taxonomy_term = null, ?bool &$read_succeeded = null, ?array &$issues = null ): array {
 	$read_succeeded = false;
 
 	if ( null === $exclude_on_any_disabled_taxonomy_term ) {
@@ -1168,10 +1175,10 @@ function ai4seo_get_post_ids_excluded_by_disabled_taxonomy_terms( array $post_id
 	}
 
 	if ( $exclude_on_any_disabled_taxonomy_term ) {
-		return ai4seo_get_post_ids_with_any_disabled_taxonomy_terms( $post_ids, $disabled_taxonomy_terms, $read_succeeded );
+		return ai4seo_get_post_ids_with_any_disabled_taxonomy_terms( $post_ids, $disabled_taxonomy_terms, $read_succeeded, $issues );
 	}
 
-	return ai4seo_get_post_ids_with_only_disabled_taxonomy_terms( $post_ids, $disabled_taxonomy_terms, $read_succeeded );
+	return ai4seo_get_post_ids_with_only_disabled_taxonomy_terms( $post_ids, $disabled_taxonomy_terms, $read_succeeded, $issues );
 }
 
 
@@ -1407,38 +1414,6 @@ function ai4seo_is_post_a_valid_content_post( int $post_id, ?WP_Post $post = nul
 	}
 
 	return true;
-}
-
-
-/**
- * Determines whether a registered post type can use the metadata editor.
- *
- * Editor availability follows registry and settings state without requiring an existing published
- * or future post, which keeps the first draft of a public post type inside the same save contract.
- *
- * @param string $post_type Post type identifier.
- * @return bool Whether the metadata editor is enabled for the post type.
- */
-function ai4seo_is_metadata_editor_enabled_for_post_type( string $post_type ): bool {
-	if ( '' === $post_type || sanitize_key( $post_type ) !== $post_type ) {
-		return false;
-	}
-
-	$publicly_accessible_post_types = ai4seo_get_publicly_accessible_post_types();
-
-	if ( ! isset( $publicly_accessible_post_types[ $post_type ] ) || ! ai4seo_get_active_meta_tags() ) {
-		return false;
-	}
-
-	$disabled_post_types = ai4seo_get_setting( AI4SEO_SETTING_DISABLED_POST_TYPES );
-
-	if ( ! is_array( $disabled_post_types ) ) {
-		$disabled_post_types = array();
-	} else {
-		$disabled_post_types = ai4seo_deep_sanitize( $disabled_post_types, 'sanitize_key' );
-	}
-
-	return ! in_array( $post_type, $disabled_post_types, true );
 }
 
 

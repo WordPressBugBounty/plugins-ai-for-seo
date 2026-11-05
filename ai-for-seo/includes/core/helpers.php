@@ -278,47 +278,57 @@ function ai4seo_robhub_api( $init_only = false ): ?Ai4Seo_RobHubApiCommunicator 
 
 
 /**
- * Return a fully sanitized array, using custom sanitize functions for both keys and values.
+ * Sanitize nested keys and values with custom callbacks while preserving booleans.
  *
- * @param array|string $data The array or value to be sanitized.
- * @param string       $sanitize_value_function_name The custom sanitize function for the values (default: sanitize_text_field).
- * @param string       $sanitize_key_function_name The custom sanitize function for the keys (default: sanitize_key).
- * @return array|string The sanitized array or value.
+ * @param mixed  $data The array or value to be sanitized.
+ * @param string $sanitize_value_function_name The custom sanitize function for the values (default: sanitize_text_field).
+ * @param string $sanitize_key_function_name The custom sanitize function for the keys (default: sanitize_key).
+ * @return mixed The sanitized array or callback result, with boolean values preserved.
  */
 function ai4seo_deep_sanitize( $data, string $sanitize_value_function_name = 'sanitize_text_field', string $sanitize_key_function_name = 'sanitize_key' ) {
-	if ( ai4seo_prevent_loops( __FUNCTION__, 100, 99999 ) ) {
-		ai4seo_debug_message( 549978452, 'Prevented loop', true );
-		return is_array( $data ) ? array() : '';
-	}
+	// Limit active recursion without exhausting sequential reads on large sites.
+	static $ai4seo_active_depth = 0;
 
-	if ( ! ai4seo_is_function_usable( $sanitize_value_function_name ) ) {
-		ai4seo_debug_message( 54103126, 'Value sanitize function ' . $sanitize_value_function_name . ' is not usable', true );
-		return is_array( $data ) ? array() : '';
-	}
+	++$ai4seo_active_depth;
 
-	if ( is_array( $data ) ) {
-		$sanitized_data = array();
-		foreach ( $data as $key => $value ) {
-			// Sanitize the key using the key sanitize function.
-			$sanitized_key = $sanitize_key_function_name( $key );
-
-			// Recursively sanitize the value if it's an array, or sanitize the value using the value sanitize function.
-			if ( is_array( $value ) ) {
-				$sanitized_data[ $sanitized_key ] = ai4seo_deep_sanitize( $value, $sanitize_value_function_name, $sanitize_key_function_name );
-			} elseif ( is_bool( $value ) ) {
-					$sanitized_data[ $sanitized_key ] = $value;
-			} else {
-				$sanitized_data[ $sanitized_key ] = $sanitize_value_function_name( $value );
-			}
+	try {
+		if ( 100 < $ai4seo_active_depth ) {
+			ai4seo_debug_message( 549978452, 'Prevented loop', true );
+			return is_array( $data ) ? array() : '';
 		}
-		return $sanitized_data;
-	} else {
+
+		if ( ! ai4seo_is_function_usable( $sanitize_value_function_name ) ) {
+			ai4seo_debug_message( 54103126, 'Value sanitize function ' . $sanitize_value_function_name . ' is not usable', true );
+			return is_array( $data ) ? array() : '';
+		}
+
+		if ( is_array( $data ) ) {
+			$sanitized_data = array();
+
+			foreach ( $data as $key => $value ) {
+				// Sanitize the key using the key sanitize function.
+				$sanitized_key = $sanitize_key_function_name( $key );
+
+				// Recursively sanitize the value if it's an array, or sanitize the value using the value sanitize function.
+				if ( is_array( $value ) ) {
+					$sanitized_data[ $sanitized_key ] = ai4seo_deep_sanitize( $value, $sanitize_value_function_name, $sanitize_key_function_name );
+				} elseif ( is_bool( $value ) ) {
+					$sanitized_data[ $sanitized_key ] = $value;
+				} else {
+					$sanitized_data[ $sanitized_key ] = $sanitize_value_function_name( $value );
+				}
+			}
+
+			return $sanitized_data;
+		}
+
 		if ( is_bool( $data ) ) {
 			return $data;
 		}
 
-		// If it's not an array, sanitize the value directly.
 		return $sanitize_value_function_name( $data );
+	} finally {
+		--$ai4seo_active_depth;
 	}
 }
 

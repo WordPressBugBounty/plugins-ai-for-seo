@@ -1336,9 +1336,18 @@ function ai4seo_get_posts_table_analysis_notice_message( array $analysis ): stri
 		$headline = __( 'SEO statistics update is scheduled', 'ai-for-seo' );
 	}
 	$details       = esc_html( $analysis['message'] ?? '' );
+	$details      .= $analysis['update_details'] ?? '';
+	$details      .= ai4seo_render_analysis_issues_page( (int) ( $GLOBALS['ai4seo_analysis_issues_page'] ?? 1 ) );
 	$bar           = '';
 	$progress_text = '';
 	$background    = ! empty( $analysis['background'] ) && 'incomplete' === $status && empty( $analysis['readiness']['blocked_options'] );
+	if ( $background && ! $preparing && ! $waiting ) {
+		$headline = __( 'SEO statistics are being updated in the background', 'ai-for-seo' );
+	}
+	if ( ! empty( $analysis['update_details'] ) && ( 'completed' === $status || $background ) ) {
+		$headline   = ! empty( $analysis['update_warning'] ) ? __( 'Some update steps are still pending', 'ai-for-seo' ) : __( 'Preparing analysis', 'ai-for-seo' );
+		$background = false;
+	}
 
 	// The initial row count remains a reference total, never proof that the scan has completed.
 	if ( in_array( (int) ( $progress['version'] ?? 0 ), array( 1, 2 ), true ) ) {
@@ -1351,16 +1360,24 @@ function ai4seo_get_posts_table_analysis_notice_message( array $analysis ): stri
 			esc_html( ai4seo_format_number_i18n( $total_rows ) )
 		);
 		if ( 'incomplete' === $status && ! $waiting ) {
-			$percentage    = $total_rows > 0 ? min( 99, (int) floor( 100 * ( $examined_rows / $total_rows ) ) ) : 0;
-			$progress_text = ' · ' . ai4seo_format_number_i18n( $percentage ) . '%';
+			$percentage    = $total_rows > 0 ? min( 99, (int) floor( 100 * ( $examined_rows / $total_rows ) ) ) : null;
+			$progress_text = null !== $percentage ? ' · ' . ai4seo_format_number_i18n( $percentage ) . '%' : '';
 			$remaining     = $analysis['estimated_remaining_seconds'] ?? null;
 			if ( is_int( $remaining ) && $remaining > 0 ) {
 				$progress_text .= ' · ' . ai4seo_get_analysis_remaining_time_label( $remaining );
 			} else {
 				$progress_text .= ' · ' . __( 'Estimating remaining time…', 'ai-for-seo' );
 			}
-			$bar = '<progress class="ai4seo-seo-coverage-progress-bar" value="' . esc_attr( $percentage ) . '" max="100" aria-label="' . esc_attr__( 'Analysis progress', 'ai-for-seo' ) . '"></progress>';
+			if ( null !== $percentage ) {
+				$bar = '<progress class="ai4seo-seo-coverage-progress-bar" value="' . esc_attr( $percentage ) . '" max="100" aria-label="' . esc_attr__( 'Analysis progress', 'ai-for-seo' ) . '"></progress>';
+			}
 		}
+	}
+
+	if ( $preparing || ( 'incomplete' === $status && ! $waiting && '' === $bar ) ) {
+		$bar = '<span class="ai4seo-analysis-activity"><span class="ai4seo-spinning-icon" aria-hidden="true">&#8635;</span><span class="screen-reader-text">'
+			. esc_html( $preparing ? __( 'Preparing analysis', 'ai-for-seo' ) : __( 'Analysis in progress', 'ai-for-seo' ) )
+			. '</span></span>';
 	}
 
 	$notice_class = 'completed' === $status && ! empty( $analysis['warning'] ) ? ' ai4seo-review-notice' : '';
@@ -1369,16 +1386,16 @@ function ai4seo_get_posts_table_analysis_notice_message( array $analysis ): stri
 	$html .= '<div class="ai4seo-analysis-status-header"><span><strong>' . esc_html( $headline ) . '</strong><span class="ai4seo-analysis-progress-text">' . esc_html( $progress_text ) . '</span></span>';
 	$html .= '</div>' . ( $background ? '' : $bar );
 	if ( $background ) {
-		$details = esc_html__( 'Statistics are being updated in the background. The last completed results remain visible; subsequent changes are checked before the new results are published.', 'ai-for-seo' ) . '<br><br>' . $details;
+		$html .= '<p>' . esc_html__( 'The last completed figures remain visible. Updated figures will be available once the background analysis finishes.', 'ai-for-seo' ) . '</p>';
 		return $html . ai4seo_get_collapsible_tag( __( 'Show details', 'ai-for-seo' ), $details, 'ai4seo-notice-technical-details ai4seo-analysis-details' ) . '</div>';
 	}
 	if ( $preparing ) {
-		$html .= '<p>' . esc_html__( 'Analysis will resume after the update. No action is needed to continue preparation.', 'ai-for-seo' ) . '</p>';
+		$html .= '<p>' . esc_html__( 'SOOZ is preparing your existing SEO status data. Analysis will resume automatically after preparation. No action is needed.', 'ai-for-seo' ) . '</p>';
 	}
 
-	$has_warnings = ! empty( $progress['warnings']['count'] );
+	$has_warnings = ! empty( $analysis['issue_count'] ?? $progress['warnings']['count'] ?? 0 );
 	if ( $has_warnings ) {
-		$count = (int) $progress['warnings']['count'];
+		$count = (int) ( $analysis['issue_count'] ?? $progress['warnings']['count'] );
 		$html .= '<div class="ai4seo-analysis-warning ai4seo-analysis-warning-inline">' . ai4seo_get_svg_tag( 'triangle-exclamation', '', 'ai4seo-orange-icon', true ) . ' <strong>' . sprintf(
 			/* translators: %s: Number of entries excluded from analysis. */
 			esc_html( _n( '%s entry could not be analyzed.', '%s entries could not be analyzed.', $count, 'ai-for-seo' ) ),
@@ -1392,6 +1409,108 @@ function ai4seo_get_posts_table_analysis_notice_message( array $analysis ): stri
 	$html .= '</div>';
 
 	return $html;
+}
+
+
+/**
+ * Render a bounded page of currently affected identities in the existing analysis details.
+ *
+ * @param int $page One-based page.
+ * @return string Escaped inventory, or empty for an unauthorized viewer.
+ */
+function ai4seo_render_analysis_issues_page( int $page = 1 ): string {
+	if ( ! ai4seo_can_administer_plugin() ) {
+		return '';
+	}
+	$issues = ai4seo_read_analysis_issues( $page );
+	$html   = '<div class="ai4seo-analysis-issues" data-page="' . esc_attr( $issues['page'] ?? $page ) . '" aria-live="polite">';
+	if ( null === $issues ) {
+		return $html . '<p>' . esc_html__( 'The affected entries could not be loaded. Please try again shortly.', 'ai-for-seo' ) . '</p></div>';
+	}
+	$inventory = ai4seo_get_raw_option_snapshot( AI4SEO_ANALYSIS_ISSUE_MIGRATION_OPTION );
+	if ( null === $inventory || ! $inventory['exists'] || 'complete' !== ( $inventory['value']['phase'] ?? '' ) ) {
+		$html .= '<p>' . esc_html__( 'The list is being completed by a full analysis. Additional affected entries may appear.', 'ai-for-seo' ) . '</p>';
+	}
+	if ( ! $issues['total'] ) {
+		return $html . '</div>';
+	}
+	$html .= '<p><strong>' . sprintf(
+		/* translators: %s: Total affected entries, across all pages. */
+		esc_html__( 'Affected entries: %s', 'ai-for-seo' ),
+		esc_html( ai4seo_format_number_i18n( $issues['total'] ) )
+	) . '</strong></p><ul>';
+	foreach ( $issues['records'] as $entry ) {
+		$link  = '';
+		$label = 'post' === $entry['entity']
+			/* translators: %d: Post ID. */
+			? sprintf( __( 'Post ID %d', 'ai-for-seo' ), $entry['id'] )
+			/* translators: %d: Term taxonomy ID (not term ID). */
+			: sprintf( __( 'Term taxonomy ID %d', 'ai-for-seo' ), $entry['id'] );
+		if ( 'post' === $entry['entity'] && current_user_can( 'edit_post', $entry['id'] ) ) {
+			if ( AI4SEO_TAXONOMY_PROXY_POST_TYPE === get_post_type( $entry['id'] ) ) {
+				$context = ai4seo_get_taxonomy_proxy_editor_context( $entry['id'] );
+				if ( ! is_wp_error( $context ) && current_user_can( 'edit_term', $context['source']['term_id'] ) ) {
+					$link = $context['edit_url'];
+				}
+			} else {
+				$link = get_edit_post_link( $entry['id'], 'raw' );
+			}
+		} elseif ( 'term_taxonomy' === $entry['entity'] ) {
+			$term = get_term_by( 'term_taxonomy_id', $entry['id'] );
+			if ( $term && current_user_can( 'edit_term', $term->term_id ) ) {
+				$link = get_edit_term_link( $term->term_id, $term->taxonomy );
+			}
+		}
+		$reasons = array();
+		foreach ( $entry['reasons'] as $reason ) {
+			$message = 'taxonomy' === $reason['field']
+				? __( 'The internal taxonomy entry could not be verified.', 'ai-for-seo' )
+				: __( 'Stored data could not be interpreted reliably.', 'ai-for-seo' );
+			if ( 'duplicate_owners' === $reason['reason'] ) {
+				$message = __( 'Multiple stored records claim the same entry.', 'ai-for-seo' );
+			} elseif ( 'repair_conflict' === $reason['reason'] ) {
+				$message = __( 'The automatic repair could not be confirmed; it will be retried.', 'ai-for-seo' );
+			}
+			$reasons[] = esc_html( $message ) . ' <code>' . esc_html( $reason['reason'] . ( $reason['field'] ? ' / ' . $reason['field'] : '' ) ) . '</code>';
+		}
+		$html .= '<li>' . ( is_string( $link ) && $link ? '<a href="' . esc_url( $link ) . '">' . esc_html( $label ) . '</a>' : esc_html( $label ) )
+			. ': ' . implode( '; ', array_unique( $reasons ) ) . '</li>';
+	}
+	$html .= '</ul><div role="navigation" aria-label="' . esc_attr__( 'Affected entries pages', 'ai-for-seo' ) . '">';
+	$pages = (int) ceil( $issues['total'] / AI4SEO_ANALYSIS_ISSUE_PAGE_SIZE );
+	foreach ( array(
+		-1 => __( 'Previous', 'ai-for-seo' ),
+		1  => __( 'Next', 'ai-for-seo' ),
+	) as $offset => $label ) {
+		$target = $issues['page'] + $offset;
+		if ( $target > 0 && $target <= $pages ) {
+			$html .= '<button type="button" class="button ai4seo-analysis-issues-page" data-page="' . esc_attr( $target ) . '">' . esc_html( $label ) . '</button> ';
+		}
+	}
+	$html .= sprintf(
+		/* translators: 1: Current page. 2: Total pages. */
+		esc_html__( 'Page %1$d of %2$d', 'ai-for-seo' ),
+		$issues['page'],
+		$pages
+	);
+	return $html . '</div></div>';
+}
+
+/**
+ * Explain provisional dashboard figures using the same status as their charts.
+ *
+ * @param array $analysis Current analysis snapshot.
+ * @return string Escaped result notice, or empty when published results are available.
+ */
+function ai4seo_get_dashboard_preliminary_results_notice( array $analysis ): string {
+	if ( 'completed' === ( $analysis['status'] ?? '' ) || ! empty( $analysis['background'] ) ) {
+		return '';
+	}
+
+	return '<div class="ai4seo-dashboard-analysis-preliminary ai4seo-blue-message" role="status"><strong>'
+		. esc_html__( 'Preliminary results', 'ai-for-seo' ) . '</strong><p>'
+		. esc_html__( 'These figures are provisional because the analysis is not yet complete. Updated figures will be available once the analysis finishes.', 'ai-for-seo' )
+		. '</p></div>';
 }
 
 
@@ -2420,7 +2539,7 @@ function ai4seo_get_prompt_slider_setting_stages( string $setting_name ): array 
 				),
 				array(
 					'value'       => '4',
-					'label'       => esc_html__( 'Page-framed', 'ai-for-seo' ),
+					'label'       => esc_html__( 'Use page context', 'ai-for-seo' ),
 					'description' => esc_html__( 'Use page context as the normal frame. Assume the image is directly related to surrounding content when present; otherwise use page title, excerpt, and first section as primary reference while respecting image evidence and field rules.', 'ai-for-seo' ),
 				),
 				array(
@@ -2451,7 +2570,7 @@ function ai4seo_get_prompt_slider_setting_stages( string $setting_name ): array 
 				),
 				array(
 					'value'       => '4',
-					'label'       => esc_html__( 'Likely facts', 'ai-for-seo' ),
+					'label'       => esc_html__( 'Use file details', 'ai-for-seo' ),
 					'description' => esc_html__( 'Treat compatible filename facts as likely confirmed. If the filename contains a full name and a person is visible, use it as the confirmed identity; if it contains a product name or brand and aligns with image/context evidence, include it.', 'ai-for-seo' ),
 				),
 				array(
@@ -2473,22 +2592,22 @@ function ai4seo_get_prompt_slider_setting_stages( string $setting_name ): array 
 				),
 				array(
 					'value'       => '2',
-					'label'       => esc_html__( 'Avoid similar only', 'ai-for-seo' ),
+					'label'       => esc_html__( 'Avoid similar wording', 'ai-for-seo' ),
 					'description' => esc_html__( 'Use old values only to avoid near-duplicate wording. Produce substantially different phrasing without using old values as factual source material.', 'ai-for-seo' ),
 				),
 				array(
 					'value'       => '3',
-					'label'       => esc_html__( 'Supported hints', 'ai-for-seo' ),
+					'label'       => esc_html__( 'Use supported details', 'ai-for-seo' ),
 					'description' => esc_html__( 'Use old values as supported hints. Consider names, quantities, and recognizable details only when good evidence from content, image, or context supports them.', 'ai-for-seo' ),
 				),
 				array(
 					'value'       => '4',
-					'label'       => esc_html__( 'Conditional mandatory', 'ai-for-seo' ),
+					'label'       => esc_html__( 'Keep relevant details', 'ai-for-seo' ),
 					'description' => esc_html__( 'Use old values as reference points for recognizable names or additional information. Ignore non-descriptive old values. Quantitative details such as sizes, dimensions, weights, tall, wide, or high must be included exactly once when they logically describe the subject.', 'ai-for-seo' ),
 				),
 				array(
 					'value'       => '5',
-					'label'       => esc_html__( 'Proactive preserve', 'ai-for-seo' ),
+					'label'       => esc_html__( 'Preserve more details', 'ai-for-seo' ),
 					'description' => esc_html__( 'Preserve old-value details proactively. Keep credible names, quantities, dimensions, and recognizable details when compatible, even from simple supporting clues, while avoiding poor old wording.', 'ai-for-seo' ),
 					'note'        => esc_html__( 'This could preserve outdated, low-quality, or misleading old details if they appear compatible with the new generation request.', 'ai-for-seo' ),
 				),
@@ -2644,7 +2763,7 @@ function ai4seo_get_prompt_slider_setting_stages( string $setting_name ): array 
 				),
 				array(
 					'value'       => '5',
-					'label'       => esc_html__( 'Entity led', 'ai-for-seo' ),
+					'label'       => esc_html__( 'Prioritize names', 'ai-for-seo' ),
 					'description' => esc_html__( 'Use entity-led wording proactively. Include plausible supported names, entities, and distinctive characteristics from simple compatible clues within field length limits.', 'ai-for-seo' ),
 					'note'        => esc_html__( 'This could overidentify entities or characteristics from weak clues, especially when filenames or surrounding text are noisy.', 'ai-for-seo' ),
 				),

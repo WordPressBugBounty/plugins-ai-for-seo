@@ -501,17 +501,50 @@ function ai4seo_is_expected_plugin_update_step( string $name, array $step ): boo
 }
 
 /**
- * Read-only diagnostics shared by normal plugin pages and the API-independent recovery screen.
+ * Resolve update notices against verified storage without rewriting migration checkpoints.
  *
+ * @return array Progress snapshot and whether unresolved steps require attention.
+ */
+function ai4seo_get_analysis_update_presentation(): array {
+	$progress = ai4seo_read_plugin_update_progress();
+	$warning  = null === $progress || version_compare( $progress['target'], AI4SEO_PLUGIN_VERSION_NUMBER, '>' );
+	if ( null !== $progress && ! $warning ) {
+		$step = $progress['steps']['post_state_storage_v1'] ?? array();
+		if ( AI4SEO_PLUGIN_VERSION_NUMBER === $progress['target'] && ai4seo_is_expected_plugin_update_step( 'post_state_storage_v1', $step ) ) {
+			$storage = ai4seo_read_post_state_storage_status();
+			// Active storage is authoritative even before the update controller records its final checkpoint.
+			if ( 'active' === ( $storage['phase'] ?? '' ) && '' === ( $storage['error'] ?? null ) ) {
+				unset( $progress['steps']['post_state_storage_v1'] );
+			}
+		}
+		foreach ( $progress['steps'] as $name => $step ) {
+			if ( 'completed' !== $step['status'] && ! ai4seo_is_expected_plugin_update_step( $name, $step ) ) {
+				$warning = true;
+			}
+		}
+	}
+	return array(
+		'progress' => $progress,
+		'warning'  => $warning,
+	);
+}
+
+/**
+ * Read-only diagnostics shared by notifications and the API-independent recovery screen.
+ *
+ * @param bool       $embedded Render content inside an existing notification.
+ * @param array|null $presentation Already resolved update state.
  * @return string Escaped HTML with no refresh loop or automatic mutation.
  */
-function ai4seo_get_plugin_update_notice_html(): string {
-	$progress = ai4seo_read_plugin_update_progress();
+function ai4seo_get_plugin_update_notice_html( bool $embedded = false, ?array $presentation = null ): string {
+	$presentation = $presentation ?? ai4seo_get_analysis_update_presentation();
+	$progress     = $presentation['progress'];
+	$warning_open = $embedded ? '<div>' : '<div class="notice notice-warning ai4seo-update-status">';
 	if ( null === $progress ) {
-		return '<div class="notice notice-warning ai4seo-update-status"><p>' . esc_html__( 'Update progress could not be read. Existing data has been retained. Please use Help to inspect the problem.', 'ai-for-seo' ) . '</p></div>';
+		return $warning_open . '<p>' . esc_html__( 'Update progress could not be read. Existing data has been retained. Please use Help to inspect the problem.', 'ai-for-seo' ) . '</p></div>';
 	}
 	if ( version_compare( $progress['target'], AI4SEO_PLUGIN_VERSION_NUMBER, '>' ) ) {
-		return '<div class="notice notice-warning ai4seo-update-status"><p>' . esc_html__( 'Stored update progress belongs to a newer plugin version. Affected operations remain restricted and original data has been retained. Please check the installed plugin version.', 'ai-for-seo' ) . '</p></div>';
+		return $warning_open . '<p>' . esc_html__( 'Stored update progress belongs to a newer plugin version. Affected operations remain restricted and original data has been retained. Please check the installed plugin version.', 'ai-for-seo' ) . '</p></div>';
 	}
 	$unresolved = array_filter(
 		$progress['steps'],
@@ -559,7 +592,12 @@ function ai4seo_get_plugin_update_notice_html(): string {
 		$intro       = $is_expected
 			? __( 'SOOZ is preparing your existing SEO status data. Analysis will resume after preparation is complete. Your saved progress is retained.', 'ai-for-seo' )
 			: __( 'Available functions can still be used. Affected operations remain restricted until their data can be verified. Unreadable original data has been retained.', 'ai-for-seo' );
-		$html       .= '<div class="notice notice-' . esc_attr( $type ) . ' ai4seo-update-status" role="status"><p><strong>' . esc_html( $title ) . '</strong></p><p>' . esc_html( $intro ) . '</p><ul>';
+		$html       .= $embedded ? '<div>' : '<div class="notice notice-' . esc_attr( $type ) . ' ai4seo-update-status" role="status">';
+		if ( ! $embedded ) {
+			$html .= '<p><strong>' . esc_html( $title ) . '</strong></p><p>' . esc_html( $intro ) . '</p>';
+		}
+		$html .= '<ul>';
+
 		foreach ( $steps as $name => $step ) {
 			$label  = $labels[ $name ] ?? __( 'Compatibility settings', 'ai-for-seo' );
 			$reason = $reasons[ $step['reason'] ] ?? __( 'This step could not be completed. It will be checked again.', 'ai-for-seo' );
@@ -568,7 +606,9 @@ function ai4seo_get_plugin_update_notice_html(): string {
 				/* translators: %d: Number of original records requiring attention. */
 				$html .= ' ' . esc_html( sprintf( __( 'Affected records: %d.', 'ai-for-seo' ), $step['issues'] ) );
 			}
-			$html .= '<details><summary>' . esc_html__( 'Diagnostic details', 'ai-for-seo' ) . '</summary><code>' . esc_html( $name . ': ' . $step['reason'] . ( $step['examples'] ? ' (IDs: ' . implode( ', ', $step['examples'] ) . ')' : '' ) ) . '</code></details></li>';
+			$html .= $embedded ? '<br>' : '<details><summary>' . esc_html__( 'Diagnostic details', 'ai-for-seo' ) . '</summary>';
+			$html .= '<code>' . esc_html( $name . ': ' . $step['reason'] . ( $step['examples'] ? ' (IDs: ' . implode( ', ', $step['examples'] ) . ')' : '' ) ) . '</code>';
+			$html .= ( $embedded ? '' : '</details>' ) . '</li>';
 		}
 		$guidance = $is_expected
 			? __( 'This is a normal update step. No action is needed.', 'ai-for-seo' )

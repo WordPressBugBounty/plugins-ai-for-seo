@@ -426,7 +426,7 @@ echo '<div'
 							__( 'Keywords', 'ai-for-seo' ),
 							'',
 							'',
-							__( 'A code representation of the stored meta keywords tag. Five to ten distinct, comma-separated keywords provide a useful amount of context without creating an unfocused list.', 'ai-for-seo' ),
+							__( 'A code preview of the current Keywords field, including unsaved edits. Use Save changes to store your changes. Five to ten distinct, comma-separated keywords provide a useful amount of context without creating an unfocused list.', 'ai-for-seo' ),
 							__( 'Keywords preview: Help', 'ai-for-seo' ),
 							ai4seo_get_editor_preview_edit_actions( $ai4seo_keywords_preview_fields, $ai4seo_active_meta_tags, $ai4seo_metadata_field_descriptors )
 						)

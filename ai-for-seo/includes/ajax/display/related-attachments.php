@@ -64,17 +64,7 @@ $ai4seo_related_attachments_modal_post_id   = $ai4seo_post_id;
 $ai4seo_attachment_post_ids_filter = array_values( array_unique( array_map( 'absint', $ai4seo_attachment_post_ids_filter ) ) );
 $ai4seo_attachment_post_ids_filter = array_values( array_filter( $ai4seo_attachment_post_ids_filter, 'ai4seo_can_edit_post' ) );
 
-// Persist the full scanner result before table filtering so generation can use it as a context fallback later.
-if ( ! ai4seo_update_attachment_related_post_id_for_attachment_post_ids(
-	$ai4seo_attachment_post_ids_filter,
-	$ai4seo_post_id
-) ) {
-	ai4seo_debug_message(
-		4527052602,
-		'Could not update related post fallback values for related media modal post ID ' . $ai4seo_post_id,
-		true
-	);
-}
+// Opening or filtering Related Media must never change the generation context choice.
 
 // Forward only the media-table filter parameters that attachment.php already knows how to consume.
 $ai4seo_related_attachments_filter_request_fields = array(
@@ -132,6 +122,7 @@ echo "<div class='ai4seo-modal-sub-headline'>";
 
 	// attachment.php reads these scoped variables and applies the related-ID filter in addition to its normal filters.
 	echo "<div class='ai4seo-modal-content ai4seo-related-attachments-modal-content' data-post-id='" . esc_attr( $ai4seo_post_id ) . "'>";
+	echo '<p>' . esc_html__( 'Starting or queueing generation saves this post as the context for images with verified usage and no fixed context. Existing fixed choices remain unchanged.', 'ai-for-seo' ) . '</p>';
 	if ( $ai4seo_related_attachments_scan_is_partial ) {
 		// Warn only when scanner caps skipped data; normal targeted key filtering remains silent.
 		echo "<div class='notice notice-warning inline ai4seo-related-attachments-partial-notice'>";

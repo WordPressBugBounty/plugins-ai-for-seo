@@ -1243,13 +1243,14 @@ div.ai4seo-max-width-100 {
 	top: 100%;
 	left: 0;
 	width: 100%;
-	margin-top: 4px;
+	/* Padding keeps the hover area connected while the pointer moves to the action. */
+	padding-top: 4px;
 	text-align: center;
 }
 
 /* Keep the WPML explanation on its own row above the media review action. */
 .ai4seo-chart-container:has(.ai4seo-half-donut-chart-sub-info) .ai4seo-chart-review {
-	margin-top: 24px;
+	padding-top: 24px;
 }
 
 /* type: module — dashboard chart: use the shared small secondary button styling. */
@@ -1267,6 +1268,32 @@ div.ai4seo-max-width-100 {
 /* type: module — dashboard chart: lift the transformed chart context while its tooltip is open. */
 .ai4seo-chart-container:has(.ai4seo-half-donut-chart-sub-info-trigger[aria-expanded='true']) {
 	z-index: 160010;
+}
+
+/* Reveal each chart's action without moving the surrounding charts; retain keyboard and touch access. */
+@media (hover: hover) and (pointer: fine) {
+	/* Extend the hit area into the existing gutters without changing chart layout. */
+	.ai4seo-chart-container::before {
+		content: '';
+		position: absolute;
+		inset: -16px -16px -48px;
+		z-index: -1;
+	}
+
+	.ai4seo-chart-container:has(.ai4seo-half-donut-chart-sub-info)::before {
+		bottom: -72px;
+	}
+
+	.ai4seo-chart-container > .ai4seo-chart-review {
+		opacity: 0;
+		pointer-events: none;
+	}
+
+	.ai4seo-chart-container:hover > .ai4seo-chart-review,
+	.ai4seo-chart-container:focus-within > .ai4seo-chart-review {
+		opacity: 1;
+		pointer-events: auto;
+	}
 }
 
 /* type: module — dashboard chart */
@@ -1524,6 +1551,19 @@ div.ai4seo-bulk-generation-status-subtext {
 	font-size: .9rem;
 	color: #555;
 	min-height: 3rem;
+}
+
+div.ai4seo-bulk-generation-status-container > .ai4seo-bulk-generation-status-subtext {
+	min-height: 0;
+	line-height: 1.6;
+}
+
+div.ai4seo-bulk-generation-status-container > .ai4seo-bulk-generation-status-subtext + .ai4seo-bulk-generation-status-subtext {
+	margin-top: .5rem;
+}
+
+.ai4seo-bulk-generation-status-action {
+	margin-top: 1rem;
 }
 
 /* type: module — icon */
@@ -4511,6 +4551,17 @@ div.ai4seo-sidebar-headline {
 	contain: inline-size;
 }
 
+/* Keep dashboard notifications aligned with the fluid card grid at every viewport width. */
+div.ai4seo-cards-container,
+.ai4seo-dashboard-notifications > div.ai4seo-notice {
+	max-width: calc((3 * 512px) + (3 * 4rem) + (2 * 1.5rem));
+}
+
+.ai4seo-dashboard-notifications > div.ai4seo-notice {
+	margin-left: 0;
+	margin-right: 0;
+}
+
 /* type: module — card */
 div.ai4seo-cards-container {
 	box-sizing: border-box;
@@ -4519,7 +4570,6 @@ div.ai4seo-cards-container {
 	grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(512px + 4rem)), 1fr));
 	gap: 1.5rem;
 	align-items: flex-start;
-	max-width: calc((3 * 512px) + (3 * 4rem) + (2 * 1.5rem));
 }
 
 /* type: module — card: fill each grid track while preserving standalone card sizing. */
@@ -6731,6 +6781,13 @@ div.ai4seo-notice li {
 	margin: .6rem 0;
 }
 
+.ai4seo-analysis-activity {
+	display: block;
+	margin: .6rem 0;
+	font-size: 1.5rem;
+	color: var(--ai4seo-blue);
+}
+
 .ai4seo-analysis-warning {
 	font-size: .875rem;
 	line-height: 1.6;
@@ -6777,7 +6834,9 @@ div.ai4seo-notice li {
 	margin-bottom: 48px;
 }
 
-.ai4seo-dashboard-statistics-card .ai4seo-dashboard-analysis-refresh-notice > p {
+.ai4seo-dashboard-statistics-card .ai4seo-dashboard-analysis-refresh-notice > p,
+.ai4seo-dashboard-analysis-preliminary,
+.ai4seo-dashboard-analysis-status > .ai4seo-analysis-background {
 	box-sizing: border-box;
 	width: 100%;
 	max-width: 960px;
@@ -6789,6 +6848,21 @@ div.ai4seo-notice li {
 	color: var(--ai4seo-blue-dark);
 	font-size: inherit;
 	line-height: inherit;
+}
+
+.ai4seo-dashboard-analysis-status > .ai4seo-analysis-background {
+	margin: 0 auto;
+	text-align: center;
+}
+
+.ai4seo-dashboard-analysis-preliminary {
+	flex: 0 0 100%;
+	margin: 0 auto 24px;
+}
+
+.ai4seo-dashboard-analysis-preliminary p,
+.ai4seo-analysis-background p {
+	margin: .5rem 0;
 }
 
 .ai4seo-analysis-details {
@@ -9847,7 +9921,7 @@ div.ai4seo-bulk-generation-status-animated-logo-container > img.ai4seo-bulk-gene
 
 .ai4seo-analysis-background {
 	font-size: 14px;
-	color: #646970;
+	color: var(--ai4seo-blue-dark);
 }
 
 .ai4seo-analysis-background .ai4seo-analysis-status-header,

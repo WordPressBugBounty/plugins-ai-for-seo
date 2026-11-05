@@ -1540,7 +1540,7 @@ echo "<div class='ai4seo-form ai4seo-unsaved-changes-warnings'>";
 					),
 					array(
 						'setting_name'        => AI4SEO_SETTING_ATTACHMENT_ATTRIBUTES_RECOGNIZABLE_ENTITY_INCLUSION,
-						'label'               => esc_html__( 'Recognizable Entity Inclusion:', 'ai-for-seo' ),
+						'label'               => esc_html__( 'Include Recognizable Names:', 'ai-for-seo' ),
 						'is_advanced_setting' => true,
 					),
 					array(
