@@ -303,10 +303,17 @@ function ai4seo_ensure_post_state_schema(): array {
 function ai4seo_ensure_post_state_schema_tables( array $definitions, array $expected_keys ): array {
 	global $wpdb;
 	$option_engine = ai4seo_post_state_query( 'SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME={{name}}', array( 'name' => $wpdb->options ), true );
-	if ( ! $option_engine || 'InnoDB' !== $option_engine[0]['ENGINE'] ) {
+	if ( null === $option_engine || 1 !== count( $option_engine ) || ! is_string( $option_engine[0]['ENGINE'] ?? null ) || '' === $option_engine[0]['ENGINE'] ) {
+		return array(
+			'success' => false,
+			'reason'  => 'options_engine_unreadable',
+		);
+	}
+	if ( 'InnoDB' !== $option_engine[0]['ENGINE'] ) {
 		return array(
 			'success' => false,
 			'reason'  => 'options_require_innodb',
+			'engine'  => $option_engine[0]['ENGINE'],
 		);
 	}
 	foreach ( $definitions as $table => $definition ) {

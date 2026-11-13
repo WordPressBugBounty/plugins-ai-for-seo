@@ -1056,10 +1056,6 @@ function ai4seo_is_post_a_valid_attachment( int $attachment_post_id, ?WP_Post $a
 		return false;
 	}
 
-	if ( ! is_numeric( $attachment_post_id ) ) {
-		return false;
-	}
-
 	$supported_attachment_post_types = ai4seo_get_supported_attachment_post_types();
 
 	// read post.

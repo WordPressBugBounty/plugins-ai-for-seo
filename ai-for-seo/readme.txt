@@ -4,7 +4,7 @@ Contributors: spacecodes
 Donate link: https://spa.ce.codes
 Requires at least: 6.6
 Tested up to: 7.1
-Stable tag: 2.6.2
+Stable tag: 2.6.3
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -226,6 +226,13 @@ It depends on how the generated data is stored and used. If *SOOZ - AI for SEO* 
 We welcome feature requests, editor integration ideas, page builder compatibility requests, and SEO workflow feedback. Please email [support@sooz.ai](mailto:support@sooz.ai) with your suggestions.
 
 == Changelog ==
+
+= 2.6.3 =
+* Fixed updates on sites using MyISAM without requiring a database conversion, while preserving existing SEO data and queues.
+* Made background SEO analysis easier to follow with clearer progress details and expandable information.
+* Made confirmation messages easier to notice when bringing the next background execution forward.
+* Clarified the filename influence and call-to-action settings.
+* Bug Fixes & Maintenance: Made 1 performance improvement.
 
 = 2.6.2 =
 * Added a choice of verified source posts for image generation, with automatic context checks and clear feedback when a source is unavailable.

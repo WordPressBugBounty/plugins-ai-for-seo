@@ -582,6 +582,8 @@ function ai4seo_get_plugin_update_notice_html( bool $embedded = false, ?array $p
 		'migration_in_progress'     => __( 'Post status storage is being migrated in batches. Saved progress will be resumed.', 'ai-for-seo' ),
 		'active_generations'        => __( 'Post status migration is waiting for running generations to finish.', 'ai-for-seo' ),
 		'analysis_busy'             => __( 'Another background task is finishing. Update preparation will continue automatically.', 'ai-for-seo' ),
+		'options_engine_unreadable' => __( 'The storage engine of the WordPress options table could not be verified. Please check database access before retrying.', 'ai-for-seo' ),
+		'options_require_innodb'    => __( 'The WordPress options table uses an unsupported storage engine. Please contact support.', 'ai-for-seo' ),
 	);
 	foreach ( $groups as $type => $steps ) {
 		if ( ! $steps ) {
@@ -616,6 +618,20 @@ function ai4seo_get_plugin_update_notice_html( bool $embedded = false, ?array $p
 		$html    .= '</ul><p>' . esc_html( $guidance ) . '</p></div>';
 	}
 	return $html;
+}
+
+/**
+ * Explain the supported options storage only on the troubleshooting screen.
+ *
+ * @return string Escaped diagnostic HTML, without a persistent notification.
+ */
+function ai4seo_get_post_state_storage_diagnostic_html(): string {
+	$state = ai4seo_read_post_state_storage_status();
+	if ( 'legacy' !== ( $state['phase'] ?? '' ) ) {
+		return '';
+	}
+	return '<p class="ai4seo-storage-compatibility"><strong>' . esc_html__( 'Post status storage: compatibility mode', 'ai-for-seo' ) . '</strong><br>'
+		. esc_html__( 'SOOZ uses its existing status storage. No database conversion is required. The optimizations of indexed status storage are not enabled in this mode.', 'ai-for-seo' ) . '</p>';
 }
 
 /** Render local diagnostics when the remote-service component cannot initialize. */

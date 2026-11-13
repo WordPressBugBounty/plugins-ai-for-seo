@@ -714,7 +714,6 @@ function ai4seo_get_taxonomy_proxy_count_labels( int $count, string $option_name
 		if ( count( $ids ) !== $count ) {
 			return array( $fallback( $count ) );
 		}
-		$counts = array();
 		foreach ( array_chunk( $ids, ai4seo_get_database_chunk_size() ) as $chunk ) {
 			$rows = ai4seo_query_taxonomy_proxy_inventory(
 				'SELECT p.ID, MIN(m.meta_value) AS taxonomy FROM {{posts}} p INNER JOIN {{meta}} m ON m.post_id = p.ID

@@ -1761,6 +1761,8 @@ foreach ( $ai4seo_credits_packs as $ai4seo_this_payg_stripe_price_id => $ai4seo_
 			echo '</h2>';
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Shared status renderer escapes all values.
 			echo ai4seo_get_plugin_update_notice_html();
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- The storage diagnostic renderer escapes its translated text.
+			echo ai4seo_get_post_state_storage_diagnostic_html();
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- The shared renderer escapes all translated notice text.
 			echo ai4seo_get_metadata_sync_policy_notice_html( ai4seo_read_metadata_sync_policy_snapshot() );
 			foreach ( array(

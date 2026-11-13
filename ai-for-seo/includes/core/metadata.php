@@ -4082,14 +4082,6 @@ function ai4seo_read_generated_data_details_from_post_meta( int $post_id ): arra
 	$generated_data_raw = get_post_meta( $post_id, AI4SEO_POST_META_GENERATED_DATA_META_KEY, true );
 	$generated_data     = ai4seo_decode_generated_data_postmeta_value( $generated_data_raw );
 
-	if ( ! $generated_data ) {
-		return array(
-			'generated_data'        => array(),
-			'generated_at'          => 0,
-			'generated_at_by_field' => array(),
-		);
-	}
-
 	return ai4seo_prepare_generated_data_details( $generated_data );
 }
 

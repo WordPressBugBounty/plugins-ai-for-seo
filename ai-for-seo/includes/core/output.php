@@ -1335,38 +1335,36 @@ function ai4seo_get_posts_table_analysis_notice_message( array $analysis ): stri
 	if ( $waiting ) {
 		$headline = __( 'SEO statistics update is scheduled', 'ai-for-seo' );
 	}
-	$details       = esc_html( $analysis['message'] ?? '' );
-	$details      .= $analysis['update_details'] ?? '';
-	$details      .= ai4seo_render_analysis_issues_page( (int) ( $GLOBALS['ai4seo_analysis_issues_page'] ?? 1 ) );
 	$bar           = '';
 	$progress_text = '';
 	$background    = ! empty( $analysis['background'] ) && 'incomplete' === $status && empty( $analysis['readiness']['blocked_options'] );
 	if ( $background && ! $preparing && ! $waiting ) {
-		$headline = __( 'SEO statistics are being updated in the background', 'ai-for-seo' );
+		$headline = __( 'Updating SEO statistics', 'ai-for-seo' );
 	}
 	if ( ! empty( $analysis['update_details'] ) && ( 'completed' === $status || $background ) ) {
 		$headline   = ! empty( $analysis['update_warning'] ) ? __( 'Some update steps are still pending', 'ai-for-seo' ) : __( 'Preparing analysis', 'ai-for-seo' );
 		$background = false;
 	}
+	$details  = esc_html( $background && ! $preparing && ! $waiting ? ( $analysis['warning'] ?? '' ) : ( $analysis['message'] ?? '' ) );
+	$details .= $analysis['update_details'] ?? '';
+	$details .= ai4seo_render_analysis_issues_page( (int) ( $GLOBALS['ai4seo_analysis_issues_page'] ?? 1 ) );
 
 	// The initial row count remains a reference total, never proof that the scan has completed.
 	if ( in_array( (int) ( $progress['version'] ?? 0 ), array( 1, 2 ), true ) ) {
 		$examined_rows = (int) $progress['examined_rows'];
 		$total_rows    = (int) $progress['total_rows'];
-		$details      .= '<br><br>' . ( $preparing ? esc_html__( 'Saved analysis progress (separate from update preparation):', 'ai-for-seo' ) . ' ' : '' ) . sprintf(
+		$details      .= '<p>' . ( $preparing ? esc_html__( 'Saved analysis progress (separate from update preparation):', 'ai-for-seo' ) . ' ' : '' ) . sprintf(
 			/* translators: 1: Rows examined. 2: Number of rows when this scan started. */
-			esc_html__( '%1$s rows examined; %2$s rows at the start of this scan.', 'ai-for-seo' ),
+			esc_html__( '%1$s rows checked · %2$s at scan start', 'ai-for-seo' ),
 			esc_html( ai4seo_format_number_i18n( $examined_rows ) ),
 			esc_html( ai4seo_format_number_i18n( $total_rows ) )
-		);
+		) . '</p>';
 		if ( 'incomplete' === $status && ! $waiting ) {
 			$percentage    = $total_rows > 0 ? min( 99, (int) floor( 100 * ( $examined_rows / $total_rows ) ) ) : null;
 			$progress_text = null !== $percentage ? ' · ' . ai4seo_format_number_i18n( $percentage ) . '%' : '';
 			$remaining     = $analysis['estimated_remaining_seconds'] ?? null;
 			if ( is_int( $remaining ) && $remaining > 0 ) {
 				$progress_text .= ' · ' . ai4seo_get_analysis_remaining_time_label( $remaining );
-			} else {
-				$progress_text .= ' · ' . __( 'Estimating remaining time…', 'ai-for-seo' );
 			}
 			if ( null !== $percentage ) {
 				$bar = '<progress class="ai4seo-seo-coverage-progress-bar" value="' . esc_attr( $percentage ) . '" max="100" aria-label="' . esc_attr__( 'Analysis progress', 'ai-for-seo' ) . '"></progress>';
@@ -1386,8 +1384,15 @@ function ai4seo_get_posts_table_analysis_notice_message( array $analysis ): stri
 	$html .= '<div class="ai4seo-analysis-status-header"><span><strong>' . esc_html( $headline ) . '</strong><span class="ai4seo-analysis-progress-text">' . esc_html( $progress_text ) . '</span></span>';
 	$html .= '</div>' . ( $background ? '' : $bar );
 	if ( $background ) {
-		$html .= '<p>' . esc_html__( 'The last completed figures remain visible. Updated figures will be available once the background analysis finishes.', 'ai-for-seo' ) . '</p>';
-		return $html . ai4seo_get_collapsible_tag( __( 'Show details', 'ai-for-seo' ), $details, 'ai4seo-notice-technical-details ai4seo-analysis-details' ) . '</div>';
+		$html .= '<p>' . esc_html__( 'Previous results remain visible until the update finishes. Results refresh automatically.', 'ai-for-seo' ) . '</p>';
+		return $html . ai4seo_get_collapsible_tag(
+			__( 'Show details', 'ai-for-seo' ),
+			$details,
+			'ai4seo-notice-technical-details ai4seo-analysis-details',
+			'',
+			false,
+			__( 'Hide details', 'ai-for-seo' )
+		) . '</div>';
 	}
 	if ( $preparing ) {
 		$html .= '<p>' . esc_html__( 'SOOZ is preparing your existing SEO status data. Analysis will resume automatically after preparation. No action is needed.', 'ai-for-seo' ) . '</p>';
@@ -1426,10 +1431,6 @@ function ai4seo_render_analysis_issues_page( int $page = 1 ): string {
 	$html   = '<div class="ai4seo-analysis-issues" data-page="' . esc_attr( $issues['page'] ?? $page ) . '" aria-live="polite">';
 	if ( null === $issues ) {
 		return $html . '<p>' . esc_html__( 'The affected entries could not be loaded. Please try again shortly.', 'ai-for-seo' ) . '</p></div>';
-	}
-	$inventory = ai4seo_get_raw_option_snapshot( AI4SEO_ANALYSIS_ISSUE_MIGRATION_OPTION );
-	if ( null === $inventory || ! $inventory['exists'] || 'complete' !== ( $inventory['value']['phase'] ?? '' ) ) {
-		$html .= '<p>' . esc_html__( 'The list is being completed by a full analysis. Additional affected entries may appear.', 'ai-for-seo' ) . '</p>';
 	}
 	if ( ! $issues['total'] ) {
 		return $html . '</div>';
@@ -1982,14 +1983,22 @@ function ai4seo_get_button_tag(
 /**
  * Returns a native collapsible details/summary block.
  *
- * @param string $summary Label shown as the clickable summary.
- * @param string $content Collapsible content HTML.
- * @param string $css_class Additional root CSS classes.
+ * @param string $summary           Label shown as the clickable summary.
+ * @param string $content           Collapsible content HTML.
+ * @param string $css_class         Additional root CSS classes.
  * @param string $content_css_class Additional content wrapper CSS classes.
- * @param bool   $is_open Whether the block should render open.
+ * @param bool   $is_open           Whether the block should render open.
+ * @param string $open_summary      Optional label shown while the block is open.
  * @return string HTML.
  */
-function ai4seo_get_collapsible_tag( string $summary, string $content, string $css_class = '', string $content_css_class = '', bool $is_open = false ): string {
+function ai4seo_get_collapsible_tag(
+	string $summary,
+	string $content,
+	string $css_class = '',
+	string $content_css_class = '',
+	bool $is_open = false,
+	string $open_summary = ''
+): string {
 	// Normalize helper input so notices can pass short labels and prebuilt safe HTML consistently.
 	$summary = sanitize_text_field( $summary );
 	$content = ai4seo_wp_kses( $content );
@@ -2000,14 +2009,17 @@ function ai4seo_get_collapsible_tag( string $summary, string $content, string $c
 	$open_attribute    = $is_open ? ' open="open"' : '';
 
 	// Native details/summary keeps short support sections expandable without adding JavaScript.
-	$output          = '<details class="' . esc_attr( $css_class ) . '"' . $open_attribute . '>';
-		$output     .= '<summary class="ai4seo-collapsible-summary">';
-			$output .= '<span class="ai4seo-collapsible-summary-text">' . esc_html( $summary ) . '</span>';
-		$output     .= '</summary>';
-		$output     .= '<div class="' . esc_attr( $content_css_class ) . '">';
-			$output .= $content;
-		$output     .= '</div>';
-	$output         .= '</details>';
+	$output  = '<details class="' . esc_attr( $css_class ) . '"' . $open_attribute . '>';
+	$output .= '<summary class="ai4seo-collapsible-summary">';
+	$output .= '<span class="ai4seo-collapsible-summary-text">' . esc_html( $summary ) . '</span>';
+	if ( '' !== $open_summary ) {
+		$output .= '<span class="ai4seo-collapsible-summary-open-text">' . esc_html( $open_summary ) . '</span>';
+	}
+	$output .= '</summary>';
+	$output .= '<div class="' . esc_attr( $content_css_class ) . '">';
+	$output .= $content;
+	$output .= '</div>';
+	$output .= '</details>';
 
 	return $output;
 }
@@ -2565,7 +2577,7 @@ function ai4seo_get_prompt_slider_setting_stages( string $setting_name ): array 
 				),
 				array(
 					'value'       => '3',
-					'label'       => esc_html__( 'Supported', 'ai-for-seo' ),
+					'label'       => esc_html__( 'Use supported details', 'ai-for-seo' ),
 					'description' => esc_html__( 'Use filename details when good indicators support them. Add clear filename entities or quantities only when image evidence or usage context makes them likely.', 'ai-for-seo' ),
 				),
 				array(
@@ -2575,7 +2587,7 @@ function ai4seo_get_prompt_slider_setting_stages( string $setting_name ): array 
 				),
 				array(
 					'value'       => '5',
-					'label'       => esc_html__( 'Filename led', 'ai-for-seo' ),
+					'label'       => esc_html__( 'Prioritize filename', 'ai-for-seo' ),
 					'description' => esc_html__( 'Use filename details proactively. Preserve plausible filename names, product identifiers, brands, and quantities from simple compatible clues unless stronger evidence contradicts them.', 'ai-for-seo' ),
 					'note'        => esc_html__( 'This could overtrust filenames and preserve upload artifacts, stock-photo labels, or misleading names when they look plausible.', 'ai-for-seo' ),
 				),
@@ -2701,7 +2713,7 @@ function ai4seo_get_prompt_slider_setting_stages( string $setting_name ): array 
 				),
 				array(
 					'value'       => '5',
-					'label'       => esc_html__( 'CTA led', 'ai-for-seo' ),
+					'label'       => esc_html__( 'Prioritize CTAs', 'ai-for-seo' ),
 					'description' => esc_html__( 'Use CTA and benefit wording proactively. Apply action-oriented wording across applicable description fields when the page intent supports conversion.', 'ai-for-seo' ),
 					'note'        => esc_html__( 'This could make metadata sound too sales-focused or add action-oriented language where the page intent is mostly informational.', 'ai-for-seo' ),
 				),

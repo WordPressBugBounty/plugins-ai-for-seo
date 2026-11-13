@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯.
 
 // Centralize plugin identity and asset-cache declarations consumed throughout bootstrap.
-const AI4SEO_PLUGIN_VERSION_NUMBER              = '2.6.2';
+const AI4SEO_PLUGIN_VERSION_NUMBER              = '2.6.3';
 const AI4SEO_PLUGIN_NAME                        = 'SOOZ - AI for SEO';
 const AI4SEO_SHORT_PLUGIN_NAME                  = 'SOOZ';
 const AI4SEO_PLUGIN_DESCRIPTION                 = 'One-Click SEO solution. SOOZ - AI for SEO helps your website to rank higher in Web Search results.';
@@ -286,6 +286,18 @@ const AI4SEO_METADATA_KEYWORDS_RECOMMENDED_MAX_ITEMS = 10;
  */
 function ai4seo_get_change_log(): array {
 	return array(
+		array(
+			'date'      => '2026-11-13',
+			'version'   => '2.6.3',
+			'important' => false,
+			'updates'   => array(
+				'Fixed updates on sites using MyISAM without requiring a database conversion, while preserving existing SEO data and queues.',
+				'Made background SEO analysis easier to follow with clearer progress details and expandable information.',
+				'Made confirmation messages easier to notice when bringing the next background execution forward.',
+				'Clarified the filename influence and call-to-action settings.',
+				'Bug Fixes & Maintenance: Made 1 performance improvement.',
+			),
+		),
 		array(
 			'date'      => '2026-11-05',
 			'version'   => '2.6.2',

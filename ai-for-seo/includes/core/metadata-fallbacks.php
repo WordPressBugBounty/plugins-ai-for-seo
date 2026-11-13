@@ -15,14 +15,15 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Populate missing metadata values by applying configured fallbacks.
  *
- * @param int    $post_id                      The current post ID.
- * @param string $metadata_identifier          Metadata identifier to resolve.
- * @param array  $our_metadata                 Reference to metadata collection for this post.
- * @param array  $visited_metadata_identifiers Optional stack to avoid circular fallbacks.
+ * @param int        $post_id                      The current post ID.
+ * @param string     $metadata_identifier          Metadata identifier to resolve.
+ * @param array      $our_metadata                 Reference to metadata collection for this post.
+ * @param array      $visited_metadata_identifiers Optional stack to avoid circular fallbacks.
+ * @param array|null $fallback_context             Optional render-local content cache; null disables reuse.
  *
  * @return void
  */
-function ai4seo_apply_possible_fallbacks( int $post_id, string $metadata_identifier, array &$our_metadata, array $visited_metadata_identifiers = array() ): void {
+function ai4seo_apply_possible_fallbacks( int $post_id, string $metadata_identifier, array &$our_metadata, array $visited_metadata_identifiers = array(), ?array &$fallback_context = null ): void {
 	// Retain the plugin-wide recursion guard because configured metadata fallbacks can call this resolver recursively.
 	if ( ai4seo_prevent_loops( __FUNCTION__, 5, 100 ) ) {
 		ai4seo_debug_message( 176107421, 'Prevented loop', true );
@@ -76,7 +77,7 @@ function ai4seo_apply_possible_fallbacks( int $post_id, string $metadata_identif
 			break;
 
 		case 'content':
-			$fallback_value = ai4seo_get_metadata_fallback_post_content( $post_id );
+			$fallback_value = ai4seo_get_metadata_fallback_post_content( $post_id, $fallback_context );
 			break;
 
 		default:
@@ -94,7 +95,7 @@ function ai4seo_apply_possible_fallbacks( int $post_id, string $metadata_identif
 
 			// Resolve an empty dependency first so chained field fallbacks share one final value.
 			if ( ! isset( $our_metadata[ $fallback_metadata_identifier ] ) || ! $our_metadata[ $fallback_metadata_identifier ] ) {
-				ai4seo_apply_possible_fallbacks( $post_id, $fallback_metadata_identifier, $our_metadata, $visited_metadata_identifiers );
+				ai4seo_apply_possible_fallbacks( $post_id, $fallback_metadata_identifier, $our_metadata, $visited_metadata_identifiers, $fallback_context );
 			}
 
 			$fallback_value = $our_metadata[ $fallback_metadata_identifier ] ?? '';
@@ -355,21 +356,47 @@ function ai4seo_get_metadata_fallback_post_excerpt( int $post_id ): string {
 /**
  * Get a shortened fallback text from the post content.
  *
- * @param int $post_id Current post ID.
+ * @param int        $post_id          Current post ID.
+ * @param array|null $fallback_context Optional render-local cache, bounded to one raw value of at most 1 MiB.
  *
  * @return string Prepared fallback text.
  */
-function ai4seo_get_metadata_fallback_post_content( int $post_id ): string {
-	// Read raw post content so fallback cleanup owns markup removal and whitespace normalization.
-	$post_content = get_post_field( 'post_content', $post_id, 'raw' );
-	$post_content = ai4seo_prepare_metadata_fallback_text( $post_content );
+function ai4seo_get_metadata_fallback_post_content( int $post_id, ?array &$fallback_context = null ): string {
+	// Preserve every source read so changed content is observed within the render.
+	$raw_post_content = get_post_field( 'post_content', $post_id, 'raw' );
+	$cacheable        = null !== $fallback_context && is_string( $raw_post_content ) && strlen( $raw_post_content ) <= 1048576;
+	$blog_id          = $cacheable ? get_current_blog_id() : 0;
 
-	// Skip the length helper when WordPress did not provide usable source text.
-	if ( '' === $post_content ) {
-		return '';
+	if ( $cacheable && isset( $fallback_context['content'] ) ) {
+		$cached_content = $fallback_context['content'];
+
+		if ( $post_id === $cached_content['post_id']
+			&& $blog_id === $cached_content['blog_id']
+			&& $raw_post_content === $cached_content['raw'] ) {
+			return $cached_content['value'];
+		}
+
+		unset( $cached_content );
 	}
 
-	return ai4seo_limit_metadata_fallback_text( $post_content, 150 );
+	// Release the previous raw value before transforming changed or oversized input.
+	if ( null !== $fallback_context ) {
+		unset( $fallback_context['content'] );
+	}
+
+	$post_content = ai4seo_prepare_metadata_fallback_text( $raw_post_content );
+	$result       = '' === $post_content ? '' : ai4seo_limit_metadata_fallback_text( $post_content, 150 );
+
+	if ( $cacheable ) {
+		$fallback_context['content'] = array(
+			'post_id' => $post_id,
+			'blog_id' => $blog_id,
+			'raw'     => $raw_post_content,
+			'value'   => $result,
+		);
+	}
+
+	return $result;
 }
 
 

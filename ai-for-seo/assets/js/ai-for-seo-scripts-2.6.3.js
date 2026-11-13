@@ -3265,6 +3265,7 @@ function ai4seo_init_shared_primary_asset_elements(scope = null) {
 
 function ai4seo_init_plugin_ui_elements() {
 	ai4seo_init_navigation_groups();
+	ai4seo_init_scheduling_result_toast();
 
 	// Internal plugin pages initialize shared Help and FAQ accordion behavior before page-specific controls.
 	ai4seo_init_accordion_elements();
@@ -29117,6 +29118,26 @@ function ai4seo_show_warning_toast(message, duration) {
 }
 
 // =========================================================================================== \\
+
+/** Show each translated dashboard scheduling result once per rendered marker. */
+function ai4seo_init_scheduling_result_toast() {
+	jQuery( '.ai4seo-scheduling-result-toast' ).each( function() {
+		const $marker = jQuery( this );
+		const type = $marker.attr( 'data-toast-type' );
+		const message = $marker.text();
+
+		// Consume the marker before repeated UI initialization can show the same result again.
+		$marker.remove();
+		if (!['success', 'info', 'warning', 'error'].includes( type ) || !message.trim()) {
+			return;
+		}
+		ai4seo_show_toast( {
+			type: type,
+			message: message,
+			duration: ai4seo_calculate_toast_duration_by_message_length( message, type === 'error' ? 1.7 : 1.3 )
+		} );
+	} );
+}
 
 function ai4seo_show_generic_saved_successfully_toast() {
 	return ai4seo_show_success_toast( wp.i18n.__( 'Saved.', 'ai-for-seo' ) );

@@ -239,7 +239,7 @@ echo '<div class="ai4seo-dashboard-refresh-root" data-ai4seo-rendered-at="' . es
 echo "<div class='ai4seo-dashboard-notifications'>";
 
 if ( null !== $ai4seo_execute_sooner_result ) {
-	$ai4seo_scheduling_messages = array(
+	$ai4seo_scheduling_messages    = array(
 		'scheduled'               => __( 'The next execution has been scheduled.', 'ai-for-seo' ),
 		'already-scheduled'       => __( 'An execution is already scheduled shortly.', 'ai-for-seo' ),
 		'scheduled-with-fallback' => __( 'The next execution is scheduled. The previous fallback event was retained.', 'ai-for-seo' ),
@@ -248,7 +248,18 @@ if ( null !== $ai4seo_execute_sooner_result ) {
 		'blocked'                 => __( 'The background state cannot be read safely. Existing jobs have been retained.', 'ai-for-seo' ),
 		'failed'                  => __( 'The requested execution could not be verified. Please try again or check the cron configuration.', 'ai-for-seo' ),
 	);
-	echo '<p role="status">' . esc_html( $ai4seo_scheduling_messages[ $ai4seo_execute_sooner_result['status'] ] ) . '</p>';
+	$ai4seo_scheduling_toast_types = array(
+		'scheduled'               => 'success',
+		'already-scheduled'       => 'info',
+		'scheduled-with-fallback' => 'info',
+		'deferred'                => 'warning',
+		'failed'                  => 'error',
+	);
+	if ( isset( $ai4seo_scheduling_toast_types[ $ai4seo_execute_sooner_result['status'] ] ) ) {
+		echo '<span class="ai4seo-scheduling-result-toast" data-toast-type="' . esc_attr( $ai4seo_scheduling_toast_types[ $ai4seo_execute_sooner_result['status'] ] ) . '" hidden>' . esc_html( $ai4seo_scheduling_messages[ $ai4seo_execute_sooner_result['status'] ] ) . '</span>';
+	} else {
+		echo '<p role="status">' . esc_html( $ai4seo_scheduling_messages[ $ai4seo_execute_sooner_result['status'] ] ) . '</p>';
+	}
 }
 
 if ( $ai4seo_notifications ) {

@@ -333,6 +333,9 @@ function ai4seo_inject_our_meta_tags_into_the_html_head( string $full_html_buffe
 	$current_post_title_for_placeholders    = $metadata_placeholder_replacements['TITLE'] ?? '';
 	$current_product_price_for_placeholders = $metadata_placeholder_replacements['PRODUCT_PRICE'] ?? '';
 
+	// Keep repeated raw-content transformations within this output pass.
+	$fallback_context = array();
+
 	foreach ( $metadata_field_descriptors as $this_metadata_identifier => $this_metadata_field_details ) {
 		if ( ! in_array( $this_metadata_identifier, $active_meta_tags, true )
 			|| in_array( $this_metadata_identifier, $output_state['unknown'], true ) ) {
@@ -349,7 +352,7 @@ function ai4seo_inject_our_meta_tags_into_the_html_head( string $full_html_buffe
 
 		// find a fallback if neither we nor a third party have a value for this meta tag.
 		if ( ! $is_taxonomy && empty( $this_our_metadata ) && empty( $this_found_third_party_meta_tags ) ) {
-			ai4seo_apply_possible_fallbacks( $post_id, $this_metadata_identifier, $our_metadata );
+			ai4seo_apply_possible_fallbacks( $post_id, $this_metadata_identifier, $our_metadata, array(), $fallback_context );
 			$this_our_metadata = $our_metadata[ $this_metadata_identifier ] ?? '';
 
 			// Apply the same resolution rules to fallback values before they enter output-mode decisions.

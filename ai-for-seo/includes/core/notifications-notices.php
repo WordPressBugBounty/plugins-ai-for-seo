@@ -1752,20 +1752,22 @@ function ai4seo_echo_notice_from_notification( string $notification_index, array
 		$message .= '<br /><br />' . __( 'If you have any questions, just click the button below to <strong>contact us</strong>. We’re happy to help. In any language you prefer.', 'ai-for-seo' );
 	}
 
-	// Add CSS classes for unread notifications (blinking).
-	$additional_classes = '';
+	// Keep optional display classes in a stable order.
+	$additional_class_names = array();
 
-	// unread?
-	$additional_classes .= $is_unread ? ' ai4seo-unread-notice' : '';
+	if ( $is_unread ) {
+		$additional_class_names[] = 'ai4seo-unread-notice';
+	}
 
-	// ignore during dashboard refresh?
 	if ( $ignore_during_dashboard_refresh ) {
-		$additional_classes .= ' ai4seo-ignore-during-dashboard-refresh';
+		$additional_class_names[] = 'ai4seo-ignore-during-dashboard-refresh';
 	}
 
 	if ( $is_image_only_notification ) {
-		$additional_classes .= ' ai4seo-image-only-notification';
+		$additional_class_names[] = 'ai4seo-image-only-notification';
 	}
+
+	$additional_classes = $additional_class_names ? ' ' . implode( ' ', $additional_class_names ) : '';
 
 	echo '<div class="notice ai4seo-notice ai4seo-notification' . ( $show_notice_dismiss_button ? ' is-dismissible' : '' ) . ' ' . esc_attr( $notice_class ) . esc_attr( $additional_classes ) . '" data-notification-index="' . esc_attr( $notification_index ) . '"' . ( $is_offer ? ' data-offer-surface="' . esc_attr( $surface ) . '"' : '' ) . '>';
 
@@ -1832,16 +1834,28 @@ function ai4seo_filter_notification_message( string $message, string $notificati
 		$message = ai4seo_get_notification_avatar_greeting_prefix() . $message;
 	}
 
-	// add voucher_code if the notification has 'voucher_code' set.
+	// Add voucher content only when requested by the notification.
 	if ( ! empty( $notification['voucher_code'] ) ) {
-		$message .= '<br><br>';
-		$message .= esc_html__( 'Enter this voucher code during checkout to apply the discount:', 'ai-for-seo' ) . '<br>';
-		$message .= ai4seo_get_voucher_code_output( $notification['voucher_code'] );
-		$message .= '';
+		$message .= ai4seo_get_notification_voucher_suffix( $notification['voucher_code'] );
 	}
 
 	// Filter the message through the 'ai4seo_notification_message' filter.
 	return apply_filters( 'ai4seo_notification_message', $message, $notification_index, $notification );
+}
+
+
+/**
+ * Render the voucher suffix after the caller has checked its visibility.
+ *
+ * @param mixed $voucher_code Voucher value passed unchanged to the shared renderer.
+ * @return string Voucher instructions and copyable voucher-code HTML.
+ */
+function ai4seo_get_notification_voucher_suffix( $voucher_code ): string {
+	$suffix  = '<br><br>';
+	$suffix .= esc_html__( 'Enter this voucher code during checkout to apply the discount:', 'ai-for-seo' ) . '<br>';
+	$suffix .= ai4seo_get_voucher_code_output( $voucher_code );
+
+	return $suffix;
 }
 
 
@@ -3260,6 +3274,32 @@ function ai4seo_check_for_low_credits_balance_notification( $force = false ) {
 
 
 /**
+ * Build ordered content type labels for a metadata status notice.
+ *
+ * @param array  $counts_by_post_type Counts in display order.
+ * @param string $taxonomy_status_option Status used to resolve taxonomy archive counts.
+ * @return string[] Unescaped labels for the notice.
+ */
+function ai4seo_build_notification_counted_content_type_labels( array $counts_by_post_type, string $taxonomy_status_option ): array {
+	$labels = array();
+
+	foreach ( $counts_by_post_type as $post_type => $num_posts ) {
+		if ( AI4SEO_TAXONOMY_PROXY_POST_TYPE === $post_type ) {
+			$labels = array_merge( $labels, ai4seo_get_taxonomy_proxy_count_labels( $num_posts, $taxonomy_status_option ) );
+			continue;
+		}
+		if ( 'attachment' === $post_type ) {
+			$post_type = 'media file';
+		}
+
+		$labels[] = ai4seo_get_post_type_translation( $post_type, $num_posts );
+	}
+
+	return $labels;
+}
+
+
+/**
  * Function to add the performance notice. ATTENTION: Make sure to add the admin notices if the user got the rights to see them
  *
  * @param bool $force The force value.
@@ -3331,20 +3371,7 @@ function ai4seo_check_for_missing_entries_notification( $force = false ) {
 
 	// YOU'RE DOING GREAT SO FAR! NOTICE.
 	if ( $num_generated_by_post_type ) {
-		$generated_post_types_strings_parts = array();
-
-		foreach ( $num_generated_by_post_type as $post_type => $num_posts ) {
-			if ( AI4SEO_TAXONOMY_PROXY_POST_TYPE === $post_type ) {
-				$generated_post_types_strings_parts = array_merge( $generated_post_types_strings_parts, ai4seo_get_taxonomy_proxy_count_labels( $num_posts, AI4SEO_GENERATED_METADATA_POST_IDS_OPTION_NAME ) );
-				continue;
-			}
-			// attachment -> media workaround.
-			if ( 'attachment' === $post_type ) {
-				$post_type = 'media file';
-			}
-
-			$generated_post_types_strings_parts[] = ai4seo_get_post_type_translation( $post_type, $num_posts );
-		}
+		$generated_post_types_strings_parts = ai4seo_build_notification_counted_content_type_labels( $num_generated_by_post_type, AI4SEO_GENERATED_METADATA_POST_IDS_OPTION_NAME );
 
 		// build $post_types_to_mention_string by separating with commas and the last one with "and".
 		if ( count( $generated_post_types_strings_parts ) > 1 ) {
@@ -3361,20 +3388,7 @@ function ai4seo_check_for_missing_entries_notification( $force = false ) {
 	}
 
 	// ROOM FOR IMPROVEMENT! NOTICE.
-	$missing_post_types_strings_parts = array();
-
-	foreach ( $num_missing_posts_by_post_type as $post_type => $num_posts ) {
-		if ( AI4SEO_TAXONOMY_PROXY_POST_TYPE === $post_type ) {
-			$missing_post_types_strings_parts = array_merge( $missing_post_types_strings_parts, ai4seo_get_taxonomy_proxy_count_labels( $num_posts, AI4SEO_MISSING_METADATA_POST_IDS_OPTION_NAME ) );
-			continue;
-		}
-		// attachment -> media workaround.
-		if ( 'attachment' === $post_type ) {
-			$post_type = 'media file';
-		}
-
-		$missing_post_types_strings_parts[] = ai4seo_get_post_type_translation( $post_type, $num_posts );
-	}
+	$missing_post_types_strings_parts = ai4seo_build_notification_counted_content_type_labels( $num_missing_posts_by_post_type, AI4SEO_MISSING_METADATA_POST_IDS_OPTION_NAME );
 
 	// build $post_types_to_mention_string by separating with commas and the last one with "and"
 	// only, when we already have generated posts.
@@ -3466,20 +3480,7 @@ function ai4seo_check_for_robhub_account_error_notification( $api_response, $for
 	);
 
 	if ( $technical_details ) {
-		// Keep raw support data collapsed by default so the admin notice does not become visually noisy.
-		$technical_details_content = '<ul class="ai4seo-notice-technical-details-list">';
-
-		foreach ( $technical_details as $this_technical_detail ) {
-			$technical_details_content .= '<li><code>' . esc_html( $this_technical_detail ) . '</code></li>';
-		}
-
-		$technical_details_content .= '</ul>';
-		$message                   .= ai4seo_get_collapsible_tag(
-			esc_html__( 'Technical details', 'ai-for-seo' ),
-			$technical_details_content,
-			'ai4seo-notice-technical-details',
-			'ai4seo-notice-technical-details-content'
-		);
+		$message .= ai4seo_get_notification_technical_details_tag( $technical_details );
 	}
 
 	// Configure account recovery actions with the refresh button first, then account and recovery links.
@@ -3502,6 +3503,30 @@ function ai4seo_check_for_robhub_account_error_notification( $api_response, $for
 			'contact_us'                              => true,
 			'contact_us_info'                         => false,
 		)
+	);
+}
+
+
+/**
+ * Render technical notification details in a collapsed support section.
+ *
+ * @param array $technical_details Technical detail strings to escape and render.
+ * @return string Collapsible technical details markup.
+ */
+function ai4seo_get_notification_technical_details_tag( array $technical_details ): string {
+	// Keep raw support data collapsed by default so the admin notice does not become visually noisy.
+	$technical_details_content = '<ul class="ai4seo-notice-technical-details-list">';
+
+	foreach ( $technical_details as $this_technical_detail ) {
+		$technical_details_content .= '<li><code>' . esc_html( $this_technical_detail ) . '</code></li>';
+	}
+
+	$technical_details_content .= '</ul>';
+	return ai4seo_get_collapsible_tag(
+		esc_html__( 'Technical details', 'ai-for-seo' ),
+		$technical_details_content,
+		'ai4seo-notice-technical-details',
+		'ai4seo-notice-technical-details-content'
 	);
 }
 
@@ -3639,11 +3664,6 @@ function ai4seo_check_for_payg_status_errors( $payg_status, $force = false ) {
 				$message .= ' ' . __( 'No saved payment method is currently available for automatic refills.', 'ai-for-seo' );
 			}
 
-			$message                     .= ' ' . __( 'The fastest way to continue immediately is to manually purchase a Credits Pack using the button below. This will fix most payment-method-related errors.', 'ai-for-seo' );
-			$show_contact_us_button       = true;
-			$show_get_more_credits_button = true;
-			$show_sync_account_button     = true;
-			$force                        = true;
 			break;
 		case 'payment-failed':
 			$notice_type = 'notice-error';
@@ -3652,11 +3672,6 @@ function ai4seo_check_for_payg_status_errors( $payg_status, $force = false ) {
 				$message .= ' ' . __( 'The payment confirmation took too long to arrive.', 'ai-for-seo' );
 			}
 
-			$message                     .= ' ' . __( 'The fastest way to continue immediately is to manually purchase a Credits Pack using the button below. This will fix most payment-method-related errors.', 'ai-for-seo' );
-			$show_contact_us_button       = true;
-			$show_get_more_credits_button = true;
-			$show_sync_account_button     = true;
-			$force                        = true;
 			break;
 		case 'error':
 			$notice_type              = 'notice-error';
@@ -3668,6 +3683,15 @@ function ai4seo_check_for_payg_status_errors( $payg_status, $force = false ) {
 		default:
 			ai4seo_remove_notification( $notification_index );
 			return;
+	}
+
+	// Share recovery actions for failed payments and unusable payment methods.
+	if ( in_array( $payg_status, array( 'payment-method-failed', 'payment-failed' ), true ) ) {
+		$message                     .= ' ' . __( 'The fastest way to continue immediately is to manually purchase a Credits Pack using the button below. This will fix most payment-method-related errors.', 'ai-for-seo' );
+		$show_contact_us_button       = true;
+		$show_get_more_credits_button = true;
+		$show_sync_account_button     = true;
+		$force                        = true;
 	}
 
 	// check if this notification is already dismissed.
@@ -3959,6 +3983,33 @@ function ai4seo_check_for_finished_seo_autopilot_notification( $force = false ) 
 
 
 /**
+ * Append the discount action text when its button row is visible.
+ *
+ * @param string $discount_description Prepared discount description.
+ * @param bool   $show_buttons_row Whether the corresponding button row is visible.
+ * @return string Description with the optional action text.
+ */
+function ai4seo_append_discount_notification_call_to_action( string $discount_description, bool $show_buttons_row ): string {
+	// Mention the action only when the corresponding button row will actually be rendered.
+	if ( ! $show_buttons_row ) {
+		return $discount_description;
+	}
+
+	$discount_call_to_action = sprintf(
+		/* translators: %s: Call-to-action button label. */
+		esc_html__( 'Click %1$s below to apply the discount now.', 'ai-for-seo' ),
+		'<strong>"' . esc_html__( 'Grab Deal', 'ai-for-seo' ) . '"</strong>'
+	);
+
+	if ( $discount_call_to_action ) {
+		$discount_description .= '<br><br>' . $discount_call_to_action;
+	}
+
+	return $discount_description;
+}
+
+
+/**
  * Update the active discount notification from RobHub discount data.
  *
  * @param array $discount Discount configuration received from RobHub.
@@ -4066,25 +4117,8 @@ function ai4seo_check_discount_notification( $discount, $allow_notification_forc
 		}
 	}
 
-	// Mention the action only when the corresponding button row will actually be rendered.
-	$discount_call_to_action = '';
-
-	if ( $show_buttons_row ) {
-		$discount_call_to_action = sprintf(
-			/* translators: %s: Call-to-action button label. */
-			esc_html__( 'Click %1$s below to apply the discount now.', 'ai-for-seo' ),
-			'<strong>"' . esc_html__( 'Grab Deal', 'ai-for-seo' ) . '"</strong>'
-		);
-	}
-
-	$generic_coupon_text = $discount_description;
-
-	if ( $discount_call_to_action ) {
-		$generic_coupon_text .= '<br><br>' . $discount_call_to_action;
-	}
-
 	// Store an image-free text fallback; rendering creates the typed banner locally from validated metadata.
-	$message = $generic_coupon_text;
+	$message = ai4seo_append_discount_notification_call_to_action( $discount_description, $show_buttons_row );
 
 	$additional_fields = array(
 		'notice_type'                        => 'notice-success',

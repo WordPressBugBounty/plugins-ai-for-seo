@@ -1,4 +1,11 @@
 == Changelog ==
+= 2.6.3 =
+* Fixed updates on sites using MyISAM without requiring a database conversion, while preserving existing SEO data and queues.
+* Made background SEO analysis easier to follow with clearer progress details and expandable information.
+* Made confirmation messages easier to notice when bringing the next background execution forward.
+* Clarified the filename influence and call-to-action settings.
+* Bug Fixes & Maintenance: Made 1 performance improvement.
+
 = 2.6.2 =
 * Added a choice of verified source posts for image generation, with automatic context checks and clear feedback when a source is unavailable.
 * Added detailed lists of entries affected by SEO analysis problems, while allowing unaffected content to continue processing.

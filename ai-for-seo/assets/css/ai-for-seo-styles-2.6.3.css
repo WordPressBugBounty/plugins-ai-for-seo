@@ -9914,6 +9914,16 @@ div.ai4seo-bulk-generation-status-animated-logo-container > img.ai4seo-bulk-gene
 	margin: 4px 8px 4px 0;
 }
 
+/* Optional summary labels follow the native details element's open state. */
+.ai4seo-collapsible-summary-open-text,
+.ai4seo-collapsible[open] > summary:has(.ai4seo-collapsible-summary-open-text) > .ai4seo-collapsible-summary-text {
+	display: none;
+}
+
+.ai4seo-collapsible[open] > summary > .ai4seo-collapsible-summary-open-text {
+	display: inline;
+}
+
 /* Published statistics remain visible during a quieter background refresh. */
 .ai4seo-analysis-progress-text {
 	font-weight: 400;

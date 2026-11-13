@@ -465,10 +465,32 @@ function ai4seo_migrate_post_state_storage_batch( float $budget_seconds = 2.0 ):
 	try {
 		if ( ! $state ) {
 			$schema = ai4seo_ensure_post_state_schema();
-			if ( ! $schema['success'] ) {
+			$legacy = ! $schema['success'] && 'MyISAM' === ( $schema['engine'] ?? '' );
+			if ( ! $schema['success'] && ! $legacy ) {
 				return ai4seo_plugin_update_step_result( 'blocked', $schema['reason'] );
 			}
-			foreach ( array( 'memberships', 'totals', 'work' ) as $table ) {
+			$tables = array( 'memberships', 'totals', 'work' );
+			if ( $legacy ) {
+				global $wpdb;
+				// Never adopt legacy options when a lost checkpoint may have left indexed data behind.
+				if ( array() !== ai4seo_read_title_order_state() ) {
+					return ai4seo_plugin_update_step_result( 'blocked', 'legacy_storage_state_conflict' );
+				}
+				$tables = array_merge( $tables, array( 'title_rows', 'title_blocks', 'title_counts' ) );
+				$names  = array();
+				foreach ( $tables as $table ) {
+					$names[] = $wpdb->prefix . 'ai4seo_post_' . $table;
+				}
+				$inventory = ai4seo_post_state_query( 'SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ({{names}})', array( 'names' => $names ), true );
+				if ( null === $inventory ) {
+					return ai4seo_plugin_update_step_result( 'blocked', 'legacy_storage_inventory_unreadable' );
+				}
+				$existing_tables = array_column( $inventory, 'TABLE_NAME' );
+			}
+			foreach ( $tables as $table ) {
+				if ( $legacy && ! in_array( $wpdb->prefix . 'ai4seo_post_' . $table, $existing_tables, true ) ) {
+					continue;
+				}
 				$existing = ai4seo_post_state_query( 'SELECT 1 FROM {{' . $table . '}} LIMIT 1', array(), true );
 				if ( null === $existing || $existing ) {
 					return ai4seo_plugin_update_step_result( 'blocked', 'unowned_target_rows' );
@@ -476,7 +498,7 @@ function ai4seo_migrate_post_state_storage_batch( float $budget_seconds = 2.0 ):
 			}
 			$next = array(
 				'version'    => AI4SEO_POST_STATE_STORAGE_VERSION,
-				'phase'      => 'draining',
+				'phase'      => $legacy ? 'legacy' : 'draining',
 				'generation' => 1,
 				'source'     => 0,
 				'offset'     => 0,
@@ -487,6 +509,22 @@ function ai4seo_migrate_post_state_storage_batch( float $budget_seconds = 2.0 ):
 				'repair'     => false,
 				'error'      => '',
 			);
+			if ( $legacy ) {
+				// Selecting the unchanged options storage needs one checked state write, not a transaction.
+				$mutation_lock = ai4seo_get_post_id_option_transition_semaphore_name();
+				if ( ! ai4seo_acquire_semaphore( $mutation_lock ) ) {
+					return ai4seo_plugin_update_step_result( 'deferred', 'legacy_storage_busy' );
+				}
+				try {
+					$saved = array() === ai4seo_read_post_state_storage_status()
+						&& ai4seo_is_database_advisory_lock_owned_by_current_connection( $analysis_lock )
+						&& ai4seo_renew_post_id_option_transition_semaphore()
+						&& ai4seo_save_post_state_storage_status( array(), $next );
+				} finally {
+					$released = ai4seo_release_semaphore( $mutation_lock );
+				}
+				return ai4seo_plugin_update_step_result( $saved && $released ? 'completed' : 'blocked', $saved && $released ? '' : 'legacy_storage_checkpoint_failed' );
+			}
 			if ( ! ai4seo_post_state_transaction(
 				static function ( array $current ) use ( $next ): bool {
 					return ! $current && ai4seo_save_post_state_storage_status( $current, $next );
